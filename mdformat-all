@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
-mdformat --number --wrap 80 "**/*.md"
-markdownlint --fix "**/*.md"
-markdown-table-formatter "**/*.md"
+set -xeu
+
+mdformat --number --wrap 80 **/*.md
+markdownlint --fix **/*.md
+markdown-table-formatter **/*.md
