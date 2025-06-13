@@ -1,0 +1,3 @@
+# Typescript tooling
+unset npm_config_http_proxy
+bun install --global @biomejs/biome typescript
