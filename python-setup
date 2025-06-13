@@ -1,4 +1,4 @@
-if python -c 'import sys, tomllib; sys.exit(0 if "dev" in (tomllib.load(open("pyproject.toml", "rb")).get("project", {}).get("optional-dependencies", {})) else 1)'; then
+if python -c 'import sys, tomllib; sys.exit(0 if "dev" in (tomllib.load(open("pyproject.toml", "rb")).get("project", {}).get("dependency-groups", {})) else 1)'; then
   uv pip install --group dev --system --editable .
   uv venv
   uv sync --group dev
