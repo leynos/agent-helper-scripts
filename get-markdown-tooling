@@ -1,3 +1,12 @@
+# Install glow
+INSTALL_GLOW=${INSTALL_GLOW:-0}
+if ((INSTALL_GLOW)); then
+  mkdir -p /etc/apt/keyrings
+  curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | tee /etc/apt/sources.list.d/charm.list
+  apt update -y && apt install -y glow
+fi
+
 bun install --global markdownlint-cli2
 ln -v -s "${HOME}/.bun/bin/markdownlint-cli2" "${HOME}/.bun/bin/markdownlint"
 time bun install --global @mermaid-js/mermaid-cli
