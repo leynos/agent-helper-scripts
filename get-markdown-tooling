@@ -1,0 +1,8 @@
+bun install --global markdownlint-cli2
+ln -v -s "${HOME}/.bun/bin/markdownlint-cli2" "${HOME}/.bun/bin/markdownlint"
+time bun install --global @mermaid-js/mermaid-cli
+uv tool install --from git+https://github.com/leynos/nixie nixie
+uv tool install mdformat
+bun install -g markdown-table-formatter
+curl https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/mdformat-all -o /usr/local/bin/mdformat-all
+chmod 755 /usr/local/bin/mdformat-all
