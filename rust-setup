@@ -1,0 +1,8 @@
+RUST_PRE_BUILD=${RUST_PRE_BUILD:-0}
+
+# Pre-build the package
+if ! ((RUST_PRE_BUILD)); then
+  echo "Skipping pre-install of dependencies with cargo build."
+elif ! cargo build; then
+  echo "Installing dependencies with cargo build failed."
+fi
