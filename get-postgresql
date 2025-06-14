@@ -1,2 +1,2 @@
-apy update -y
+apt update -y
 apt install postgresql postgresql-contrib
