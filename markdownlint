@@ -2,7 +2,8 @@
 
 set -xeu
 MDLINT_BIN="${HOME}/.bun/bin/markdownlint-cli2"
-MDLINT_CONFIG=$(mktemp)
+MDLINT_CONFIG_DIR="$(mktemp -d)"
+MDLINT_CONFIG="${MDLINT_CONFIG_DIR}/.markdownlint-cli2.jsonc"
 cat > "${MDLINT_CONFIG}" <<'__EOF'
 {
   // Ignore MD013 (line length) inside tables since reflowing
@@ -24,4 +25,4 @@ if [[ -f .markdownlint-cli2.jsonc ]]; then
 else
   "${MDLINT_BIN}" --config "${MDLINT_CONFIG}" "$@"
 fi
-rm "${MDLINT_CONFIG}"
+rm -rf "${MDLINT_CONFIG_DIR}"
