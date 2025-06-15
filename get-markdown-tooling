@@ -1,3 +1,9 @@
+function get_bin() {
+  local bin_name=$1
+  curl "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o "/usr/local/bin/${bin_name}"
+  chmod 755 "/usr/local/bin/${bin_name}"
+}
+
 # Install glow
 INSTALL_GLOW=${INSTALL_GLOW:-0}
 if ((INSTALL_GLOW)); then
@@ -7,12 +13,10 @@ if ((INSTALL_GLOW)); then
   apt update -y && apt install -y glow
 fi
 
-bun install --global markdownlint-cli2
-ln -v -s "${HOME}/.bun/bin/markdownlint-cli2" "${HOME}/.bun/bin/markdownlint"
+bun install --global markdownlint-cli2 markdown-table-formatter
+get_bin markdownlint
 time bun install --global @mermaid-js/mermaid-cli
 uv tool install --from git+https://github.com/leynos/nixie nixie
 uv tool install mdformat
-bun install -g markdown-table-formatter
-curl https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/mdformat-all -o /usr/local/bin/mdformat-all
-chmod 755 /usr/local/bin/mdformat-all
+get_bin mdformat-all
 (cd /usr/local/bin && wget https://github.com/leynos/mdtablefix/releases/download/v0.1.0-alpha4/mdtablefix && chmod 755 mdtablefix)
