@@ -15,3 +15,4 @@ uv tool install mdformat
 bun install -g markdown-table-formatter
 curl https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/mdformat-all -o /usr/local/bin/mdformat-all
 chmod 755 /usr/local/bin/mdformat-all
+(cd /usr/local/bin && wget https://github.com/leynos/mdtablefix/releases/download/v0.1.0-alpha4/mdtablefix && chmod 755 mdtablefix)
