@@ -4,4 +4,4 @@ set -xeu
 
 mdformat --number --wrap 80 **/*.md
 markdownlint --fix **/*.md
-markdown-table-formatter **/*.md
+mdtablefix --in-place **/*.md
