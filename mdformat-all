@@ -2,6 +2,25 @@
 
 set -xeu
 
+MDLINT_CONFIG=$(mktemp)
+cat > "${MDLINT_CONFIG}" <<'__EOF'
+{
+  // Ignore MD013 (line length) inside tables since reflowing
+  // Markdown tables often breaks formatting and readability.
+  "config": {
+    "MD013": {
+      "line_length": 80,
+      "code_block_line_length": 120,
+      "tables": false
+    }
+  }
+}
+__EOF
+
 mdformat --number --wrap 80 **/*.md
-markdownlint --fix **/*.md
 mdtablefix --in-place **/*.md
+if [[ -f .markdownlint-cli2.jsonc ]]; then
+  markdownlint --fix **/*.md
+else
+  markdownlint --fix --config "${MDLINT_CONFIG}" **/*.md
+fi
