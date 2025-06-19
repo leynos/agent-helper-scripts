@@ -3,3 +3,14 @@ pushd /usr/local/bin
 wget https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk
 chmod 777 vk
 popd
+
+# Tools to help developers
+apt update -y
+apt-get install -y \
+  strace gdb fd-find ripgrep \
+  ltrace valgrind bpfcc-tools bpftrace \
+  lsof htop iotop pcp \
+  ncdu tree bat delta \
+  tcpdump nmap clang lldb \
+  eza fzf hyperfine shellcheck \
+  linux-tools-common linux-tools-generic
