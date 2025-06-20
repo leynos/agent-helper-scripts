@@ -2,6 +2,6 @@
 
 set -xeu
 
-mdformat --number --wrap 80 **/*.md
-mdtablefix --in-place **/*.md
-markdownlint --fix **/*.md
+mdformat --number --wrap 80 *.md **/*.md
+mdtablefix --in-place *.md **/*.md
+markdownlint --fix *.md **/*.md
