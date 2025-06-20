@@ -18,8 +18,6 @@ cat > "${MDLINT_CONFIG}" <<'__EOF'
 }
 __EOF
 
-mdformat --number --wrap 80 **/*.md
-mdtablefix --in-place **/*.md
 if [[ -f .markdownlint-cli2.jsonc ]]; then
   "${MDLINT_BIN}" "$@"
 else
