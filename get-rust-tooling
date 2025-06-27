@@ -11,5 +11,5 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
   install sccache-v${SCCACHE_VER}*-*/sccache /usr/local/bin/
   popd
   
-  echo export RUSTC_WRAPPER="$(command -v sccache)" >> ~/.bashrc
+  echo export RUSTC_WRAPPER=\"$(command -v sccache)\" >> ~/.bashrc
 fi
