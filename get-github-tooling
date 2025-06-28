@@ -9,10 +9,19 @@ uv tool install mbake
 # Tools to help developers
 apt update -y
 apt-get install -y \
-  strace gdb fd-find ripgrep \
+  strace gdb ripgrep \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
   tcpdump nmap clang lldb \
   eza fzf hyperfine shellcheck \
   linux-tools-common linux-tools-generic
+
+mkdir -p ~/git
+pushd ~/git
+FD_VER=10.2.0
+wget https://github.com/sharkdp/fd/releases/download/v10.2.0/fd-v${FD_VER}-x86_64-unknown-linux-musl.tar.gz
+tar xzvf fd-v${FD_VER}-x86_64-unknown-linux-musl.tar.gz fd-v${FD_VER}-x86_64-unknown-linux-musl/fd
+mv fd-v${FD_VER}-x86_64-unknown-linux-musl/fd /usr/local/bin
+rmdir fd-v${FD_VER}-x86_64-unknown-linux-musl/
+popd
