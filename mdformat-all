@@ -2,6 +2,27 @@
 
 set -xeu
 
-mdformat --number --wrap 80 *.md **/*.md
-mdtablefix --in-place *.md **/*.md
-markdownlint --fix *.md **/*.md
+# with_all_md: Run a command on all Markdown (.md) files, excluding any found
+# within .venv or node_modules directories at any level of the directory tree.
+#
+# Usage:
+#   with_all_md <command> [args...]
+#
+# The command and arguments will be passed all Markdown files as positional arguments.
+# Example:
+#   with_all_md mdformat --number --wrap 80
+#
+with_all_md() {
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: with_all_md <command> [args...]" >&2
+    return 1
+  fi
+  find . \
+    \( -name .venv -o -name node_modules \) -prune -false \
+    -o -type f -name '*.md' -print0 \
+  | xargs -0 "$@"
+}
+
+with_all_md mdformat --number --wrap 80
+with_all_md mdtablefix --in-place
+with_all_md markdownlint --fix
