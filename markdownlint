@@ -16,7 +16,8 @@ cat > "${MDLINT_CONFIG}" <<'__EOF'
     }
   },
   "ignores": [
-    "**/.venv/**"
+    "**/.venv/**",
+    "**/node_modules/**"
   ]
 }
 __EOF
