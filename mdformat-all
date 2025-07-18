@@ -23,5 +23,5 @@ with_all_md() {
   | xargs -0 "$@"
 }
 
-with_all_md mdtablefix --wrap --renumber --breaks --in-place
+with_all_md mdtablefix --wrap --renumber --breaks --ellipsis --in-place
 with_all_md markdownlint --fix
