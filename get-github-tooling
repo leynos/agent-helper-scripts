@@ -25,3 +25,9 @@ tar xzvf fd-v${FD_VER}-x86_64-unknown-linux-musl.tar.gz fd-v${FD_VER}-x86_64-unk
 mv fd-v${FD_VER}-x86_64-unknown-linux-musl/fd /usr/local/bin
 rmdir fd-v${FD_VER}-x86_64-unknown-linux-musl/
 popd
+
+pushd /usr/local/bin
+CHECKMAKE_VER=0.2.2
+wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VER}/checkmake-${CHECKMAKE_VER}.linux.amd64
+chmod 755 checkmake
+popd
