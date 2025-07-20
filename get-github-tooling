@@ -1,4 +1,4 @@
-VK_VERSION=${VK_VERSION:-0.2.0-alpha1}
+VK_VERSION=${VK_VERSION:-0.2.0-alpha2}
 pushd /usr/local/bin
 wget https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk
 chmod 777 vk
