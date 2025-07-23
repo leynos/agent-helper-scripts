@@ -6,10 +6,12 @@ elif [[ -f "rust-toolchain.toml" ]]; then
 else
   channel=stable
 fi
+apy update -y
+apt install -y rustup
 mise settings add idiomatic_version_file_enable_tools rust
 rustup toolchain install "${channel}"
 rustup component add rustfmt --toolchain "${channel}"
-rustup component add clippy
+rustup component add clippy --toolchain "${channel}"
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   mkdir -p ~/git
