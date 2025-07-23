@@ -1,5 +1,6 @@
 # Rust tooling
-rustup component add rustfmt --toolchain nightly-2025-06-10
+channel=$(python -c 'import tomllib; print(tomllib.loads(open("rust-toolchain.toml", "rb").read())["toolchain"]["channel"])')
+rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
