@@ -6,7 +6,7 @@ elif [[ -f "rust-toolchain.toml" ]]; then
 else
   channel=stable
 fi
-apy update -y
+apt update -y
 apt install -y rustup
 mise settings add idiomatic_version_file_enable_tools rust
 rustup toolchain install "${channel}"
