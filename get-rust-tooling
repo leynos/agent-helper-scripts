@@ -4,6 +4,7 @@ if [[ -f "rust-toolchain.toml" ]]; then
 else
   channel=stable
 fi
+mise settings add idiomatic_version_file_enable_tools rust
 rustup toolchain install "${channel}"
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy
