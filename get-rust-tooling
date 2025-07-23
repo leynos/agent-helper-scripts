@@ -1,5 +1,5 @@
 # Rust tooling
-channel=$(python -c 'import tomllib; print(tomllib.loads(open("rust-toolchain.toml", "rb").read())["toolchain"]["channel"])')
+channel=$(python -c 'import tomllib; print(tomllib.loads(open("rust-toolchain.toml", "r").read())["toolchain"]["channel"])')
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy
 
