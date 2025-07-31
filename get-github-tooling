@@ -9,7 +9,7 @@ uv tool install mbake
 # Tools to help developers
 apt update -y
 apt-get install -y \
-  strace gdb ripgrep \
+  strace gdb ripgrep nano \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
