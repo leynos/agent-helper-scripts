@@ -9,7 +9,7 @@ uv tool install mbake
 # Tools to help developers
 apt update -y
 apt-get install -y \
-  strace gdb ripgrep nano difftastic \
+  strace gdb ripgrep nano \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
@@ -32,7 +32,18 @@ wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHE
 chmod 755 checkmake
 
 SRGN_VERSION=${SRGN_VERSION:-0.14.0}
-wget -o srgn https://github.com/alexpovel/srgn/releases/download/srgn-v${SRGN_VERSION}/srgn-x86_64-unknown-linux-gnu.tgz
+pushd /tmp
+wget https://github.com/alexpovel/srgn/releases/download/srgn-v${SRGN_VERSION}/srgn-x86_64-unknown-linux-gnu.tgz
+popd
+tar --strip-components=1 -xzf /tmp/srgn-x86_64-unknown-linux-gnu.tgz srgn/srgn
+rm -f /tmp/srgn-x86_64-unknown-linux-gnu.tgz
 chmod 755 srgn
+
+DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.64.0}
+pushd /tmp
+wget https://github.com/Wilfred/difftastic/releases/download/${DIFFTASTIC_VERSION}/difft-x86_64-unknown-linux-gnu.tar.gz
+popd
+tar xzf /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
+rm -f /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
 popd
 
