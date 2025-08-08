@@ -9,7 +9,7 @@ uv tool install mbake
 # Tools to help developers
 apt update -y
 apt-get install -y \
-  strace gdb ripgrep nano \
+  strace gdb ripgrep nano difftastic \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
@@ -27,7 +27,12 @@ rmdir fd-v${FD_VER}-x86_64-unknown-linux-musl/
 popd
 
 pushd /usr/local/bin
-CHECKMAKE_VER=0.2.2
-wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VER}/checkmake-${CHECKMAKE_VER}.linux.amd64
+CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
+wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64
 chmod 755 checkmake
+
+SRGN_VERSION=${SRGN_VERSION:-0.14.0}
+wget -o srgn https://github.com/alexpovel/srgn/releases/download/srgn-v${SRGN_VERSION}/srgn-x86_64-unknown-linux-gnu.tgz
+chmod 755 srgn
 popd
+
