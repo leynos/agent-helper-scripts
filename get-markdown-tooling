@@ -20,7 +20,7 @@ uv tool install --from git+https://github.com/leynos/nixie nixie
 uv tool install mdformat
 get_bin mdformat-all
 
-MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.1.0-beta3}
+MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.1.0}
 pushd /usr/local/bin
 wget -O mdtablefix https://github.com/leynos/mdtablefix/releases/download/v${MDTABLEFIX_VERSION}/mdtablefix-linux-x86_64
 chmod 755 mdtablefix
