@@ -14,7 +14,8 @@ if ((INSTALL_GLOW)); then
 fi
 
 # Mermaid dependencies
-sudo apt-get install -y \
+sudo apt update -y
+sudo apt install -y \
   libxcomposite1 libxdamage1 libxrandr2 libxss1 libxtst6 \
   libgbm1 libdrm2 libxshmfence1 \
   libnspr4 libnss3 \
