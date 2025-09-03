@@ -43,6 +43,60 @@ srgn [scopes/actions] 'regex' -- 'replacement' [files...]
 - **Actions**: Transform matches (`--upper`, `--delete`, `--squeeze`).
 - **Pipeline**: Scopes chain with AND by default; use `-j` for OR.
 
+## 🎯 Think in Scopes, Not Mega‑Regex
+
+A common mistake when starting with `srgn` is trying to write one massive multi‑line regex to match an entire function or block of code. This almost always leads to quoting headaches, brittle patterns, and confusing regex errors. The better way is to let `srgn` do the heavy lifting with **language scopes**.
+
+### What is a Scope?
+
+A scope tells `srgn` *where* in the code to look. Instead of scanning raw text, `srgn` asks the parser (via `tree‑sitter`) for specific syntactic regions—functions, imports, attributes, unsafe blocks, comments, and so on. You then layer a small regex *inside* that scope to match exactly what you need.
+
+### Why This Matters
+
+- **Less regex pain**: No more `([\s\S]*?)` monsters just to cross newlines.
+- **Safer**: You won’t accidentally match across unrelated code.
+- **Readable**: Commands describe intent clearly—`--rust 'unsafe'` is self‑explanatory.
+- **Composable**: Chain scopes together (`--py 'class' --py 'doc-strings' 'TODO'`).
+
+### Example: Replace an Entire Function
+
+Instead of one brittle regex:
+
+```bash
+srgn $'fn emit_non_strict_warnings[\s\S]*?\n}' -- $'fn emit_non_strict_warnings(...) { ... }'
+```
+
+Use scopes:
+
+```bash
+srgn --rust 'fn~emit_non_strict_warnings' \
+     '(?s).*' -- $'fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) { ... }'
+```
+
+Here `--rust 'fn~emit_non_strict_warnings'` selects the function body for you; `(?s).*` just says “replace all of it.”
+
+### Example: Insert Blank Line Before `#[test]`
+
+Bad way (regex‑only, fragile):
+
+```bash
+srgn '}\n    #\[test\]' -- $'}\n\n    #[test]'
+```
+
+Better way (scoped + small regex):
+
+```bash
+srgn --rust 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
+```
+
+### Rule of Thumb
+
+1. Pick the narrowest **scope** (`fn`, `comments`, `strings`, `uses`).
+2. Apply a **small regex** inside.
+3. Pass your **replacement** after `--`.
+
+👉 If you find yourself writing a regex with `{`, `}`, and `\s\S`, stop—there’s probably a scope for that.
+
 ## 🧪 Real-World Recipes
 
 ### Python
