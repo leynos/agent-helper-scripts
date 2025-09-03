@@ -10,7 +10,7 @@ uv tool install mbake
 apt update -y
 apt-get install -y \
   strace gdb \
-  bat ripgrep nano \
+  bat ripgrep nano ed \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
@@ -39,6 +39,11 @@ popd
 tar --strip-components=1 -xzf /tmp/srgn-x86_64-unknown-linux-gnu.tgz srgn/srgn
 rm -f /tmp/srgn-x86_64-unknown-linux-gnu.tgz
 chmod 755 srgn
+
+mkdir -p /usr/share/docs
+pushd /usr/share/docs
+wget https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/docs/srgn.md
+popd
 
 DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.64.0}
 pushd /tmp
