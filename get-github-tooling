@@ -40,8 +40,8 @@ tar --strip-components=1 -xzf /tmp/srgn-x86_64-unknown-linux-gnu.tgz srgn/srgn
 rm -f /tmp/srgn-x86_64-unknown-linux-gnu.tgz
 chmod 755 srgn
 
-mkdir -p /usr/share/docs
-pushd /usr/share/docs
+mkdir -p /usr/share/doc
+pushd /usr/share/doc
 wget https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/docs/srgn.md
 popd
 
