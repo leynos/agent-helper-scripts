@@ -1,8 +1,6 @@
 # srgn: Syntax-Aware Search and Replace
 
-Imagine you need to refactor code *fast*—safely, across an entire project.
-`srgn` is your scalpel: regex precision combined with language awareness
-(via `tree-sitter`).
+Imagine you need to refactor code *fast*—safely, across an entire project. `srgn` is your scalpel: regex precision combined with language awareness (via `tree-sitter`).
 
 ## 🚀 Basic Usage
 
@@ -12,29 +10,46 @@ echo 'Hello World!' | srgn '[wW]orld' -- 'there'
 # → Hello there!
 
 # Search mode (like ripgrep, but syntax-aware)
-srgn --python 'class' 'MyClass' src/
+srgn -G 'src/**' --py 'class' 'MyClass'
 
 # Replace only in Python imports
-srgn --py 'module-names-in-imports' '^old_utils$' -- 'new_core_utils' src/
+srgn -G 'src/**/*.py' --py 'module-names-in-imports' '^old_utils$' -- 'new_core_utils'
 
 # Convert print() to logging
-srgn --py 'call' '^print\((.*)\)$' -- 'logging.info($1)' src/ --dry-run
+srgn -G 'src/**/*.py' --dry-run --py 'call' '^print\((.*)\)$' -- 'logging.info($1)'
 
 # Annotate unsafe Rust blocks
-srgn --rs 'unsafe' 'unsafe' -- '// TODO: Justify\nunsafe' src/
+srgn -G 'src/**/*.rs' --rs 'unsafe' 'unsafe' -- $'// TODO: Justify
+unsafe'
 ```
 
 ## 🔑 Command Anatomy
 
 ```sh
-srgn [scopes/actions] 'regex' -- 'replacement' [files...]
+srgn [GLOBAL OPTIONS] [LANGUAGE SCOPES] 'REGEX' -- 'REPLACEMENT'
 ```
 
-- **Scopes**: Limit where to search (`--py 'class'`, `--rs 'unsafe'`).
-- **Regex**: Final filter applied.
-- **Replacement**: Optional. Use `$1`, `$2` for captures.
-- **Files**: If omitted, stdin is used.
-- ``: Show a diff without writing.
+- **Global options**: `-G/--glob`, `--dry-run`, `--fail-no-files`, etc. → always **before** regex.
+- **Language scopes**: `--py 'class'`, `--rs 'unsafe'`, etc. → also before regex.
+- **Regex**: final filter. The last positional argument before the `--` separator.
+- ``\*\* separator\*\*: disambiguates. After this, only the replacement string is allowed.
+- **Replacement**: exactly one string. Use `$1`, `$2` for capture groups.
+
+👉 **Rule**: once you type `--`, no more flags or globs are allowed. Everything goes before.
+
+### Examples
+
+Correct:
+
+```bash
+srgn -G 'src/file.rs' --dry-run --rs 'fn~motion_cases' 'for b in &blocks' -- 'for b in blocks'
+```
+
+Incorrect (extra args after replacement → error):
+
+```bash
+srgn --rs 'fn~motion_cases' 'for b in &blocks' -- 'for b in blocks' -G src/file.rs --dry-run
+```
 
 ## 🧭 Core Ideas
 
@@ -69,7 +84,7 @@ srgn $'fn emit_non_strict_warnings[\s\S]*?\n}' -- $'fn emit_non_strict_warnings(
 Use scopes:
 
 ```bash
-srgn --rust 'fn~emit_non_strict_warnings' \
+srgn --rs 'fn~emit_non_strict_warnings' \
      '(?s).*' -- $'fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) { ... }'
 ```
 
@@ -86,7 +101,7 @@ srgn '}\n    #\[test\]' -- $'}\n\n    #[test]'
 Better way (scoped + small regex):
 
 ```bash
-srgn --rust 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
+srgn --rs 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
 ```
 
 ### Rule of Thumb
@@ -96,6 +111,16 @@ srgn --rust 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
 3. Pass your **replacement** after `--`.
 
 👉 If you find yourself writing a regex with `{`, `}`, and `\s\S`, stop—there’s probably a scope for that.
+
+## 📚 Scope Reference
+
+### Python (`--py`)
+
+- `class`, `function`, `doc-strings`, `comments`, `strings`, `identifiers`, `module-names-in-imports`, `call`
+
+### Rust (`--rs`)
+
+- `unsafe`, `comments`, `strings`, `attribute`, `names-in-uses-declarations`, `pub-enum`, `type-identifier`, `struct`, `impl`, `fn`, `extern-crate`
 
 ## 🧪 Real-World Recipes
 
@@ -153,8 +178,6 @@ Or escape backticks:
 \`validation::steps::resolve_keywords\`
 ```
 
----
-
 ### 2. Invalid regex errors
 
 Example:
@@ -175,18 +198,15 @@ srgn --glob crates/... 'rejects_invalid_keyword_via_from_str\(\) {\n ...' -- '..
 
 - Or keep `\n` but make sure all braces/escapes are balanced. Your original pattern likely ended prematurely.
 
----
-
 ### 3. General Guidelines
 
 - **Use single quotes** for regex and replacement arguments. This prevents Bash from interpreting `$1`, backticks, and `\n`.
 - **Escape carefully**: within single quotes, you usually don’t need double escaping, but when combining with regex you may.
 - **Dry run first**: always add `--dry-run` until you’re confident the pattern is correct.
 - **Test small**: pipe a short snippet with `echo` into `srgn` before unleashing on the whole codebase.
+- **Measure twice, cut once:** Use `--dry-run` to preview changes.
 
----
-
-#### Fixed Examples
+#### Further Examples
 
 ##### Import comment replacement
 
@@ -203,20 +223,6 @@ srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
   '(?s)rejects_invalid_keyword_via_from_str\(\).*?\#\[test\]' \
   -- 'rejects_invalid_keyword_via_from_str() {\n        assert!("invalid".parse::<StepKeyword>().is_err());\n    }\n\n    #[test]'
 ```
-
-- Use `--dry-run` to preview changes.
-
-## 📚 Scope Reference
-
-### Python (`--py`)
-
-- `class`, `function`, `doc-strings`, `comments`, `strings`,
-  `identifiers`, `module-names-in-imports`, `call`
-
-### Rust (`--rs`)
-
-- `unsafe`, `comments`, `strings`, `attribute`, `names-in-uses-declarations`,
-  `pub-enum`, `type-identifier`, `struct`, `impl`, `fn`, `extern-crate`
 
 ## 🛠 When to Use
 
