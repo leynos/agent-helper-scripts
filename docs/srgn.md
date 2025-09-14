@@ -16,7 +16,7 @@ srgn -G 'src/**' --py 'class' 'MyClass'
 srgn -G 'src/**/*.py' --py 'module-names-in-imports' '^old_utils$' -- 'new_core_utils'
 
 # Convert print() to logging
-srgn -G 'src/**/*.py' --dry-run --py 'call' '^print\((.*)\)$' -- 'logging.info($1)'
+srgn -G 'src/**/*.py' --py 'call' '^print\((.*)\)$' -- 'logging.info($1)'
 
 # Annotate unsafe Rust blocks
 srgn -G 'src/**/*.rs' --rs 'unsafe' 'unsafe' -- $'// TODO: Justify
@@ -32,7 +32,7 @@ srgn [GLOBAL OPTIONS] [LANGUAGE SCOPES] 'REGEX' -- 'REPLACEMENT'
 - **Global options**: `-G/--glob`, `--dry-run`, `--fail-no-files`, etc. → always **before** regex.
 - **Language scopes**: `--py 'class'`, `--rs 'unsafe'`, etc. → also before regex.
 - **Regex**: final filter. The last positional argument before the `--` separator.
-- ``\*\* separator\*\*: disambiguates. After this, only the replacement string is allowed.
+- **Double hyphen (`--`) separator**: disambiguates. After this, only the replacement string is allowed.
 - **Replacement**: exactly one string. Use `$1`, `$2` for capture groups.
 
 👉 **Rule**: once you type `--`, no more flags or globs are allowed. Everything goes before.
@@ -116,13 +116,212 @@ srgn --rs 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
 
 ### Python (`--py`)
 
+Scopes (no parameterised variants at present):
+
 - `class`, `function`, `doc-strings`, `comments`, `strings`, `identifiers`, `module-names-in-imports`, `call`
+
+> **Tip:** Narrow with a Python scope, then use a concise regex for the exact target. Example: find TODOs only in docstrings:
+>
+> ```bash
+> srgn -G 'src/**/*.py' --py 'doc-strings' 'TODO'
+> ```
+
+### TypeScript (`--ts` / `--typescript`)
+
+Scopes (no parameterised variants):
+
+- `comments`, `strings`, `imports` (module specifiers)
+- `function`, `async-function`, `sync-function`
+- `method`, `constructor`, `class`
+- `enum`, `interface`
+- `try-catch`
+- `var-decl`, `let`, `const`, `var`
+- `type-params`, `type-alias`
+- `namespace`, `export`
+
+> **Tips**
+> - Use `imports` to touch only module specifiers in `import … from '…'`.
+> - Use `var` to target the `var` keyword **inside** declarations without hitting `var` in strings or comments.
+> - Use `try-catch` to constrain edits (e.g., logging changes) to exception-handling blocks only.
 
 ### Rust (`--rs`)
 
-- `unsafe`, `comments`, `strings`, `attribute`, `names-in-uses-declarations`, `pub-enum`, `type-identifier`, `struct`, `impl`, `fn`, `extern-crate`
+Rust offers both **plain** scopes and **parameterised** scopes of the form `name~<PATTERN>`, where `<PATTERN>` is a regex matched against the **item name** (not its path). Parameterised variants are marked **(param)** below.
+
+**General/textual:**
+
+- `comments`, `doc-comments`, `strings`, `uses`, `attribute`, `identifier`, `type-identifier`, `closure`, `unsafe`
+
+**Items (parameterisable where noted):**
+
+- `struct~<PATTERN>`, **(param)**
+- `enum~<PATTERN>`, **(param)**, `enum-variant`
+- `trait~<PATTERN>`, **(param)**
+- `mod~<PATTERN>`, **(param)**, `mod-tests`
+- `fn~<PATTERN>`, **(param)**, plus filtered variants:
+  - `impl-fn`, `priv-fn`, `pub-fn`, `pub-crate-fn`, `pub-self-fn`, `pub-super-fn`, `const-fn`, `async-fn`, `unsafe-fn`, `extern-fn`, `test-fn`
+- `type-def`, `extern-crate`
+- `impl` (all impl blocks), `impl-type` (inherent impl Type {}), `impl-trait` (trait impl impl Trait for Type {})
+
+> **Parameter semantics:** For `name~<PATTERN>`, `<PATTERN>` matches the **identifier name** only. Example: `--rs 'fn~emit_non_strict_warnings'` selects just that function, not calls to it.
+
+#### Locating a specific `impl` (non‑parameterised)
+
+Because `impl` / `impl-type` / `impl-trait` **do not** take `~<PATTERN>`, combine the appropriate scope with a targeted regex on the header line.
+
+**Trait impl: impl MyTrait for MyType**
+
+```bash
+# Search only
+srgn -G 'src/**/*.rs' --rs 'impl-trait' 'impl MyTrait for MyType'
+```
+
+**Inherent impl: impl MyType { ... }**
+
+```bash
+# Search only
+srgn -G 'src/**/*.rs' --rs 'impl-type' 'impl MyType'
+```
+
+**Narrow further to avoid false positives:**
+
+- Prefer `impl-trait` vs `impl-type` instead of the generic `impl`.
+- Add nearby context to the regex (e.g., include where-clause text or a unique method name) if names are common.
+
+**Replace the entire impl block (example):**
+
+```bash
+# Select the impl block with the scope, then replace its contents
+srgn -G 'src/**/*.rs' --rs 'impl-trait' '(?s).*' -- 'impl MyTrait for MyType { /* TODO */ }'
+```
+
+## 🔬 Tree‑sitter queries (advanced)
+
+When scopes aren’t enough—e.g. you need to express *relationships* between nodes ("methods inside impls for a given trait and type", "items with a particular attribute attached")—use **tree‑sitter queries**. These are S‑expressions that select syntax nodes structurally. In `srgn`, a tree‑sitter query becomes **the scope**; you then add a small regex and optional replacement as usual.
+
+> Heuristic: **Prefer scopes + small regex** for single‑node matching (docstrings, strings, identifiers, a specific `fn` by name). **Prefer tree‑sitter queries** when you need multi‑node constraints (ancestor/descendant or sibling relations) that a single named scope can’t express.
+
+### Rust CLI (`--rust-query`)
+
+**Example A — list impls for a given trait (search‑only):**
+
+```bash
+srgn -G 'src/**/*.rs' \
+  --rust-query '
+  (impl_item
+    trait: (type_path (type_identifier) @trait)
+    type: (type_identifier) @type)
+  (#eq? @trait "Display")
+  ' \
+  '.*'
+```
+
+This scope matches only `impl Display for <Type>` blocks. The `' .* '` regex is just a trivial match to print each scope’s header lines.
+
+**Example B — rename a method only inside those impls:**
+
+```bash
+srgn -G 'src/**/*.rs' \
+  --rust-query '
+  (impl_item
+    trait: (type_path (type_identifier) @trait)
+    (declaration_list (function_item name: (identifier) @method)))
+  (#eq? @trait "Display")
+  ' \
+  '^as_str$' -- 'to_string'
+```
+
+Only method identifiers named `as_str` *within* `impl Display for …` are touched; calls elsewhere are unaffected.
+
+**Example C — target inherent impl for a specific type (with generics tolerated):**
+
+```bash
+srgn -G 'src/**/*.rs' \
+  --rust-query '
+  (impl_item
+    type: [(type_identifier) (type_arguments (type_identifier))] @ty)
+  ' \
+  '^MyType$' -- $'impl MyType { /* TODO */ }'
+```
+
+The query selects all inherent `impl` blocks and exposes the type identifier as text for the regex to match (`MyType`).
+
+### TypeScript CLI (`--typescript-query`)
+
+**Example A — rewrite imports from a specific module**
+```bash
+srgn -G 'src/**/*.{ts,tsx}' \
+  --typescript-query '
+  (import_statement
+    source: (string) @src)
+  ' \
+  '@old/lib' -- '@new/lib'
+```
+Scopes to `import` statements and lets the regex touch only the module specifier text inside them.
+
+**Example B — rename a method by structural position (definitions only)**
+```bash
+srgn -G 'src/**/*.{ts,tsx}' \
+  --typescript-query '
+  (class_declaration
+    (class_body
+      (method_definition
+        name: (property_identifier) @name)))
+  ' \
+  '^ngOnInit$' -- 'onInit'
+```
+Targets **method definitions** named `ngOnInit` without touching call sites or similarly named variables.
+
+**When to prefer tree-sitter over scope + regex**
+- You need multi-node relationships: “methods *inside* classes” or “methods inside classes with a particular decorator”.
+- You want to constrain edits to a syntactic position, not just a token string (e.g., rename only **definitions**, not calls).
+- Named scopes aren’t precise enough (e.g., `class` + regex is fine for `implements Interface`, but decorator-gated edits usually want a structural query).
+
+### Python
+
+At present the CLI exposes custom query flags for Rust (`--rust-query`) and TypeScript (`--typescript-query`), **not** Python. For Python you’ll usually:
+
+- Use the prepared scopes (`--py 'function'`, `--py 'strings'`, `--py 'module-names-in-imports'`) **plus** a small regex; or
+- Drop to the **library** if you need a true tree‑sitter query (e.g., “functions with a specific decorator”, “async defs returning `Awaitable[T]`”).
+
+**Approximate example — change calls only in test functions (scope + regex):**
+
+```bash
+# Limit to function defs, then small regex for call names
+srgn -G 'tests/**/*.py' --py 'function' '^print\(' -- 'logger.info('
+```
+
+For decorator‑sensitive refactors (e.g., only functions decorated with `@pytest.mark.parametrize`), the CLI can’t currently express the *decorator → function* relation directly. Use the library’s tree‑sitter API for that level of structure.
+
+---
 
 ## 🧪 Real-World Recipes
+
+### TypeScript
+
+- **Migrate import sources** (module specifiers only)
+
+```bash
+srgn -G 'src/**/*.{ts,tsx}' --typescript 'imports' '^@old/lib$' -- '@new/lib'
+```
+
+- **Prefer `let` over `var` in declarations**
+
+```bash
+srgn -G 'src/**/*.{ts,tsx}' --typescript 'var' '\bvar\b' -- 'let'
+```
+
+- **Harden error logging inside `try/catch` only**
+
+```bash
+srgn -G 'src/**/*.{ts,tsx}' --typescript 'try-catch' 'console\.log\(' -- 'console.error('
+```
+
+- **Find classes implementing an interface** (search-only)
+
+```bash
+srgn -G 'src/**/*.{ts,tsx}' --typescript 'class' 'implements\s+MyInterface\b'
+```
 
 ### Python
 
@@ -202,9 +401,8 @@ srgn --glob crates/... 'rejects_invalid_keyword_via_from_str\(\) {\n ...' -- '..
 
 - **Use single quotes** for regex and replacement arguments. This prevents Bash from interpreting `$1`, backticks, and `\n`.
 - **Escape carefully**: within single quotes, you usually don’t need double escaping, but when combining with regex you may.
-- **Dry run first**: always add `--dry-run` until you’re confident the pattern is correct.
+- **Measure twice, cut once:** Use `--dry-run` to preview changes. Always add `--dry-run` (before the `--`, until you’re confident the pattern is correct.)
 - **Test small**: pipe a short snippet with `echo` into `srgn` before unleashing on the whole codebase.
-- **Measure twice, cut once:** Use `--dry-run` to preview changes.
 
 #### Further Examples
 
@@ -233,4 +431,3 @@ srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
 ---
 
 `srgn`: grep with a scalpel.
-
