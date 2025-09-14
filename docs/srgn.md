@@ -154,11 +154,11 @@ Rust offers both **plain** scopes and **parameterised** scopes of the form `name
 
 **Items (parameterisable where noted):**
 
-- `struct~<PATTERN>`, **(param)**
-- `enum~<PATTERN>`, **(param)**, `enum-variant`
-- `trait~<PATTERN>`, **(param)**
-- `mod~<PATTERN>`, **(param)**, `mod-tests`
-- `fn~<PATTERN>`, **(param)**, plus filtered variants:
+- `struct~<PATTERN>` **(param)**
+- `enum~<PATTERN>` **(param)**, `enum-variant`
+- `trait~<PATTERN>` **(param)**
+- `mod~<PATTERN>` **(param)**, `mod-tests`
+- `fn~<PATTERN>` **(param)**, plus filtered variants:
   - `impl-fn`, `priv-fn`, `pub-fn`, `pub-crate-fn`, `pub-self-fn`, `pub-super-fn`, `const-fn`, `async-fn`, `unsafe-fn`, `extern-fn`, `test-fn`
 - `type-def`, `extern-crate`
 - `impl` (all impl blocks), `impl-type` (inherent impl Type {}), `impl-trait` (trait impl impl Trait for Type {})
