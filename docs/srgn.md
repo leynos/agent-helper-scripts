@@ -6,21 +6,35 @@ Imagine you need to refactor code *fast*—safely, across an entire project. `sr
 
 ```sh
 # Replace text
+# The double hyphen delimits commands and replacements.
+# The value after the double hyphen ('--') is a replacement.
+# The value before is a search pattern.
+# With no files specified, srgn operates on stdin
 echo 'Hello World!' | srgn '[wW]orld' -- 'there'
 # → Hello there!
+```
 
+```sh
+# Use -G (--glob) to specify files
 # Search mode (like ripgrep, but syntax-aware)
 srgn -G 'src/**' --py 'class' 'MyClass'
+```
 
+```sh
 # Replace only in Python imports
+# Files are edited destructively in place, unless --dry-run is specified
 srgn -G 'src/**/*.py' --py 'module-names-in-imports' '^old_utils$' -- 'new_core_utils'
+```
 
+```sh
+# Use the function call scope, narrowed by a regex
 # Convert print() to logging
 srgn -G 'src/**/*.py' --py 'call' '^print\((.*)\)$' -- 'logging.info($1)'
+```
 
-# Annotate unsafe Rust blocks
-srgn -G 'src/**/*.rs' --rs 'unsafe' 'unsafe' -- $'// TODO: Justify
-unsafe'
+```sh
+# Annotate unsafe Rust blocks with a comment
+srgn -G 'src/**/*.rs' --rs 'unsafe' 'unsafe' -- $'// TODO: Justify unsafe'
 ```
 
 ## 🔑 Command Anatomy
