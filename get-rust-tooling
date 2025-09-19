@@ -6,14 +6,19 @@ elif [[ -f "rust-toolchain.toml" ]]; then
 else
   channel=stable
 fi
+
+WITH_LLVM_COV=${WITH_LLVM_COV:-1}
+
 apt update -y
 apt install -y rustup
 mise settings add idiomatic_version_file_enable_tools rust
 rustup toolchain install "${channel}"
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
-cargo install cargo-llvm-cov
-rustup component add llvm-tools-preview --toolchain "${channel}"
+if ((WITH_LLVM_COV)); then
+  cargo install cargo-llvm-cov
+  rustup component add llvm-tools-preview --toolchain "${channel}"
+fi
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   mkdir -p ~/git
