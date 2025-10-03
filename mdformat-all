@@ -17,10 +17,12 @@ with_all_md() {
     echo "Usage: with_all_md <command> [args...]" >&2
     return 1
   fi
-  find . \
-    \( -name .venv -o -name node_modules \) -prune -false \
-    -o -type f -name '*.md' -print0 \
-  | xargs -0 "$@"
+  fd --print0 \
+   --type f \
+   --extension md \
+   --extension markdown \
+   --extension mdx \
+   . | xargs -0 "$@"
 }
 
 with_all_md mdtablefix --wrap --renumber --breaks --ellipsis --fences --in-place
