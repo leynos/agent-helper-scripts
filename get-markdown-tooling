@@ -13,6 +13,9 @@ if ((INSTALL_GLOW)); then
   apt update -y && apt install -y glow
 fi
 
+uvx tool install vale
+vale --version
+
 # Mermaid dependencies
 sudo apt update -y
 sudo apt install -y \
