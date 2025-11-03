@@ -13,7 +13,7 @@ if ((INSTALL_GLOW)); then
   apt update -y && apt install -y glow
 fi
 
-uvx tool install vale
+uv tool install vale
 vale --version
 
 # Mermaid dependencies
