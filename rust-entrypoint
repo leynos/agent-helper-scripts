@@ -2,6 +2,23 @@
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
+function needs()
+{
+  ! which $1 >/dev/null 2>/dev/null
+}
+
+if needs uv; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+
+if needs bun; then
+  curl -fsSL https://bun.sh/install | bash
+fi
+
+if needs rustup; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+fi
+
 for tool in \
   get-markdown-tooling \
   get-github-tooling \
