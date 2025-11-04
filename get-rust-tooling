@@ -2,7 +2,7 @@
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
   channel=${RUST_CHANNEL}
 elif [[ -f "rust-toolchain.toml" ]]; then
-  channel=$(python -c 'import tomllib; print(tomllib.loads(open("rust-toolchain.toml", "r").read())["toolchain"]["channel"])')
+  channel=$(uv run -p 3.13 python -c 'import tomllib; print(tomllib.loads(open("rust-toolchain.toml", "r").read())["toolchain"]["channel"])')
 else
   channel=stable
 fi
