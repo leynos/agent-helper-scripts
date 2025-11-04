@@ -20,6 +20,10 @@ if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 fi
 
+if needs wget; then
+  apt update -y && apt install -y wget
+fi
+
 for tool in \
   get-markdown-tooling \
   get-github-tooling \
