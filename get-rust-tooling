@@ -20,6 +20,8 @@ if ((WITH_LLVM_COV)); then
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
 
+curl -LsSf https://get.nexte.st/latest/linux-musl | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   mkdir -p ~/git
   pushd ~/git
