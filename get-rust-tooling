@@ -11,7 +11,7 @@ WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 
 apt update -y
 apt install -y rustup
-apt install -y build-essential pkg-config libssl-dev ca-certificates libsqlite3-dev
+apt install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
 update-ca-certificates
 
 rustup toolchain install "${channel}"
