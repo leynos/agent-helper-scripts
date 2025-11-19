@@ -2,6 +2,10 @@
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
+if ! grep -q 'PATH=$HOME/.local/bin:$PATH' "${HOME}/.bashrc"; then
+  echo 'PATH=$HOME/.local/bin:$PATH' >> "${HOME}/.bashrc"
+fi
+
 function needs()
 {
   ! which $1 >/dev/null 2>/dev/null
