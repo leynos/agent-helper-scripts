@@ -1,3 +1,5 @@
+source $HOME/.local/bin/env
+
 # Python tooling
 uv tool install ruff
 uv tool install pyright[nodejs]
