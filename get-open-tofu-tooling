@@ -1,0 +1,30 @@
+source $HOME/.local/bin/env
+
+pushd ~
+curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+
+# Grant execution permissions:
+chmod +x install-opentofu.sh
+
+# Please inspect the downloaded script at this point.
+
+# Run the installer:
+./install-opentofu.sh --install-method deb
+
+# Remove the installer:
+rm -f install-opentofu.sh
+popd
+
+curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+mkdir -p ~/git
+pushd ~/git
+LATEST_VERSION=$(wget -O - "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | cut -c 2-)
+ARCH=$(arch)
+SYSTEM=$(uname)
+wget "https://github.com/open-policy-agent/conftest/releases/download/v${LATEST_VERSION}/conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
+tar xzf conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz
+mv conftest /usr/local/bin
+popd
+
+uv tool install checkov
