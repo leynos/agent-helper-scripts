@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install skills to Codex and Claude config directories
+
+REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
+REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
+
+CODEX_SKILLS_DIR="${HOME}/.codex/skills"
+CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+
+# Clone or update the repo
+mkdir -p "${HOME}/git"
+if [[ -d "${REPO_DIR}" ]]; then
+  echo "Updating existing repo at ${REPO_DIR}..."
+  git -C "${REPO_DIR}" fetch origin
+  git -C "${REPO_DIR}" reset --hard origin/HEAD
+else
+  echo "Cloning repo to ${REPO_DIR}..."
+  git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
+  git -C "${REPO_DIR}" sparse-checkout set skills
+fi
+
+SKILLS_SRC="${REPO_DIR}/skills"
+
+# Validate skills directory exists
+if [[ ! -d "${SKILLS_SRC}" ]]; then
+  echo "Error: Skills directory not found at ${SKILLS_SRC}" >&2
+  exit 1
+fi
+
+# Create destination directories
+mkdir -p "${CODEX_SKILLS_DIR}"
+mkdir -p "${CLAUDE_SKILLS_DIR}"
+
+# Copy skills to both destinations
+cp -r "${SKILLS_SRC}/"* "${CODEX_SKILLS_DIR}/"
+cp -r "${SKILLS_SRC}/"* "${CLAUDE_SKILLS_DIR}/"
+
+echo "Skills installed to:"
+echo "  ${CODEX_SKILLS_DIR}"
+echo "  ${CLAUDE_SKILLS_DIR}"

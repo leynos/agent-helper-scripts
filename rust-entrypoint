@@ -32,7 +32,8 @@ for tool in \
   get-markdown-tooling \
   get-github-tooling \
   get-rust-tooling \
-  rust-setup; do
+  rust-setup \
+  install-skills; do
     echo "Running $tool..."
     curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
