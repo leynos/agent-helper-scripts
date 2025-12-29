@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install skills to Codex and Claude config directories
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILLS_SRC="${SCRIPT_DIR}/skills"
+
+CODEX_SKILLS_DIR="${HOME}/.codex/skills"
+CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+
+# Create destination directories
+mkdir -p "${CODEX_SKILLS_DIR}"
+mkdir -p "${CLAUDE_SKILLS_DIR}"
+
+# Copy skills to both destinations
+cp -r "${SKILLS_SRC}/"* "${CODEX_SKILLS_DIR}/"
+cp -r "${SKILLS_SRC}/"* "${CLAUDE_SKILLS_DIR}/"
+
+echo "Skills installed to:"
+echo "  ${CODEX_SKILLS_DIR}"
+echo "  ${CLAUDE_SKILLS_DIR}"
