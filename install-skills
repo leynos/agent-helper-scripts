@@ -3,11 +3,22 @@ set -euo pipefail
 
 # Install skills to Codex and Claude config directories
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILLS_SRC="${SCRIPT_DIR}/skills"
+REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
+REPO_DIR="${HOME}/git/agent-helper-scripts"
 
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+
+# Clone or update the repo
+mkdir -p "${HOME}/git"
+if [[ -d "${REPO_DIR}" ]]; then
+  git -C "${REPO_DIR}" pull --ff-only
+else
+  git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
+  git -C "${REPO_DIR}" sparse-checkout set skills
+fi
+
+SKILLS_SRC="${REPO_DIR}/skills"
 
 # Create destination directories
 mkdir -p "${CODEX_SKILLS_DIR}"
