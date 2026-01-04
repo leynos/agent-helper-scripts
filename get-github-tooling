@@ -54,3 +54,4 @@ tar xzf /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
 rm -f /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
 popd
 
+git config --global merge.conflictStyle zdiff3
