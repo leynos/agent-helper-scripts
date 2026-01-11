@@ -9,29 +9,24 @@ fi
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 
-apt update -y
-apt install -y rustup
-apt install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
+apt-get update -y
+apt-get install -y rustup
+apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
 update-ca-certificates
+
+curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 rustup toolchain install "${channel}"
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
 if ((WITH_LLVM_COV)); then
-  cargo install cargo-llvm-cov
+  cargo binstall cargo-llvm-cov
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
 
 curl -LsSf https://get.nexte.st/latest/linux-musl | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
-  mkdir -p ~/git
-  pushd ~/git
-  SCCACHE_VER=0.10.0
-  wget "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VER}/sccache-v${SCCACHE_VER}-x86_64-unknown-linux-musl.tar.gz"
-  tar xvzf sccache-v${SCCACHE_VER}*-*.tar.gz
-  install sccache-v${SCCACHE_VER}*-*/sccache /usr/local/bin/
-  popd
-  
+  cargo binstall sccache
   echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ~/.bashrc
 fi
