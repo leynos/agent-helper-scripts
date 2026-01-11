@@ -26,11 +26,6 @@ CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
 wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64
 chmod 755 checkmake
 
-mkdir -p /usr/share/doc
-pushd /usr/share/doc
-wget https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/docs/srgn.md
-popd
-
 DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.64.0}
 pushd /tmp
 wget https://github.com/Wilfred/difftastic/releases/download/${DIFFTASTIC_VERSION}/difft-x86_64-unknown-linux-gnu.tar.gz
