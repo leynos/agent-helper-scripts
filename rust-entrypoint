@@ -25,6 +25,8 @@ if [[ -d "/usr/local/rustup" ]]; then
   sudo rm -f /usr/local/bin/rustup /usr/local/bin/rustc /usr/local/bin/cargo /usr/local/bin/rustfmt \
     /usr/local/bin/rust-gdb /usr/local/bin/rust-lldb /usr/local/bin/rustdoc /usr/local/bin/clippy-driver \
     /usr/local/bin/cargo-clippy /usr/local/bin/cargo-fmt
+  sed -i '/RUSTUP_HOME/d' "${HOME}/.bashrc"
+  unset RUSTUP_HOME
 fi
 
 if needs rustup; then
