@@ -21,13 +21,7 @@ if needs bun; then
 fi
 
 if [[ -d "/usr/local/rustup" ]]; then
-  sudo rm -rf /usr/local/rustup /usr/local/cargo && \
-  sudo rm -f /usr/local/bin/rustup /usr/local/bin/rustc /usr/local/bin/cargo /usr/local/bin/rustfmt \
-    /usr/local/bin/rust-gdb /usr/local/bin/rust-lldb /usr/local/bin/rustdoc /usr/local/bin/clippy-driver \
-    /usr/local/bin/cargo-clippy /usr/local/bin/cargo-fmt
-  sed -i '/RUSTUP_HOME/d' "${HOME}/.bashrc"
-  sudo rm -f /etc/profile.d/rust.sh
-  unset RUSTUP_HOME
+  sudo chmod -R go=u "/usr/local/rustup"
 fi
 
 if needs rustup; then
