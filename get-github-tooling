@@ -1,5 +1,6 @@
 VK_VERSION=${VK_VERSION:-0.5.0}
-pushd /usr/local/bin
+mkdir -p "${HOME}/.local/bin"
+pushd "${HOME}/.local/bin"
 wget https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk
 chmod 777 vk
 popd
@@ -8,7 +9,7 @@ uv tool install mbake
 bun install -g pajv
 
 # Tools to help developers
-apt update -y
+apt-get update -y
 apt-get install -y \
   strace gdb \
   bat ripgrep nano ed \
@@ -20,23 +21,29 @@ apt-get install -y \
   linux-tools-common linux-tools-generic
 
 cargo binstall fd-find
+cargo binstall mergiraf
+cargo binstall difftastic
 
-pushd /usr/local/bin
+mkdir -p "${HOME}/.local/bin"
+pushd "${HOME}/.local/bin"
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
 wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64
 chmod 755 checkmake
-
-DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.64.0}
-pushd /tmp
-wget https://github.com/Wilfred/difftastic/releases/download/${DIFFTASTIC_VERSION}/difft-x86_64-unknown-linux-gnu.tar.gz
-popd
-tar xzf /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
-rm -f /tmp/difft-x86_64-unknown-linux-gnu.tar.gz
 popd
 
 git config --global merge.conflictStyle zdiff3
 
-(type -p wget >/dev/null || (apt update && apt install wget -y)) \
+if ! [[ -f "${HOME}/.gitconfig" ]] || ! grep -q mergiraf "${HOME}/.gitconfig"; then
+  cat >>"${HOME}/.gitconfig" <<'__EOF'
+[merge "mergiraf"]
+        name = mergiraf
+        driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P -l %L
+__EOF
+  mkdir -p "${HOME}/.config/git"
+  echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
+fi
+
+(type -p wget >/dev/null || (apt-get update && apt-get install wget -y)) \
 	&& mkdir -p -m 755 /etc/apt/keyrings \
 	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& cat $out > /dev/null \
