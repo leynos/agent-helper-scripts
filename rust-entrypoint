@@ -45,5 +45,5 @@ for tool in \
   get-github-tooling \
   install-skills; do
     echo "Running $tool..."
-    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -i -xeuo pipefail
 done
