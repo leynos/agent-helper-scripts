@@ -21,7 +21,8 @@ if needs bun; then
 fi
 
 if needs rustup; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
 fi
 
 if needs wget; then
