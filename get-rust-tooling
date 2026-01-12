@@ -9,10 +9,10 @@ fi
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 
-apt-get update -y
-apt-get install -y rustup
-apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
-update-ca-certificates
+sudo apt-get update -y
+sudo apt-get install -y rustup
+sudo apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
+sudo update-ca-certificates
 
 curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
