@@ -35,7 +35,6 @@ bun install --global markdownlint-cli2 markdown-table-formatter
 get_bin markdownlint
 time bun install --global @mermaid-js/mermaid-cli
 uv tool install --from git+https://github.com/leynos/nixie nixie
-uv tool install mdformat
 get_bin mdformat-all
 
 MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.3.1}
