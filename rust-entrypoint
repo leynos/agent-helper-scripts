@@ -20,6 +20,13 @@ if needs bun; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
+if [[ -d "/usr/local/rustup" ]]; then
+  sudo rm -rf /usr/local/rustup /usr/local/cargo && \
+  sudo rm -f /usr/local/bin/rustup /usr/local/bin/rustc /usr/local/bin/cargo /usr/local/bin/rustfmt \
+    /usr/local/bin/rust-gdb /usr/local/bin/rust-lldb /usr/local/bin/rustdoc /usr/local/bin/clippy-driver \
+    /usr/local/bin/cargo-clippy /usr/local/bin/cargo-fmt
+fi
+
 if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
