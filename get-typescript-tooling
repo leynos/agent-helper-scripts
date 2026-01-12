@@ -1,3 +1,4 @@
 # Typescript tooling
 unset npm_config_http_proxy
-bun install --global @biomejs/biome typescript
+bun install --global @biomejs/biome @typescript/native-preview
+ln -s "${HOME}/.bin/bin/tsgo" "${HOME}/.bin/bin/tsc"
