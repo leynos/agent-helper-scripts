@@ -1,7 +1,8 @@
 function get_bin() {
   local bin_name=$1
-  curl "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o "/usr/local/bin/${bin_name}"
-  chmod 755 "/usr/local/bin/${bin_name}"
+  mkdir -p  "${HOME}/.local/bin"
+  curl "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o  "${HOME}/.local/bin/${bin_name}"
+  chmod 755 "${HOME}/.local/bin/${bin_name}"
 }
 
 # Install glow
@@ -17,8 +18,8 @@ uv tool install vale
 vale --version
 
 # Mermaid dependencies
-sudo apt update -y
-sudo apt install -y \
+apt-get update -y
+apt-get install -y \
   libxcomposite1 libxdamage1 libxrandr2 libxss1 libxtst6 \
   libgbm1 libdrm2 libxshmfence1 \
   libnspr4 libnss3 \
@@ -38,7 +39,8 @@ uv tool install mdformat
 get_bin mdformat-all
 
 MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.3.1}
-pushd /usr/local/bin
+mkdir -p  "${HOME}/.local/bin"
+pushd "${HOME}/.local/bin"
 wget -O mdtablefix https://github.com/leynos/mdtablefix/releases/download/v${MDTABLEFIX_VERSION}/mdtablefix-linux-x86_64
 chmod 755 mdtablefix
 popd
