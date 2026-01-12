@@ -9,7 +9,7 @@ chmod +x install-opentofu.sh
 # Please inspect the downloaded script at this point.
 
 # Run the installer:
-./install-opentofu.sh --install-method deb
+sudo ./install-opentofu.sh --install-method deb
 
 # Remove the installer:
 rm -f install-opentofu.sh
@@ -24,7 +24,8 @@ ARCH=$(arch)
 SYSTEM=$(uname)
 wget "https://github.com/open-policy-agent/conftest/releases/download/v${LATEST_VERSION}/conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
 tar xzf conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz
-mv conftest /usr/local/bin
+mkdir -p "$HOME/.local/bin/"
+mv conftest "$HOME/.local/bin/"
 popd
 
 uv tool install checkov
