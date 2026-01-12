@@ -18,8 +18,8 @@ uv tool install vale
 vale --version
 
 # Mermaid dependencies
-apt-get update -y
-apt-get install -y \
+sudo apt-get update -y
+sudo apt-get install -y \
   libxcomposite1 libxdamage1 libxrandr2 libxss1 libxtst6 \
   libgbm1 libdrm2 libxshmfence1 \
   libnspr4 libnss3 \
