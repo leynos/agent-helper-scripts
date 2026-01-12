@@ -26,6 +26,7 @@ if [[ -d "/usr/local/rustup" ]]; then
     /usr/local/bin/rust-gdb /usr/local/bin/rust-lldb /usr/local/bin/rustdoc /usr/local/bin/clippy-driver \
     /usr/local/bin/cargo-clippy /usr/local/bin/cargo-fmt
   sed -i '/RUSTUP_HOME/d' "${HOME}/.bashrc"
+  rm /etc/profile.d/rust.sh
   unset RUSTUP_HOME
 fi
 
