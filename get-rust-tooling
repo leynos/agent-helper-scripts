@@ -31,3 +31,6 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
   cargo binstall sccache
   echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ~/.bashrc
 fi
+
+cargo install whitaker-installer
+whitaker-installer --experimental
