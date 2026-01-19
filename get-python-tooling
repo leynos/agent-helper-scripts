@@ -4,3 +4,4 @@
 uv tool install ruff
 uv tool install pyright[nodejs]
 uv tool install ty
+uv tool install pyscn
