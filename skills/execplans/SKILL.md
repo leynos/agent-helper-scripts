@@ -36,8 +36,8 @@ Every ExecPlan must satisfy all of the following:
 
 - Fully self-contained: it contains all knowledge and instructions needed for a
   novice to succeed.
-- Living document: it must be revised as progress is made, discoveries occur,
-  and decisions are finalised; each revision must remain self-contained.
+- Living document: it must be revized as progress is made, discoveries occur,
+  and decisions are finalized; each revision must remain self-contained.
 - End-to-end and observable: it must produce demonstrably working behaviour,
   not merely "code changes that compile".
 - Plain language: define every term of art immediately, or do not use it.
@@ -173,7 +173,7 @@ ExecPlans must contain, and must keep up to date as work proceeds:
 - `Tolerances` (thresholds that trigger escalation when breached)
 - `Risks` (known uncertainties with mitigations, identified upfront)
 - `Progress` (with checkbox list and timestamps)
-- `Surprises & Discoveries` (unexpected findings during implementation)
+- `Surprizes & Discoveries` (unexpected findings during implementation)
 - `Decision Log` (every key decision with rationale)
 - `Outcomes & Retrospective` (what was achieved and lessons learned)
 
@@ -214,11 +214,11 @@ prototyping milestones:
 Copy the following skeleton when starting a new ExecPlan, then fill it in as
 you research and implement.
 
-```markdown
+~~~markdown
 # <Short, action-oriented description>
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
-`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
+`Risks`, `Progress`, `Surprizes & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
@@ -227,7 +227,7 @@ If PLANS.md file is checked into the repo, reference the path to that file here
 from the repository root and note that this document must be maintained in
 accordance with PLANS.md.
 
-## Purpose / Big Picture
+## Purpose / big picture
 
 Explain in a few sentences what someone gains after this change and how they
 can see it working. State the user-visible behaviour you will enable.
@@ -245,7 +245,7 @@ suggestions; violation requires escalation, not workarounds.
 If satisfying the objective requires violating a constraint, do not proceed.
 Document the conflict in `Decision Log` and escalate.
 
-## Tolerances (Exception Triggers)
+## Tolerances (exception triggers)
 
 Thresholds that trigger escalation when breached. These define the boundaries
 of autonomous action, not quality criteria.
@@ -268,57 +268,57 @@ Known uncertainties that might affect the plan. Identify these upfront and
 update as work proceeds. Each risk should note severity, likelihood, and
 mitigation or contingency.
 
-    - Risk: <description>
-      Severity: low | medium | high
-      Likelihood: low | medium | high
-      Mitigation: <how to prevent or reduce impact>
+- Risk: <description>
+  Severity: low | medium | high
+  Likelihood: low | medium | high
+  Mitigation: <how to prevent or reduce impact>
 
-Risks differ from Surprises: risks are anticipated; surprises are not.
+Risks differ from Surprizes: risks are anticipated; surprizes are not.
 
 ## Progress
 
-Use a list with checkboxes to summarise granular steps. Every stopping point
+Use a list with checkboxes to summarize granular steps. Every stopping point
 must be documented here, even if it requires splitting a partially completed
 task into two ("done" vs. "remaining"). This section must always reflect the
 actual current state of the work.
 
-    - [x] (2025-10-01 13:00Z) Example completed step.
-    - [ ] Example incomplete step.
-    - [ ] Example partially completed step (completed: X; remaining: Y).
+- [x] (2025-10-01 13:00Z) Example completed step.
+- [ ] Example incomplete step.
+- [ ] Example partially completed step (completed: X; remaining: Y).
 
 Use timestamps to measure rates of progress and detect tolerance breaches.
 
-## Surprises & Discoveries
+## Surprizes & discoveries
 
 Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
-    - Observation: <what was unexpected>
-      Evidence: <how you know>
-      Impact: <how it affects this plan or future work>
+- Observation: <what was unexpected>
+  Evidence: <how you know>
+  Impact: <how it affects this plan or future work>
 
-## Decision Log
+## Decision log
 
 Record every significant decision made while working on the plan. Include
 decisions to escalate, decisions on ambiguous requirements, and design choices.
 
-    - Decision: <what was decided>
-      Rationale: <why this choice over alternatives>
-      Date/Author: <timestamp and who decided>
+- Decision: <what was decided>
+  Rationale: <why this choice over alternatives>
+  Date/Author: <timestamp and who decided>
 
-## Outcomes & Retrospective
+## Outcomes & retrospective
 
-Summarise outcomes, gaps, and lessons learned at major milestones or at
+Summarize outcomes, gaps, and lessons learned at major milestones or at
 completion. Compare the result against the original purpose. Note what would be
 done differently next time.
 
-## Context and Orientation
+## Context and orientation
 
 Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
 
-## Plan of Work
+## Plan of work
 
 Describe, in prose, the sequence of edits and additions. For each edit, name
 the file and location (function, module) and what to insert or change. Keep it
@@ -334,15 +334,15 @@ Structure as stages with explicit go/no-go points where appropriate:
 Each stage ends with validation. Do not proceed to the next stage if the
 current stage's validation fails.
 
-## Concrete Steps
+## Concrete steps
 
 State the exact commands to run and where to run them (working directory).
 When a command generates output, show a short expected transcript so the
 reader can compare. This section must be updated as work proceeds.
 
-## Validation and Acceptance
+## Validation and acceptance
 
-Describe how to start or exercise the system and what to observe. Phrase
+Describe how to start or exercize the system and what to observe. Phrase
 acceptance as behaviour, with specific inputs and outputs. If tests are
 involved, say "run <project's test command> and expect <N> passed; the new test
 <name> fails before the change and passes after".
@@ -358,17 +358,17 @@ Quality method (how we check):
 
 - <CI command or manual verification steps>
 
-## Idempotence and Recovery
+## Idempotence and recovery
 
 If steps can be repeated safely, say so. If a step is risky, provide a safe
 retry or rollback path. Keep the environment clean after completion.
 
-## Artifacts and Notes
+## Artifacts and notes
 
 Include the most important transcripts, diffs, or snippets as indented
 examples. Keep them concise and focused on what proves success.
 
-## Interfaces and Dependencies
+## Interfaces and dependencies
 
 Be prescriptive. Name the libraries, modules, and services to use and why.
 Specify the types, traits/interfaces, and function signatures that must exist
@@ -377,10 +377,12 @@ at the end of the milestone. Prefer stable names and paths such as
 
 E.g., in crates/foo/planner.rs, define:
 
-    pub trait Planner {
-        fn plan(&self, observed: &Observed) -> Vec<Action>;
-    }
 ```
+pub trait Planner {
+    fn plan(&self, observed: &Observed) -> Vec<Action>;
+}
+```
+~~~
 
 ## Revision note (required when editing an ExecPlan)
 
