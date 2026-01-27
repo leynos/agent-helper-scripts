@@ -31,8 +31,17 @@ if needs rustup; then
   echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
 fi
 
+if needs sudo; then
+  # Fingers crossed this works. Systems without sudo will be running as root
+  apt-get update -y
+  apt-get install -y apt-utils
+  apt-get install -y sudo
+fi
+
 if needs wget; then
-  apt update -y && apt install -y wget
+  sudo apt-get update -y
+  sudo apt-get install -y apt-utils
+  sudo apt-get install -y wget
 fi
 
 for tool in \
