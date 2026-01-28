@@ -173,7 +173,7 @@ ExecPlans must contain, and must keep up to date as work proceeds:
 - `Tolerances` (thresholds that trigger escalation when breached)
 - `Risks` (known uncertainties with mitigations, identified upfront)
 - `Progress` (with checkbox list and timestamps)
-- `Surprizes & Discoveries` (unexpected findings during implementation)
+- `Surprises & Discoveries` (unexpected findings during implementation)
 - `Decision Log` (every key decision with rationale)
 - `Outcomes & Retrospective` (what was achieved and lessons learned)
 
@@ -218,7 +218,7 @@ you research and implement.
 # <Short, action-oriented description>
 
 This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
-`Risks`, `Progress`, `Surprizes & Discoveries`, `Decision Log`, and
+`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
@@ -273,7 +273,7 @@ mitigation or contingency.
   Likelihood: low | medium | high
   Mitigation: <how to prevent or reduce impact>
 
-Risks differ from Surprizes: risks are anticipated; surprizes are not.
+Risks differ from Surprises: risks are anticipated; surprises are not.
 
 ## Progress
 
@@ -288,7 +288,7 @@ actual current state of the work.
 
 Use timestamps to measure rates of progress and detect tolerance breaches.
 
-## Surprizes & discoveries
+## Surprises & discoveries
 
 Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
