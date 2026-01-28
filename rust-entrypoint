@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+set -xeuo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
@@ -22,26 +24,27 @@ if needs bun; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
-if [[ -d "/usr/local/rustup" ]]; then
-  sudo chmod -R go=u "/usr/local/rustup"
-fi
-
 if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
 fi
 
 if needs sudo; then
-  # Fingers crossed this works. Systems without sudo will be running as root
+  # Fingers crossed this works. Assuming that systems without sudo will be running as root
+  echo "export DEBIAN_FRONTEND=noninteractive" >> /root/.profile
   apt-get update -y
   apt-get install -y apt-utils
   apt-get install -y sudo
 fi
 
+if [[ -d "/usr/local/rustup" ]]; then
+  sudo chmod -R go=u "/usr/local/rustup"
+fi
+
 if needs wget; then
-  sudo apt-get update -y
-  sudo apt-get install -y apt-utils
-  sudo apt-get install -y wget
+  sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
 for tool in \
