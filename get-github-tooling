@@ -24,6 +24,10 @@ cargo binstall fd-find
 cargo binstall mergiraf
 cargo binstall difftastic
 
+pwd
+cargo binstall leta
+leta workspace add .
+
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin"
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
