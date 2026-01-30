@@ -24,6 +24,7 @@ if ((WITH_LLVM_COV)); then
   cargo binstall cargo-llvm-cov
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
+rustup component add rust-analyzer --toolchain "${channel}"
 
 cargo binstall cargo-nextest
 
