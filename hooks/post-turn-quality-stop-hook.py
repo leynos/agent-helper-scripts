@@ -67,8 +67,9 @@ class HookState:
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    # noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
-    return subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
+    return subprocess.run(  # noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
+        cmd, cwd=str(cwd), text=True, capture_output=True
+    )
 
 
 def truncate(text: str, max_chars: int) -> str:
@@ -98,7 +99,20 @@ def ensure_base_ref(
     """
     Ensures refs/remotes/origin/main exists (for base_ref == origin/main).
     If base_ref isn't origin/main, we just verify it resolves as a ref-ish.
-    Returns: ok, error, fetched
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    base_ref
+        Base git ref used to compute the merge-base.
+    always_fetch
+        If True, always fetch origin/main when base_ref is origin/main.
+
+    Returns
+    -------
+    tuple[bool, str | None, bool]
+        ok, error message (if any), fetched.
     """
     fetched = False
 
@@ -223,7 +237,7 @@ def get_make_targets(repo: Path) -> tuple[set[str] | None, str | None]:
 
     # make -q can return 0 or 1 without being an error; 2 means failure
     if p.returncode == 2:
-        combined = "\n".join([p.stderr.strip(), p.stdout.strip()]).strip()
+        combined = f"{p.stderr.strip()}\n{p.stdout.strip()}".strip()
         if is_missing_makefile(combined):
             return set(), None
         return None, combined or "make -qp failed"
@@ -336,7 +350,7 @@ def targets_for_categories(
 
 
 def main() -> int:
-    # Claude Code hook input arrives as JSON on stdin (but don’t assume it’s present/valid).
+    # Claude Code hook input arrives as JSON on stdin (but don't assume it's present/valid).
     hook_input: dict[str, Any] = {}
     try:
         hook_input = json.load(sys.stdin)

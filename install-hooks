@@ -11,6 +11,11 @@ INSTALL_HOOK_CMD="${INSTALL_BIN_DIR}/install-hook-cmd"
 
 CLAUDE_HOOKS_DIR="${HOME}/.claude/hooks"
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required but was not found on PATH" >&2
+  exit 1
+fi
+
 # Clone or update the repo
 mkdir -p "${HOME}/git"
 if [[ -d "${REPO_DIR}" ]]; then
@@ -40,10 +45,17 @@ mkdir -p "${INSTALL_BIN_DIR}"
 install -m 0755 "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
 
 mkdir -p "${CLAUDE_HOOKS_DIR}"
+installed_hooks=0
+shopt -s nullglob
 for hook in "${HOOKS_SRC}"/*; do
   [[ -f "${hook}" ]] || continue
   install -m 0755 "${hook}" "${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+  installed_hooks=$((installed_hooks + 1))
 done
+shopt -u nullglob
+if [[ "${installed_hooks}" -eq 0 ]]; then
+  echo "Warning: no hooks found in ${HOOKS_SRC}" >&2
+fi
 
 stop_hook="${CLAUDE_HOOKS_DIR}/post-turn-quality-stop-hook.py"
 if [[ ! -f "${stop_hook}" ]]; then
@@ -51,6 +63,7 @@ if [[ ! -f "${stop_hook}" ]]; then
   exit 1
 fi
 
+# Allow for slow checks in large repos or on constrained machines.
 "${INSTALL_HOOK_CMD}" Stop --timeout 600 python3 "${stop_hook}"
 
 echo "Hooks installed and registered."

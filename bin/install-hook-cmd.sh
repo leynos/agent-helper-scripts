@@ -40,6 +40,11 @@ if [[ $# -lt 2 ]]; then
   usage
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is required but was not found on PATH" >&2
+  exit 1
+fi
+
 hook_type="$1"
 shift
 
