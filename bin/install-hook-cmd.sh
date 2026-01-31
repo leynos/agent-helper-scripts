@@ -16,6 +16,7 @@ set -euo pipefail
 #   ./install-hook-cmd.sh PreToolUse --timeout 30 bash -lc 'echo hello'
 
 SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
+SETTINGS_DIR="$(dirname "$SETTINGS_FILE")"
 
 usage() {
   cat >&2 <<'EOF'
@@ -64,6 +65,11 @@ tmp="$(mktemp)"
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT
 
+mkdir -p "$SETTINGS_DIR"
+if [[ ! -s "$SETTINGS_FILE" ]]; then
+  echo '{}' >"$SETTINGS_FILE"
+fi
+
 jq --arg hook_type "$hook_type" \
    --arg cmd "$cmd" \
    --argjson has_timeout "$([[ -n "${timeout:-}" ]] && echo true || echo false)" \
@@ -77,7 +83,7 @@ jq --arg hook_type "$hook_type" \
 
   (.hooks //= {})
   | (.hooks[$hook_type] //= [])
-  | if (.hooks[$hook_type] | any(.hooks[]?; .type=="command" and .command==$cmd))
+  | if (.hooks[$hook_type] | any(.[]?; .type=="command" and .command==$cmd))
       then .
       else .hooks[$hook_type] |= ([ newhook($cmd; $has_timeout; $timeout_val) ] + .)
     end

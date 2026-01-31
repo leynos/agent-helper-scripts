@@ -29,16 +29,45 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 
 PY_TS_EXTS = {".py", ".pyi", ".ts", ".tsx", ".mts", ".cts"}
 RUST_EXTS = {".rs"}
 MD_EXTS = {".md", ".mdx", ".markdown"}
 
+CATS_TO_TARGETS: dict[str, list[str]] = {
+    "python_ts": ["check-fmt", "lint", "typecheck"],
+    "rust": ["check-fmt", "lint"],
+    "markdown": ["markdownlint"],
+}
+CODE_CATS = {"python_ts", "rust"}
+MD_CATS = {"markdown"}
 
-def run(cmd: List[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+
+def default_categories() -> dict[str, bool]:
+    return {"python_ts": False, "rust": False, "markdown": False}
+
+
+@dataclass
+class HookState:
+    ok: bool = True
+    base_ref: str = "origin/main"
+    base_commit: str | None = None
+    changed_files: list[str] = field(default_factory=list)
+    categories: dict[str, bool] = field(default_factory=default_categories)
+    make_targets_requested: list[str] = field(default_factory=list)
+    make_targets_run: list[str] = field(default_factory=list)
+    make_targets_skipped: list[str] = field(default_factory=list)
+    commands: list[dict[str, Any]] = field(default_factory=list)
+    fetched: bool = False
+    error: str | None = None
+
+
+def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    # noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
     return subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
 
 
@@ -49,7 +78,7 @@ def truncate(text: str, max_chars: int) -> str:
     return text[:half] + "\n... (output truncated) ...\n" + text[-half:]
 
 
-def repo_root(start_cwd: Path) -> Tuple[Optional[Path], Optional[str]]:
+def repo_root(start_cwd: Path) -> tuple[Path | None, str | None]:
     p = run(["git", "rev-parse", "--show-toplevel"], start_cwd)
     if p.returncode != 0:
         err = (p.stderr.strip() or p.stdout.strip() or "not a git repository")
@@ -60,7 +89,12 @@ def repo_root(start_cwd: Path) -> Tuple[Optional[Path], Optional[str]]:
     return Path(root), None
 
 
-def ensure_base_ref(repo: Path, base_ref: str, always_fetch: bool) -> Tuple[bool, Optional[str], bool]:
+def ensure_base_ref(
+    repo: Path,
+    base_ref: str,
+    *,
+    always_fetch: bool,
+) -> tuple[bool, str | None, bool]:
     """
     Ensures refs/remotes/origin/main exists (for base_ref == origin/main).
     If base_ref isn't origin/main, we just verify it resolves as a ref-ish.
@@ -106,7 +140,7 @@ def ensure_base_ref(repo: Path, base_ref: str, always_fetch: bool) -> Tuple[bool
     return True, None, fetched
 
 
-def merge_base(repo: Path, base_ref: str) -> Tuple[Optional[str], Optional[str]]:
+def merge_base(repo: Path, base_ref: str) -> tuple[str | None, str | None]:
     p = run(["git", "merge-base", base_ref, "HEAD"], repo)
     if p.returncode != 0:
         return None, f"git merge-base {base_ref} HEAD failed: {p.stderr.strip() or p.stdout.strip()}"
@@ -116,8 +150,8 @@ def merge_base(repo: Path, base_ref: str) -> Tuple[Optional[str], Optional[str]]
     return base, None
 
 
-def changed_files(repo: Path, base_commit: str) -> Tuple[Optional[List[str]], Optional[str]]:
-    changed: Set[str] = set()
+def changed_files(repo: Path, base_commit: str) -> tuple[list[str] | None, str | None]:
+    changed: set[str] = set()
 
     # Tracked changes (unstaged and staged) relative to base_commit
     for args in (
@@ -144,8 +178,8 @@ def changed_files(repo: Path, base_commit: str) -> Tuple[Optional[List[str]], Op
     return sorted(changed), None
 
 
-def detect_categories(files: List[str]) -> Dict[str, bool]:
-    cats = {"python_ts": False, "rust": False, "markdown": False}
+def detect_categories(files: list[str]) -> dict[str, bool]:
+    cats = default_categories()
     for f in files:
         ext = Path(f).suffix.lower()
         if ext in PY_TS_EXTS:
@@ -157,13 +191,13 @@ def detect_categories(files: List[str]) -> Dict[str, bool]:
     return cats
 
 
-def parse_make_targets(make_stdout: str) -> Set[str]:
-    targets: Set[str] = set()
+def parse_make_targets(make_stdout: str) -> set[str]:
+    targets: set[str] = set()
     rule_re = re.compile(r"^([^\s:#=]+(?:\s+[^\s:#=]+)*)\s*::?\s*.*$")
     for line in make_stdout.splitlines():
         if not line:
             continue
-        if line.startswith("#") or line.startswith("\t") or line.startswith(" "):
+        if line.startswith(("#", "\t", " ")):
             continue
         m = rule_re.match(line)
         if not m:
@@ -176,7 +210,12 @@ def parse_make_targets(make_stdout: str) -> Set[str]:
     return targets
 
 
-def get_make_targets(repo: Path) -> Tuple[Optional[Set[str]], Optional[str]]:
+def is_missing_makefile(output: str) -> bool:
+    lowered = output.lower()
+    return "no makefile found" in lowered
+
+
+def get_make_targets(repo: Path) -> tuple[set[str] | None, str | None]:
     try:
         p = run(["make", "-qp", "--no-print-directory"], repo)
     except FileNotFoundError:
@@ -184,14 +223,17 @@ def get_make_targets(repo: Path) -> Tuple[Optional[Set[str]], Optional[str]]:
 
     # make -q can return 0 or 1 without being an error; 2 means failure
     if p.returncode == 2:
-        return None, p.stderr.strip() or p.stdout.strip() or "make -qp failed"
+        combined = "\n".join([p.stderr.strip(), p.stdout.strip()]).strip()
+        if is_missing_makefile(combined):
+            return set(), None
+        return None, combined or "make -qp failed"
 
     return parse_make_targets(p.stdout), None
 
 
-def dedup_preserve_order(items: List[str]) -> List[str]:
-    out: List[str] = []
-    seen: Set[str] = set()
+def dedup_preserve_order(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
     for x in items:
         if x in seen:
             continue
@@ -200,7 +242,7 @@ def dedup_preserve_order(items: List[str]) -> List[str]:
     return out
 
 
-def run_make(repo: Path, kind: str, targets: List[str], max_out: int) -> Dict[str, Any]:
+def run_make(repo: Path, kind: str, targets: list[str], max_out: int) -> dict[str, Any]:
     if not targets:
         return {"kind": kind, "cmd": "", "exit_code": 0, "stdout": "", "stderr": ""}
 
@@ -214,20 +256,20 @@ def run_make(repo: Path, kind: str, targets: List[str], max_out: int) -> Dict[st
     }
 
 
-def format_reason(state: Dict[str, Any]) -> str:
-    lines: List[str] = []
+def format_reason(state: HookState) -> str:
+    lines: list[str] = []
     lines.append("Post-turn checks failed.")
 
-    if state.get("error"):
+    if state.error:
         lines.append("")
-        lines.append(f"Error: {state['error']}")
+        lines.append(f"Error: {state.error}")
 
-    base_ref = state.get("base_ref") or "?"
-    base_commit = state.get("base_commit") or "?"
+    base_ref = state.base_ref or "?"
+    base_commit = state.base_commit or "?"
     lines.append("")
     lines.append(f"Diff base: {base_ref} ({base_commit})")
 
-    changed = state.get("changed_files") or []
+    changed = state.changed_files
     lines.append("")
     lines.append(f"Changed files vs {base_ref}: {len(changed)}")
     for f in changed[:60]:
@@ -235,8 +277,8 @@ def format_reason(state: Dict[str, Any]) -> str:
     if len(changed) > 60:
         lines.append(f"- … (+{len(changed) - 60} more)")
 
-    cats = state.get("categories") or {}
-    detected: List[str] = []
+    cats = state.categories
+    detected: list[str] = []
     if cats.get("python_ts"):
         detected.append("Python/TypeScript")
     if cats.get("rust"):
@@ -247,15 +289,15 @@ def format_reason(state: Dict[str, Any]) -> str:
         lines.append("")
         lines.append("Detected change types: " + ", ".join(detected))
 
-    if state.get("make_targets_requested"):
+    if state.make_targets_requested:
         lines.append("")
-        lines.append("Requested make targets: " + " ".join(state["make_targets_requested"]))
-    if state.get("make_targets_run"):
-        lines.append("Targets run: " + " ".join(state["make_targets_run"]))
-    if state.get("make_targets_skipped"):
-        lines.append("Targets skipped (missing): " + " ".join(state["make_targets_skipped"]))
+        lines.append("Requested make targets: " + " ".join(state.make_targets_requested))
+    if state.make_targets_run:
+        lines.append("Targets run: " + " ".join(state.make_targets_run))
+    if state.make_targets_skipped:
+        lines.append("Targets skipped (missing): " + " ".join(state.make_targets_skipped))
 
-    failures = [c for c in (state.get("commands") or []) if int(c.get("exit_code", 0)) != 0]
+    failures = [c for c in state.commands if int(c.get("exit_code", 0)) != 0]
     for c in failures:
         cmd = c.get("cmd", "")
         code = c.get("exit_code", "?")
@@ -272,12 +314,33 @@ def format_reason(state: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def block_and_print(state: HookState) -> int:
+    payload = {"decision": "block", "reason": format_reason(state)}
+    print(json.dumps(payload))
+    return 0
+
+
+def targets_for_categories(
+    categories: dict[str, bool],
+    *,
+    include: set[str] | None = None,
+) -> list[str]:
+    requested: list[str] = []
+    for category, enabled in categories.items():
+        if not enabled:
+            continue
+        if include is not None and category not in include:
+            continue
+        requested.extend(CATS_TO_TARGETS.get(category, []))
+    return dedup_preserve_order(requested)
+
+
 def main() -> int:
     # Claude Code hook input arrives as JSON on stdin (but don’t assume it’s present/valid).
-    hook_input: Dict[str, Any] = {}
+    hook_input: dict[str, Any] = {}
     try:
         hook_input = json.load(sys.stdin)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         hook_input = {}
 
     # Choose a sensible cwd.
@@ -290,19 +353,13 @@ def main() -> int:
 
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
     always_fetch = os.environ.get("POST_TURN_ALWAYS_FETCH", "").strip() in {"1", "true", "TRUE", "yes", "YES"}
-    max_out = int(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
+    max_out_raw = os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000")
+    try:
+        max_out = int(max_out_raw)
+    except ValueError:
+        max_out = 12000
 
-    state: Dict[str, Any] = {
-        "ok": True,
-        "base_ref": base_ref,
-        "changed_files": [],
-        "categories": {"python_ts": False, "rust": False, "markdown": False},
-        "make_targets_requested": [],
-        "make_targets_run": [],
-        "make_targets_skipped": [],
-        "commands": [],
-        "fetched": False,
-    }
+    state = HookState(base_ref=base_ref)
 
     repo, err = repo_root(start_cwd)
     if repo is None:
@@ -310,48 +367,37 @@ def main() -> int:
         return 0
 
     ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
-    state["fetched"] = fetched
+    state.fetched = fetched
     if not ok:
         # If we cannot establish the base ref, block (you asked for strictness).
-        state["ok"] = False
-        state["error"] = err
-        print(json.dumps({"decision": "block", "reason": format_reason(state)}))
-        return 0
+        state.ok = False
+        state.error = err
+        return block_and_print(state)
 
     base_commit, err = merge_base(repo, base_ref)
     if base_commit is None:
-        state["ok"] = False
-        state["error"] = err
-        print(json.dumps({"decision": "block", "reason": format_reason(state)}))
-        return 0
-    state["base_commit"] = base_commit
+        state.ok = False
+        state.error = err
+        return block_and_print(state)
+    state.base_commit = base_commit
 
     files, err = changed_files(repo, base_commit)
     if files is None:
-        state["ok"] = False
-        state["error"] = err
-        print(json.dumps({"decision": "block", "reason": format_reason(state)}))
-        return 0
+        state.ok = False
+        state.error = err
+        return block_and_print(state)
 
-    state["changed_files"] = files
+    state.changed_files = files
     if not files:
         # No modifications relative to merge-base => allow.
         return 0
 
     cats = detect_categories(files)
-    state["categories"] = cats
+    state.categories = cats
 
     # Decide what we'd like to run.
-    requested: List[str] = []
-    if cats["python_ts"]:
-        requested += ["check-fmt", "lint", "typecheck"]
-    if cats["rust"]:
-        requested += ["check-fmt", "lint"]
-    if cats["markdown"]:
-        requested += ["markdownlint"]
-
-    requested = dedup_preserve_order(requested)
-    state["make_targets_requested"] = requested
+    requested = targets_for_categories(cats)
+    state.make_targets_requested = requested
 
     if not requested:
         # Changes exist, but none match the watched extensions => allow.
@@ -359,36 +405,31 @@ def main() -> int:
 
     make_targets, make_err = get_make_targets(repo)
     if make_targets is None:
-        state["ok"] = False
-        state["error"] = f"Could not enumerate make targets: {make_err}"
-        print(json.dumps({"decision": "block", "reason": format_reason(state)}))
-        return 0
+        state.ok = False
+        state.error = f"Could not enumerate make targets: {make_err}"
+        return block_and_print(state)
 
     run_targets = [t for t in requested if t in make_targets]
     skip_targets = [t for t in requested if t not in make_targets]
-    state["make_targets_run"] = run_targets
-    state["make_targets_skipped"] = skip_targets
+    state.make_targets_run = run_targets
+    state.make_targets_skipped = skip_targets
 
     # Group execution so markdown runs even if code checks fail.
-    commands: List[Dict[str, Any]] = []
+    commands: list[dict[str, Any]] = []
 
-    code_targets: List[str] = []
-    if cats["python_ts"]:
-        code_targets += ["check-fmt", "lint", "typecheck"]
-    if cats["rust"]:
-        code_targets += ["check-fmt", "lint"]
-    code_targets = [t for t in dedup_preserve_order(code_targets) if t in make_targets]
-
-    md_targets: List[str] = []
-    if cats["markdown"] and "markdownlint" in make_targets:
-        md_targets = ["markdownlint"]
+    code_targets = [
+        t for t in targets_for_categories(cats, include=CODE_CATS) if t in make_targets
+    ]
+    md_targets = [
+        t for t in targets_for_categories(cats, include=MD_CATS) if t in make_targets
+    ]
 
     if code_targets:
         commands.append(run_make(repo, "code", code_targets, max_out))
     if md_targets:
         commands.append(run_make(repo, "markdown", md_targets, max_out))
 
-    state["commands"] = commands
+    state.commands = commands
 
     # If we ran nothing because targets are missing, treat as OK (per your “only if targets exist” rule).
     if not commands:
@@ -398,11 +439,9 @@ def main() -> int:
     if ok_all:
         return 0
 
-    state["ok"] = False
-    print(json.dumps({"decision": "block", "reason": format_reason(state)}))
-    return 0
+    state.ok = False
+    return block_and_print(state)
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

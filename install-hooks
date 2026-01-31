@@ -16,6 +16,7 @@ mkdir -p "${HOME}/git"
 if [[ -d "${REPO_DIR}" ]]; then
   echo "Updating existing repo at ${REPO_DIR}..."
   git -C "${REPO_DIR}" fetch origin
+  # This is a managed clone; discard any local changes to keep it in sync.
   git -C "${REPO_DIR}" reset --hard origin/HEAD
 else
   echo "Cloning repo to ${REPO_DIR}..."
