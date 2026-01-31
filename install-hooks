@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install Claude Code hooks and hook installer.
+
+REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
+REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
+
+INSTALL_BIN_DIR="${HOME}/.local/bin"
+INSTALL_HOOK_CMD="${INSTALL_BIN_DIR}/install-hook-cmd"
+
+CLAUDE_HOOKS_DIR="${HOME}/.claude/hooks"
+
+# Clone or update the repo
+mkdir -p "${HOME}/git"
+if [[ -d "${REPO_DIR}" ]]; then
+  echo "Updating existing repo at ${REPO_DIR}..."
+  git -C "${REPO_DIR}" fetch origin
+  git -C "${REPO_DIR}" reset --hard origin/HEAD
+else
+  echo "Cloning repo to ${REPO_DIR}..."
+  git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
+  git -C "${REPO_DIR}" sparse-checkout set hooks bin
+fi
+
+BIN_SRC="${REPO_DIR}/bin/install-hook-cmd.sh"
+HOOKS_SRC="${REPO_DIR}/hooks"
+
+if [[ ! -f "${BIN_SRC}" ]]; then
+  echo "Error: Hook installer not found at ${BIN_SRC}" >&2
+  exit 1
+fi
+if [[ ! -d "${HOOKS_SRC}" ]]; then
+  echo "Error: Hooks directory not found at ${HOOKS_SRC}" >&2
+  exit 1
+fi
+
+mkdir -p "${INSTALL_BIN_DIR}"
+install -m 0755 "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
+
+mkdir -p "${CLAUDE_HOOKS_DIR}"
+for hook in "${HOOKS_SRC}"/*; do
+  [[ -f "${hook}" ]] || continue
+  install -m 0755 "${hook}" "${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+done
+
+stop_hook="${CLAUDE_HOOKS_DIR}/post-turn-quality-stop-hook.py"
+if [[ ! -f "${stop_hook}" ]]; then
+  echo "Error: Stop hook not found at ${stop_hook}" >&2
+  exit 1
+fi
+
+"${INSTALL_HOOK_CMD}" Stop --timeout 600 python3 "${stop_hook}"
+
+echo "Hooks installed and registered."
+echo "Hook command installed to: ${INSTALL_HOOK_CMD}"
+echo "Hooks directory: ${CLAUDE_HOOKS_DIR}"
