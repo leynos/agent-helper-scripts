@@ -1,4 +1,5 @@
-SHELL := /usr/bin/env bash
+SHELL := /usr/bin/env
+.SHELLFLAGS := bash -c
 
 SHELL_SCRIPTS := install-hooks bin/install-hook-cmd.sh
 PYTHON_SCRIPTS := hooks/post-turn-quality-stop-hook.py

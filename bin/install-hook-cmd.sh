@@ -66,14 +66,14 @@ for arg in "$@"; do
   cmd+="${cmd:+ }$escaped"
 done
 
-tmp="$(mktemp)"
-cleanup() { rm -f "$tmp"; }
-trap cleanup EXIT
-
 mkdir -p "$SETTINGS_DIR"
 if [[ ! -s "$SETTINGS_FILE" ]]; then
   echo '{}' >"$SETTINGS_FILE"
 fi
+
+tmp="$(mktemp "${SETTINGS_DIR}/settings.json.XXXXXX")"
+cleanup() { rm -f "$tmp"; }
+trap cleanup EXIT
 
 jq --arg hook_type "$hook_type" \
    --arg cmd "$cmd" \
@@ -81,14 +81,20 @@ jq --arg hook_type "$hook_type" \
    --argjson timeout_val "${timeout:-0}" '
   def newhook($cmd; $has_timeout; $timeout_val):
     if $has_timeout then
-      { hooks: [ { type: "command", command: $cmd, timeout: $timeout_val } ] }
+      { type: "command", command: $cmd, timeout: $timeout_val }
     else
-      { hooks: [ { type: "command", command: $cmd } ] }
+      { type: "command", command: $cmd }
     end;
 
   (.hooks //= {})
   | (.hooks[$hook_type] //= [])
-  | if (.hooks[$hook_type] | any(.[]?; .type=="command" and .command==$cmd))
+  | if (.hooks[$hook_type]
+        | any(
+            .[]?;
+            (.type=="command" and .command==$cmd)
+            or (.hooks[]?; .type=="command" and .command==$cmd)
+          )
+      )
       then .
       else .hooks[$hook_type] |= ([ newhook($cmd; $has_timeout; $timeout_val) ] + .)
     end

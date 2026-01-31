@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -48,11 +49,45 @@ MD_CATS = {"markdown"}
 
 
 def default_categories() -> dict[str, bool]:
+    """Return a default category mapping.
+
+    Returns
+    -------
+    dict[str, bool]
+        Default mapping of category names to enabled flags.
+    """
     return {"python_ts": False, "rust": False, "markdown": False}
 
 
 @dataclass
 class HookState:
+    """Execution state for the stop hook.
+
+    Attributes
+    ----------
+    ok
+        Whether the hook checks succeeded.
+    base_ref
+        Base ref used for comparison.
+    base_commit
+        Resolved merge-base commit.
+    changed_files
+        Files changed relative to the base commit.
+    categories
+        Detected change categories.
+    make_targets_requested
+        Make targets requested based on change categories.
+    make_targets_run
+        Make targets executed.
+    make_targets_skipped
+        Requested targets that were not present in the Makefile.
+    commands
+        Executed commands and their outputs.
+    fetched
+        Whether a fetch was performed.
+    error
+        Error message when blocking.
+    """
     ok: bool = True
     base_ref: str = "origin/main"
     base_commit: str | None = None
@@ -67,12 +102,40 @@ class HookState:
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run a subprocess command in the given working directory.
+
+    Parameters
+    ----------
+    cmd
+        Command and arguments to run.
+    cwd
+        Working directory for the subprocess.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        Completed process with captured output.
+    """
     return subprocess.run(  # noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
         cmd, cwd=str(cwd), text=True, capture_output=True
     )
 
 
 def truncate(text: str, max_chars: int) -> str:
+    """Truncate text to a maximum length.
+
+    Parameters
+    ----------
+    text
+        Text to truncate.
+    max_chars
+        Maximum number of characters to keep.
+
+    Returns
+    -------
+    str
+        Truncated text with a placeholder if needed.
+    """
     if len(text) <= max_chars:
         return text
     half = max_chars // 2
@@ -80,6 +143,18 @@ def truncate(text: str, max_chars: int) -> str:
 
 
 def repo_root(start_cwd: Path) -> tuple[Path | None, str | None]:
+    """Resolve the git repository root for a starting directory.
+
+    Parameters
+    ----------
+    start_cwd
+        Directory to resolve from.
+
+    Returns
+    -------
+    tuple[Path | None, str | None]
+        Repository root path and error message, if any.
+    """
     p = run(["git", "rev-parse", "--show-toplevel"], start_cwd)
     if p.returncode != 0:
         err = (p.stderr.strip() or p.stdout.strip() or "not a git repository")
@@ -90,15 +165,143 @@ def repo_root(start_cwd: Path) -> tuple[Path | None, str | None]:
     return Path(root), None
 
 
+def ensure_origin_remote(repo: Path) -> tuple[bool, str | None]:
+    """Ensure the origin remote is configured.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[bool, str | None]
+        ok and error message, if any.
+    """
+    remotes = run(["git", "remote"], repo)
+    if remotes.returncode != 0:
+        return False, f"git remote failed: {remotes.stderr.strip() or remotes.stdout.strip()}"
+    if "origin" not in remotes.stdout.split():
+        return False, "git remote 'origin' not found"
+    return True, None
+
+
+def fetch_origin_main(repo: Path) -> tuple[bool, str | None]:
+    """Fetch origin/main.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[bool, str | None]
+        ok and error message, if any.
+    """
+    fetch = run(["git", "fetch", "--quiet", "origin", "main"], repo)
+    if fetch.returncode != 0:
+        return False, f"git fetch origin main failed: {fetch.stderr.strip() or fetch.stdout.strip()}"
+    return True, None
+
+
+def ref_exists(repo: Path, ref: str) -> tuple[bool, str | None]:
+    """Check whether a ref exists.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    ref
+        Fully qualified ref name.
+
+    Returns
+    -------
+    tuple[bool, str | None]
+        True if the ref exists, otherwise False and an error if the check failed.
+    """
+    verify = run(["git", "show-ref", "--verify", "--quiet", ref], repo)
+    if verify.returncode == 0:
+        return True, None
+    if verify.returncode == 1:
+        return False, None
+    return False, verify.stderr.strip() or verify.stdout.strip() or "git show-ref failed"
+
+
+def verify_ref(repo: Path, ref: str) -> tuple[bool, str | None]:
+    """Verify that a ref can be resolved.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    ref
+        Ref name to verify with rev-parse.
+
+    Returns
+    -------
+    tuple[bool, str | None]
+        ok and error message, if any.
+    """
+    rp = run(["git", "rev-parse", "--verify", "--quiet", ref], repo)
+    if rp.returncode != 0:
+        return False, f"Cannot resolve {ref}"
+    return True, None
+
+
+def ensure_origin_main(repo: Path, *, always_fetch: bool) -> tuple[bool, str | None, bool]:
+    """Ensure origin/main is present and resolvable.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    always_fetch
+        If True, always fetch origin/main.
+
+    Returns
+    -------
+    tuple[bool, str | None, bool]
+        ok, error message (if any), fetched.
+    """
+    ok, err = ensure_origin_remote(repo)
+    if not ok:
+        return False, err, False
+
+    fetched = False
+    if always_fetch:
+        ok, err = fetch_origin_main(repo)
+        fetched = True
+        if not ok:
+            return False, err, fetched
+    else:
+        exists, err = ref_exists(repo, "refs/remotes/origin/main")
+        if err:
+            return False, err, fetched
+        if not exists:
+            ok, err = fetch_origin_main(repo)
+            fetched = True
+            if not ok:
+                return False, err, fetched
+            exists, err = ref_exists(repo, "refs/remotes/origin/main")
+            if err:
+                return False, err, fetched
+            if not exists:
+                return False, "origin/main still missing after fetch", fetched
+
+    ok, err = verify_ref(repo, "origin/main")
+    if not ok:
+        return False, err, fetched
+    return True, None, fetched
+
+
 def ensure_base_ref(
     repo: Path,
     base_ref: str,
     *,
     always_fetch: bool,
 ) -> tuple[bool, str | None, bool]:
-    """
-    Ensures refs/remotes/origin/main exists (for base_ref == origin/main).
-    If base_ref isn't origin/main, we just verify it resolves as a ref-ish.
+    """Ensure a base ref is available and resolvable.
 
     Parameters
     ----------
@@ -114,47 +317,30 @@ def ensure_base_ref(
     tuple[bool, str | None, bool]
         ok, error message (if any), fetched.
     """
-    fetched = False
-
-    # If base_ref is origin/main, ensure 'origin' exists and fetch as needed.
     if base_ref == "origin/main":
-        remotes = run(["git", "remote"], repo)
-        if remotes.returncode != 0:
-            return False, f"git remote failed: {remotes.stderr.strip() or remotes.stdout.strip()}", fetched
-        if "origin" not in remotes.stdout.split():
-            return False, "git remote 'origin' not found", fetched
+        return ensure_origin_main(repo, always_fetch=always_fetch)
 
-        if always_fetch:
-            fetch = run(["git", "fetch", "--quiet", "origin", "main"], repo)
-            fetched = True
-            if fetch.returncode != 0:
-                return False, f"git fetch origin main failed: {fetch.stderr.strip() or fetch.stdout.strip()}", fetched
-        else:
-            verify = run(["git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/main"], repo)
-            if verify.returncode != 0:
-                fetch = run(["git", "fetch", "--quiet", "origin", "main"], repo)
-                fetched = True
-                if fetch.returncode != 0:
-                    return False, f"git fetch origin main failed: {fetch.stderr.strip() or fetch.stdout.strip()}", fetched
-
-                verify2 = run(["git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/main"], repo)
-                if verify2.returncode != 0:
-                    return False, "origin/main still missing after fetch", fetched
-
-        # Final sanity: can we rev-parse it?
-        rp = run(["git", "rev-parse", "--verify", "--quiet", base_ref], repo)
-        if rp.returncode != 0:
-            return False, f"Cannot resolve {base_ref}", fetched
-        return True, None, fetched
-
-    # For other base refs, just ensure it resolves.
-    rp = run(["git", "rev-parse", "--verify", "--quiet", base_ref], repo)
-    if rp.returncode != 0:
-        return False, f"Cannot resolve base ref '{base_ref}'", fetched
-    return True, None, fetched
+    ok, err = verify_ref(repo, base_ref)
+    if not ok:
+        return False, err or f"Cannot resolve base ref '{base_ref}'", False
+    return True, None, False
 
 
 def merge_base(repo: Path, base_ref: str) -> tuple[str | None, str | None]:
+    """Compute the merge-base of base_ref and HEAD.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    base_ref
+        Base ref to compare against HEAD.
+
+    Returns
+    -------
+    tuple[str | None, str | None]
+        Merge-base commit hash and error message, if any.
+    """
     p = run(["git", "merge-base", base_ref, "HEAD"], repo)
     if p.returncode != 0:
         return None, f"git merge-base {base_ref} HEAD failed: {p.stderr.strip() or p.stdout.strip()}"
@@ -165,6 +351,20 @@ def merge_base(repo: Path, base_ref: str) -> tuple[str | None, str | None]:
 
 
 def changed_files(repo: Path, base_commit: str) -> tuple[list[str] | None, str | None]:
+    """List files changed relative to a base commit.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    base_commit
+        Base commit hash for diffing.
+
+    Returns
+    -------
+    tuple[list[str] | None, str | None]
+        Sorted list of changed files and error message, if any.
+    """
     changed: set[str] = set()
 
     # Tracked changes (unstaged and staged) relative to base_commit
@@ -193,6 +393,18 @@ def changed_files(repo: Path, base_commit: str) -> tuple[list[str] | None, str |
 
 
 def detect_categories(files: list[str]) -> dict[str, bool]:
+    """Detect change categories from a file list.
+
+    Parameters
+    ----------
+    files
+        List of file paths.
+
+    Returns
+    -------
+    dict[str, bool]
+        Mapping of category names to detection flags.
+    """
     cats = default_categories()
     for f in files:
         ext = Path(f).suffix.lower()
@@ -206,6 +418,18 @@ def detect_categories(files: list[str]) -> dict[str, bool]:
 
 
 def parse_make_targets(make_stdout: str) -> set[str]:
+    """Parse make -qp output for target names.
+
+    Parameters
+    ----------
+    make_stdout
+        Stdout from make -qp.
+
+    Returns
+    -------
+    set[str]
+        Parsed make target names.
+    """
     targets: set[str] = set()
     rule_re = re.compile(r"^([^\s:#=]+(?:\s+[^\s:#=]+)*)\s*::?\s*.*$")
     for line in make_stdout.splitlines():
@@ -225,11 +449,35 @@ def parse_make_targets(make_stdout: str) -> set[str]:
 
 
 def is_missing_makefile(output: str) -> bool:
+    """Check output for a missing Makefile condition.
+
+    Parameters
+    ----------
+    output
+        Combined output from make.
+
+    Returns
+    -------
+    bool
+        True if the output indicates no Makefile was found.
+    """
     lowered = output.lower()
     return "no makefile found" in lowered
 
 
 def get_make_targets(repo: Path) -> tuple[set[str] | None, str | None]:
+    """Collect available make targets from a repository.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[set[str] | None, str | None]
+        Target set and error message, if any.
+    """
     try:
         p = run(["make", "-qp", "--no-print-directory"], repo)
     except FileNotFoundError:
@@ -246,6 +494,18 @@ def get_make_targets(repo: Path) -> tuple[set[str] | None, str | None]:
 
 
 def dedup_preserve_order(items: list[str]) -> list[str]:
+    """Deduplicate items while preserving order.
+
+    Parameters
+    ----------
+    items
+        Items to deduplicate.
+
+    Returns
+    -------
+    list[str]
+        Deduplicated items in original order.
+    """
     out: list[str] = []
     seen: set[str] = set()
     for x in items:
@@ -257,6 +517,24 @@ def dedup_preserve_order(items: list[str]) -> list[str]:
 
 
 def run_make(repo: Path, kind: str, targets: list[str], max_out: int) -> dict[str, Any]:
+    """Run make targets and capture output.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    kind
+        Label describing the target group.
+    targets
+        Make targets to run.
+    max_out
+        Maximum number of output characters to capture.
+
+    Returns
+    -------
+    dict[str, Any]
+        Execution metadata and captured output.
+    """
     if not targets:
         return {"kind": kind, "cmd": "", "exit_code": 0, "stdout": "", "stderr": ""}
 
@@ -271,6 +549,18 @@ def run_make(repo: Path, kind: str, targets: list[str], max_out: int) -> dict[st
 
 
 def format_reason(state: HookState) -> str:
+    """Format a blocking reason for hook output.
+
+    Parameters
+    ----------
+    state
+        Hook execution state.
+
+    Returns
+    -------
+    str
+        Human-readable reason string.
+    """
     lines: list[str] = []
     lines.append("Post-turn checks failed.")
 
@@ -329,6 +619,18 @@ def format_reason(state: HookState) -> str:
 
 
 def block_and_print(state: HookState) -> int:
+    """Emit a blocking response and return a stop code.
+
+    Parameters
+    ----------
+    state
+        Hook execution state.
+
+    Returns
+    -------
+    int
+        Exit code for the hook.
+    """
     payload = {"decision": "block", "reason": format_reason(state)}
     print(json.dumps(payload))
     return 0
@@ -339,6 +641,20 @@ def targets_for_categories(
     *,
     include: set[str] | None = None,
 ) -> list[str]:
+    """Expand enabled categories into make targets.
+
+    Parameters
+    ----------
+    categories
+        Mapping of category flags.
+    include
+        Optional subset of categories to include.
+
+    Returns
+    -------
+    list[str]
+        Deduplicated target list.
+    """
     requested: list[str] = []
     for category, enabled in categories.items():
         if not enabled:
@@ -350,12 +666,24 @@ def targets_for_categories(
 
 
 def main() -> int:
+    """Run the stop-hook checks.
+
+    Returns
+    -------
+    int
+        Exit code for the hook.
+    """
     # Claude Code hook input arrives as JSON on stdin (but don't assume it's present/valid).
     hook_input: dict[str, Any] = {}
     try:
         hook_input = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         hook_input = {}
+    match hook_input:
+        case dict() as data:
+            hook_input = data
+        case _:
+            hook_input = {}
 
     # Choose a sensible cwd.
     cwd_str = (
@@ -374,6 +702,11 @@ def main() -> int:
         max_out = 12000
 
     state = HookState(base_ref=base_ref)
+
+    if shutil.which("git") is None:
+        state.ok = False
+        state.error = "git not found on PATH"
+        return block_and_print(state)
 
     repo, err = repo_root(start_cwd)
     if repo is None:

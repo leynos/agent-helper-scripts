@@ -63,7 +63,7 @@ if [[ ! -f "${stop_hook}" ]]; then
   exit 1
 fi
 
-# Allow for slow checks in large repos or on constrained machines.
+# Use a 600-second timeout to allow slow checks in large repos or on constrained machines.
 "${INSTALL_HOOK_CMD}" Stop --timeout 600 python3 "${stop_hook}"
 
 echo "Hooks installed and registered."
