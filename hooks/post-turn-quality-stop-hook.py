@@ -284,6 +284,7 @@ def ensure_origin_main(repo: Path, *, always_fetch: bool) -> tuple[bool, str | N
         return False, err, fetched
     return True, None, fetched
 
+
 def ensure_origin_main_ref(repo: Path, *, always_fetch: bool) -> tuple[bool, str | None, bool]:
     """Ensure refs/remotes/origin/main exists, fetching if needed.
 
