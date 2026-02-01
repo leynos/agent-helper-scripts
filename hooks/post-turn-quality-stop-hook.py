@@ -858,7 +858,13 @@ def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
     return block_and_print(state)
 
 
-def run_stop_checks(start_cwd: Path, base_ref: str, always_fetch: bool, max_out: int) -> int:
+def run_stop_checks(
+    start_cwd: Path,
+    base_ref: str,
+    *,
+    always_fetch: bool,
+    max_out: int,
+) -> int:
     """Run stop-hook checks for a given working directory.
 
     Parameters
@@ -918,7 +924,12 @@ def main() -> int:
     hook_input = parse_hook_input()
     start_cwd = resolve_start_cwd(hook_input)
     base_ref, always_fetch, max_out = parse_env()
-    return run_stop_checks(start_cwd, base_ref, always_fetch, max_out)
+    return run_stop_checks(
+        start_cwd,
+        base_ref,
+        always_fetch=always_fetch,
+        max_out=max_out,
+    )
 
 
 if __name__ == "__main__":
