@@ -89,11 +89,7 @@ jq --arg hook_type "$hook_type" \
   (.hooks //= {})
   | (.hooks[$hook_type] //= [])
   | if (.hooks[$hook_type]
-        | any(
-            .[]?;
-            (.type=="command" and .command==$cmd)
-            or (.hooks[]?; .type=="command" and .command==$cmd)
-          )
+        | any(.[]?; .type=="command" and .command==$cmd)
       )
       then .
       else .hooks[$hook_type] |= ([ newhook($cmd; $has_timeout; $timeout_val) ] + .)

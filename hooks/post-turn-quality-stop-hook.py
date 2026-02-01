@@ -268,31 +268,53 @@ def ensure_origin_main(repo: Path, *, always_fetch: bool) -> tuple[bool, str | N
     if not ok:
         return False, err, False
 
-    fetched = False
-    if always_fetch:
-        ok, err = fetch_origin_main(repo)
-        fetched = True
-        if not ok:
-            return False, err, fetched
-    else:
-        exists, err = ref_exists(repo, "refs/remotes/origin/main")
-        if err:
-            return False, err, fetched
-        if not exists:
-            ok, err = fetch_origin_main(repo)
-            fetched = True
-            if not ok:
-                return False, err, fetched
-            exists, err = ref_exists(repo, "refs/remotes/origin/main")
-            if err:
-                return False, err, fetched
-            if not exists:
-                return False, "origin/main still missing after fetch", fetched
+    ok, err, fetched = ensure_origin_main_ref(repo, always_fetch=always_fetch)
+    if not ok:
+        return False, err, fetched
 
     ok, err = verify_ref(repo, "origin/main")
     if not ok:
         return False, err, fetched
     return True, None, fetched
+
+def ensure_origin_main_ref(repo: Path, *, always_fetch: bool) -> tuple[bool, str | None, bool]:
+    """Ensure refs/remotes/origin/main exists, fetching if needed.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    always_fetch
+        If True, always fetch origin/main.
+
+    Returns
+    -------
+    tuple[bool, str | None, bool]
+        ok, error message (if any), fetched.
+    """
+    if always_fetch:
+        ok, err = fetch_origin_main(repo)
+        if not ok:
+            return False, err, True
+        return True, None, True
+
+    exists, err = ref_exists(repo, "refs/remotes/origin/main")
+    if err:
+        return False, err, False
+    if exists:
+        return True, None, False
+
+    ok, err = fetch_origin_main(repo)
+    if not ok:
+        return False, err, True
+
+    exists, err = ref_exists(repo, "refs/remotes/origin/main")
+    if err:
+        return False, err, True
+    if not exists:
+        return False, "origin/main still missing after fetch", True
+
+    return True, None, True
 
 
 def ensure_base_ref(
