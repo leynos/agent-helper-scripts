@@ -10,6 +10,8 @@ INSTALL_BIN_DIR="${HOME}/.local/bin"
 INSTALL_HOOK_CMD="${INSTALL_BIN_DIR}/install-hook-cmd"
 
 CLAUDE_HOOKS_DIR="${HOME}/.claude/hooks"
+# Allow slow checks in large repos or on constrained machines.
+STOP_HOOK_TIMEOUT=600
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Error: git is required but was not found on PATH" >&2
@@ -63,8 +65,7 @@ if [[ ! -f "${stop_hook}" ]]; then
   exit 1
 fi
 
-# Use a 600-second timeout to allow slow checks in large repos or on constrained machines.
-"${INSTALL_HOOK_CMD}" Stop --timeout 600 python3 "${stop_hook}"
+"${INSTALL_HOOK_CMD}" Stop --timeout "${STOP_HOOK_TIMEOUT}" python3 "${stop_hook}"
 
 echo "Hooks installed and registered."
 echo "Hook command installed to: ${INSTALL_HOOK_CMD}"

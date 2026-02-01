@@ -20,6 +20,12 @@ Claude Code contract:
 - Reads JSON hook input from stdin (but works even if stdin isn't JSON)
 - On failure: prints JSON {"decision":"block","reason":"..."} to stdout and exits 0
 - On success: prints nothing and exits 0
+
+Examples
+--------
+Run the hook manually with a default environment:
+
+    POST_TURN_ALWAYS_FETCH=1 python3 ~/.claude/hooks/post-turn-quality-stop-hook.py < /dev/null
 """
 
 from __future__ import annotations
@@ -46,6 +52,7 @@ CATS_TO_TARGETS: dict[str, list[str]] = {
 }
 CODE_CATS = {"python_ts", "rust"}
 MD_CATS = {"markdown"}
+TRUTHY_VALUES = {"1", "true", "yes"}
 
 
 def default_categories() -> dict[str, bool]:
@@ -686,106 +693,146 @@ def targets_for_categories(
         requested.extend(CATS_TO_TARGETS.get(category, []))
     return dedup_preserve_order(requested)
 
+def parse_bool_env(value: str) -> bool:
+    """Parse a boolean environment value.
 
-def main() -> int:
-    """Run the stop-hook checks.
+    Parameters
+    ----------
+    value
+        Raw environment value.
+
+    Returns
+    -------
+    bool
+        True when the value is a recognized truthy token.
+    """
+    return value.strip().lower() in TRUTHY_VALUES
+
+
+def parse_max_output(value: str, default: int = 12000) -> int:
+    """Parse the max output character limit.
+
+    Parameters
+    ----------
+    value
+        Raw environment value.
+    default
+        Default value to use on parse failure.
+
+    Returns
+    -------
+    int
+        Parsed maximum output length.
+    """
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def parse_env() -> tuple[str, bool, int]:
+    """Parse environment configuration for the hook.
+
+    Returns
+    -------
+    tuple[str, bool, int]
+        Base ref, always-fetch flag, and max output length.
+    """
+    base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
+    always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
+    max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
+    return base_ref, always_fetch, max_out
+
+
+def parse_hook_input() -> dict[str, Any]:
+    """Parse hook input from stdin.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed hook input as a dict (empty if missing or invalid).
+    """
+    try:
+        hook_input = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+    if isinstance(hook_input, dict):
+        return hook_input
+    return {}
+
+
+def resolve_start_cwd(hook_input: dict[str, Any]) -> Path:
+    """Resolve the starting working directory for the hook.
+
+    Parameters
+    ----------
+    hook_input
+        Parsed hook input.
+
+    Returns
+    -------
+    Path
+        Working directory for git operations.
+    """
+    cwd_str = hook_input.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    return Path(cwd_str)
+
+
+def fail_state(state: HookState, message: str | None) -> int:
+    """Mark the state as failed and emit a block response.
+
+    Parameters
+    ----------
+    state
+        Hook execution state.
+    message
+        Error message to include in the response.
 
     Returns
     -------
     int
         Exit code for the hook.
     """
-    # Claude Code hook input arrives as JSON on stdin (but don't assume it's present/valid).
-    hook_input: dict[str, Any] = {}
-    try:
-        hook_input = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
-        hook_input = {}
-    match hook_input:
-        case dict() as data:
-            hook_input = data
-        case _:
-            hook_input = {}
+    state.ok = False
+    state.error = message
+    return block_and_print(state)
 
-    # Choose a sensible cwd.
-    cwd_str = (
-        hook_input.get("cwd")
-        or os.environ.get("CLAUDE_PROJECT_DIR")
-        or os.getcwd()
-    )
-    start_cwd = Path(cwd_str)
 
-    base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
-    always_fetch = os.environ.get("POST_TURN_ALWAYS_FETCH", "").strip() in {"1", "true", "TRUE", "yes", "YES"}
-    max_out_raw = os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000")
-    try:
-        max_out = int(max_out_raw)
-    except ValueError:
-        max_out = 12000
+def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
+    """Select and execute checks based on detected changes.
 
-    state = HookState(base_ref=base_ref)
+    Parameters
+    ----------
+    state
+        Hook execution state.
+    repo
+        Repository root path.
+    max_out
+        Maximum number of output characters to capture.
 
-    if shutil.which("git") is None:
-        state.ok = False
-        state.error = "git not found on PATH"
-        return block_and_print(state)
-
-    repo, err = repo_root(start_cwd)
-    if repo is None:
-        # Not a git repo: allow stop quietly.
-        return 0
-
-    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
-    state.fetched = fetched
-    if not ok:
-        # If we cannot establish the base ref, block (you asked for strictness).
-        state.ok = False
-        state.error = err
-        return block_and_print(state)
-
-    base_commit, err = merge_base(repo, base_ref)
-    if base_commit is None:
-        state.ok = False
-        state.error = err
-        return block_and_print(state)
-    state.base_commit = base_commit
-
-    files, err = changed_files(repo, base_commit)
-    if files is None:
-        state.ok = False
-        state.error = err
-        return block_and_print(state)
-
-    state.changed_files = files
-    if not files:
-        # No modifications relative to merge-base => allow.
-        return 0
-
-    cats = detect_categories(files)
+    Returns
+    -------
+    int
+        Exit code for the hook.
+    """
+    cats = detect_categories(state.changed_files)
     state.categories = cats
 
-    # Decide what we'd like to run.
     requested = targets_for_categories(cats)
     state.make_targets_requested = requested
-
     if not requested:
-        # Changes exist, but none match the watched extensions => allow.
         return 0
 
     make_targets, make_err = get_make_targets(repo)
     if make_targets is None:
-        state.ok = False
-        state.error = f"Could not enumerate make targets: {make_err}"
-        return block_and_print(state)
+        return fail_state(state, f"Could not enumerate make targets: {make_err}")
 
     run_targets = [t for t in requested if t in make_targets]
     skip_targets = [t for t in requested if t not in make_targets]
     state.make_targets_run = run_targets
     state.make_targets_skipped = skip_targets
 
-    # Group execution so markdown runs even if code checks fail.
     commands: list[dict[str, Any]] = []
-
     code_targets = [
         t for t in targets_for_categories(cats, include=CODE_CATS) if t in make_targets
     ]
@@ -800,7 +847,6 @@ def main() -> int:
 
     state.commands = commands
 
-    # If we ran nothing because targets are missing, treat as OK (per your “only if targets exist” rule).
     if not commands:
         return 0
 
@@ -810,6 +856,69 @@ def main() -> int:
 
     state.ok = False
     return block_and_print(state)
+
+
+def run_stop_checks(start_cwd: Path, base_ref: str, always_fetch: bool, max_out: int) -> int:
+    """Run stop-hook checks for a given working directory.
+
+    Parameters
+    ----------
+    start_cwd
+        Working directory for git operations.
+    base_ref
+        Base git ref used for comparisons.
+    always_fetch
+        Whether to always fetch origin/main.
+    max_out
+        Maximum number of output characters to capture.
+
+    Returns
+    -------
+    int
+        Exit code for the hook.
+    """
+    state = HookState(base_ref=base_ref)
+
+    if shutil.which("git") is None:
+        return fail_state(state, "git not found on PATH")
+
+    repo, err = repo_root(start_cwd)
+    if repo is None:
+        return 0
+
+    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
+    state.fetched = fetched
+    if not ok:
+        return fail_state(state, err)
+
+    base_commit, err = merge_base(repo, base_ref)
+    if base_commit is None:
+        return fail_state(state, err)
+    state.base_commit = base_commit
+
+    files, err = changed_files(repo, base_commit)
+    if files is None:
+        return fail_state(state, err)
+
+    state.changed_files = files
+    if not files:
+        return 0
+
+    return evaluate_changes(state, repo, max_out)
+
+
+def main() -> int:
+    """Run the stop-hook checks.
+
+    Returns
+    -------
+    int
+        Exit code for the hook.
+    """
+    hook_input = parse_hook_input()
+    start_cwd = resolve_start_cwd(hook_input)
+    base_ref, always_fetch, max_out = parse_env()
+    return run_stop_checks(start_cwd, base_ref, always_fetch, max_out)
 
 
 if __name__ == "__main__":
