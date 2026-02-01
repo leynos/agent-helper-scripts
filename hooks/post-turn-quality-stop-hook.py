@@ -123,7 +123,7 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     subprocess.CompletedProcess[str]
         Completed process with captured output.
     """
-    return subprocess.run(  # noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
+    return subprocess.run(  # FIXME: noqa: S603 - command and args are controlled (no shell, no user-supplied command strings).
         cmd, cwd=str(cwd), text=True, capture_output=True
     )
 
