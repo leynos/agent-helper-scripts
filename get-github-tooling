@@ -1,3 +1,7 @@
+if [[ -f "${HOME}/.cargo/env" ]]; then
+    . "${HOME}/.cargo/env"
+fi
+
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin"
