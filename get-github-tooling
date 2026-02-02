@@ -24,12 +24,12 @@ sudo apt-get install -y \
   eza fzf hyperfine shellcheck \
   linux-tools-common linux-tools-generic
 
-cargo binstall fd-find
-cargo binstall mergiraf
-cargo binstall difftastic
+cargo binstall --no-confirm fd-find
+cargo binstall --no-confirm mergiraf
+cargo binstall --no-confirm difftastic
 
 pwd
-cargo binstall leta
+cargo binstall --no-confirm leta
 leta workspace add .
 
 mkdir -p "${HOME}/.local/bin"
@@ -63,7 +63,7 @@ fi
 
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
 
-cargo binstall action-validator
+cargo binstall --no-confirm action-validator
 
 echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
 sudo apt-get update -y
