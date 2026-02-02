@@ -1,3 +1,10 @@
+case ":${PATH}:" in
+    *:"${HOME}/.local/bin":*)
+        ;;
+    *)
+        export PATH="${HOME}/.local/bin:$PATH"
+        ;;
+
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
   channel=${RUST_CHANNEL}
@@ -19,6 +26,15 @@ curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
+   cat >${HOME}/.cargo/env <<'_EOF'
+case ":${PATH}:" in
+    *:"$CARGO_HOME/bin":*)
+        ;;
+    *)
+        export PATH="$CARGO_HOME/bin:$PATH"
+        ;;
+__EOF
+esac
     . "${HOME}/.cargo/env"
 fi
 rustup component add rustfmt --toolchain "${channel}"
