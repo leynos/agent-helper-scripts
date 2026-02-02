@@ -568,7 +568,16 @@ def run_make(repo: Path, kind: str, targets: list[str], max_out: int) -> dict[st
     if not targets:
         return {"kind": kind, "cmd": "", "exit_code": 0, "stdout": "", "stderr": ""}
 
-    p = run(["make", "--no-print-directory", *targets], repo)
+    try:
+        p = run(["make", "--no-print-directory", *targets], repo)
+    except FileNotFoundError as exc:
+        return {
+            "kind": kind,
+            "cmd": "make " + " ".join(targets),
+            "exit_code": 127,
+            "stdout": "",
+            "stderr": f"make not found on PATH: {exc}",
+        }
     return {
         "kind": kind,
         "cmd": "make " + " ".join(targets),
