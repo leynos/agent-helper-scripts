@@ -29,10 +29,10 @@ rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
    cat >${HOME}/.cargo/env <<'__EOF'
 case ":${PATH}:" in
-    *:"$CARGO_HOME/bin":*)
+    *:"${CARGO_HOME:-}/bin":*)
         ;;
     *)
-        export PATH="$CARGO_HOME/bin:$PATH"
+        export PATH="${CARGO_HOME:-}/bin:$PATH"
         ;;
 esac
 __EOF
