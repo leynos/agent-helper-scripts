@@ -143,10 +143,17 @@ def truncate(text: str, max_chars: int) -> str:
     str
         Truncated text with a placeholder if needed.
     """
+    if max_chars <= 0:
+        return ""
     if len(text) <= max_chars:
         return text
-    half = max_chars // 2
-    return text[:half] + "\n... (output truncated) ...\n" + text[-half:]
+    marker = "\n... (output truncated) ...\n"
+    if max_chars <= len(marker):
+        return text[:max_chars]
+    remaining = max_chars - len(marker)
+    head = remaining // 2
+    tail = remaining - head
+    return text[:head] + marker + text[-tail:]
 
 
 def repo_root(start_cwd: Path) -> tuple[Path | None, str | None]:
@@ -785,8 +792,17 @@ def resolve_start_cwd(hook_input: dict[str, Any]) -> Path:
     Path
         Working directory for git operations.
     """
-    cwd_str = hook_input.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    return Path(cwd_str)
+    match hook_input.get("cwd"):
+        case str() as cwd_value:
+            return Path(cwd_value)
+        case _:
+            pass
+
+    match os.environ.get("CLAUDE_PROJECT_DIR"):
+        case str() as cwd_value if cwd_value:
+            return Path(cwd_value)
+        case _:
+            return Path(os.getcwd())
 
 
 def fail_state(state: HookState, message: str | None) -> int:
