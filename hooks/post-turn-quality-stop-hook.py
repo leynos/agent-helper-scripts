@@ -694,6 +694,7 @@ def targets_for_categories(
         requested.extend(CATS_TO_TARGETS.get(category, []))
     return dedup_preserve_order(requested)
 
+
 def parse_bool_env(value: str) -> bool:
     """Parse a boolean environment value.
 
