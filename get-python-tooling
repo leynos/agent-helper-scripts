@@ -4,6 +4,7 @@ case ":${PATH}:" in
     *)
         export PATH="${HOME}/.local/bin:$PATH"
         ;;
+esac
 
 # Python tooling
 uv tool install ruff
