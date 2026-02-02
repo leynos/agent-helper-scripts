@@ -61,7 +61,7 @@ fi
 	&& sudo apt-get update -y \
 	&& sudo apt install gh -y
 
-gh extension install https://github.com/nektos/gh-act
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
 
 cargo binstall action-validator
 
