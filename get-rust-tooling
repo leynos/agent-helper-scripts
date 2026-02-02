@@ -24,7 +24,7 @@ fi
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
 if ((WITH_LLVM_COV)); then
-  cargo binstall cargo-llvm-cov
+  cargo binstall --no-confirm cargo-llvm-cov
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
 rustup component add rust-analyzer --toolchain "${channel}"
