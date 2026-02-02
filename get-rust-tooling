@@ -27,7 +27,7 @@ curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
-   cat >${HOME}/.cargo/env <<'__EOF'
+  cat >${HOME}/.cargo/env <<'__EOF'
 case ":${PATH}:" in
     *:"${CARGO_HOME:-}/bin":*)
         ;;
@@ -36,7 +36,7 @@ case ":${PATH}:" in
         ;;
 esac
 __EOF
-    . "${HOME}/.cargo/env"
+  . "${HOME}/.cargo/env"
 fi
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
@@ -53,5 +53,7 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
   echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ~/.bashrc
 fi
 
-cargo install whitaker-installer
-whitaker-installer --experimental
+if ((WITH_WHITAKER)); then
+  cargo install whitaker-installer
+  whitaker-installer --experimental
+fi
