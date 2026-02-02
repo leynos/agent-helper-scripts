@@ -18,6 +18,9 @@ fi
 curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 rustup toolchain install "${channel}"
+if [[ -f "${HOME}/.cargo/env" ]]; then
+    . "${HOME}/.cargo/env"
+fi
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
 if ((WITH_LLVM_COV)); then
