@@ -1,4 +1,9 @@
-[[ -f $HOME/.local/bin/env ]] && source $HOME/.local/bin/env
+case ":${PATH}:" in
+    *:"${HOME}/.local/bin":*)
+        ;;
+    *)
+        export PATH="${HOME}/.local/bin:$PATH"
+        ;;
 
 # Python tooling
 uv tool install ruff
