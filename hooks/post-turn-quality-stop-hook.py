@@ -774,9 +774,11 @@ def parse_hook_input() -> dict[str, Any]:
         hook_input = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         return {}
-    if isinstance(hook_input, dict):
-        return hook_input
-    return {}
+    match hook_input:
+        case dict() as data:
+            return data
+        case _:
+            return {}
 
 
 def resolve_start_cwd(hook_input: dict[str, Any]) -> Path:
@@ -793,7 +795,7 @@ def resolve_start_cwd(hook_input: dict[str, Any]) -> Path:
         Working directory for git operations.
     """
     match hook_input.get("cwd"):
-        case str() as cwd_value:
+        case str() as cwd_value if cwd_value:
             return Path(cwd_value)
         case _:
             pass
