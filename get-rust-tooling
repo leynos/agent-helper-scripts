@@ -27,7 +27,7 @@ curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
-   cat >${HOME}/.cargo/env <<'_EOF'
+   cat >${HOME}/.cargo/env <<'__EOF'
 case ":${PATH}:" in
     *:"$CARGO_HOME/bin":*)
         ;;
