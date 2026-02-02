@@ -16,7 +16,7 @@ bun install -g pajv
 sudo apt-get update -y
 sudo apt-get install -y \
   strace gdb \
-  bat ripgrep nano ed \
+  bat ripgrep nano ed fd-find \
   ltrace valgrind bpfcc-tools bpftrace \
   lsof htop iotop \
   ncdu tree bat delta \
@@ -24,7 +24,8 @@ sudo apt-get install -y \
   eza fzf hyperfine shellcheck \
   linux-tools-common linux-tools-generic
 
-cargo binstall --no-confirm fd-find
+ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
+
 cargo binstall --no-confirm mergiraf
 cargo binstall --no-confirm difftastic
 
