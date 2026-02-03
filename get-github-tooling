@@ -62,7 +62,9 @@ fi
 	&& sudo apt-get update -y \
 	&& sudo apt install gh -y
 
+pushd "${HOME}/.local"
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+popd
 
 cargo binstall --no-confirm action-validator
 
