@@ -53,6 +53,7 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
   echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ~/.bashrc
 fi
 
+WITH_WHITAKER=${WITH_WHITAKER:-0}
 if ((WITH_WHITAKER)); then
   cargo install whitaker-installer
   whitaker-installer --experimental
