@@ -21,8 +21,9 @@ sudo apt-get install -y \
   lsof htop iotop \
   ncdu tree bat delta \
   tcpdump nmap clang lldb \
-  eza fzf hyperfine shellcheck \
-  linux-tools-common linux-tools-generic
+  eza fzf hyperfine shellcheck
+apt-get install -y linux-tools-common || true
+apt-get install -y linux-tools-generic || true
 
 ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
 
