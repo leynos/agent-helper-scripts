@@ -50,7 +50,8 @@ cargo binstall --no-confirm cargo-nextest
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   cargo binstall --no-confirm sccache
-  echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ~/.bashrc
+  echo >> ${HOME}/.bashrc
+  echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ${HOME}/.bashrc
 fi
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
