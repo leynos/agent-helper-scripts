@@ -28,8 +28,9 @@ if [[ -d "${REPO_DIR}" ]]; then
 else
   echo "Cloning repo to ${REPO_DIR}..."
   git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
-  git -C "${REPO_DIR}" sparse-checkout set hooks bin
 fi
+
+git -C "${REPO_DIR}" sparse-checkout set hooks bin
 
 BIN_SRC="${REPO_DIR}/bin/install-hook-cmd.sh"
 HOOKS_SRC="${REPO_DIR}/hooks"
