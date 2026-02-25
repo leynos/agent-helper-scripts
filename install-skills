@@ -36,7 +36,7 @@ function clone_or_update_repo() {
 }
 
 clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills"
-clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}" "skills"
+clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}"
 
 function copy_skills() {
   local skills_src="$1"
