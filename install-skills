@@ -9,6 +9,9 @@ REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
 NEXTEST_SKILL_REPO_URL="https://github.com/leynos/nextest-skill.git"
 NEXTEST_SKILL_REPO_DIR="${HOME}/git/nextest-skill"
 
+VIDAI_MOCK_SKILL_REPO_URL="https://github.com/leynos/vidai-mock-skill.git"
+VIDAI_MOCK_SKILL_REPO_DIR="${HOME}/git/vidai-mock-skill"
+
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
 
@@ -37,6 +40,7 @@ function clone_or_update_repo() {
 
 clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills"
 clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}"
+clone_or_update_repo "${VIDAI_MOCK_SKILL_REPO_URL}" "${VIDAI_MOCK_SKILL_REPO_DIR}"
 
 function copy_skills() {
   local skills_src="$1"
@@ -62,3 +66,4 @@ function copy_skills() {
 
 copy_skills "${REPO_DIR}/skills"
 copy_skills "${NEXTEST_SKILL_REPO_DIR}"
+copy_skills "${VIDAI_MOCK_SKILL_REPO_DIR}"
