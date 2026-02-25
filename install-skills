@@ -6,37 +6,58 @@ set -euo pipefail
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
 
+NEXTEST_SKILL_REPO_URL="https://github.com/leynos/nextest-skill.git"
+NEXTEST_SKILL_REPO_DIR="${HOME}/git/nextest-skill"
+
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
 
-# Clone or update the repo
-mkdir -p "${HOME}/git"
-if [[ -d "${REPO_DIR}" ]]; then
-  echo "Updating existing repo at ${REPO_DIR}..."
-  git -C "${REPO_DIR}" fetch origin
-  git -C "${REPO_DIR}" reset --hard origin/HEAD
-else
-  echo "Cloning repo to ${REPO_DIR}..."
-  git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
-  git -C "${REPO_DIR}" sparse-checkout set skills
-fi
+function clone_or_update_repo() {
+  local repo_url=$1
+  local repo_dir=${2%/}
+  local sparse_set=${3:-}
+  local parent=${repo_dir%/*}
+  # Clone or update the repo
+  mkdir -p "${parent}"
+  if [[ -d "${repo_dir}" ]]; then
+    echo "Updating existing repo at ${repo_dir}..."
+    git -C "${repo_dir}" fetch origin
+    git -C "${repo_dir}" reset --hard origin/HEAD
+  else
+    echo "Cloning repo to ${repo_dir}..."
+    if [[ -n "${sparse_set}" ]]; then
+      git clone --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}"
+      git -C "${repo_dir}" sparse-checkout set "${sparse_set}"
+    else
+      git clone --depth 1 "${repo_url}" "${repo_dir}"
+    fi
+  fi
+}
 
-SKILLS_SRC="${REPO_DIR}/skills"
+clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills"
+clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}" "skills"
 
-# Validate skills directory exists
-if [[ ! -d "${SKILLS_SRC}" ]]; then
-  echo "Error: Skills directory not found at ${SKILLS_SRC}" >&2
-  exit 1
-fi
+function copy_skills() {
+  local skills_src="$1"
+ 
+  # Validate skills directory exists
+  if [[ ! -d "${skills_src}" ]]; then
+    echo "Error: Skills directory not found at ${skills_src}" >&2
+    exit 1
+  fi
+  
+  # Create destination directories
+  mkdir -p "${CODEX_SKILLS_DIR}"
+  mkdir -p "${CLAUDE_SKILLS_DIR}"
+  
+  # Copy skills to both destinations
+  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CODEX_SKILLS_DIR}/"
+  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CLAUDE_SKILLS_DIR}/"
+  
+  echo "Skills (${skills_src}) installed to:"
+  echo "  ${CODEX_SKILLS_DIR}"
+  echo "  ${CLAUDE_SKILLS_DIR}"
+}
 
-# Create destination directories
-mkdir -p "${CODEX_SKILLS_DIR}"
-mkdir -p "${CLAUDE_SKILLS_DIR}"
-
-# Copy skills to both destinations
-cp -r "${SKILLS_SRC}/"* "${CODEX_SKILLS_DIR}/"
-cp -r "${SKILLS_SRC}/"* "${CLAUDE_SKILLS_DIR}/"
-
-echo "Skills installed to:"
-echo "  ${CODEX_SKILLS_DIR}"
-echo "  ${CLAUDE_SKILLS_DIR}"
+copy_skills "${REPO_DIR}/skills"
+copy_skills "${NEXTEST_SKILL_REPO_DIR}/skills"
