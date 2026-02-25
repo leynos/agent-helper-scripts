@@ -60,4 +60,4 @@ function copy_skills() {
 }
 
 copy_skills "${REPO_DIR}/skills"
-copy_skills "${NEXTEST_SKILL_REPO_DIR}/skills"
+copy_skills "${NEXTEST_SKILL_REPO_DIR}"
