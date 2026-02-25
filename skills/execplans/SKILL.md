@@ -3,7 +3,7 @@ name: execplans
 description: Write and maintain self-contained ExecPlans (execution plans) that a novice can follow end-to-end; use when planning or implementing non-trivial repo changes.
 ---
 
-# Codex Execution Plans (ExecPlans)
+# Codex execution plans (ExecPlans)
 
 This skill describes how to author, discuss, and implement an execution plan
 ("ExecPlan"). An ExecPlan is a living design-and-delivery document that a
@@ -36,7 +36,7 @@ Every ExecPlan must satisfy all of the following:
 
 - Fully self-contained: it contains all knowledge and instructions needed for a
   novice to succeed.
-- Living document: it must be revized as progress is made, discoveries occur,
+- Living document: it must be revised as progress is made, discoveries occur,
   and decisions are finalized; each revision must remain self-contained.
 - End-to-end and observable: it must produce demonstrably working behaviour,
   not merely "code changes that compile".
@@ -44,7 +44,7 @@ Every ExecPlan must satisfy all of the following:
 - Outcome-focused: begin with why the work matters and how to observe success.
 - Controlled delegation: the agent implementing the plan proceeds
   milestone-by-milestone within defined tolerances, escalating when those
-  tolerances would be exceeded rather than improvising.
+  tolerances would be exceeded rather than improvizing.
 
 Autonomy without tolerances is unattended automation. The goal is predictable
 outcomes, not maximum throughput.
@@ -92,15 +92,6 @@ If the user has previously established standing instructions (e.g., "implement
 plans immediately for changes under 100 LOC"), those instructions override this
 gate for qualifying work.
 
-## Relationship to `PLANS.md`
-
-If `PLANS.md` exists in the repo, follow it to the letter.
-
-When authoring an ExecPlan:
-
-- Read the entire `PLANS.md` file, then re-read anything you rely on.
-- Start from the skeleton (included below) and flesh it out as you research.
-
 When implementing an ExecPlan:
 
 - Do not pause to ask what to do next; proceed to the next milestone.
@@ -112,18 +103,13 @@ When implementing an ExecPlan:
 
 ExecPlans have a strict envelope to keep them easy to copy, review, and resume:
 
-- Each ExecPlan must be one single fenced code block labelled as `md` that
-  begins and ends with triple backticks.
-- Do not nest additional triple-backtick fences inside the ExecPlan. When you
-  need commands, transcripts, diffs, or code, present them as indented blocks
-  inside the single fence.
 - Use two newlines after every heading.
 - Use correct Markdown syntax for ordered and unordered lists.
-
-Exception:
-
-- If you are writing an ExecPlan to a Markdown file where the entire file is
-  only the ExecPlan, omit the outer triple backticks.
+- Use code attribution in each fenced code block, and label text blocks as
+  `plaintext`.
+- Use `1.`, `2.`, etc. for ordered lists.
+- If embedding the plan in a larger document, use triple tilde fences to
+  enclose the plan.
 
 ## How to write a good ExecPlan
 
@@ -157,6 +143,8 @@ Be safe and idempotent:
 Validation is not optional:
 
 - Include instructions to run tests, lint, and any relevant runtime checks.
+- Establush a failing test suite prior to implementation (red, green,
+  refactor).
 - Include expected outputs (even short ones) so a novice can tell success from
   failure.
 
@@ -217,15 +205,12 @@ you research and implement.
 ~~~markdown
 # <Short, action-oriented description>
 
-This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
-`Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
-`Outcomes & Retrospective` must be kept up to date as work proceeds.
+This ExecPlan (execution plan) is a living document. The sections
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
-
-If PLANS.md file is checked into the repo, reference the path to that file here
-from the repository root and note that this document must be maintained in
-accordance with PLANS.md.
 
 ## Purpose / big picture
 
@@ -268,23 +253,23 @@ Known uncertainties that might affect the plan. Identify these upfront and
 update as work proceeds. Each risk should note severity, likelihood, and
 mitigation or contingency.
 
-- Risk: <description>
-  Severity: low | medium | high
-  Likelihood: low | medium | high
-  Mitigation: <how to prevent or reduce impact>
+    - Risk: <description>
+      Severity: low | medium | high
+      Likelihood: low | medium | high
+      Mitigation: <how to prevent or reduce impact>
 
 Risks differ from Surprises: risks are anticipated; surprises are not.
 
 ## Progress
 
-Use a list with checkboxes to summarize granular steps. Every stopping point
+Use a list with checkboxes to summarise granular steps. Every stopping point
 must be documented here, even if it requires splitting a partially completed
 task into two ("done" vs. "remaining"). This section must always reflect the
 actual current state of the work.
 
-- [x] (2025-10-01 13:00Z) Example completed step.
-- [ ] Example incomplete step.
-- [ ] Example partially completed step (completed: X; remaining: Y).
+    - [x] (2025-10-01 13:00Z) Example completed step.
+    - [ ] Example incomplete step.
+    - [ ] Example partially completed step (completed: X; remaining: Y).
 
 Use timestamps to measure rates of progress and detect tolerance breaches.
 
@@ -293,18 +278,18 @@ Use timestamps to measure rates of progress and detect tolerance breaches.
 Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
-- Observation: <what was unexpected>
-  Evidence: <how you know>
-  Impact: <how it affects this plan or future work>
+    - Observation: <what was unexpected>
+      Evidence: <how you know>
+      Impact: <how it affects this plan or future work>
 
 ## Decision log
 
 Record every significant decision made while working on the plan. Include
 decisions to escalate, decisions on ambiguous requirements, and design choices.
 
-- Decision: <what was decided>
-  Rationale: <why this choice over alternatives>
-  Date/Author: <timestamp and who decided>
+    - Decision: <what was decided>
+      Rationale: <why this choice over alternatives>
+      Date/Author: <timestamp and who decided>
 
 ## Outcomes & retrospective
 
@@ -377,7 +362,7 @@ at the end of the milestone. Prefer stable names and paths such as
 
 E.g., in crates/foo/planner.rs, define:
 
-```
+```rust
 pub trait Planner {
     fn plan(&self, observed: &Observed) -> Vec<Action>;
 }
