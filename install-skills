@@ -24,11 +24,12 @@ function clone_or_update_repo() {
     git -C "${repo_dir}" fetch origin
     git -C "${repo_dir}" reset --hard origin/HEAD
   else
-    echo "Cloning repo to ${repo_dir}..."
     if [[ -n "${sparse_set}" ]]; then
+      echo "Cloning sparse set '${sparse_set}' from repo to ${repo_dir}..."
       git clone --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}"
       git -C "${repo_dir}" sparse-checkout set "${sparse_set}"
     else
+      echo "Cloning from repo to ${repo_dir}..."
       git clone --depth 1 "${repo_url}" "${repo_dir}"
     fi
   fi
