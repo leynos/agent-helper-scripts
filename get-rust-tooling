@@ -55,7 +55,12 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
 fi
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
+WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
 if ((WITH_WHITAKER)); then
   cargo install whitaker-installer
-  whitaker-installer --experimental
+  if ((WITH_WHITAKER_EXPERIMENTAL)); then
+    whitaker-installer --experimental
+  else
+    whitaker-installer
+  fi
 fi
