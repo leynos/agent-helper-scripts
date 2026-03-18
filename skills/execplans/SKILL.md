@@ -253,10 +253,10 @@ Known uncertainties that might affect the plan. Identify these upfront and
 update as work proceeds. Each risk should note severity, likelihood, and
 mitigation or contingency.
 
-    - Risk: <description>
-      Severity: low | medium | high
-      Likelihood: low | medium | high
-      Mitigation: <how to prevent or reduce impact>
+- Risk: <description>
+  Severity: low | medium | high
+  Likelihood: low | medium | high
+  Mitigation: <how to prevent or reduce impact>.
 
 Risks differ from Surprises: risks are anticipated; surprises are not.
 
@@ -267,9 +267,9 @@ must be documented here, even if it requires splitting a partially completed
 task into two ("done" vs. "remaining"). This section must always reflect the
 actual current state of the work.
 
-    - [x] (2025-10-01 13:00Z) Example completed step.
-    - [ ] Example incomplete step.
-    - [ ] Example partially completed step (completed: X; remaining: Y).
+- [x] (2025-10-01 13:00Z) Example completed step.
+- [ ] Example incomplete step.
+- [ ] Example partially completed step (completed: X; remaining: Y).
 
 Use timestamps to measure rates of progress and detect tolerance breaches.
 
@@ -278,18 +278,18 @@ Use timestamps to measure rates of progress and detect tolerance breaches.
 Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
-    - Observation: <what was unexpected>
-      Evidence: <how you know>
-      Impact: <how it affects this plan or future work>
+- Observation: <what was unexpected>.
+  Evidence: <how you know>.
+  Impact: <how it affects this plan or future work>.
 
 ## Decision log
 
 Record every significant decision made while working on the plan. Include
 decisions to escalate, decisions on ambiguous requirements, and design choices.
 
-    - Decision: <what was decided>
-      Rationale: <why this choice over alternatives>
-      Date/Author: <timestamp and who decided>
+- Decision: <what was decided>
+  Rationale: <why this choice over alternatives>
+  Date/Author: <timestamp and who decided>.
 
 ## Outcomes & retrospective
 
