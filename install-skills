@@ -12,7 +12,7 @@ NEXTEST_SKILL_REPO_DIR="${HOME}/git/nextest-skill"
 VIDAI_MOCK_SKILL_REPO_URL="https://github.com/leynos/vidai-mock-skill.git"
 VIDAI_MOCK_SKILL_REPO_DIR="${HOME}/git/vidai-mock-skill"
 
-RUST_SKILL_REPO_URL=="https://github.com/leynos/rust-skill.git"
+RUST_SKILL_REPO_URL="https://github.com/leynos/rust-skill.git"
 RUST_SKILL_REPO_DIR="${HOME}/git/rust-skill"
 
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
