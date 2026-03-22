@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_compiler="$1"
+shift
+
+interval="${RUSTC_HEARTBEAT_SECS:-15}"
+
+# Try to extract a crate name for nicer logs.
+crate_name="unknown"
+stdin_arg_index=""
+for ((i=1; i<=$#; i++)); do
+  if [[ "${!i}" == "--crate-name" ]]; then
+    j=$((i + 1))
+    crate_name="${!j:-unknown}"
+  fi
+
+  if [[ "${!i}" == "-" ]]; then
+    stdin_arg_index="$i"
+  fi
+done
+
+stdin_file=""
+if [[ -n "$stdin_arg_index" ]] && [[ ! -t 0 ]]; then
+  stdin_file="$(mktemp)"
+  cat >"$stdin_file"
+fi
+
+ticker_running=1
+(
+  while [[ "$ticker_running" -eq 1 ]]; do
+    printf '[rustc-heartbeat] crate=%s still compiling at %(%FT%TZ)T\n' \
+      "$crate_name" -1 >&2
+    sleep "$interval"
+  done
+) &
+ticker=$!
+
+cleanup() {
+  ticker_running=0
+  kill "$ticker" 2>/dev/null || true
+  if [[ -n "$stdin_file" && -f "$stdin_file" ]]; then
+    rm -f "$stdin_file"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+if [[ -n "$stdin_file" ]]; then
+  args=("$@")
+  args[$((stdin_arg_index - 1))]="$stdin_file"
+  "$real_compiler" "${args[@]}"
+else
+  "$real_compiler" "$@"
+fi

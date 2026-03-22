@@ -1,3 +1,5 @@
+#!/user/bin/env bash
+
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
         ;;
@@ -5,6 +7,12 @@ case ":${PATH}:" in
         export PATH="${HOME}/.local/bin:$PATH"
         ;;
 esac
+
+if [ "$(whoami)" = root ]; then
+  SUDO=;
+else
+  SUDO=sudo;
+fi
 
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
@@ -15,9 +23,9 @@ else
   channel=stable
 fi
 
-sudo apt-get update -y
-sudo apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
-sudo update-ca-certificates
+$SUDO apt-get update -y
+$SUDO apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
+$SUDO update-ca-certificates
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 if ! which rustup >/dev/null 2>&1; then
@@ -55,8 +63,20 @@ cargo binstall --no-confirm cargo-nextest
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   cargo binstall --no-confirm sccache
   echo >> ${HOME}/.bashrc
-  echo 'export RUSTC_WRAPPER="$(command -v sccache)"' >> ${HOME}/.bashrc
+  echo 'export RUSTC_WORKSPACE_WRAPPER="$(command -v sccache)"' >> ${HOME}/.bashrc
+
+  # Disable incremental Rust compilation.
+  echo 'export CARGO_INCREMENTAL=0' >> ${HOME}/.bashrc
+
+  # Start the local sccache server quietly if it is not already running.
+  echo 'sccache --start-server >/dev/null 2>&1 || true' >> ${HOME}/.bashrc
 fi
+
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
+chmod 700 "${HOME}/.local/bin/notdeadyet"
+echo >> ${HOME}/.bashrc
+echo 'export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"' >> ${HOME}/.bashrc
+echo 'export RUSTC_HEARTBEAT_SECS=20' >> ${HOME}/.bashrc
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
@@ -70,11 +90,6 @@ if ((WITH_WHITAKER)); then
 fi
 
 WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
-if [ "$(whoami)" = root ]; then
-  SUDO=;
-else
-  SUDO=sudo;
-fi
 MOLD_VERSION="${MOLD_VERSION:-2.40.4}"
 url_preamble="https://github.com/rui314/mold/releases/download/"
 assembled_url="${url_preamble}v${MOLD_VERSION}/mold-${MOLD_VERSION}-$(uname -m)-linux.tar.gz"
