@@ -58,8 +58,6 @@ rustup component add rust-analyzer --toolchain "${channel}"
 rustup toolchain install nightly
 rustup component add rustfmt --toolchain nightly
 
-cargo binstall --no-confirm cargo-nextest
-
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   cargo binstall --no-confirm sccache
   echo >> ${HOME}/.bashrc
@@ -70,6 +68,10 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
 
   # Start the local sccache server quietly if it is not already running.
   echo 'sccache --start-server >/dev/null 2>&1 || true' >> ${HOME}/.bashrc
+
+  export RUSTC_WORKSPACE_WRAPPER="$(command -v sccache)"
+  export CARGO_INCREMENTAL=0
+  sccache --start-server >/dev/null 2>&1 || true
 fi
 
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
@@ -77,6 +79,11 @@ chmod 700 "${HOME}/.local/bin/notdeadyet"
 echo >> ${HOME}/.bashrc
 echo 'export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"' >> ${HOME}/.bashrc
 echo 'export RUSTC_HEARTBEAT_SECS=20' >> ${HOME}/.bashrc
+
+export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
+export RUSTC_HEARTBEAT_SECS=20
+
+cargo binstall --no-confirm cargo-nextest
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
