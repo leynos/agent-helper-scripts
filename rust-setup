@@ -1,8 +1,20 @@
+set -euo pipefail
+
 RUST_PRE_BUILD=${RUST_PRE_BUILD:-0}
+RUST_ANALYZER_PRECHECK=${RUST_ANALYZER_PRECHECK:-0}
+
+perform_rust_pre_build() {
+  cargo metadata --format-version=1 >/dev/null
+  cargo check --workspace --all-targets
+
+  if ((RUST_ANALYZER_PRECHECK)) && command -v rust-analyzer >/dev/null 2>&1; then
+    rust-analyzer analysis-stats .
+  fi
+}
 
 # Pre-build the package
 if ! ((RUST_PRE_BUILD)); then
   echo "Skipping pre-install of dependencies with cargo build."
-elif ! cargo build; then
-  echo "Installing dependencies with cargo build failed."
+elif ! perform_rust_pre_build; then
+  echo "Preparing rust environment failed."
 fi
