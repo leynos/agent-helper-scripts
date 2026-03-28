@@ -5,6 +5,22 @@ real_compiler="$1"
 shift
 
 interval="${RUSTC_HEARTBEAT_SECS:-15}"
+show_sccache_stats="${RUSTC_HEARTBEAT_SCCACHE_STATS:-0}"
+
+is_sccache_wrapper() {
+  local exe
+  exe="$(basename -- "$real_compiler")"
+  [[ "$exe" == "sccache" ]]
+}
+
+print_sccache_stats() {
+  if [[ "$show_sccache_stats" == "1" ]] && is_sccache_wrapper; then
+    {
+      echo "[rustc-heartbeat] sccache stats:"
+      "$real_compiler" --show-stats
+    } >&2 || true
+  fi
+}
 
 # Try to extract a crate name for nicer logs.
 crate_name="unknown"
@@ -45,10 +61,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+status=0
 if [[ -n "$stdin_file" ]]; then
   args=("$@")
   args[$((stdin_arg_index - 1))]="$stdin_file"
-  "$real_compiler" "${args[@]}"
+  "$real_compiler" "${args[@]}" || status=$?
 else
-  "$real_compiler" "$@"
+  "$real_compiler" "$@" || status=$?
 fi
+
+print_sccache_stats
+exit "$status"
