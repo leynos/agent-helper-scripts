@@ -9,7 +9,8 @@ show_sccache_stats="${RUSTC_HEARTBEAT_SCCACHE_STATS:-0}"
 
 is_sccache_wrapper() {
   local exe
-  exe="$(basename -- "$real_compiler")"
+  [[ -n "${RUSTC_WORKSPACE_WRAPPER:-}" ]]
+  exe="$(basename -- "${RUSTC_WORKSPACE_WRAPPER:-}")"
   [[ "$exe" == "sccache" ]]
 }
 
@@ -22,7 +23,7 @@ print_sccache_stats() {
   fi
 }
 
-echo "[rustc-heartbeat] Wrapped compiler: $(basename -- "$real_compiler")" >&2
+echo "[rustc-heartbeat] Wrapped compiler: $(basename -- "${RUSTC_WORKSPACE_WRAPPER:-}")" >&2
 echo "[rustc-heartbeat] Show sccache stats: ${show_sccache_stats}" >&2
 
 # Try to extract a crate name for nicer logs.
