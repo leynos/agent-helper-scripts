@@ -22,6 +22,9 @@ print_sccache_stats() {
   fi
 }
 
+echo "[rustc-heartbeat] Wrapped compiler: $(basename -- "$real_compiler")" >&2
+echo "[rustc-heartbeat] Show sccache stats: ${show_sccache_stats}" >&2
+
 # Try to extract a crate name for nicer logs.
 crate_name="unknown"
 stdin_arg_index=""
