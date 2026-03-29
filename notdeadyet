@@ -7,28 +7,70 @@ shift
 interval="${RUSTC_HEARTBEAT_SECS:-15}"
 show_sccache_stats="${RUSTC_HEARTBEAT_SCCACHE_STATS:-0}"
 
+crate_name="unknown"
+stdin_arg_index=""
+stdin_file=""
+ticker_running=1
+ticker=""
+status=0
+
+compiler_cmd=()
+compiler_chain_message=""
+sccache_auto_wrapped=0
+
+should_auto_wrap_sccache() {
+  [[ -n "${SCCACHE_BUCKET:-}" || -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]
+}
+
+compiler_basename() {
+  basename -- "$1"
+}
+
+build_compiler_cmd() {
+  if should_auto_wrap_sccache && [[ "$(compiler_basename "$real_compiler")" != "sccache" ]]; then
+    if command -v sccache >/dev/null 2>&1; then
+      compiler_cmd=("sccache" "$real_compiler")
+      compiler_chain_message="[rustc-heartbeat] Auto-wrapping compiler with sccache because SCCACHE_BUCKET or SCCACHE_WEBDAV_ENDPOINT is set: ${compiler_cmd[*]}"
+      sccache_auto_wrapped=1
+      return 0
+    fi
+
+    echo "[rustc-heartbeat] SCCACHE_BUCKET or SCCACHE_WEBDAV_ENDPOINT is set, but sccache is not on PATH; proceeding without sccache" >&2
+  fi
+
+  compiler_cmd=("$real_compiler")
+  compiler_chain_message="[rustc-heartbeat] Compiler chain: ${compiler_cmd[*]}"
+}
+
 is_sccache_wrapper() {
-  local exe
-  [[ -n "${RUSTC_WORKSPACE_WRAPPER:-}" ]]
-  exe="$(basename -- "${RUSTC_WORKSPACE_WRAPPER:-}")"
-  [[ "$exe" == "sccache" ]]
+  [[ "${#compiler_cmd[@]}" -gt 0 ]] && [[ "$(compiler_basename "${compiler_cmd[0]}")" == "sccache" ]]
 }
 
 print_sccache_stats() {
   if [[ "$show_sccache_stats" == "1" ]] && is_sccache_wrapper; then
     {
       echo "[rustc-heartbeat] sccache stats:"
-      "$real_compiler" --show-stats
+      "${compiler_cmd[0]}" --show-stats
     } >&2 || true
   fi
 }
 
-echo "[rustc-heartbeat] Wrapped compiler: $(basename -- "${RUSTC_WORKSPACE_WRAPPER:-}")" >&2
+cleanup() {
+  ticker_running=0
+  if [[ -n "$ticker" ]]; then
+    kill "$ticker" 2>/dev/null || true
+  fi
+  if [[ -n "$stdin_file" && -f "$stdin_file" ]]; then
+    rm -f "$stdin_file"
+  fi
+}
+
+build_compiler_cmd
+
+echo "$compiler_chain_message" >&2
 echo "[rustc-heartbeat] Show sccache stats: ${show_sccache_stats}" >&2
 
 # Try to extract a crate name for nicer logs.
-crate_name="unknown"
-stdin_arg_index=""
 for ((i=1; i<=$#; i++)); do
   if [[ "${!i}" == "--crate-name" ]]; then
     j=$((i + 1))
@@ -40,13 +82,11 @@ for ((i=1; i<=$#; i++)); do
   fi
 done
 
-stdin_file=""
 if [[ -n "$stdin_arg_index" ]] && [[ ! -t 0 ]]; then
   stdin_file="$(mktemp)"
   cat >"$stdin_file"
 fi
 
-ticker_running=1
 (
   while [[ "$ticker_running" -eq 1 ]]; do
     printf '[rustc-heartbeat] crate=%s still compiling at %(%FT%TZ)T\n' \
@@ -56,22 +96,14 @@ ticker_running=1
 ) &
 ticker=$!
 
-cleanup() {
-  ticker_running=0
-  kill "$ticker" 2>/dev/null || true
-  if [[ -n "$stdin_file" && -f "$stdin_file" ]]; then
-    rm -f "$stdin_file"
-  fi
-}
 trap cleanup EXIT INT TERM
 
-status=0
 if [[ -n "$stdin_file" ]]; then
   args=("$@")
   args[$((stdin_arg_index - 1))]="$stdin_file"
-  "$real_compiler" "${args[@]}" || status=$?
+  "${compiler_cmd[@]}" "${args[@]}" || status=$?
 else
-  "$real_compiler" "$@" || status=$?
+  "${compiler_cmd[@]}" "$@" || status=$?
 fi
 
 print_sccache_stats
