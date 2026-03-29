@@ -19,7 +19,7 @@ compiler_chain_message=""
 sccache_auto_wrapped=0
 
 should_auto_wrap_sccache() {
-  [[ -n "${SCCACHE_BUCKET:-}" || -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]
+  [[ -n "${SCCACHE_BUCKET:-}" || -n "${SCCACHE_WEBDAV_ENDPOINT:-}" || -n "${SCCACHE_DIR:-}" ]]
 }
 
 compiler_basename() {
