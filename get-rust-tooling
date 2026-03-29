@@ -61,7 +61,6 @@ rustup component add rustfmt --toolchain nightly
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   cargo binstall --no-confirm sccache
   echo >> ${HOME}/.bashrc
-  echo 'export RUSTC_WORKSPACE_WRAPPER="$(command -v sccache)"' >> ${HOME}/.bashrc
 
   # Disable incremental Rust compilation.
   echo 'export CARGO_INCREMENTAL=0' >> ${HOME}/.bashrc
@@ -69,7 +68,6 @@ if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; th
   # Start the local sccache server quietly if it is not already running.
   echo 'sccache --start-server >/dev/null 2>&1 || true' >> ${HOME}/.bashrc
 
-  export RUSTC_WORKSPACE_WRAPPER="$(command -v sccache)"
   export CARGO_INCREMENTAL=0
   sccache --start-server >/dev/null 2>&1 || true
 fi
