@@ -68,7 +68,6 @@ cleanup() {
 build_compiler_cmd
 
 echo "$compiler_chain_message" >&2
-echo "[rustc-heartbeat] Show sccache stats: ${show_sccache_stats}" >&2
 
 # Try to extract a crate name for nicer logs.
 for ((i=1; i<=$#; i++)); do
