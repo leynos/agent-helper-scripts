@@ -14,6 +14,24 @@ else
   SUDO=sudo;
 fi
 
+CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
+CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  curl -s https://kopia.io/signing-key | $SUDO gpg --dearmor -o /etc/apt/keyrings/kopia-keyring.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main" | $SUDO tee /etc/apt/sources.list.d/kopia.list
+  $SUDO apt-get -y update
+  $SUDO apt install kopia
+  $SUDO rm /root/.config/kopia/repository.config.update-info.json
+  kopia repository connect s3 \
+    --bucket="${KOPIA_BUCKET:-}" \
+    --endpoint="${KOPIA_ENDPOINT:-}" \
+    --region="${KOPIA_REGION:-}" \
+    --access-key="${AWS_ACCESS_KEY_ID:-}" \
+    --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
+    --prefix=cargo/
+  kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
+fi
+
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
   channel=${RUST_CHANNEL}
@@ -103,4 +121,9 @@ wget -O- --timeout=10 --waitretry=3 --retry-connrefused --progress=dot:mega "${a
   $SUDO tar -C /usr/local --strip-components=1 --no-overwrite-dir -xzf -
 if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/local/bin/mold ]]; then
   $SUDO ln -sf /usr/local/bin/mold "$(realpath /usr/bin/ld)"
+fi
+
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  kopia snapshot create "$CARGO_KOPIA_DEST"
 fi
