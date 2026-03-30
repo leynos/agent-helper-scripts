@@ -21,7 +21,6 @@ if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   echo "deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main" | $SUDO tee /etc/apt/sources.list.d/kopia.list
   $SUDO apt-get -y update
   $SUDO apt install kopia
-  $SUDO rm /root/.config/kopia/repository.config.update-info.json
   kopia repository connect s3 \
     --bucket="${KOPIA_BUCKET:-}" \
     --endpoint="${KOPIA_ENDPOINT:-}" \
@@ -29,6 +28,7 @@ if [[ -n "${KOPIA_BUCKET:-}" ]]; then
     --access-key="${AWS_ACCESS_KEY_ID:-}" \
     --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
     --prefix=cargo/
+  $SUDO rm -f /root/.config/kopia/repository.config.update-info.json
   kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
 fi
 
