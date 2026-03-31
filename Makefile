@@ -24,4 +24,4 @@ typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
 test:
-	@echo "test: no tests configured"
+	@python3 -m pytest hooks/test_post_turn_quality_stop_hook.py -v

@@ -15,6 +15,8 @@ Behaviour knobs (env vars):
 - POST_TURN_ALWAYS_FETCH=1   -> always `git fetch origin main` (otherwise only if origin/main missing)
 - POST_TURN_BASE_REF=...     -> override base ref (default: origin/main)
 - POST_TURN_MAX_OUTPUT_CHARS -> truncate per-command output (default: 12000)
+- POST_TURN_COMPUSH=1        -> after successful checks, BLOCK if uncommitted/untracked changes
+                                remain and remind the agent to commit and push
 
 Claude Code contract:
 - Reads JSON hook input from stdin (but works even if stdin isn't JSON)
@@ -429,6 +431,60 @@ def changed_files(repo: Path, base_commit: str) -> tuple[list[str] | None, str |
     return sorted(changed), None
 
 
+def has_uncommitted_changes(repo: Path) -> tuple[bool | None, str | None]:
+    """Check whether the working tree has uncommitted or untracked changes.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[bool | None, str | None]
+        True if dirty, False if clean, None on error; and an error message.
+    """
+    for args in (
+        ["git", "diff", "--quiet"],
+        ["git", "diff", "--cached", "--quiet"],
+    ):
+        p = run(args, repo)
+        if p.returncode == 1:
+            return True, None
+        if p.returncode != 0:
+            return None, f"{' '.join(args)} failed: {p.stderr.strip() or p.stdout.strip()}"
+
+    u = run(["git", "ls-files", "--others", "--exclude-standard"], repo)
+    if u.returncode != 0:
+        return None, f"git ls-files failed: {u.stderr.strip() or u.stdout.strip()}"
+    if u.stdout.strip():
+        return True, None
+
+    return False, None
+
+
+def get_upstream_ref(repo: Path) -> tuple[str | None, str | None]:
+    """Get the upstream tracking ref for the current branch.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[str | None, str | None]
+        Upstream ref name (e.g. ``origin/main``) and error message, if any.
+    """
+    p = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
+    if p.returncode != 0:
+        return None, p.stderr.strip() or p.stdout.strip() or "no upstream configured"
+    ref = p.stdout.strip()
+    if not ref:
+        return None, "git rev-parse returned empty upstream"
+    return ref, None
+
+
 def detect_categories(files: list[str]) -> dict[str, bool]:
     """Detect change categories from a file list.
 
@@ -748,18 +804,19 @@ def parse_max_output(value: str, default: int = 12000) -> int:
         return default
 
 
-def parse_env() -> tuple[str, bool, int]:
+def parse_env() -> tuple[str, bool, int, bool]:
     """Parse environment configuration for the hook.
 
     Returns
     -------
-    tuple[str, bool, int]
-        Base ref, always-fetch flag, and max output length.
+    tuple[str, bool, int, bool]
+        Base ref, always-fetch flag, max output length, and compush flag.
     """
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
     always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
     max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
-    return base_ref, always_fetch, max_out
+    compush = os.environ.get("POST_TURN_COMPUSH", "") == "1"
+    return base_ref, always_fetch, max_out, compush
 
 
 def parse_hook_input() -> dict[str, Any]:
@@ -887,12 +944,44 @@ def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
     return block_and_print(state)
 
 
+def compush_check(repo: Path) -> int:
+    """Block the stop with a commit-and-push reminder if there are dirty changes.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    int
+        Exit code for the hook (always 0 per hook contract).
+    """
+    dirty, err = has_uncommitted_changes(repo)
+    if err is not None:
+        return 0
+    if not dirty:
+        return 0
+
+    upstream, _err = get_upstream_ref(repo)
+    if upstream is None:
+        upstream = "origin (upstream not configured)"
+
+    payload = {
+        "decision": "block",
+        "reason": f"Please commit and push to {upstream}",
+    }
+    print(json.dumps(payload))
+    return 0
+
+
 def run_stop_checks(
     start_cwd: Path,
     base_ref: str,
     *,
     always_fetch: bool,
     max_out: int,
+    compush: bool = False,
 ) -> int:
     """Run stop-hook checks for a given working directory.
 
@@ -906,6 +995,8 @@ def run_stop_checks(
         Whether to always fetch origin/main.
     max_out
         Maximum number of output characters to capture.
+    compush
+        Whether to remind the agent to commit and push when dirty.
 
     Returns
     -------
@@ -939,7 +1030,16 @@ def run_stop_checks(
     if not files:
         return 0
 
-    return evaluate_changes(state, repo, max_out)
+    rc = evaluate_changes(state, repo, max_out)
+    if rc != 0:
+        return rc
+    if not state.ok:
+        return rc
+
+    if compush:
+        return compush_check(repo)
+
+    return 0
 
 
 def main() -> int:
@@ -952,12 +1052,13 @@ def main() -> int:
     """
     hook_input = parse_hook_input()
     start_cwd = resolve_start_cwd(hook_input)
-    base_ref, always_fetch, max_out = parse_env()
+    base_ref, always_fetch, max_out, compush = parse_env()
     return run_stop_checks(
         start_cwd,
         base_ref,
         always_fetch=always_fetch,
         max_out=max_out,
+        compush=compush,
     )
 
 
