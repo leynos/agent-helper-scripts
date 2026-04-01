@@ -1,4 +1,4 @@
-"""Tests for post-turn-quality-stop-hook.py compush functionality."""
+"""Tests for post-turn-quality-stop-hook.py."""
 
 from __future__ import annotations
 
@@ -284,3 +284,30 @@ class TestRunStopChecksCompush:
                 REPO, "origin/main", always_fetch=False, max_out=12000, compush=True
             )
         mock_compush.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# run() – OSError resilience
+# ---------------------------------------------------------------------------
+
+
+class TestRunOSError:
+    """Tests for run() handling of OSError (e.g. missing cwd)."""
+
+    def test_nonexistent_cwd_returns_error(self) -> None:
+        """run() with a nonexistent cwd returns rc=1 instead of raising."""
+        result = hook.run(["git", "status"], Path("/nonexistent/path"))
+        assert result.returncode == 1
+        assert "No such file or directory" in result.stderr
+
+    def test_run_stop_checks_nonexistent_cwd(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Full pipeline exits cleanly when start_cwd does not exist."""
+        with patch("shutil.which", return_value="/usr/bin/git"):
+            rc = hook.run_stop_checks(
+                Path("/nonexistent/path"),
+                "origin/main",
+                always_fetch=False,
+                max_out=12000,
+            )
+        assert rc == 0
+        assert capsys.readouterr().out == ""
