@@ -61,7 +61,7 @@ if needs sudo; then
 fi
 
 if [[ -d "/usr/local/rustup" ]]; then
-  $SUDO chmod -R go=u "/usr/local/rustup"
+  $SUDO chmod -R a+rX,go-w "/usr/local/rustup"
 fi
 
 if needs wget; then
