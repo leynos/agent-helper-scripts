@@ -1,6 +1,17 @@
-[[ -f $HOME/.local/bin/env ]] && source $HOME/.local/bin/env
+#!/usr/bin/env bash
 
-pushd ~
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
+if [[ -f "${HOME}/.local/bin/env" ]]; then
+  # shellcheck source=/dev/null
+  source "${HOME}/.local/bin/env"
+fi
+
+pushd ~ || exit
 curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
 
 # Grant execution permissions:
@@ -9,23 +20,23 @@ chmod +x install-opentofu.sh
 # Please inspect the downloaded script at this point.
 
 # Run the installer:
-sudo ./install-opentofu.sh --install-method deb
+$SUDO ./install-opentofu.sh --install-method deb
 
 # Remove the installer:
 rm -f install-opentofu.sh
-popd
+popd || exit
 
 curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
 mkdir -p ~/git
-pushd ~/git
+pushd ~/git || exit
 LATEST_VERSION=$(wget -O - "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | cut -c 2-)
 ARCH=$(arch)
 SYSTEM=$(uname)
 wget "https://github.com/open-policy-agent/conftest/releases/download/v${LATEST_VERSION}/conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
-tar xzf conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz
+tar xzf "conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
 mkdir -p "$HOME/.local/bin/"
 mv conftest "$HOME/.local/bin/"
-popd
+popd || exit
 
 uv tool install checkov

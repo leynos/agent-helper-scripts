@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+if [ "$(whoami)" = root ]; then
+    SUDO=
+else
+    SUDO=sudo
+fi
+
 if [[ -f "${HOME}/.cargo/env" ]]; then
     # shellcheck source=/dev/null
     . "${HOME}/.cargo/env"
@@ -16,8 +22,8 @@ uv tool install mbake
 bun install -g pajv
 
 # Tools to help developers
-sudo apt-get update -y
-sudo apt-get install -y \
+$SUDO apt-get update -y
+$SUDO apt-get install -y \
   strace gdb \
   bat ripgrep nano ed fd-find \
   ltrace valgrind bpfcc-tools bpftrace \
@@ -57,24 +63,24 @@ __EOF
 fi
 
 (type -p wget >/dev/null || (apt-get update && apt-get install wget -y)) \
-	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& $SUDO mkdir -p -m 755 /etc/apt/keyrings \
 	&& out=$(mktemp) && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-	&& sudo install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& $SUDO install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& rm -f "$out" \
-	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
-	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-	&& sudo apt-get update -y \
-	&& sudo apt install gh -y
+	&& $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
+	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	&& $SUDO apt-get update -y \
+	&& $SUDO apt install gh -y
 
 pushd "${HOME}/.local" || exit
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
 popd || exit
 
 cargo binstall --no-confirm action-validator
 
-echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-sudo apt-get update -y
-sudo apt-get install -y nfpm podman bubblewrap proot mmdebstrap
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | $SUDO tee /etc/apt/sources.list.d/goreleaser.list > /dev/null
+$SUDO apt-get update -y
+$SUDO apt-get install -y nfpm podman bubblewrap proot mmdebstrap
 
 uv tool install --python 3.13 mcp-server-qdrant

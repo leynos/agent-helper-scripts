@@ -6,6 +6,12 @@ export DEBIAN_FRONTEND=noninteractive
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
 function ensure_profile_path()
 {
   local line=$1
@@ -57,13 +63,13 @@ if needs sudo; then
 fi
 
 if [[ -d "/usr/local/rustup" ]]; then
-  sudo chmod -R go=u "/usr/local/rustup"
+  $SUDO chmod -R go=u "/usr/local/rustup"
 fi
 
 if needs wget; then
-  sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y wget
+  $SUDO DEBIAN_FRONTEND=noninteractive apt-get update -y
+  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
+  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
 for tool in \
