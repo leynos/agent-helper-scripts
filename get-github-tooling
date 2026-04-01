@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 if [ "$(whoami)" = root ]; then
-    SUDO=
+  SUDO=
 else
-    SUDO=sudo
+  SUDO=sudo
 fi
 
 if [[ -f "${HOME}/.cargo/env" ]]; then
@@ -15,7 +15,7 @@ VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
 wget "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk"
-chmod 777 vk
+chmod 755 vk
 popd || exit
 
 uv tool install mbake
@@ -31,8 +31,8 @@ $SUDO apt-get install -y \
   ncdu tree bat delta \
   tcpdump nmap clang lldb \
   eza fzf hyperfine shellcheck
-apt-get install -y linux-tools-common || true
-apt-get install -y linux-tools-generic || true
+$SUDO apt-get install -y linux-tools-common
+$SUDO apt-get install -y linux-tools-generic
 
 ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
 

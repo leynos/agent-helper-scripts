@@ -48,8 +48,6 @@ if needs bun; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
-export PATH="${HOME}/.bun/bin:${PATH}"
-
 if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
@@ -67,9 +65,9 @@ if [[ -d "/usr/local/rustup" ]]; then
 fi
 
 if needs wget; then
-  $SUDO DEBIAN_FRONTEND=noninteractive apt-get update -y
-  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
-  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y wget
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
 for tool in \
