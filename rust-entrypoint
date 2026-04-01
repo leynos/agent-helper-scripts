@@ -1,21 +1,39 @@
+#!/usr/bin/env bash
+
 set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
-if ! grep -q 'PATH=$HOME/.local/bin:$PATH' "${HOME}/.bashrc"; then
-  echo 'PATH=$HOME/.local/bin:$PATH' >> "${HOME}/.bashrc"
-fi
+function ensure_profile_path()
+{
+  local line=$1
+  local file
+
+  for file in "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
+    touch "${file}"
+    if ! grep -Fqx "${line}" "${file}"; then
+      echo "${line}" >> "${file}"
+    fi
+  done
+}
+
+ensure_profile_path "PATH=\$HOME/.local/bin:\$PATH"
+ensure_profile_path "PATH=\$HOME/.cargo/bin:\$PATH"
+ensure_profile_path "PATH=\$HOME/.bun/bin:\$PATH"
+
+export PATH="${HOME}/.bun/bin:${HOME}/.cargo/bin:${HOME}/.local/bin:${PATH}"
 
 function needs()
 {
-  ! which $1 >/dev/null 2>/dev/null
+  ! which "$1" >/dev/null 2>/dev/null
 }
 
 if needs uv; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
   if [[ -f "$HOME/.local/bin/env" ]]; then
+    # shellcheck source=/dev/null
     source "$HOME/.local/bin/env"
   fi
 fi
@@ -24,9 +42,10 @@ if needs bun; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
+export PATH="${HOME}/.bun/bin:${PATH}"
+
 if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
 fi
 
 if needs sudo; then
