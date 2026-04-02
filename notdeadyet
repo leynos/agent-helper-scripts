@@ -6,6 +6,7 @@ shift
 
 interval="${RUSTC_HEARTBEAT_SECS:-45}"
 show_sccache_stats="${RUSTC_HEARTBEAT_SCCACHE_STATS:-0}"
+verbose="${RUSTC_HEARTBEAT_VERBOSE:-0}"
 
 crate_name="unknown"
 stdin_arg_index=""
@@ -25,6 +26,23 @@ compiler_basename() {
   basename -- "$1"
 }
 
+is_truthy() {
+  case "$1" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+log_verbose() {
+  if is_truthy "$verbose"; then
+    echo "$1" >&2
+  fi
+}
+
 build_compiler_cmd() {
   if should_auto_wrap_sccache && [[ "$(compiler_basename "$real_compiler")" != "sccache" ]]; then
     if command -v sccache >/dev/null 2>&1; then
@@ -34,7 +52,7 @@ build_compiler_cmd() {
       return 0
     fi
 
-    # echo "[rustc-heartbeat] SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set, but sccache is not on PATH; proceeding without sccache" >&2
+    echo "[rustc-heartbeat] SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set, but sccache is not on PATH; proceeding without sccache" >&2
   fi
 
   compiler_cmd=("$real_compiler")
@@ -66,7 +84,7 @@ cleanup() {
 
 build_compiler_cmd
 
-# echo "$compiler_chain_message" >&2
+log_verbose "$compiler_chain_message"
 
 # Try to extract a crate name for nicer logs.
 for ((i=1; i<=$#; i++)); do
