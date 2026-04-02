@@ -393,6 +393,22 @@ class TestRunStopChecksCompush:
             )
         mock_compush.assert_not_called()
 
+    def test_compush_runs_when_no_files_changed(self) -> None:
+        """compush=True still runs when there are no changed files to lint."""
+        with patch.object(hook, "repo_root", return_value=(REPO, None)), \
+             patch.object(hook, "ensure_base_ref", return_value=(True, None, False)), \
+             patch.object(hook, "merge_base", return_value=("abc123", None)), \
+             patch.object(hook, "changed_files", return_value=([], None)), \
+             patch.object(hook, "evaluate_changes") as mock_evaluate, \
+             patch.object(hook, "compush_check", return_value=0) as mock_compush, \
+             patch("shutil.which", return_value="/usr/bin/git"):
+            rc = hook.run_stop_checks(
+                REPO, "origin/main", always_fetch=False, max_out=12000, compush=True
+            )
+        assert rc == 0, f"expected run_stop_checks rc 0 but got {rc!r}"
+        mock_evaluate.assert_not_called()
+        mock_compush.assert_called_once_with(REPO)
+
 # ---------------------------------------------------------------------------
 # run() - OSError resilience
 # ---------------------------------------------------------------------------

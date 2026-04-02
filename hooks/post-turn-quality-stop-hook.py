@@ -1153,12 +1153,10 @@ def run_stop_checks(
     repo = preparation.repo
     assert repo is not None
 
-    if not state.changed_files:
-        return 0
-
-    rc = evaluate_changes(state, repo, max_out)
-    if rc != 0:
-        return rc
+    if state.changed_files:
+        rc = evaluate_changes(state, repo, max_out)
+        if rc != 0:
+            return rc
 
     if compush:
         return compush_check(repo)
