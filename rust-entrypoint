@@ -12,20 +12,52 @@ else
   SUDO=sudo
 fi
 
+function append_block_if_missing()
+{
+  local file=$1
+  local block=$2
+
+  [[ -f "${file}" ]] || return 0
+  if [[ $(<"${file}") == *"${block}"* ]]; then
+    return 0
+  fi
+  if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
+    printf '\n' >> "${file}"
+  fi
+  printf '%s\n' "${block}" >> "${file}"
+}
+
 function ensure_profile_path()
 {
-  local line=$1
-  local file
+  local dir=$1
+  local block
 
-  for file in "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
-    touch "${file}"
-    if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
-      printf '\n' >> "${file}"
-    fi
-    if ! grep -Fqx "${line}" "${file}"; then
-      echo "${line}" >> "${file}"
-    fi
-  done
+  read -r -d '' block <<__EOF__ || true
+# Added by rust-entrypoint to keep helper tooling on PATH.
+case ":\$PATH:" in
+  *:"${dir}":*)
+    ;;
+  *)
+    export PATH="${dir}:\$PATH"
+    ;;
+esac
+__EOF__
+
+  append_block_if_missing "${HOME}/.bashrc" "${block}"
+}
+
+function ensure_profile_sources_bashrc()
+{
+  local block
+
+  read -r -d '' block <<'__EOF__' || true
+# Added by rust-entrypoint so login shells pick up ~/.bashrc when Bash starts.
+if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+__EOF__
+
+  append_block_if_missing "${HOME}/.profile" "${block}"
 }
 
 function ensure_runtime_path()
@@ -41,9 +73,10 @@ function ensure_runtime_path()
   esac
 }
 
-ensure_profile_path "PATH=\$HOME/.local/bin:\$PATH"
-ensure_profile_path "PATH=\$HOME/.cargo/bin:\$PATH"
-ensure_profile_path "PATH=\$HOME/.bun/bin:\$PATH"
+ensure_profile_path "${HOME}/.local/bin"
+ensure_profile_path "${HOME}/.cargo/bin"
+ensure_profile_path "${HOME}/.bun/bin"
+ensure_profile_sources_bashrc
 
 ensure_runtime_path "${HOME}/.local/bin"
 ensure_runtime_path "${HOME}/.cargo/bin"

@@ -14,7 +14,9 @@ fi
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
-wget "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk"
+curl --proto '=https' --tlsv1.2 -fsSL \
+  "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk" \
+  -o vk
 chmod 755 vk
 popd || exit
 
@@ -46,7 +48,9 @@ leta workspace add .
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
-wget -O checkmake "https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64"
+curl --proto '=https' --tlsv1.2 -fsSL \
+  "https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64" \
+  -o checkmake
 chmod 755 checkmake
 popd || exit
 
@@ -62,9 +66,8 @@ __EOF
   echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
 fi
 
-(type -p wget >/dev/null || ($SUDO apt-get update -y && $SUDO apt-get install -y wget)) \
-	&& $SUDO mkdir -p -m 755 /etc/apt/keyrings \
-	&& out=$(mktemp) && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	$SUDO mkdir -p -m 755 /etc/apt/keyrings \
+	&& out=$(mktemp) && curl --proto '=https' --tlsv1.2 -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$out" \
 	&& $SUDO install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& rm -f "$out" \
 	&& $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
