@@ -52,7 +52,7 @@ build_compiler_cmd() {
       return 0
     fi
 
-    echo "[rustc-heartbeat] SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set, but sccache is not on PATH; proceeding without sccache" >&2
+    log_verbose "[rustc-heartbeat] SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set, but sccache is not on PATH; proceeding without sccache"
   fi
 
   compiler_cmd=("$real_compiler")
