@@ -130,7 +130,13 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(  # noqa: S603  # FIXME: command and args are controlled (no shell, no user-supplied command strings).
             cmd, cwd=str(cwd), text=True, capture_output=True
         )
-    except (FileNotFoundError, NotADirectoryError) as exc:
+    except FileNotFoundError as exc:
+        if Path(exc.filename or "") != cwd:
+            raise
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=1, stdout="", stderr=str(exc)
+        )
+    except NotADirectoryError as exc:
         return subprocess.CompletedProcess(
             args=cmd, returncode=1, stdout="", stderr=str(exc)
         )

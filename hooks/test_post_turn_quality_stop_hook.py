@@ -394,3 +394,18 @@ class TestRunOSError:
             )
         assert rc == 0
         assert capsys.readouterr().out == ""
+
+
+class TestGetMakeTargets:
+    """Tests for make target enumeration."""
+
+    def test_missing_make_returns_error(self) -> None:
+        """Missing `make` surfaces as an enumeration error."""
+        with patch.object(
+            hook,
+            "run",
+            side_effect=FileNotFoundError(2, "No such file or directory", "make"),
+        ):
+            targets, err = hook.get_make_targets(REPO)
+        assert targets is None
+        assert err == "make not found on PATH"
