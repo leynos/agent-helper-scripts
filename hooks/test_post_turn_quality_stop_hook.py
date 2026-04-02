@@ -149,6 +149,51 @@ class TestGetUpstreamRef:
 
 
 # ---------------------------------------------------------------------------
+# has_unpushed_commits
+# ---------------------------------------------------------------------------
+
+
+class TestHasUnpushedCommits:
+    """Tests for has_unpushed_commits()."""
+
+    def test_ahead_of_upstream(self) -> None:
+        with patch.object(hook, "run") as mock_run:
+            mock_run.return_value = _completed(0, stdout="2\n")
+            ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
+        assert ahead is True
+        assert err is None
+
+    def test_not_ahead_of_upstream(self) -> None:
+        with patch.object(hook, "run") as mock_run:
+            mock_run.return_value = _completed(0, stdout="0\n")
+            ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
+        assert ahead is False
+        assert err is None
+
+    def test_rev_list_error(self) -> None:
+        with patch.object(hook, "run") as mock_run:
+            mock_run.return_value = _completed(128, stderr="fatal: bad revision")
+            ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
+        assert ahead is None
+        assert err is not None
+        assert "fatal: bad revision" in err
+
+    def test_empty_output(self) -> None:
+        with patch.object(hook, "run") as mock_run:
+            mock_run.return_value = _completed(0, stdout="")
+            ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
+        assert ahead is None
+        assert "empty output" in (err or "")
+
+    def test_non_integer_output(self) -> None:
+        with patch.object(hook, "run") as mock_run:
+            mock_run.return_value = _completed(0, stdout="two\n")
+            ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
+        assert ahead is None
+        assert "non-integer" in (err or "")
+
+
+# ---------------------------------------------------------------------------
 # compush_check
 # ---------------------------------------------------------------------------
 
@@ -178,7 +223,9 @@ class TestCompushCheck:
 
     def test_clean_tree(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Clean tree -> no output, exit 0."""
-        with patch.object(hook, "has_uncommitted_changes", return_value=(False, None)):
+        with patch.object(hook, "get_upstream_ref", return_value=("origin/feature", None)), \
+             patch.object(hook, "has_uncommitted_changes", return_value=(False, None)), \
+             patch.object(hook, "has_unpushed_commits", return_value=(False, None)):
             rc = hook.compush_check(REPO)
         assert rc == 0
         assert capsys.readouterr().out == ""
@@ -186,6 +233,40 @@ class TestCompushCheck:
     def test_error_checking_changes(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Error from has_uncommitted_changes -> silent exit 0."""
         with patch.object(hook, "has_uncommitted_changes", return_value=(None, "oops")):
+            rc = hook.compush_check(REPO)
+        assert rc == 0
+        assert capsys.readouterr().out == ""
+
+    def test_clean_tree_with_unpushed_commits(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Clean tree + ahead of upstream -> block with push-only message."""
+        with patch.object(hook, "get_upstream_ref", return_value=("origin/feature", None)), \
+             patch.object(hook, "has_uncommitted_changes", return_value=(False, None)), \
+             patch.object(hook, "has_unpushed_commits", return_value=(True, None)):
+            rc = hook.compush_check(REPO)
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["decision"] == "block"
+        assert "Please push committed changes to origin/feature" in out["reason"]
+
+    def test_clean_tree_no_upstream(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Clean tree + no upstream -> no ahead check and no output."""
+        with patch.object(hook, "get_upstream_ref", return_value=(None, "no upstream")), \
+             patch.object(hook, "has_uncommitted_changes", return_value=(False, None)), \
+             patch.object(hook, "has_unpushed_commits") as mock_ahead:
+            rc = hook.compush_check(REPO)
+        assert rc == 0
+        mock_ahead.assert_not_called()
+        assert capsys.readouterr().out == ""
+
+    def test_error_checking_unpushed_commits(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Ahead check errors stay silent to preserve hook contract."""
+        with patch.object(hook, "get_upstream_ref", return_value=("origin/feature", None)), \
+             patch.object(hook, "has_uncommitted_changes", return_value=(False, None)), \
+             patch.object(hook, "has_unpushed_commits", return_value=(None, "oops")):
             rc = hook.compush_check(REPO)
         assert rc == 0
         assert capsys.readouterr().out == ""

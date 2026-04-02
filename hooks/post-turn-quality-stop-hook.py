@@ -16,7 +16,8 @@ Behaviour knobs (env vars):
 - POST_TURN_BASE_REF=...     -> override base ref (default: origin/main)
 - POST_TURN_MAX_OUTPUT_CHARS -> truncate per-command output (default: 12000)
 - POST_TURN_COMPUSH=1        -> after successful checks, BLOCK if uncommitted/untracked changes
-                                remain and remind the agent to commit and push
+                                remain, or if local commits are ahead of upstream,
+                                and remind the agent to commit and/or push
 
 Claude Code contract:
 - Reads JSON hook input from stdin (but works even if stdin isn't JSON)
@@ -490,6 +491,38 @@ def get_upstream_ref(repo: Path) -> tuple[str | None, str | None]:
     return ref, None
 
 
+def has_unpushed_commits(repo: Path, upstream: str) -> tuple[bool | None, str | None]:
+    """Check whether ``HEAD`` is ahead of the given upstream ref.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    upstream
+        Upstream tracking ref to compare against.
+
+    Returns
+    -------
+    tuple[bool | None, str | None]
+        True if local commits are ahead, False if not, None on error; and an error message.
+    """
+    p = run(["git", "rev-list", "--count", f"{upstream}..HEAD"], repo)
+    if p.returncode != 0:
+        return None, (
+            f"git rev-list --count {upstream}..HEAD failed: "
+            f"{p.stderr.strip() or p.stdout.strip()}"
+        )
+
+    ahead = p.stdout.strip()
+    if not ahead:
+        return None, "git rev-list --count returned empty output"
+
+    try:
+        return int(ahead) > 0, None
+    except ValueError:
+        return None, f"git rev-list --count returned non-integer output: {ahead}"
+
+
 def detect_categories(files: list[str]) -> dict[str, bool]:
     """Detect change categories from a file list.
 
@@ -950,7 +983,7 @@ def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
 
 
 def compush_check(repo: Path) -> int:
-    """Block the stop with a commit-and-push reminder if there are dirty changes.
+    """Block the stop with commit/push reminders when local work is not published.
 
     Parameters
     ----------
@@ -962,19 +995,30 @@ def compush_check(repo: Path) -> int:
     int
         Exit code for the hook (always 0 per hook contract).
     """
+    upstream, _err = get_upstream_ref(repo)
+    upstream_label = upstream or "origin (upstream not configured)"
+
     dirty, err = has_uncommitted_changes(repo)
     if err is not None:
         return 0
-    if not dirty:
+    if dirty:
+        payload = {
+            "decision": "block",
+            "reason": f"Please commit and push to {upstream_label}",
+        }
+        print(json.dumps(payload))
         return 0
 
-    upstream, _err = get_upstream_ref(repo)
     if upstream is None:
-        upstream = "origin (upstream not configured)"
+        return 0
+
+    ahead, err = has_unpushed_commits(repo, upstream)
+    if err is not None or not ahead:
+        return 0
 
     payload = {
         "decision": "block",
-        "reason": f"Please commit and push to {upstream}",
+        "reason": f"Please push committed changes to {upstream_label}",
     }
     print(json.dumps(payload))
     return 0
