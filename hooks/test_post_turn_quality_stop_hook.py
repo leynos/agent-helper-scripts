@@ -37,7 +37,7 @@ def _completed(
     returncode: int, stdout: str = "", stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
+        args=["unit-test"], returncode=returncode, stdout=stdout, stderr=stderr
     )
 
 
@@ -290,10 +290,10 @@ class TestParseEnvCompush:
         _base, _fetch, _max, compush = hook.parse_env()
         assert compush is False
 
-    def test_compush_other_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_compush_truthy_alias(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("POST_TURN_COMPUSH", "yes")
         _base, _fetch, _max, compush = hook.parse_env()
-        assert compush is False
+        assert compush is True
 
 
 # ---------------------------------------------------------------------------
@@ -377,9 +377,11 @@ class TestRunOSError:
 
     def test_nonexistent_cwd_returns_error(self) -> None:
         """run() with a nonexistent cwd returns rc=1 instead of raising."""
-        result = hook.run(["git", "status"], Path("/nonexistent/path"))
+        missing_path = Path("/nonexistent/path")
+        result = hook.run(["git", "status"], missing_path)
         assert result.returncode == 1
-        assert "No such file or directory" in result.stderr
+        assert result.stderr
+        assert str(missing_path) in result.stderr
 
     def test_run_stop_checks_nonexistent_cwd(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Full pipeline exits cleanly when start_cwd does not exist."""

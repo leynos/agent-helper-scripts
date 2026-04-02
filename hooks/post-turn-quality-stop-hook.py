@@ -130,7 +130,7 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(  # noqa: S603  # FIXME: command and args are controlled (no shell, no user-supplied command strings).
             cmd, cwd=str(cwd), text=True, capture_output=True
         )
-    except OSError as exc:
+    except (FileNotFoundError, NotADirectoryError) as exc:
         return subprocess.CompletedProcess(
             args=cmd, returncode=1, stdout="", stderr=str(exc)
         )
@@ -853,7 +853,7 @@ def parse_env() -> tuple[str, bool, int, bool]:
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
     always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
     max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
-    compush = os.environ.get("POST_TURN_COMPUSH", "") == "1"
+    compush = parse_bool_env(os.environ.get("POST_TURN_COMPUSH", ""))
     return base_ref, always_fetch, max_out, compush
 
 
