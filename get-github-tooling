@@ -31,8 +31,8 @@ $SUDO apt-get install -y \
   ncdu tree bat delta \
   tcpdump nmap clang lldb \
   eza fzf hyperfine shellcheck
-$SUDO apt-get install -y linux-tools-common
-$SUDO apt-get install -y linux-tools-generic
+$SUDO apt-get install -y linux-tools-common || true
+$SUDO apt-get install -y linux-tools-generic || true
 
 ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
 
@@ -67,7 +67,6 @@ fi
 	&& out=$(mktemp) && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& $SUDO install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& rm -f "$out" \
-	&& $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
 	&& $SUDO apt-get update -y \
