@@ -15,6 +15,9 @@ Behaviour knobs (env vars):
 - POST_TURN_ALWAYS_FETCH=1   -> always `git fetch origin main` (otherwise only if origin/main missing)
 - POST_TURN_BASE_REF=...     -> override base ref (default: origin/main)
 - POST_TURN_MAX_OUTPUT_CHARS -> truncate per-command output (default: 12000)
+- POST_TURN_COMPUSH=1        -> after successful checks, BLOCK if uncommitted/untracked changes
+                                remain, or if local commits are ahead of upstream,
+                                and remind the agent to commit and/or push
 
 Claude Code contract:
 - Reads JSON hook input from stdin (but works even if stdin isn't JSON)
@@ -108,6 +111,28 @@ class HookState:
     error: str | None = None
 
 
+@dataclass
+class RunStopChecksPreparation:
+    """Prepared state for ``run_stop_checks``.
+
+    Attributes
+    ----------
+    ok
+        Whether preparation succeeded and execution should continue.
+    exit_code
+        Exit code to return immediately when preparation did not succeed.
+    state
+        Hook state populated during preparation.
+    repo
+        Resolved repository root when preparation succeeded.
+    """
+
+    ok: bool
+    exit_code: int
+    state: HookState
+    repo: Path | None = None
+
+
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """Run a subprocess command in the given working directory.
 
@@ -123,9 +148,20 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     subprocess.CompletedProcess[str]
         Completed process with captured output.
     """
-    return subprocess.run(  # noqa: S603  # FIXME: command and args are controlled (no shell, no user-supplied command strings).
-        cmd, cwd=str(cwd), text=True, capture_output=True
-    )
+    try:
+        return subprocess.run(  # noqa: S603  # valid: command and args are controlled (no shell, no user-supplied command strings).
+            cmd, cwd=str(cwd), text=True, capture_output=True, check=False
+        )
+    except FileNotFoundError as exc:
+        if Path(exc.filename or "") != cwd:
+            raise
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=1, stdout="", stderr=str(exc)
+        )
+    except NotADirectoryError as exc:
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=1, stdout="", stderr=str(exc)
+        )
 
 
 def truncate(text: str, max_chars: int) -> str:
@@ -427,6 +463,92 @@ def changed_files(repo: Path, base_commit: str) -> tuple[list[str] | None, str |
             changed.add(line)
 
     return sorted(changed), None
+
+
+def has_uncommitted_changes(repo: Path) -> tuple[bool | None, str | None]:
+    """Check whether the working tree has uncommitted or untracked changes.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[bool | None, str | None]
+        True if dirty, False if clean, None on error; and an error message.
+    """
+    for args in (
+        ["git", "diff", "--quiet"],
+        ["git", "diff", "--cached", "--quiet"],
+    ):
+        p = run(args, repo)
+        if p.returncode == 1:
+            return True, None
+        if p.returncode != 0:
+            return None, f"{' '.join(args)} failed: {p.stderr.strip() or p.stdout.strip()}"
+
+    u = run(["git", "ls-files", "--others", "--exclude-standard"], repo)
+    if u.returncode != 0:
+        return None, f"git ls-files failed: {u.stderr.strip() or u.stdout.strip()}"
+    if u.stdout.strip():
+        return True, None
+
+    return False, None
+
+
+def get_upstream_ref(repo: Path) -> tuple[str | None, str | None]:
+    """Get the upstream tracking ref for the current branch.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    tuple[str | None, str | None]
+        Upstream ref name (e.g. ``origin/main``) and error message, if any.
+    """
+    p = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
+    if p.returncode != 0:
+        return None, p.stderr.strip() or p.stdout.strip() or "no upstream configured"
+    ref = p.stdout.strip()
+    if not ref:
+        return None, "git rev-parse returned empty upstream"
+    return ref, None
+
+
+def has_unpushed_commits(repo: Path, upstream: str) -> tuple[bool | None, str | None]:
+    """Check whether ``HEAD`` is ahead of the given upstream ref.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+    upstream
+        Upstream tracking ref to compare against.
+
+    Returns
+    -------
+    tuple[bool | None, str | None]
+        True if local commits are ahead, False if not, None on error; and an error message.
+    """
+    p = run(["git", "rev-list", "--count", f"{upstream}..HEAD"], repo)
+    if p.returncode != 0:
+        return None, (
+            f"git rev-list --count {upstream}..HEAD failed: "
+            f"{p.stderr.strip() or p.stdout.strip()}"
+        )
+
+    ahead = p.stdout.strip()
+    if not ahead:
+        return None, "git rev-list --count returned empty output"
+
+    try:
+        return int(ahead) > 0, None
+    except ValueError:
+        return None, f"git rev-list --count returned non-integer output: {ahead}"
 
 
 def detect_categories(files: list[str]) -> dict[str, bool]:
@@ -748,18 +870,19 @@ def parse_max_output(value: str, default: int = 12000) -> int:
         return default
 
 
-def parse_env() -> tuple[str, bool, int]:
+def parse_env() -> tuple[str, bool, int, bool]:
     """Parse environment configuration for the hook.
 
     Returns
     -------
-    tuple[str, bool, int]
-        Base ref, always-fetch flag, and max output length.
+    tuple[str, bool, int, bool]
+        Base ref, always-fetch flag, max output length, and compush flag.
     """
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
     always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
     max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
-    return base_ref, always_fetch, max_out
+    compush = parse_bool_env(os.environ.get("POST_TURN_COMPUSH", ""))
+    return base_ref, always_fetch, max_out, compush
 
 
 def parse_hook_input() -> dict[str, Any]:
@@ -887,12 +1010,118 @@ def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
     return block_and_print(state)
 
 
+def prepare_run_stop_checks(
+    start_cwd: Path, base_ref: str, *, always_fetch: bool
+) -> RunStopChecksPreparation:
+    """Prepare repository state for ``run_stop_checks``.
+
+    Parameters
+    ----------
+    start_cwd
+        Working directory for git operations.
+    base_ref
+        Base git ref used for comparisons.
+    always_fetch
+        Whether to always fetch the base ref.
+
+    Returns
+    -------
+    RunStopChecksPreparation
+        Structured preparation result containing the populated hook state and
+        repository root when preparation succeeded.
+    """
+    state = HookState(base_ref=base_ref)
+
+    if shutil.which("git") is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, "git not found on PATH"),
+            state=state,
+        )
+
+    repo, _err = repo_root(start_cwd)
+    if repo is None:
+        return RunStopChecksPreparation(ok=False, exit_code=0, state=state)
+
+    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
+    state.fetched = fetched
+    if not ok:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+
+    base_commit, err = merge_base(repo, base_ref)
+    if base_commit is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+    state.base_commit = base_commit
+
+    files, err = changed_files(repo, base_commit)
+    if files is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+
+    state.changed_files = files
+    return RunStopChecksPreparation(ok=True, exit_code=0, state=state, repo=repo)
+
+
+def compush_check(repo: Path) -> int:
+    """Block the stop with commit/push reminders when local work is not published.
+
+    Parameters
+    ----------
+    repo
+        Repository root path.
+
+    Returns
+    -------
+    int
+        Exit code for the hook (always 0 per hook contract).
+    """
+    upstream, _err = get_upstream_ref(repo)
+    upstream_label = upstream or "origin (upstream not configured)"
+
+    dirty, err = has_uncommitted_changes(repo)
+    if err is not None:
+        return 0
+    if dirty:
+        payload = {
+            "decision": "block",
+            "reason": f"Please commit and push to {upstream_label}",
+        }
+        print(json.dumps(payload))
+        return 0
+
+    if upstream is None:
+        return 0
+
+    ahead, err = has_unpushed_commits(repo, upstream)
+    if err is not None or not ahead:
+        return 0
+
+    payload = {
+        "decision": "block",
+        "reason": f"Please push committed changes to {upstream_label}",
+    }
+    print(json.dumps(payload))
+    return 0
+
+
 def run_stop_checks(
     start_cwd: Path,
     base_ref: str,
     *,
     always_fetch: bool,
     max_out: int,
+    compush: bool = False,
 ) -> int:
     """Run stop-hook checks for a given working directory.
 
@@ -906,40 +1135,33 @@ def run_stop_checks(
         Whether to always fetch origin/main.
     max_out
         Maximum number of output characters to capture.
+    compush
+        Whether to remind the agent to commit and push when dirty.
 
     Returns
     -------
     int
         Exit code for the hook.
     """
-    state = HookState(base_ref=base_ref)
+    preparation = prepare_run_stop_checks(
+        start_cwd, base_ref, always_fetch=always_fetch
+    )
+    if not preparation.ok:
+        return preparation.exit_code
 
-    if shutil.which("git") is None:
-        return fail_state(state, "git not found on PATH")
+    state = preparation.state
+    repo = preparation.repo
+    assert repo is not None
 
-    repo, err = repo_root(start_cwd)
-    if repo is None:
-        return 0
+    if state.changed_files:
+        rc = evaluate_changes(state, repo, max_out)
+        if rc != 0:
+            return rc
 
-    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
-    state.fetched = fetched
-    if not ok:
-        return fail_state(state, err)
+    if compush:
+        return compush_check(repo)
 
-    base_commit, err = merge_base(repo, base_ref)
-    if base_commit is None:
-        return fail_state(state, err)
-    state.base_commit = base_commit
-
-    files, err = changed_files(repo, base_commit)
-    if files is None:
-        return fail_state(state, err)
-
-    state.changed_files = files
-    if not files:
-        return 0
-
-    return evaluate_changes(state, repo, max_out)
+    return 0
 
 
 def main() -> int:
@@ -952,12 +1174,13 @@ def main() -> int:
     """
     hook_input = parse_hook_input()
     start_cwd = resolve_start_cwd(hook_input)
-    base_ref, always_fetch, max_out = parse_env()
+    base_ref, always_fetch, max_out, compush = parse_env()
     return run_stop_checks(
         start_cwd,
         base_ref,
         always_fetch=always_fetch,
         max_out=max_out,
+        compush=compush,
     )
 
 

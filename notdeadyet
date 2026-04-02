@@ -4,13 +4,13 @@ set -euo pipefail
 real_compiler="$1"
 shift
 
-interval="${RUSTC_HEARTBEAT_SECS:-15}"
+interval="${RUSTC_HEARTBEAT_SECS:-45}"
 show_sccache_stats="${RUSTC_HEARTBEAT_SCCACHE_STATS:-0}"
+verbose="${RUSTC_HEARTBEAT_VERBOSE:-0}"
 
 crate_name="unknown"
 stdin_arg_index=""
 stdin_file=""
-ticker_running=1
 ticker=""
 status=0
 
@@ -26,16 +26,33 @@ compiler_basename() {
   basename -- "$1"
 }
 
+is_truthy() {
+  case "$1" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+log_verbose() {
+  if is_truthy "$verbose"; then
+    echo "$1" >&2
+  fi
+}
+
 build_compiler_cmd() {
   if should_auto_wrap_sccache && [[ "$(compiler_basename "$real_compiler")" != "sccache" ]]; then
     if command -v sccache >/dev/null 2>&1; then
       compiler_cmd=("sccache" "$real_compiler")
-      compiler_chain_message="[rustc-heartbeat] Auto-wrapping compiler with sccache because SCCACHE_BUCKET or SCCACHE_WEBDAV_ENDPOINT is set: ${compiler_cmd[*]}"
+      compiler_chain_message="[rustc-heartbeat] Auto-wrapping compiler with sccache because SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set: ${compiler_cmd[*]}"
       sccache_auto_wrapped=1
       return 0
     fi
 
-    echo "[rustc-heartbeat] SCCACHE_BUCKET or SCCACHE_WEBDAV_ENDPOINT is set, but sccache is not on PATH; proceeding without sccache" >&2
+    log_verbose "[rustc-heartbeat] SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set, but sccache is not on PATH; proceeding without sccache"
   fi
 
   compiler_cmd=("$real_compiler")
@@ -56,9 +73,9 @@ print_sccache_stats() {
 }
 
 cleanup() {
-  ticker_running=0
   if [[ -n "$ticker" ]]; then
     kill "$ticker" 2>/dev/null || true
+    wait "$ticker" 2>/dev/null || true
   fi
   if [[ -n "$stdin_file" && -f "$stdin_file" ]]; then
     rm -f "$stdin_file"
@@ -67,7 +84,7 @@ cleanup() {
 
 build_compiler_cmd
 
-echo "$compiler_chain_message" >&2
+log_verbose "$compiler_chain_message"
 
 # Try to extract a crate name for nicer logs.
 for ((i=1; i<=$#; i++)); do
@@ -86,13 +103,31 @@ if [[ -n "$stdin_arg_index" ]] && [[ ! -t 0 ]]; then
   cat >"$stdin_file"
 fi
 
-(
-  while [[ "$ticker_running" -eq 1 ]]; do
-    printf '[rustc-heartbeat] crate=%s still compiling at %(%FT%TZ)T\n' \
-      "$crate_name" -1 >&2
-    sleep "$interval"
-  done
-) &
+python3 - "$interval" "$crate_name" <<'PY' &
+import signal
+import sys
+import time
+
+
+def handle_signal(_signum, _frame):
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGINT, handle_signal)
+
+interval = float(sys.argv[1])
+crate_name = sys.argv[2]
+
+while True:
+    time.sleep(interval)
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    print(
+        f"[rustc-heartbeat] crate={crate_name} still compiling at {timestamp}",
+        file=sys.stderr,
+        flush=True,
+    )
+PY
 ticker=$!
 
 trap cleanup EXIT INT TERM
