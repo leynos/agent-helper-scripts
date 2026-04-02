@@ -111,6 +111,28 @@ class HookState:
     error: str | None = None
 
 
+@dataclass
+class RunStopChecksPreparation:
+    """Prepared state for ``run_stop_checks``.
+
+    Attributes
+    ----------
+    ok
+        Whether preparation succeeded and execution should continue.
+    exit_code
+        Exit code to return immediately when preparation did not succeed.
+    state
+        Hook state populated during preparation.
+    repo
+        Resolved repository root when preparation succeeded.
+    """
+
+    ok: bool
+    exit_code: int
+    state: HookState
+    repo: Path | None = None
+
+
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """Run a subprocess command in the given working directory.
 
@@ -127,8 +149,8 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         Completed process with captured output.
     """
     try:
-        return subprocess.run(  # noqa: S603  # FIXME: command and args are controlled (no shell, no user-supplied command strings).
-            cmd, cwd=str(cwd), text=True, capture_output=True
+        return subprocess.run(  # noqa: S603  # valid: command and args are controlled (no shell, no user-supplied command strings).
+            cmd, cwd=str(cwd), text=True, capture_output=True, check=False
         )
     except FileNotFoundError as exc:
         if Path(exc.filename or "") != cwd:
@@ -988,6 +1010,69 @@ def evaluate_changes(state: HookState, repo: Path, max_out: int) -> int:
     return block_and_print(state)
 
 
+def prepare_run_stop_checks(
+    start_cwd: Path, base_ref: str, *, always_fetch: bool
+) -> RunStopChecksPreparation:
+    """Prepare repository state for ``run_stop_checks``.
+
+    Parameters
+    ----------
+    start_cwd
+        Working directory for git operations.
+    base_ref
+        Base git ref used for comparisons.
+    always_fetch
+        Whether to always fetch the base ref.
+
+    Returns
+    -------
+    RunStopChecksPreparation
+        Structured preparation result containing the populated hook state and
+        repository root when preparation succeeded.
+    """
+    state = HookState(base_ref=base_ref)
+
+    if shutil.which("git") is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, "git not found on PATH"),
+            state=state,
+        )
+
+    repo, _err = repo_root(start_cwd)
+    if repo is None:
+        return RunStopChecksPreparation(ok=False, exit_code=0, state=state)
+
+    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
+    state.fetched = fetched
+    if not ok:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+
+    base_commit, err = merge_base(repo, base_ref)
+    if base_commit is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+    state.base_commit = base_commit
+
+    files, err = changed_files(repo, base_commit)
+    if files is None:
+        return RunStopChecksPreparation(
+            ok=False,
+            exit_code=fail_state(state, err),
+            state=state,
+        )
+
+    state.changed_files = files
+    return RunStopChecksPreparation(ok=True, exit_code=0, state=state, repo=repo)
+
+
 def compush_check(repo: Path) -> int:
     """Block the stop with commit/push reminders when local work is not published.
 
@@ -1058,37 +1143,21 @@ def run_stop_checks(
     int
         Exit code for the hook.
     """
-    state = HookState(base_ref=base_ref)
+    preparation = prepare_run_stop_checks(
+        start_cwd, base_ref, always_fetch=always_fetch
+    )
+    if not preparation.ok:
+        return preparation.exit_code
 
-    if shutil.which("git") is None:
-        return fail_state(state, "git not found on PATH")
+    state = preparation.state
+    repo = preparation.repo
+    assert repo is not None
 
-    repo, err = repo_root(start_cwd)
-    if repo is None:
-        return 0
-
-    ok, err, fetched = ensure_base_ref(repo, base_ref, always_fetch=always_fetch)
-    state.fetched = fetched
-    if not ok:
-        return fail_state(state, err)
-
-    base_commit, err = merge_base(repo, base_ref)
-    if base_commit is None:
-        return fail_state(state, err)
-    state.base_commit = base_commit
-
-    files, err = changed_files(repo, base_commit)
-    if files is None:
-        return fail_state(state, err)
-
-    state.changed_files = files
-    if not files:
+    if not state.changed_files:
         return 0
 
     rc = evaluate_changes(state, repo, max_out)
     if rc != 0:
-        return rc
-    if not state.ok:
         return rc
 
     if compush:
