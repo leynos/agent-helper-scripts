@@ -85,7 +85,7 @@ export PATH
 
 function needs()
 {
-  ! which "$1" >/dev/null 2>/dev/null
+  ! command -v "$1" >/dev/null 2>&1
 }
 
 if needs uv; then
@@ -130,5 +130,5 @@ for tool in \
   install-skills \
   install-hooks; do
     echo "Running $tool..."
-    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -i -xeuo pipefail
+    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
