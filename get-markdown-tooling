@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
 function get_bin() {
   local bin_name=$1
   mkdir -p  "${HOME}/.local/bin"
@@ -8,18 +16,18 @@ function get_bin() {
 # Install glow
 INSTALL_GLOW=${INSTALL_GLOW:-0}
 if ((INSTALL_GLOW)); then
-  mkdir -p /etc/apt/keyrings
-  curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | tee /etc/apt/sources.list.d/charm.list
-  apt update -y && apt install -y glow
+  $SUDO mkdir -p /etc/apt/keyrings
+  curl -fsSL https://repo.charm.sh/apt/gpg.key | $SUDO gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | $SUDO tee /etc/apt/sources.list.d/charm.list > /dev/null
+  $SUDO apt update -y && $SUDO apt install -y glow
 fi
 
 uv tool install vale
 vale --version
 
 # Mermaid dependencies
-sudo apt-get update -y
-sudo apt-get install -y \
+$SUDO apt-get update -y
+$SUDO apt-get install -y \
   libxcomposite1 libxdamage1 libxrandr2 libxss1 libxtst6 \
   libgbm1 libdrm2 libxshmfence1 \
   libnspr4 libnss3 \
@@ -39,7 +47,7 @@ get_bin mdformat-all
 
 MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.3.1}
 mkdir -p  "${HOME}/.local/bin"
-pushd "${HOME}/.local/bin"
-wget -O mdtablefix https://github.com/leynos/mdtablefix/releases/download/v${MDTABLEFIX_VERSION}/mdtablefix-linux-x86_64
+pushd "${HOME}/.local/bin" || exit
+wget -O mdtablefix "https://github.com/leynos/mdtablefix/releases/download/v${MDTABLEFIX_VERSION}/mdtablefix-linux-x86_64"
 chmod 755 mdtablefix
-popd
+popd || exit

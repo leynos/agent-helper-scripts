@@ -1,20 +1,31 @@
+#!/usr/bin/env bash
+
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
 if [[ -f "${HOME}/.cargo/env" ]]; then
+    # shellcheck source=/dev/null
     . "${HOME}/.cargo/env"
 fi
 
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
-pushd "${HOME}/.local/bin"
-wget https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk
-chmod 777 vk
-popd
+pushd "${HOME}/.local/bin" || exit
+curl --proto '=https' --tlsv1.2 -fsSL \
+  "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk" \
+  -o vk
+chmod 755 vk
+popd || exit
 
 uv tool install mbake
 bun install -g pajv
 
 # Tools to help developers
-sudo apt-get update -y
-sudo apt-get install -y \
+$SUDO apt-get update -y
+$SUDO apt-get install -y \
   strace gdb \
   bat ripgrep nano ed fd-find \
   ltrace valgrind bpfcc-tools bpftrace \
@@ -22,8 +33,8 @@ sudo apt-get install -y \
   ncdu tree bat delta \
   tcpdump nmap clang lldb \
   eza fzf hyperfine shellcheck
-apt-get install -y linux-tools-common || true
-apt-get install -y linux-tools-generic || true
+$SUDO apt-get install -y linux-tools-common || true
+$SUDO apt-get install -y linux-tools-generic || true
 
 ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
 
@@ -35,11 +46,13 @@ cargo binstall --no-confirm leta
 leta workspace add .
 
 mkdir -p "${HOME}/.local/bin"
-pushd "${HOME}/.local/bin"
+pushd "${HOME}/.local/bin" || exit
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
-wget -O checkmake https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64
+curl --proto '=https' --tlsv1.2 -fsSL \
+  "https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64" \
+  -o checkmake
 chmod 755 checkmake
-popd
+popd || exit
 
 git config --global merge.conflictStyle zdiff3
 
@@ -53,24 +66,23 @@ __EOF
   echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
 fi
 
-(type -p wget >/dev/null || (apt-get update && apt-get install wget -y)) \
-	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
-	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-	&& cat $out > /dev/null \
-	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
-	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-	&& sudo apt-get update -y \
-	&& sudo apt install gh -y
+  $SUDO mkdir -p -m 755 /etc/apt/keyrings \
+  && out=$(mktemp) && curl --proto '=https' --tlsv1.2 -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$out" \
+  && $SUDO install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && rm -f "$out" \
+  && $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && $SUDO apt-get update -y \
+  && $SUDO apt install gh -y
 
-pushd "${HOME}/.local"
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
-popd
+pushd "${HOME}/.local" || exit
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
+popd || exit
 
 cargo binstall --no-confirm action-validator
 
-echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-sudo apt-get update -y
-sudo apt-get install -y nfpm podman bubblewrap proot mmdebstrap
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | $SUDO tee /etc/apt/sources.list.d/goreleaser.list > /dev/null
+$SUDO apt-get update -y
+$SUDO apt-get install -y nfpm podman bubblewrap proot mmdebstrap
 
 uv tool install --python 3.13 mcp-server-qdrant

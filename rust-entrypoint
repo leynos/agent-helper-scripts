@@ -1,21 +1,97 @@
+#!/usr/bin/env bash
+
 set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
-if ! grep -q 'PATH=$HOME/.local/bin:$PATH' "${HOME}/.bashrc"; then
-  echo 'PATH=$HOME/.local/bin:$PATH' >> "${HOME}/.bashrc"
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
 fi
+
+function append_block_if_missing()
+{
+  local file=$1
+  local block=$2
+
+  [[ -f "${file}" ]] || return 0
+  if [[ $(<"${file}") == *"${block}"* ]]; then
+    return 0
+  fi
+  if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
+    printf '\n' >> "${file}"
+  fi
+  printf '%s\n' "${block}" >> "${file}"
+}
+
+function ensure_profile_path()
+{
+  local dir=$1
+  local block
+
+  read -r -d '' block <<__EOF__ || true
+# Added by rust-entrypoint to keep helper tooling on PATH.
+case ":\$PATH:" in
+  *:"${dir}":*)
+    ;;
+  *)
+    export PATH="${dir}:\$PATH"
+    ;;
+esac
+__EOF__
+
+  append_block_if_missing "${HOME}/.bashrc" "${block}"
+}
+
+function ensure_profile_sources_bashrc()
+{
+  local block
+
+  read -r -d '' block <<'__EOF__' || true
+# Added by rust-entrypoint so login shells pick up ~/.bashrc when Bash starts.
+if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+__EOF__
+
+  append_block_if_missing "${HOME}/.profile" "${block}"
+}
+
+function ensure_runtime_path()
+{
+  local dir=$1
+
+  case ":${PATH}:" in
+    *:"${dir}":*)
+      ;;
+    *)
+      PATH="${dir}:${PATH}"
+      ;;
+  esac
+}
+
+ensure_profile_path "${HOME}/.local/bin"
+ensure_profile_path "${HOME}/.cargo/bin"
+ensure_profile_path "${HOME}/.bun/bin"
+ensure_profile_sources_bashrc
+
+ensure_runtime_path "${HOME}/.local/bin"
+ensure_runtime_path "${HOME}/.cargo/bin"
+ensure_runtime_path "${HOME}/.bun/bin"
+export PATH
 
 function needs()
 {
-  ! which $1 >/dev/null 2>/dev/null
+  ! command -v "$1" >/dev/null 2>&1
 }
 
 if needs uv; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
   if [[ -f "$HOME/.local/bin/env" ]]; then
+    # shellcheck source=/dev/null
     source "$HOME/.local/bin/env"
   fi
 fi
@@ -26,7 +102,6 @@ fi
 
 if needs rustup; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  echo 'PATH=$HOME/.cargo/bin:$PATH' >> "${HOME}/.bashrc"
 fi
 
 if needs sudo; then
@@ -38,13 +113,13 @@ if needs sudo; then
 fi
 
 if [[ -d "/usr/local/rustup" ]]; then
-  sudo chmod -R go=u "/usr/local/rustup"
+  $SUDO chmod -R a+rX,go-w "/usr/local/rustup"
 fi
 
 if needs wget; then
-  sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y wget
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
 for tool in \
@@ -55,5 +130,5 @@ for tool in \
   install-skills \
   install-hooks; do
     echo "Running $tool..."
-    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -i -xeuo pipefail
+    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
