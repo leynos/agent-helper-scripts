@@ -103,10 +103,8 @@ cargo binstall --no-confirm cargo-nextest
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
-WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.1}
+WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.2}
 if ((WITH_WHITAKER)); then
-  cargo binstall --locked --no-confirm cargo-dylint
-  cargo binstall --locked --no-confirm dylint-link
   cargo binstall --locked --no-confirm whitaker-installer@${WHITAKER_INSTALLER_VERSION}
   if ((WITH_WHITAKER_EXPERIMENTAL)); then
     whitaker-installer --experimental
