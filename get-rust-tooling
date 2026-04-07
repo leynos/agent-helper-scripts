@@ -67,7 +67,7 @@ fi
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
 if ((WITH_LLVM_COV)); then
-  cargo binstall --no-confirm cargo-llvm-cov
+  cargo binstall --locked --no-confirm cargo-llvm-cov
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
 rustup component add rust-analyzer --toolchain "${channel}"
@@ -99,7 +99,7 @@ echo 'export RUSTC_HEARTBEAT_SECS=20' >> ${HOME}/.bashrc
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 
-cargo binstall --no-confirm cargo-nextest
+cargo binstall --locked --no-confirm cargo-nextest
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
