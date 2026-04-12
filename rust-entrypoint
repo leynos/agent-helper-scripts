@@ -127,8 +127,10 @@ for tool in \
   get-rust-tooling \
   rust-setup \
   get-github-tooling \
+  get-python-tooling \
   install-skills \
-  install-hooks; do
+  install-hooks \
+  install-sub-agents; do
     echo "Running $tool..."
     curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
