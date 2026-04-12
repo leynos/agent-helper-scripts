@@ -132,5 +132,5 @@ for tool in \
   install-hooks \
   install-sub-agents; do
     echo "Running $tool..."
-    curl -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+    curl --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
