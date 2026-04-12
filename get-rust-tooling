@@ -114,7 +114,7 @@ if ((WITH_WHITAKER)); then
     cargo binstall --locked --no-confirm whitaker-installer@${WHITAKER_INSTALLER_VERSION} && \
     whitaker-installer ${whitaker_args:-};
   }; then
-    echo "Warning: Whitaker is not currently available in this environment
+    echo "Warning: Whitaker is not currently available in this environment"
   fi
 fi
 
