@@ -100,6 +100,7 @@ export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 
 cargo binstall --locked --no-confirm cargo-nextest
+cargo binstall --locked --no-confirm kani-verifier
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
