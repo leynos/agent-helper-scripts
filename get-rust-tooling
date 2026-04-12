@@ -106,11 +106,14 @@ WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
 WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.2}
 if ((WITH_WHITAKER)); then
-  cargo binstall --locked --no-confirm whitaker-installer@${WHITAKER_INSTALLER_VERSION}
-  if ((WITH_WHITAKER_EXPERIMENTAL)); then
-    whitaker-installer --experimental
+  if cargo binstall --locked --no-confirm whitaker-installer@${WHITAKER_INSTALLER_VERSION}; then
+    if ((WITH_WHITAKER_EXPERIMENTAL)); then
+      whitaker-installer --experimental
+    else
+      whitaker-installer
+    fi
   else
-    whitaker-installer
+    echo "Warning: Whitaker is not currently available in this environment
   fi
 fi
 
