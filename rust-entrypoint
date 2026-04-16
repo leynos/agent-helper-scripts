@@ -12,6 +12,7 @@ else
   SUDO=sudo
 fi
 
+install -d "${HOME}/.local/bin"
 curl --proto '=https' --tlsv1.2 -sSf "${HELPER_TOOLS_REPO}/apt-update-if-stale" > "${HOME}/.local/bin/apt-update-if-stale"
 chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
 
