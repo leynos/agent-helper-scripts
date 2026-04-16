@@ -24,7 +24,7 @@ uv tool install mbake
 bun install -g pajv
 
 # Tools to help developers
-$SUDO apt-get update -y
+$SUDO apt-update-if-stale
 $SUDO apt-get install -y \
   strace gdb \
   bat ripgrep nano ed fd-find \
@@ -73,7 +73,7 @@ fi
   && rm -f "$out" \
   && $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-  && $SUDO apt-get update -y \
+  && $SUDO apt-get update -y
   && $SUDO apt install gh -y
 
 pushd "${HOME}/.local" || exit

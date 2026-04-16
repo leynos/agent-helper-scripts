@@ -1,0 +1,8 @@
+#!/user/bin/env bash
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+stamp="${state_home}/apt/update-success-epoch"
+mkdir -p "$(dirname "$stamp")"
+now=$(date +%s)
+last=$(cat "$stamp" 2>/dev/null || echo 0)
+[ $((now - last)) -lt 1800 ] || { apt-get update && printf '%s\n' "$now" >"$stamp"; }

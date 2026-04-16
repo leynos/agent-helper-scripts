@@ -19,14 +19,14 @@ if ((INSTALL_GLOW)); then
   $SUDO mkdir -p /etc/apt/keyrings
   curl -fsSL https://repo.charm.sh/apt/gpg.key | $SUDO gpg --dearmor -o /etc/apt/keyrings/charm.gpg
   echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | $SUDO tee /etc/apt/sources.list.d/charm.list > /dev/null
-  $SUDO apt update -y && $SUDO apt install -y glow
+  $SUDO apt-get update -y && $SUDO apt install -y glow
 fi
 
 uv tool install vale
 vale --version
 
 # Mermaid dependencies
-$SUDO apt-get update -y
+$SUDO apt-update-if-stale
 $SUDO apt-get install -y \
   libxcomposite1 libxdamage1 libxrandr2 libxss1 libxtst6 \
   libgbm1 libdrm2 libxshmfence1 \

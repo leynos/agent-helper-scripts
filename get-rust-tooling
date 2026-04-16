@@ -41,7 +41,7 @@ else
   channel=stable
 fi
 
-$SUDO apt-get update -y
+$SUDO apt-update-if-stale
 $SUDO apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
 $SUDO update-ca-certificates
 

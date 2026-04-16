@@ -12,6 +12,9 @@ else
   SUDO=sudo
 fi
 
+curl --proto '=https' --tlsv1.2 -sSf ${HELPER_TOOLS_REPO}/apt-update-if-stale > "${HOME}/.local/bin/apt-update-if-stale"
+chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
+
 function append_block_if_missing()
 {
   local file=$1
@@ -107,7 +110,7 @@ fi
 if needs sudo; then
   # Fingers crossed this works. Assuming that systems without sudo will be running as root
   echo "export DEBIAN_FRONTEND=noninteractive" >> /root/.profile
-  apt-get update -y
+  apt-update-if-stale
   apt-get install -y apt-utils
   apt-get install -y sudo
 fi
@@ -117,7 +120,7 @@ if [[ -d "/usr/local/rustup" ]]; then
 fi
 
 if needs wget; then
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-update-if-stale
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi

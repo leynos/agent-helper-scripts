@@ -6,5 +6,5 @@ else
   SUDO=sudo
 fi
 
-$SUDO apt-get update -y
+$SUDO apt-update-if-stale
 $SUDO apt-get install -y postgresql postgresql-contrib
