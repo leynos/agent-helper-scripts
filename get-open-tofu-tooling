@@ -26,7 +26,7 @@ $SUDO ./install-opentofu.sh --install-method deb
 rm -f install-opentofu.sh
 popd || exit
 
-curl --no-progress-meter -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+curl --no-progress-meter https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
 mkdir -p ~/git
 pushd ~/git || exit

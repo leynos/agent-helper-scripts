@@ -61,8 +61,6 @@ __EOF
 sed -i '1 i\suppress_unstable_features_warning = true' ~/.codex/config.toml
 cat ~/.codex/config.toml
 
-curl --no-progress-meter -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
-
 mkdir -p ~/context
 mkdir -p ~/.codex/agents
 

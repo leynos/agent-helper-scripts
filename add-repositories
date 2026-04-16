@@ -57,12 +57,24 @@ function install_dearmored_keyring()
 {
   local url=$1
   local destination=$2
-  local tmp
+  local downloaded_tmp
+  local dearmored_tmp
 
-  tmp=$(mktemp)
-  curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" | gpg --dearmor > "${tmp}"
-  install_if_changed 644 "${destination}" "${tmp}"
-  rm -f "${tmp}"
+  downloaded_tmp=$(mktemp)
+  dearmored_tmp=$(mktemp)
+
+  if ! curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${downloaded_tmp}"; then
+    rm -f "${downloaded_tmp}" "${dearmored_tmp}"
+    return 1
+  fi
+
+  if ! gpg --dearmor --output "${dearmored_tmp}" "${downloaded_tmp}"; then
+    rm -f "${downloaded_tmp}" "${dearmored_tmp}"
+    return 1
+  fi
+
+  install_if_changed 644 "${destination}" "${dearmored_tmp}"
+  rm -f "${downloaded_tmp}" "${dearmored_tmp}"
 }
 
 function install_source()
@@ -85,11 +97,12 @@ install_source /etc/apt/sources.list.d/github-cli.list <<EOF
 deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
 EOF
 
-# GoReleaser's published APT install instructions currently require
-# `trusted=yes`; they do not document a keyring-backed `signed-by=` flow for
-# `repo.goreleaser.com`. Keep this exception until we replace the `nfpm`
-# install path with verified `.deb` downloads or GoReleaser provides signed
-# repository metadata.
+# GoReleaser's official install page still uses `trusted=yes` for this APT
+# source and does not document a keyring-backed `signed-by=` alternative for
+# `repo.goreleaser.com`. This disables APT signature verification for that
+# repository, so keep the exception scoped to the `nfpm` bootstrap path and
+# prefer version-pinned, checksum or cosign-verified `.deb` installs if we
+# replace this flow later.
 install_source /etc/apt/sources.list.d/goreleaser.list <<'EOF'
 deb [trusted=yes] https://repo.goreleaser.com/apt/ /
 EOF

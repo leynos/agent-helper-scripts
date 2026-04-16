@@ -122,7 +122,7 @@ export CARGO_INCREMENTAL=0
 # Start the local sccache server quietly if it is not already running.
 sccache --start-server >/dev/null 2>&1 || true
 __EOF__
-  append_block_if_missing "${HOME}/.bashrc" "export CARGO_INCREMENTAL=0" "${sccache_block}"
+  append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling sccache bootstrap" "${sccache_block}"
 
   export CARGO_INCREMENTAL=0
   sccache --start-server >/dev/null 2>&1 || true
@@ -135,7 +135,7 @@ read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 __EOF__
-append_block_if_missing "${HOME}/.bashrc" "export RUSTC_WRAPPER=" "${rustc_wrapper_block}"
+append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootstrap" "${rustc_wrapper_block}"
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
