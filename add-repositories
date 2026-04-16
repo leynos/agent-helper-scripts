@@ -85,6 +85,11 @@ install_source /etc/apt/sources.list.d/github-cli.list <<EOF
 deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
 EOF
 
+# GoReleaser's published APT install instructions currently require
+# `trusted=yes`; they do not document a keyring-backed `signed-by=` flow for
+# `repo.goreleaser.com`. Keep this exception until we replace the `nfpm`
+# install path with verified `.deb` downloads or GoReleaser provides signed
+# repository metadata.
 install_source /etc/apt/sources.list.d/goreleaser.list <<'EOF'
 deb [trusted=yes] https://repo.goreleaser.com/apt/ /
 EOF
