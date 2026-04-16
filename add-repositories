@@ -62,13 +62,14 @@ function install_dearmored_keyring()
 
   downloaded_tmp=$(mktemp)
   dearmored_tmp=$(mktemp)
+  rm -f "$downloaded_tmp" "$dearmored_tmp"
 
   if ! curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${downloaded_tmp}"; then
     rm -f "${downloaded_tmp}" "${dearmored_tmp}"
     return 1
   fi
 
-  if ! gpg --dearmor --output "${dearmored_tmp}" "${downloaded_tmp}"; then
+  if ! gpg --batch --yes --no-tty --dearmor --output "${dearmored_tmp}" "${downloaded_tmp}"; then
     rm -f "${downloaded_tmp}" "${dearmored_tmp}"
     return 1
   fi
