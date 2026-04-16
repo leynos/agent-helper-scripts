@@ -14,7 +14,7 @@ fi
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
-curl --proto '=https' --tlsv1.2 -fsSL \
+curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL \
   "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk" \
   -o vk
 chmod 755 vk
@@ -49,7 +49,7 @@ leta workspace add .
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
-curl --proto '=https' --tlsv1.2 -fsSL \
+curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL \
   "https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64" \
   -o checkmake
 chmod 755 checkmake
@@ -67,23 +67,16 @@ __EOF
   echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
 fi
 
-  $SUDO mkdir -p -m 755 /etc/apt/keyrings \
-  && out=$(mktemp) && curl --proto '=https' --tlsv1.2 -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$out" \
-  && $SUDO install -m 644 "$out" /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-  && rm -f "$out" \
-  && $SUDO mkdir -p -m 755 /etc/apt/sources.list.d \
-  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-  && $SUDO apt-get update -y
-  && $SUDO apt install gh -y
+$SUDO apt-update-if-stale
+$SUDO apt-get install -y gh
 
 pushd "${HOME}/.local" || exit
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
+curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
 popd || exit
 
 cargo binstall --no-confirm action-validator
 
-echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | $SUDO tee /etc/apt/sources.list.d/goreleaser.list > /dev/null
-$SUDO apt-get update -y
+$SUDO apt-update-if-stale
 $SUDO apt-get install -y nfpm podman bubblewrap proot mmdebstrap
 
 uv tool install --python 3.13 mcp-server-qdrant

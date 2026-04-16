@@ -12,7 +12,7 @@ if [[ -f "${HOME}/.local/bin/env" ]]; then
 fi
 
 pushd ~ || exit
-curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
 
 # Grant execution permissions:
 chmod +x install-opentofu.sh
@@ -26,7 +26,7 @@ $SUDO ./install-opentofu.sh --install-method deb
 rm -f install-opentofu.sh
 popd || exit
 
-curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+curl --no-progress-meter https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
 mkdir -p ~/git
 pushd ~/git || exit

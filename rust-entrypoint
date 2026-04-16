@@ -12,7 +12,8 @@ else
   SUDO=sudo
 fi
 
-curl --proto '=https' --tlsv1.2 -sSf ${HELPER_TOOLS_REPO}/apt-update-if-stale > "${HOME}/.local/bin/apt-update-if-stale"
+install -d "${HOME}/.local/bin"
+curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf "${HELPER_TOOLS_REPO}/apt-update-if-stale" > "${HOME}/.local/bin/apt-update-if-stale"
 chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
 
 function needs()
@@ -92,6 +93,7 @@ ensure_runtime_path "${HOME}/.bun/bin"
 export PATH
 
 codename="$(
+  # shellcheck source=/dev/null
   . /etc/os-release
   printf '%s\n' "${VERSION_CODENAME}"
 )"
@@ -115,7 +117,7 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 
 if needs uv; then
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
   if [[ -f "$HOME/.local/bin/env" ]]; then
     # shellcheck source=/dev/null
     source "$HOME/.local/bin/env"
@@ -123,11 +125,11 @@ if needs uv; then
 fi
 
 if needs bun; then
-  curl -fsSL https://bun.sh/install | bash
+  curl --no-progress-meter -fsSL https://bun.sh/install | bash
 fi
 
 if needs rustup; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
 
 if needs sudo; then
@@ -148,15 +150,22 @@ if needs wget; then
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
-for tool in \
-  get-markdown-tooling \
-  get-rust-tooling \
-  rust-setup \
-  get-github-tooling \
-  get-python-tooling \
-  install-skills \
-  install-hooks \
-  install-sub-agents; do
+tools=(
+  get-markdown-tooling
+  get-rust-tooling
+  rust-setup
+  get-github-tooling
+  get-python-tooling
+  install-skills
+  install-hooks
+  install-sub-agents
+)
+
+if (( ${WITH_ADD_REPOSITORIES:-1} )); then
+  tools=(add-repositories "${tools[@]}")
+fi
+
+for tool in "${tools[@]}"; do
     echo "Running $tool..."
-    curl --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+    curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done

@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_NAME=$(basename "$0")
+REPOSITORIES_CHANGED=0
+
+function on_error()
+{
+  local exit_code=$?
+  local line_number=$1
+
+  printf '%s\n' "${SCRIPT_NAME}: repository setup failed near line ${line_number}" >&2
+  exit "${exit_code}"
+}
+
+trap 'on_error ${LINENO}' ERR
+
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
+function install_if_changed()
+{
+  local mode=$1
+  local destination=$2
+  local tmp=$3
+
+  if [[ -f "${destination}" ]] && cmp -s "${tmp}" "${destination}"; then
+    return 0
+  fi
+
+  $SUDO install -m "${mode}" "${tmp}" "${destination}"
+  REPOSITORIES_CHANGED=1
+}
+
+function apt_lists_exist()
+{
+  find /var/lib/apt/lists -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .
+}
+
+function install_keyring()
+{
+  local url=$1
+  local destination=$2
+  local tmp
+
+  tmp=$(mktemp)
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmp}"
+  install_if_changed 644 "${destination}" "${tmp}"
+  rm -f "${tmp}"
+}
+
+function install_dearmored_keyring()
+{
+  local url=$1
+  local destination=$2
+  local downloaded_tmp
+  local dearmored_tmp
+
+  downloaded_tmp=$(mktemp)
+  dearmored_tmp=$(mktemp)
+
+  if ! curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${downloaded_tmp}"; then
+    rm -f "${downloaded_tmp}" "${dearmored_tmp}"
+    return 1
+  fi
+
+  if ! gpg --dearmor --output "${dearmored_tmp}" "${downloaded_tmp}"; then
+    rm -f "${downloaded_tmp}" "${dearmored_tmp}"
+    return 1
+  fi
+
+  install_if_changed 644 "${destination}" "${dearmored_tmp}"
+  rm -f "${downloaded_tmp}" "${dearmored_tmp}"
+}
+
+function install_source()
+{
+  local destination=$1
+  local tmp
+
+  tmp=$(mktemp)
+  cat > "${tmp}"
+  install_if_changed 644 "${destination}" "${tmp}"
+  rm -f "${tmp}"
+}
+
+$SUDO mkdir -p -m 755 /etc/apt/keyrings /etc/apt/sources.list.d
+
+install_keyring \
+  https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  /etc/apt/keyrings/githubcli-archive-keyring.gpg
+install_source /etc/apt/sources.list.d/github-cli.list <<EOF
+deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+EOF
+
+# GoReleaser's official install page still uses `trusted=yes` for this APT
+# source and does not document a keyring-backed `signed-by=` alternative for
+# `repo.goreleaser.com`. This disables APT signature verification for that
+# repository, so keep the exception scoped to the `nfpm` bootstrap path and
+# prefer version-pinned, checksum or cosign-verified `.deb` installs if we
+# replace this flow later.
+install_source /etc/apt/sources.list.d/goreleaser.list <<'EOF'
+deb [trusted=yes] https://repo.goreleaser.com/apt/ /
+EOF
+
+if (( ${INSTALL_GLOW:-0} )); then
+  install_dearmored_keyring \
+    https://repo.charm.sh/apt/gpg.key \
+    /etc/apt/keyrings/charm.gpg
+  install_source /etc/apt/sources.list.d/charm.list <<'EOF'
+deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *
+EOF
+fi
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  install_dearmored_keyring \
+    https://kopia.io/signing-key \
+    /etc/apt/keyrings/kopia-keyring.gpg
+  install_source /etc/apt/sources.list.d/kopia.list <<'EOF'
+deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main
+EOF
+fi
+
+if ((REPOSITORIES_CHANGED)) || ! apt_lists_exist; then
+  $SUDO apt-get update -y
+fi
