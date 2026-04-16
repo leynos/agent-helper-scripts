@@ -19,12 +19,36 @@ function append_block_if_missing()
   local file=$1
   local marker=$2
   local block=$3
+  local begin_sentinel="### BEGIN ${marker}"
+  local end_sentinel="### END ${marker}"
+  local tmp
 
-  if [[ -f "${file}" ]] && grep -Fq "${marker}" "${file}"; then
-    return 0
+  tmp=$(mktemp)
+
+  if [[ -f "${file}" ]]; then
+    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+      $0 == begin_sentinel {
+        skip=1
+        next
+      }
+      $0 == end_sentinel {
+        skip=0
+        next
+      }
+      !skip {
+        print
+      }
+    ' "${file}" > "${tmp}"
+
+    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${tmp}"
+    fi
+  else
+    : > "${tmp}"
   fi
 
-  printf '%s\n' "${block}" >> "${file}"
+  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
+  mv "${tmp}" "${file}"
 }
 
 CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
