@@ -1,12 +1,45 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -Eeuo pipefail
+
+SCRIPT_NAME=$(basename "$0")
+REPOSITORIES_CHANGED=0
+
+function on_error()
+{
+  local exit_code=$?
+  local line_number=$1
+
+  printf '%s\n' "${SCRIPT_NAME}: repository setup failed near line ${line_number}" >&2
+  exit "${exit_code}"
+}
+
+trap 'on_error ${LINENO}' ERR
 
 if [ "$(whoami)" = root ]; then
   SUDO=
 else
   SUDO=sudo
 fi
+
+function install_if_changed()
+{
+  local mode=$1
+  local destination=$2
+  local tmp=$3
+
+  if [[ -f "${destination}" ]] && cmp -s "${tmp}" "${destination}"; then
+    return 0
+  fi
+
+  $SUDO install -m "${mode}" "${tmp}" "${destination}"
+  REPOSITORIES_CHANGED=1
+}
+
+function apt_lists_exist()
+{
+  find /var/lib/apt/lists -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .
+}
 
 function install_keyring()
 {
@@ -16,7 +49,7 @@ function install_keyring()
 
   tmp=$(mktemp)
   curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmp}"
-  $SUDO install -m 644 "${tmp}" "${destination}"
+  install_if_changed 644 "${destination}" "${tmp}"
   rm -f "${tmp}"
 }
 
@@ -28,7 +61,7 @@ function install_dearmored_keyring()
 
   tmp=$(mktemp)
   curl --proto '=https' --tlsv1.2 -fsSL "${url}" | gpg --dearmor > "${tmp}"
-  $SUDO install -m 644 "${tmp}" "${destination}"
+  install_if_changed 644 "${destination}" "${tmp}"
   rm -f "${tmp}"
 }
 
@@ -39,7 +72,7 @@ function install_source()
 
   tmp=$(mktemp)
   cat > "${tmp}"
-  $SUDO install -m 644 "${tmp}" "${destination}"
+  install_if_changed 644 "${destination}" "${tmp}"
   rm -f "${tmp}"
 }
 
@@ -74,4 +107,6 @@ deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt
 EOF
 fi
 
-$SUDO apt-get update -y
+if ((REPOSITORIES_CHANGED)) || ! apt_lists_exist; then
+  $SUDO apt-get update -y
+fi

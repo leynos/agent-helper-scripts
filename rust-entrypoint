@@ -150,16 +150,22 @@ if needs wget; then
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
 fi
 
-for tool in \
-  add-repositories \
-  get-markdown-tooling \
-  get-rust-tooling \
-  rust-setup \
-  get-github-tooling \
-  get-python-tooling \
-  install-skills \
-  install-hooks \
-  install-sub-agents; do
+tools=(
+  get-markdown-tooling
+  get-rust-tooling
+  rust-setup
+  get-github-tooling
+  get-python-tooling
+  install-skills
+  install-hooks
+  install-sub-agents
+)
+
+if (( ${WITH_ADD_REPOSITORIES:-1} )); then
+  tools=(add-repositories "${tools[@]}")
+fi
+
+for tool in "${tools[@]}"; do
     echo "Running $tool..."
     curl --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
