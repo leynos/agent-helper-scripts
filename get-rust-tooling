@@ -1,4 +1,4 @@
-#!/user/bin/env bash
+#!/usr/bin/env bash
 
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
@@ -17,10 +17,8 @@ fi
 CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
 CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  curl -s https://kopia.io/signing-key | $SUDO gpg --dearmor -o /etc/apt/keyrings/kopia-keyring.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main" | $SUDO tee /etc/apt/sources.list.d/kopia.list
-  $SUDO apt-get -y update
-  $SUDO apt install kopia
+  $SUDO apt-update-if-stale
+  $SUDO apt-get install -y kopia
   kopia repository connect s3 \
     --bucket="${KOPIA_BUCKET:-}" \
     --endpoint="${KOPIA_ENDPOINT:-}" \
@@ -53,7 +51,7 @@ curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
-  cat >${HOME}/.cargo/env <<'__EOF'
+  cat > "${HOME}/.cargo/env" <<'__EOF'
 case ":${PATH}:" in
     *:"${CARGO_HOME:-}/bin":*)
         ;;
@@ -62,6 +60,7 @@ case ":${PATH}:" in
         ;;
 esac
 __EOF
+  # shellcheck source=/dev/null
   . "${HOME}/.cargo/env"
 fi
 rustup component add rustfmt --toolchain "${channel}"
@@ -78,13 +77,14 @@ rustup component add rustfmt --toolchain nightly
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
   cargo binstall --no-confirm sccache
-  echo >> ${HOME}/.bashrc
+  cat >> "${HOME}/.bashrc" <<'__EOF__'
 
-  # Disable incremental Rust compilation.
-  echo 'export CARGO_INCREMENTAL=0' >> ${HOME}/.bashrc
+# Disable incremental Rust compilation.
+export CARGO_INCREMENTAL=0
 
-  # Start the local sccache server quietly if it is not already running.
-  echo 'sccache --start-server >/dev/null 2>&1 || true' >> ${HOME}/.bashrc
+# Start the local sccache server quietly if it is not already running.
+sccache --start-server >/dev/null 2>&1 || true
+__EOF__
 
   export CARGO_INCREMENTAL=0
   sccache --start-server >/dev/null 2>&1 || true
@@ -92,9 +92,11 @@ fi
 
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
 chmod 700 "${HOME}/.local/bin/notdeadyet"
-echo >> ${HOME}/.bashrc
-echo 'export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"' >> ${HOME}/.bashrc
-echo 'export RUSTC_HEARTBEAT_SECS=20' >> ${HOME}/.bashrc
+cat >> "${HOME}/.bashrc" <<'__EOF__'
+
+export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
+export RUSTC_HEARTBEAT_SECS=20
+__EOF__
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
@@ -106,13 +108,13 @@ WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
 WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.4}
 if ((WITH_WHITAKER)); then
-  
+  whitaker_args=()
   if ((WITH_WHITAKER_EXPERIMENTAL)); then
-    whitaker_args="--experimental"
+    whitaker_args+=(--experimental)
   fi
   if ! {
-    cargo binstall --locked --no-confirm whitaker-installer@${WHITAKER_INSTALLER_VERSION} && \
-    whitaker-installer ${whitaker_args:-};
+    cargo binstall --locked --no-confirm "whitaker-installer@${WHITAKER_INSTALLER_VERSION}" && \
+    whitaker-installer "${whitaker_args[@]}";
   }; then
     echo "Warning: Whitaker is not currently available in this environment"
   fi

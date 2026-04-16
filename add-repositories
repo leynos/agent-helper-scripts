@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
+function install_keyring()
+{
+  local url=$1
+  local destination=$2
+  local tmp
+
+  tmp=$(mktemp)
+  curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmp}"
+  $SUDO install -m 644 "${tmp}" "${destination}"
+  rm -f "${tmp}"
+}
+
+function install_dearmored_keyring()
+{
+  local url=$1
+  local destination=$2
+  local tmp
+
+  tmp=$(mktemp)
+  curl --proto '=https' --tlsv1.2 -fsSL "${url}" | gpg --dearmor > "${tmp}"
+  $SUDO install -m 644 "${tmp}" "${destination}"
+  rm -f "${tmp}"
+}
+
+function install_source()
+{
+  local destination=$1
+  local tmp
+
+  tmp=$(mktemp)
+  cat > "${tmp}"
+  $SUDO install -m 644 "${tmp}" "${destination}"
+  rm -f "${tmp}"
+}
+
+$SUDO mkdir -p -m 755 /etc/apt/keyrings /etc/apt/sources.list.d
+
+install_keyring \
+  https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  /etc/apt/keyrings/githubcli-archive-keyring.gpg
+install_source /etc/apt/sources.list.d/github-cli.list <<EOF
+deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+EOF
+
+install_source /etc/apt/sources.list.d/goreleaser.list <<'EOF'
+deb [trusted=yes] https://repo.goreleaser.com/apt/ /
+EOF
+
+if (( ${INSTALL_GLOW:-0} )); then
+  install_dearmored_keyring \
+    https://repo.charm.sh/apt/gpg.key \
+    /etc/apt/keyrings/charm.gpg
+  install_source /etc/apt/sources.list.d/charm.list <<'EOF'
+deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *
+EOF
+fi
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  install_dearmored_keyring \
+    https://kopia.io/signing-key \
+    /etc/apt/keyrings/kopia-keyring.gpg
+  install_source /etc/apt/sources.list.d/kopia.list <<'EOF'
+deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main
+EOF
+fi
+
+$SUDO apt-get update -y

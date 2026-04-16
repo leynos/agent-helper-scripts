@@ -16,10 +16,8 @@ function get_bin() {
 # Install glow
 INSTALL_GLOW=${INSTALL_GLOW:-0}
 if ((INSTALL_GLOW)); then
-  $SUDO mkdir -p /etc/apt/keyrings
-  curl -fsSL https://repo.charm.sh/apt/gpg.key | $SUDO gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | $SUDO tee /etc/apt/sources.list.d/charm.list > /dev/null
-  $SUDO apt-get update -y && $SUDO apt install -y glow
+  $SUDO apt-update-if-stale
+  $SUDO apt-get install -y glow
 fi
 
 uv tool install vale

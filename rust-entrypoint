@@ -12,7 +12,7 @@ else
   SUDO=sudo
 fi
 
-curl --proto '=https' --tlsv1.2 -sSf ${HELPER_TOOLS_REPO}/apt-update-if-stale > "${HOME}/.local/bin/apt-update-if-stale"
+curl --proto '=https' --tlsv1.2 -sSf "${HELPER_TOOLS_REPO}/apt-update-if-stale" > "${HOME}/.local/bin/apt-update-if-stale"
 chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
 
 function needs()
@@ -92,6 +92,7 @@ ensure_runtime_path "${HOME}/.bun/bin"
 export PATH
 
 codename="$(
+  # shellcheck source=/dev/null
   . /etc/os-release
   printf '%s\n' "${VERSION_CODENAME}"
 )"
@@ -149,6 +150,7 @@ if needs wget; then
 fi
 
 for tool in \
+  add-repositories \
   get-markdown-tooling \
   get-rust-tooling \
   rust-setup \
