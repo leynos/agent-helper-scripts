@@ -58,9 +58,9 @@ $SUDO update-ca-certificates
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 if ! which rustup >/dev/null 2>&1; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
-curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+curl --no-progress-meter -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
@@ -104,7 +104,7 @@ __EOF__
   sccache --start-server >/dev/null 2>&1 || true
 fi
 
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
+curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
 chmod 700 "${HOME}/.local/bin/notdeadyet"
 read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 

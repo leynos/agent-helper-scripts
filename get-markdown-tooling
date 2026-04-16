@@ -9,7 +9,7 @@ fi
 function get_bin() {
   local bin_name=$1
   mkdir -p  "${HOME}/.local/bin"
-  curl "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o  "${HOME}/.local/bin/${bin_name}"
+  curl --no-progress-meter "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o  "${HOME}/.local/bin/${bin_name}"
   chmod 755 "${HOME}/.local/bin/${bin_name}"
 }
 

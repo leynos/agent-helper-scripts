@@ -1,7 +1,8 @@
+#!/usr/bin/env bash
 
 mkdir -p "${HOME}/git"
-pushd "${HOME}/git"
-curl -LO https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz
+pushd "${HOME}/git" || exit
+curl --no-progress-meter -LO https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz
 tar -xzf vidaimock-linux-x64.tar.gz
 cp vidaimock/vidaimock "${HOME}/.local/bin"
-popd
+popd || exit

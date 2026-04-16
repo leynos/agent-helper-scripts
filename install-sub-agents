@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Tool for exchanging context packs with sub-agents
-curl -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
+curl --no-progress-meter -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
 
 mkdir -p ~/.codex
 
@@ -61,7 +61,7 @@ __EOF
 sed -i '1 i\suppress_unstable_features_warning = true' ~/.codex/config.toml
 cat ~/.codex/config.toml
 
-curl -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
+curl --no-progress-meter -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
 
 mkdir -p ~/context
 mkdir -p ~/.codex/agents

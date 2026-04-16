@@ -48,7 +48,7 @@ function install_keyring()
   local tmp
 
   tmp=$(mktemp)
-  curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmp}"
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmp}"
   install_if_changed 644 "${destination}" "${tmp}"
   rm -f "${tmp}"
 }
@@ -60,7 +60,7 @@ function install_dearmored_keyring()
   local tmp
 
   tmp=$(mktemp)
-  curl --proto '=https' --tlsv1.2 -fsSL "${url}" | gpg --dearmor > "${tmp}"
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL "${url}" | gpg --dearmor > "${tmp}"
   install_if_changed 644 "${destination}" "${tmp}"
   rm -f "${tmp}"
 }
