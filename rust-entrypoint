@@ -102,7 +102,7 @@ install -d /etc/apt/sources.list.d
 
 cat >/etc/apt/sources.list.d/zz-fast-ubuntu.sources <<EOF
 Types: deb
-URIs: https://mirrorservice.org/sites/archive.ubuntu.com/ubuntu
+URIs: http://mirror.math.princeton.edu/pub/ubuntu/
 Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
 Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
