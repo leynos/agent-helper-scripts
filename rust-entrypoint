@@ -15,6 +15,11 @@ fi
 curl --proto '=https' --tlsv1.2 -sSf ${HELPER_TOOLS_REPO}/apt-update-if-stale > "${HOME}/.local/bin/apt-update-if-stale"
 chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
 
+function needs()
+{
+  ! command -v "$1" >/dev/null 2>&1
+}
+
 function append_block_if_missing()
 {
   local file=$1
@@ -86,10 +91,28 @@ ensure_runtime_path "${HOME}/.cargo/bin"
 ensure_runtime_path "${HOME}/.bun/bin"
 export PATH
 
-function needs()
-{
-  ! command -v "$1" >/dev/null 2>&1
-}
+codename="$(
+  . /etc/os-release
+  printf '%s\n' "${VERSION_CODENAME}"
+)"
+
+install -d /etc/apt/sources.list.d
+
+cat >/etc/apt/sources.list.d/zz-fast-ubuntu.sources <<EOF
+Types: deb
+URIs: https://mirrorservice.org/sites/archive.ubuntu.com/ubuntu
+Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+By-Hash: yes
+EOF
+
+# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
+[ ! -e /etc/apt/sources.list ] || mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
+[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
 
 if needs uv; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
