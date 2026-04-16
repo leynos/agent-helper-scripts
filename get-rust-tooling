@@ -62,6 +62,15 @@ EOF
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   $SUDO apt-update-if-stale
   $SUDO apt-get install -y kopia
+  if (( ${KOPIA_CREATE:-0} )); then
+    kopia repository create s3 \
+      --bucket="${KOPIA_BUCKET:-}" \
+      --endpoint="${KOPIA_ENDPOINT:-}" \
+      --region="${KOPIA_REGION:-}" \
+      --access-key="${AWS_ACCESS_KEY_ID:-}" \
+      --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
+      --prefix=cargo/
+  fi
   kopia repository connect s3 \
     --bucket="${KOPIA_BUCKET:-}" \
     --endpoint="${KOPIA_ENDPOINT:-}" \
