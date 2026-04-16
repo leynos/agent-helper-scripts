@@ -53,6 +53,12 @@ function append_block_if_missing()
 
 CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
 CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
+mkdir -p "${CARGO_KOPIA_SRC}"
+cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
+/registry/**
+/git/**
+EOF
+
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   $SUDO apt-update-if-stale
   $SUDO apt-get install -y kopia
