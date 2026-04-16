@@ -3,6 +3,7 @@
 set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
+export CURL_PROGRESS_BAR=0
 
 HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
 
