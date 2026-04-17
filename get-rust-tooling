@@ -51,40 +51,6 @@ function append_block_if_missing()
   mv "${tmp}" "${file}"
 }
 
-CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
-CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
-mkdir -p "${CARGO_KOPIA_SRC}"
-cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
-/*
-!/.crates.toml
-!/.crates2.json
-!/bin
-!/bin/**
-EOF
-
-if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  $SUDO apt-update-if-stale
-  $SUDO apt-get install -y kopia
-  if (( ${KOPIA_CREATE:-0} )); then
-    kopia repository create s3 \
-      --bucket="${KOPIA_BUCKET:-}" \
-      --endpoint="${KOPIA_ENDPOINT:-}" \
-      --region="${KOPIA_REGION:-}" \
-      --access-key="${AWS_ACCESS_KEY_ID:-}" \
-      --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
-      --prefix=cargo/
-  fi
-  kopia repository connect s3 \
-    --bucket="${KOPIA_BUCKET:-}" \
-    --endpoint="${KOPIA_ENDPOINT:-}" \
-    --region="${KOPIA_REGION:-}" \
-    --access-key="${AWS_ACCESS_KEY_ID:-}" \
-    --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
-    --prefix=cargo/
-  $SUDO rm -f /root/.config/kopia/repository.config.update-info.json
-  kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
-fi
-
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
   channel=${RUST_CHANNEL}
@@ -187,7 +153,3 @@ if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/local/bin/m
   $SUDO ln -sf /usr/local/bin/mold "$(realpath /usr/bin/ld)"
 fi
 
-
-if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  kopia snapshot create "$CARGO_KOPIA_DEST"
-fi
