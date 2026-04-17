@@ -161,6 +161,10 @@ cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
 !/bin/**
 EOF
 
+if (( ${WITH_ADD_REPOSITORIES:-1} )); then
+  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/add-repositories" | bash -xeuo pipefail
+fi
+
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   $SUDO apt-update-if-stale
   $SUDO apt-get install -y kopia
@@ -195,13 +199,9 @@ tools=(
   install-sub-agents
 )
 
-if (( ${WITH_ADD_REPOSITORIES:-1} )); then
-  tools=(add-repositories "${tools[@]}")
-fi
-
 for tool in "${tools[@]}"; do
-    echo "Running $tool..."
-    curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+  echo "Running $tool..."
+  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
 done
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
