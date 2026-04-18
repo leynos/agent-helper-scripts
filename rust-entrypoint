@@ -24,9 +24,53 @@ else
   SUDO=sudo
 fi
 
+optional_apt_packages=()
+declare -A queued_optional_apt_packages=()
+declare -A installed_optional_apt_packages=()
+
 function needs()
 {
   ! command -v "$1" >/dev/null 2>&1
+}
+
+if needs sudo && [[ -n "${SUDO}" ]]; then
+  echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
+  exit 1
+fi
+
+function queue_optional_apt_package()
+{
+  local package=$1
+
+  if [[ -n "${installed_optional_apt_packages[${package}]:-}" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${queued_optional_apt_packages[${package}]:-}" ]]; then
+    return 0
+  fi
+
+  queued_optional_apt_packages["${package}"]=1
+  optional_apt_packages+=("${package}")
+}
+
+function install_optional_apt_packages()
+{
+  local apt_update_script="${HELPER_TOOLS_REPO_DIR}/apt-update-if-stale"
+  local package
+
+  if [[ ${#optional_apt_packages[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  $SUDO bash "${apt_update_script}"
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${optional_apt_packages[@]}"
+
+  for package in "${optional_apt_packages[@]}"; do
+    installed_optional_apt_packages["${package}"]=1
+    unset 'queued_optional_apt_packages[$package]'
+  done
+  optional_apt_packages=()
 }
 
 function clone_or_update_helper_tools_repo()
@@ -38,7 +82,9 @@ function clone_or_update_helper_tools_repo()
     get-github-tooling
     get-markdown-tooling
     get-python-tooling
+    get-postgresql
     get-rust-tooling
+    install-required-apt-packages
     install-hooks
     install-skills
     install-sub-agents
@@ -228,22 +274,13 @@ if needs rustup; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
 
-if needs sudo; then
-  # Fingers crossed this works. Assuming that systems without sudo will be running as root
-  echo "export DEBIAN_FRONTEND=noninteractive" >> /root/.profile
-  apt-update-if-stale
-  apt-get install -y apt-utils
-  apt-get install -y sudo
-fi
-
 if [[ -d "/usr/local/rustup" ]]; then
   $SUDO chmod -R a+rX,go-w "/usr/local/rustup"
 fi
 
 if needs wget; then
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-update-if-stale
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y wget
+  queue_optional_apt_package apt-utils
+  queue_optional_apt_package wget
 fi
 
 CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
@@ -261,9 +298,11 @@ if (( ${WITH_ADD_REPOSITORIES:-1} )); then
   bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/add-repositories"
 fi
 
+install_optional_apt_packages
+
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  $SUDO apt-update-if-stale
-  $SUDO apt-get install -y kopia
+  queue_optional_apt_package kopia
+  install_optional_apt_packages
   if (( ${KOPIA_CREATE:-0} )); then
     kopia repository create s3 \
       --bucket="${KOPIA_BUCKET:-}" \
@@ -297,6 +336,17 @@ tools=(
 
 if (( ${WITH_AI_TOOLING:-0} )); then
   tools+=(get-ai-tooling)
+fi
+
+package_scripts=()
+for tool in "${tools[@]}"; do
+  if [[ "${tool}" == get-* ]] || [[ "${tool}" == install-* ]]; then
+    package_scripts+=("${HELPER_TOOLS_REPO_DIR}/${tool}")
+  fi
+done
+
+if [[ ${#package_scripts[@]} -gt 0 ]]; then
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/install-required-apt-packages" "${package_scripts[@]}"
 fi
 
 for tool in "${tools[@]}"; do

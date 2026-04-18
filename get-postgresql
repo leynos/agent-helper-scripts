@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
+# Install PostgreSQL server and client libraries.
+# Required APT packages are declared via # requires-apt-packages: directives
+# and delegated to install-required-apt-packages before any other work is done.
 
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y postgresql postgresql-contrib
+set -Eeuo pipefail
+
+# requires-apt-packages: postgresql postgresql-contrib
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+bash "${SCRIPT_DIR}/install-required-apt-packages" "$0"

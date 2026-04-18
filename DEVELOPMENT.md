@@ -51,6 +51,27 @@ consistent across scripts that need repository-owned helper files.
   - Default: `0`
   - Adds `get-ai-tooling` to the helper loop only when explicitly enabled.
 
+### Helper package metadata
+
+- `install-required-apt-packages`
+  - Reads `# requires-apt-packages: ...` metadata comments from helper scripts.
+  - Metadata syntax is whitespace-separated package names after the colon, for
+    example `# requires-apt-packages: gh ripgrep fd-find`.
+  - Multiple metadata lines are allowed; comma-separated package lists are not
+    supported.
+  - Deduplicates the declared packages and installs them in one `apt-get
+    install -y` pass before the main helper loop begins.
+  - `rust-entrypoint` runs this helper after `add-repositories`, so
+    repository-provided packages such as `gh` are available from configured
+    APT sources.
+- `rust-entrypoint` optional APT queue
+  - Queues entrypoint-managed packages such as `wget` and `kopia`, then
+    installs them immediately before the first bootstrap step that needs them.
+  - Deduplicates requests across the entire entrypoint run, so a package is
+    installed at most once even if multiple later steps request it.
+  - Root execution no longer installs `sudo` as a convenience package; the
+    `SUDO` shim is expected to cover later helper scripts in that case.
+
 ## Configuration Patterns
 
 ### Test a helper branch
@@ -101,6 +122,25 @@ invocations with a single managed checkout. That change was made so that:
 - `install_helper_script`
   - Installs repository-owned helper executables from the managed checkout into
     `${HOME}/.local/bin`.
+- `install-required-apt-packages`
+  - Scans the `get-*` and `install-*` helpers selected for the current run.
+  - Installs their unconditional APT package requirements in a single
+    deduplicated pass before those helpers execute.
+- `needs`
+  - Returns true (exit 0) when the named command is absent from `PATH`.
+  - Used as a lightweight guard: `if needs <cmd>; then …; fi`.
+  - Example: `if needs wget; then queue_optional_apt_package wget; fi`
+- `queue_optional_apt_package`
+  - Adds a package name to the deferred optional-install queue.
+  - Skips silently if the package has already been queued or installed during
+    the current entrypoint run, so repeated calls are idempotent.
+  - Packages are not installed immediately; call `install_optional_apt_packages`
+    to flush the queue before a bootstrap step that requires them.
+  - Example: `queue_optional_apt_package kopia`
+- `install_optional_apt_packages`
+  - Installs previously-queued entrypoint-owned optional packages.
+  - Runs the deferred installation only when a subsequent bootstrap step
+    actually requires those packages.
 
 ### `install-hooks`
 

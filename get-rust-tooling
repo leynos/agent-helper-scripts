@@ -4,6 +4,8 @@
 # This script prepares the Rust compiler, supporting cargo utilities, linker
 # configuration, and heartbeat wrappers, and it reuses files from the cloned
 # `agent-helper-scripts` checkout for locally managed helper binaries.
+# requires-apt-packages: build-essential pkg-config libssl-dev ca-certificates
+# requires-apt-packages: libpq-dev libsqlite3-dev mold
 
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
@@ -67,8 +69,6 @@ else
   channel=stable
 fi
 
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y build-essential pkg-config libssl-dev ca-certificates libpq-dev libsqlite3-dev
 $SUDO update-ca-certificates
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
@@ -159,11 +159,9 @@ if ((WITH_WHITAKER)); then
 fi
 
 WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
-$SUDO apt-update-if-stale
 # Always install `mold` for Rust tooling, even when `WITH_MOLD_LD_OVERRIDE=0`.
 # The flag only controls whether `/usr/bin/ld` is relinked to `/usr/bin/mold`;
 # the packaged `mold` binary itself is still expected to be available.
-$SUDO apt-get install -y mold
 if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
   $SUDO ln -sf /usr/bin/mold /usr/bin/ld
 fi
