@@ -40,6 +40,7 @@ function clone_or_update_helper_tools_repo()
     mdformat-all
     notdeadyet
     rust-setup
+    skills
   )
 
   mkdir -p "${HOME}/git"

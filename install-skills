@@ -54,6 +54,10 @@ function clone_or_update_repo() {
       fi
     fi
   fi
+
+  if [[ -n "${sparse_set}" ]]; then
+    git -C "${repo_dir}" sparse-checkout set "${sparse_set}"
+  fi
 }
 
 clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills" "${HELPER_TOOLS_REPO_BRANCH}"
