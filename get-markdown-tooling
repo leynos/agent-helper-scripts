@@ -33,8 +33,11 @@ if ((INSTALL_GLOW)); then
   $SUDO apt-get install -y glow
 fi
 
-uv tool install vale
-vale --version
+WITH_VALE=${WITH_VALE:-0}
+if ((WITH_VALE)); then
+  uv tool install vale
+  vale --version
+fi
 
 # Mermaid dependencies
 $SUDO apt-update-if-stale
