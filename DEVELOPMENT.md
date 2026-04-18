@@ -137,10 +137,13 @@ Control-flow summary:
 | Yes | No | — | `fetch origin` then `reset --hard origin/HEAD` |
 | No | Yes | Yes | `git clone --branch … --single-branch --sparse` |
 | No | Yes | No | `git clone --branch … --single-branch` |
-| No | No | — | Default clone; sparse-checkout applied post-clone if `sparse_set` is set |
+| No | No | No | shallow-clone the default remote branch |
+| No | No | Yes | default clone then apply sparse-checkout selection |
 
 Sparse-checkout selection is applied after clone or update when
 `sparse_set` is non-empty.
+
+Example: `clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills" "${HELPER_TOOLS_REPO_BRANCH}"`
 
 ## Validation Expectations
 
