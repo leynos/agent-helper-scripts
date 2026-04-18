@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# get-ai-tooling: installs optional AI-specific tooling into the user
+# environment. Downloads and extracts the VidaiMock binary from its GitHub
+# release and places it in ~/.local/bin. Invoked only when WITH_AI_TOOLING is
+# enabled during the rust-entrypoint helper loop.
+
 mkdir -p "${HOME}/git"
 pushd "${HOME}/git" || exit
 curl --no-progress-meter -LO https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz

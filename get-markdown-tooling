@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
 
+# Install markdown-focused tooling for helper-script environments.
+# This script installs CLI tools used for linting, formatting, and Mermaid
+# validation, and it expects helper-managed wrapper scripts to be available
+# from the cloned `agent-helper-scripts` checkout.
+
 if [ "$(whoami)" = root ]; then
   SUDO=
 else
   SUDO=sudo
 fi
 
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
+
 function get_bin() {
   local bin_name=$1
+  local source_path="${HELPER_TOOLS_REPO_DIR}/${bin_name}"
+
+  if [[ ! -f "${source_path}" ]]; then
+    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
+    exit 1
+  fi
+
   mkdir -p  "${HOME}/.local/bin"
-  curl --no-progress-meter "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o  "${HOME}/.local/bin/${bin_name}"
-  chmod 755 "${HOME}/.local/bin/${bin_name}"
+  install -m 0755 "${source_path}" "${HOME}/.local/bin/${bin_name}"
 }
 
 # Install glow
@@ -20,8 +33,11 @@ if ((INSTALL_GLOW)); then
   $SUDO apt-get install -y glow
 fi
 
-uv tool install vale
-vale --version
+WITH_VALE=${WITH_VALE:-0}
+if ((WITH_VALE)); then
+  uv tool install vale
+  vale --version
+fi
 
 # Mermaid dependencies
 $SUDO apt-update-if-stale
@@ -40,7 +56,7 @@ $SUDO apt-get install -y \
 bun install --global markdownlint-cli2 markdown-table-formatter
 get_bin markdownlint
 time bun install --global @mermaid-js/mermaid-cli
-uv tool install --from git+https://github.com/leynos/nixie nixie
+uv tool install nixie-cli
 get_bin mdformat-all
 
 MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.3.1}

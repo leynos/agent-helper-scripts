@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 
+# Bootstrap a machine for the helper-script toolchain.
+# This entrypoint configures base package sources, ensures core prerequisites
+# exist, clones the helper repository locally, and then executes the remaining
+# helper scripts from that managed checkout instead of piping repository
+# content directly from GitHub into the shell.
+
 set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
-HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
+HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
+HELPER_TOOLS_REPO_BRANCH=${HELPER_TOOLS_REPO_BRANCH:-main}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME:-${HELPER_TOOLS_REPO_URL##*/}}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME%.git}
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_NAME}}
+export HELPER_TOOLS_REPO_DIR
+export HELPER_TOOLS_REPO_BRANCH
 
 if [ "$(whoami)" = root ]; then
   SUDO=
@@ -12,13 +24,82 @@ else
   SUDO=sudo
 fi
 
-install -d "${HOME}/.local/bin"
-curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf "${HELPER_TOOLS_REPO}/apt-update-if-stale" > "${HOME}/.local/bin/apt-update-if-stale"
-chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
-
 function needs()
 {
   ! command -v "$1" >/dev/null 2>&1
+}
+
+function clone_or_update_helper_tools_repo()
+{
+  local sparse_paths=(
+    add-repositories
+    apt-update-if-stale
+    get-ai-tooling
+    get-github-tooling
+    get-markdown-tooling
+    get-python-tooling
+    get-rust-tooling
+    install-hooks
+    install-skills
+    install-sub-agents
+    markdownlint
+    mdformat-all
+    notdeadyet
+    rust-setup
+    skills
+  )
+
+  local helper_tools_repo_parent
+  helper_tools_repo_parent=$(dirname "${HELPER_TOOLS_REPO_DIR}")
+
+  mkdir -p "${helper_tools_repo_parent}"
+  if [[ -d "${HELPER_TOOLS_REPO_DIR}/.git" ]]; then
+    echo "Updating helper tools repo at ${HELPER_TOOLS_REPO_DIR}..."
+    git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
+    git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
+  elif [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
+    echo "Error: ${HELPER_TOOLS_REPO_DIR} exists but is not a git checkout" >&2
+    exit 1
+  else
+    echo "Cloning helper tools repo to ${HELPER_TOOLS_REPO_DIR}..."
+    git clone \
+      --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+      --single-branch \
+      --depth 1 \
+      --filter=blob:none \
+      --sparse \
+      "${HELPER_TOOLS_REPO_URL}" \
+      "${HELPER_TOOLS_REPO_DIR}"
+  fi
+
+  if git_supports_sparse_checkout_skip_checks; then
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set --skip-checks "${sparse_paths[@]}"
+  else
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout init --no-cone
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
+  fi
+}
+
+function git_supports_sparse_checkout_skip_checks()
+{
+  local git_version
+  git_version=$(git version | awk '{print $3}')
+  printf '2.37.0\n%s\n' "${git_version}" | sort -V -C
+}
+
+function install_helper_script()
+{
+  local script_name=$1
+  local destination=${2:-"${HOME}/.local/bin/${script_name}"}
+  local source_path="${HELPER_TOOLS_REPO_DIR}/${script_name}"
+
+  if [[ ! -f "${source_path}" ]]; then
+    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
+    exit 1
+  fi
+
+  install -d "$(dirname "${destination}")"
+  install -m 0700 "${source_path}" "${destination}"
 }
 
 function append_block_if_missing()
@@ -97,10 +178,8 @@ codename="$(
   . /etc/os-release
   printf '%s\n' "${VERSION_CODENAME}"
 )"
-
-install -d /etc/apt/sources.list.d
-
-cat >/etc/apt/sources.list.d/zz-fast-ubuntu.sources <<EOF
+ubuntu_sources_tmp=$(mktemp)
+cat > "${ubuntu_sources_tmp}" <<EOF
 Types: deb
 URIs: http://mirror.math.princeton.edu/pub/ubuntu/
 Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
@@ -109,12 +188,29 @@ Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 By-Hash: yes
 EOF
 
-# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
-[ ! -e /etc/apt/sources.list ] || mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
-[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+$SUDO install -d /etc/apt/sources.list.d
+$SUDO install -m 0644 "${ubuntu_sources_tmp}" /etc/apt/sources.list.d/zz-fast-ubuntu.sources
+rm -f "${ubuntu_sources_tmp}"
 
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
+[ ! -e /etc/apt/sources.list ] || $SUDO mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
+[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || $SUDO mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+
+$SUDO apt-get clean
+$SUDO sh -c 'rm -rf /var/lib/apt/lists/*'
+
+if needs git; then
+  $SUDO apt-get update
+  $SUDO apt-get install -y git
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required but was not found on PATH after installation" >&2
+  exit 1
+fi
+
+clone_or_update_helper_tools_repo
+install_helper_script apt-update-if-stale
 
 if needs uv; then
   curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
@@ -162,7 +258,7 @@ cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
 EOF
 
 if (( ${WITH_ADD_REPOSITORIES:-1} )); then
-  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/add-repositories" | bash -xeuo pipefail
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/add-repositories"
 fi
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
@@ -199,12 +295,15 @@ tools=(
   install-sub-agents
 )
 
+if (( ${WITH_AI_TOOLING:-0} )); then
+  tools+=(get-ai-tooling)
+fi
+
 for tool in "${tools[@]}"; do
   echo "Running $tool..."
-  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
 done
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   kopia snapshot create "$CARGO_KOPIA_DEST"
 fi
-

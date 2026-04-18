@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install skills to Codex and Claude config directories
+# install-skills: installs agent skills into Codex and Claude configuration
+# directories. It clones or updates the agent-helper-scripts managed checkout
+# and additional skill repositories (nextest-skill, vidai-mock-skill,
+# rust-skill), then copies skill files into ~/.codex/skills and
+# ~/.claude/skills. Behaviour is controlled by HELPER_TOOLS_REPO_DIR and
+# HELPER_TOOLS_REPO_BRANCH.
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
-REPO_DIR="${HOME}/git/agent-helper-scripts"
+REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
+HELPER_TOOLS_REPO_BRANCH="${HELPER_TOOLS_REPO_BRANCH:-main}"
 
 NEXTEST_SKILL_REPO_URL="https://github.com/leynos/nextest-skill.git"
 NEXTEST_SKILL_REPO_DIR="${HOME}/git/nextest-skill"
@@ -22,26 +28,43 @@ function clone_or_update_repo() {
   local repo_url=$1
   local repo_dir=${2%/}
   local sparse_set=${3:-}
+  local repo_branch=${4:-}
   local parent=${repo_dir%/*}
   # Clone or update the repo
   mkdir -p "${parent}"
   if [[ -d "${repo_dir}" ]]; then
     echo "Updating existing repo at ${repo_dir}..."
-    git -C "${repo_dir}" fetch origin
-    git -C "${repo_dir}" reset --hard origin/HEAD
+    if [[ -n "${repo_branch}" ]]; then
+      git -C "${repo_dir}" fetch --depth 1 origin "${repo_branch}"
+      git -C "${repo_dir}" reset --hard FETCH_HEAD
+    else
+      git -C "${repo_dir}" fetch origin
+      git -C "${repo_dir}" reset --hard origin/HEAD
+    fi
   else
     if [[ -n "${sparse_set}" ]]; then
       echo "Cloning sparse set '${sparse_set}' from repo to ${repo_dir}..."
-      git clone --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}"
-      git -C "${repo_dir}" sparse-checkout set "${sparse_set}"
+      if [[ -n "${repo_branch}" ]]; then
+        git clone --branch "${repo_branch}" --single-branch --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}"
+      else
+        git clone --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}"
+      fi
     else
       echo "Cloning from repo to ${repo_dir}..."
-      git clone --depth 1 "${repo_url}" "${repo_dir}"
+      if [[ -n "${repo_branch}" ]]; then
+        git clone --branch "${repo_branch}" --single-branch --depth 1 "${repo_url}" "${repo_dir}"
+      else
+        git clone --depth 1 "${repo_url}" "${repo_dir}"
+      fi
     fi
+  fi
+
+  if [[ -n "${sparse_set}" ]]; then
+    git -C "${repo_dir}" sparse-checkout set "${sparse_set}"
   fi
 }
 
-clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills"
+clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills" "${HELPER_TOOLS_REPO_BRANCH}"
 clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}"
 clone_or_update_repo "${VIDAI_MOCK_SKILL_REPO_URL}" "${VIDAI_MOCK_SKILL_REPO_DIR}"
 clone_or_update_repo "${RUST_SKILL_REPO_URL}" "${RUST_SKILL_REPO_DIR}" "skills"
