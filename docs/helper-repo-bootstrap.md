@@ -22,7 +22,7 @@ GitHub and piping them into `bash`.
 - Entry-point-owned optional packages, such as `wget` and `kopia`, are queued
   and installed immediately before the bootstrap step that first needs them,
   rather than at first mention. Repeated requests do not trigger a second
-  install.
+  installation.
 
 ## Environment Variables
 
