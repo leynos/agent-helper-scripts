@@ -51,6 +51,15 @@ consistent across scripts that need repository-owned helper files.
   - Default: `0`
   - Adds `get-ai-tooling` to the helper loop only when explicitly enabled.
 
+### Helper package metadata
+
+- `install-required-apt-packages`
+  - Reads `# requires-apt-packages: ...` metadata comments from helper scripts.
+  - Deduplicates the declared packages and installs them in one `apt-get
+    install -y` pass before the main helper loop begins.
+  - `rust-entrypoint` runs this helper after `add-repositories`, so repository
+    provided packages such as `gh` are available from configured APT sources.
+
 ## Configuration Patterns
 
 ### Test a helper branch
@@ -101,6 +110,10 @@ invocations with a single managed checkout. That change was made so that:
 - `install_helper_script`
   - Installs repository-owned helper executables from the managed checkout into
     `${HOME}/.local/bin`.
+- `install-required-apt-packages`
+  - Scans the `get-*` and `install-*` helpers selected for the current run.
+  - Installs their unconditional APT package requirements in a single
+    deduplicated pass before those helpers execute.
 
 ### `install-hooks`
 

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# requires-apt-packages: strace gdb bat ripgrep nano ed fd-find
+# requires-apt-packages: ltrace valgrind bpfcc-tools bpftrace
+# requires-apt-packages: lsof htop iotop ncdu tree delta tcpdump nmap
+# requires-apt-packages: clang lldb eza fzf hyperfine shellcheck
+# requires-apt-packages: libxslt1-dev gh nfpm podman bubblewrap proot mmdebstrap
+
 if [ "$(whoami)" = root ]; then
   SUDO=
 else
@@ -29,15 +35,6 @@ bun install -g pajv
 
 # Tools to help developers
 $SUDO apt-update-if-stale
-$SUDO apt-get install -y \
-  strace gdb \
-  bat ripgrep nano ed fd-find \
-  ltrace valgrind bpfcc-tools bpftrace \
-  lsof htop iotop \
-  ncdu tree bat delta \
-  tcpdump nmap clang lldb \
-  eza fzf hyperfine shellcheck \
-  libxslt1-dev
 $SUDO apt-get install -y linux-tools-common || true
 $SUDO apt-get install -y linux-tools-generic || true
 
@@ -71,16 +68,10 @@ __EOF
   echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
 fi
 
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y gh
-
 pushd "${HOME}/.local" || exit
 curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
 popd || exit
 
 cargo binstall --no-confirm "action-validator@${ACTION_VALIDATOR_VERSION}"
-
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y nfpm podman bubblewrap proot mmdebstrap
 
 uv tool install --python 3.13 mcp-server-qdrant

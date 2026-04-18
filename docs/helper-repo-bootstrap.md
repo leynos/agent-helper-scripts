@@ -14,6 +14,9 @@ GitHub and piping them into `bash`.
 - Helper binaries that live in this repository, such as `markdownlint`,
   `mdformat-all`, and `notdeadyet`, are installed from the managed checkout
   instead of `raw.githubusercontent.com`.
+- Before the helper loop runs, `rust-entrypoint` scans the selected `get-*`
+  and `install-*` scripts for `# requires-apt-packages: ...` metadata and
+  installs the union of those packages in a single APT transaction.
 
 ## Environment Variables
 

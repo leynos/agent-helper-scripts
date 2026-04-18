@@ -39,6 +39,7 @@ function clone_or_update_helper_tools_repo()
     get-markdown-tooling
     get-python-tooling
     get-rust-tooling
+    install-required-apt-packages
     install-hooks
     install-skills
     install-sub-agents
@@ -297,6 +298,17 @@ tools=(
 
 if (( ${WITH_AI_TOOLING:-0} )); then
   tools+=(get-ai-tooling)
+fi
+
+package_scripts=()
+for tool in "${tools[@]}"; do
+  if [[ "${tool}" == get-* ]] || [[ "${tool}" == install-* ]]; then
+    package_scripts+=("${HELPER_TOOLS_REPO_DIR}/${tool}")
+  fi
+done
+
+if [[ ${#package_scripts[@]} -gt 0 ]]; then
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/install-required-apt-packages" "${package_scripts[@]}"
 fi
 
 for tool in "${tools[@]}"; do

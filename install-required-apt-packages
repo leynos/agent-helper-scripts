@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+if [ "$(whoami)" = root ]; then
+  SUDO=
+else
+  SUDO=sudo
+fi
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+function run_apt_update_if_stale()
+{
+  if command -v apt-update-if-stale >/dev/null 2>&1; then
+    if [[ -n "${SUDO}" ]]; then
+      $SUDO apt-update-if-stale
+    else
+      apt-update-if-stale
+    fi
+  else
+    if [[ -n "${SUDO}" ]]; then
+      $SUDO bash "${SCRIPT_DIR}/apt-update-if-stale"
+    else
+      bash "${SCRIPT_DIR}/apt-update-if-stale"
+    fi
+  fi
+}
+
+if [[ $# -eq 0 ]]; then
+  exit 0
+fi
+
+declare -A seen_packages=()
+packages=()
+
+for script_path in "$@"; do
+  if [[ ! -f "${script_path}" ]]; then
+    echo "Error: script not found: ${script_path}" >&2
+    exit 1
+  fi
+
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^#[[:space:]]*requires-apt-packages:[[:space:]]*(.*)$ ]]; then
+      for package in ${BASH_REMATCH[1]}; do
+        if [[ -z "${seen_packages[${package}]:-}" ]]; then
+          seen_packages["${package}"]=1
+          packages+=("${package}")
+        fi
+      done
+    fi
+  done < "${script_path}"
+done
+
+if [[ ${#packages[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+run_apt_update_if_stale
+echo "Installing APT packages required by helper scripts: ${packages[*]}"
+$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
