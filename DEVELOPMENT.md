@@ -138,8 +138,9 @@ invocations with a single managed checkout. That change was made so that:
     to flush the queue before a bootstrap step that requires them.
   - Example: `queue_optional_apt_package kopia`
 - `install_optional_apt_packages`
-  - Queues entrypoint-owned optional packages and installs them only when the
-    next bootstrap step actually requires them.
+  - Installs previously-queued entrypoint-owned optional packages.
+  - Runs the deferred installation only when a subsequent bootstrap step
+    actually requires those packages.
 
 ### `install-hooks`
 

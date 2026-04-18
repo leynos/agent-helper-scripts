@@ -62,4 +62,4 @@ fi
 
 run_apt_update_if_stale
 echo "Installing APT packages required by helper scripts: ${packages[*]}"
-$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- "${packages[@]}"
