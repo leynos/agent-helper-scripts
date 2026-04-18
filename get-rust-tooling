@@ -156,6 +156,9 @@ fi
 
 WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
 $SUDO apt-update-if-stale
+# Always install `mold` for Rust tooling, even when `WITH_MOLD_LD_OVERRIDE=0`.
+# The flag only controls whether `/usr/bin/ld` is relinked to `/usr/bin/mold`;
+# the packaged `mold` binary itself is still expected to be available.
 $SUDO apt-get install -y mold
 if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
   $SUDO ln -sf /usr/bin/mold /usr/bin/ld

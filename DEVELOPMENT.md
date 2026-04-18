@@ -38,7 +38,7 @@ consistent across scripts that need repository-owned helper files.
 - `HELPER_TOOLS_REPO_DIR`
   - Default: `${HOME}/git/${HELPER_TOOLS_REPO_NAME}`
   - Controls the filesystem path of the managed helper checkout.
-  - `install-hooks` and `install-skills` now respect this value so the helper
+  - `install-hooks` and `install-skills` now respect this value, so the helper
     chain reuses a single checkout.
 
 ### Bootstrap behaviour flags
