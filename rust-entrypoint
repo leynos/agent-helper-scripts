@@ -72,16 +72,34 @@ function clone_or_update_helper_tools_repo()
       "${HELPER_TOOLS_REPO_DIR}"
   fi
 
-  git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set --skip-checks "${sparse_paths[@]}"
+  if git_supports_sparse_checkout_skip_checks; then
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set --skip-checks "${sparse_paths[@]}"
+  else
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout init --no-cone
+    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
+  fi
+}
+
+function git_supports_sparse_checkout_skip_checks()
+{
+  local git_version
+  git_version=$(git version | awk '{print $3}')
+  printf '2.37.0\n%s\n' "${git_version}" | sort -V -C
 }
 
 function install_helper_script()
 {
   local script_name=$1
   local destination=${2:-"${HOME}/.local/bin/${script_name}"}
+  local source_path="${HELPER_TOOLS_REPO_DIR}/${script_name}"
+
+  if [[ ! -f "${source_path}" ]]; then
+    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
+    exit 1
+  fi
 
   install -d "$(dirname "${destination}")"
-  install -m 0700 "${HELPER_TOOLS_REPO_DIR}/${script_name}" "${destination}"
+  install -m 0700 "${source_path}" "${destination}"
 }
 
 function append_block_if_missing()
@@ -160,10 +178,8 @@ codename="$(
   . /etc/os-release
   printf '%s\n' "${VERSION_CODENAME}"
 )"
-
-install -d /etc/apt/sources.list.d
-
-cat >/etc/apt/sources.list.d/zz-fast-ubuntu.sources <<EOF
+ubuntu_sources_tmp=$(mktemp)
+cat > "${ubuntu_sources_tmp}" <<EOF
 Types: deb
 URIs: http://mirror.math.princeton.edu/pub/ubuntu/
 Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
@@ -172,12 +188,16 @@ Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 By-Hash: yes
 EOF
 
-# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
-[ ! -e /etc/apt/sources.list ] || mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
-[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+$SUDO install -d /etc/apt/sources.list.d
+$SUDO install -m 0644 "${ubuntu_sources_tmp}" /etc/apt/sources.list.d/zz-fast-ubuntu.sources
+rm -f "${ubuntu_sources_tmp}"
 
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
+[ ! -e /etc/apt/sources.list ] || $SUDO mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
+[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || $SUDO mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+
+$SUDO apt-get clean
+$SUDO sh -c 'rm -rf /var/lib/apt/lists/*'
 
 if needs git; then
   $SUDO apt-get update
