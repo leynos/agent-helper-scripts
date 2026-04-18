@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install skills to Codex and Claude config directories
+# install-skills: installs agent skills into Codex and Claude configuration
+# directories. It clones or updates the agent-helper-scripts managed checkout
+# and additional skill repositories (nextest-skill, vidai-mock-skill,
+# rust-skill), then copies skill files into ~/.codex/skills and
+# ~/.claude/skills. Behaviour is controlled by HELPER_TOOLS_REPO_DIR and
+# HELPER_TOOLS_REPO_BRANCH.
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"

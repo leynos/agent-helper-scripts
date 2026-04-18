@@ -115,6 +115,33 @@ invocations with a single managed checkout. That change was made so that:
 - Reapplies sparse checkout for `skills` when a managed clone already exists,
   so older sparse checkouts are repaired before copying skills.
 
+#### `clone_or_update_repo`
+
+```text
+clone_or_update_repo <repo_url> <repo_dir> [sparse_set] [repo_branch]
+```
+
+- `repo_url`: Git remote to clone when `repo_dir` does not exist.
+- `repo_dir`: Absolute path of the local checkout; trailing slashes are
+  stripped.
+- `sparse_set` *(optional)*: Space-separated list of paths to enable with
+  `git sparse-checkout set`.
+- `repo_branch` *(optional)*: Branch name to fetch and reset to; omit to use
+  `origin/HEAD`.
+
+Control-flow summary:
+
+| `repo_dir` exists | `repo_branch` set | `sparse_set` set | Behaviour |
+| --- | --- | --- | --- |
+| Yes | Yes | — | `fetch --depth 1 origin <branch>` then `reset --hard FETCH_HEAD` |
+| Yes | No | — | `fetch origin` then `reset --hard origin/HEAD` |
+| No | Yes | Yes | `git clone --branch … --single-branch --sparse` |
+| No | Yes | No | `git clone --branch … --single-branch` |
+| No | No | — | Default clone; sparse-checkout applied post-clone if `sparse_set` is set |
+
+Sparse-checkout selection is applied after clone or update when
+`sparse_set` is non-empty.
+
 ## Validation Expectations
 
 When changing bootstrap behaviour in this repository, replay the usual
