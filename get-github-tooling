@@ -11,6 +11,10 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
     . "${HOME}/.cargo/env"
 fi
 
+MERGIRAF_VERSION=${MERGIRAF_VERSION:-0.16.3}
+DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.68.0}
+LETA_VERSION=${LETA_VERSION:-0.13.0}
+ACTION_VALIDATOR_VERSION=${ACTION_VALIDATOR_VERSION:-0.9.0}
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
@@ -39,11 +43,11 @@ $SUDO apt-get install -y linux-tools-generic || true
 
 ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
 
-cargo binstall --no-confirm mergiraf
-cargo binstall --no-confirm difftastic
+cargo binstall --no-confirm "mergiraf@${MERGIRAF_VERSION}"
+cargo binstall --no-confirm "difftastic@${DIFFTASTIC_VERSION}"
 
 pwd
-cargo binstall --no-confirm leta
+cargo binstall --no-confirm "leta@${LETA_VERSION}"
 leta workspace add .
 
 mkdir -p "${HOME}/.local/bin"
@@ -74,7 +78,7 @@ pushd "${HOME}/.local" || exit
 curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
 popd || exit
 
-cargo binstall --no-confirm action-validator
+cargo binstall --no-confirm "action-validator@${ACTION_VALIDATOR_VERSION}"
 
 $SUDO apt-update-if-stale
 $SUDO apt-get install -y nfpm podman bubblewrap proot mmdebstrap

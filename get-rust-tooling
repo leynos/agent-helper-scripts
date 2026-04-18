@@ -72,6 +72,10 @@ $SUDO apt-get install -y build-essential pkg-config libssl-dev ca-certificates l
 $SUDO update-ca-certificates
 
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
+CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.8.5}
+SCCACHE_VERSION=${SCCACHE_VERSION:-0.14.0}
+CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.133}
+KANI_VERIFIER_VERSION=${KANI_VERIFIER_VERSION:-0.67.0}
 if ! which rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
@@ -94,7 +98,7 @@ fi
 rustup component add rustfmt --toolchain "${channel}"
 rustup component add clippy --toolchain "${channel}"
 if ((WITH_LLVM_COV)); then
-  cargo binstall --locked --no-confirm cargo-llvm-cov
+  cargo binstall --locked --no-confirm "cargo-llvm-cov@${CARGO_LLVM_COV_VERSION}"
   rustup component add llvm-tools-preview --toolchain "${channel}"
 fi
 rustup component add rust-analyzer --toolchain "${channel}"
@@ -104,7 +108,7 @@ rustup toolchain install nightly
 rustup component add rustfmt --toolchain nightly
 
 if [[ -n "${SCCACHE_BUCKET:-}" ]] || [[ -n "${SCCACHE_WEBDAV_ENDPOINT:-}" ]]; then
-  cargo binstall --no-confirm sccache
+  cargo binstall --no-confirm "sccache@${SCCACHE_VERSION}"
   read -r -d '' sccache_block <<'__EOF__' || true
 
 # Disable incremental Rust compilation.
@@ -135,8 +139,8 @@ append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootst
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 
-cargo binstall --locked --no-confirm cargo-nextest
-cargo binstall --locked --no-confirm kani-verifier
+cargo binstall --locked --no-confirm "cargo-nextest@${CARGO_NEXTEST_VERSION}"
+cargo binstall --locked --no-confirm "kani-verifier@${KANI_VERIFIER_VERSION}"
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
