@@ -60,7 +60,7 @@ function clone_or_update_helper_tools_repo()
       "${HELPER_TOOLS_REPO_DIR}"
   fi
 
-  git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
+  git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set --skip-checks "${sparse_paths[@]}"
 }
 
 function install_helper_script()
