@@ -4,7 +4,7 @@ set -euo pipefail
 # Install skills to Codex and Claude config directories
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
-REPO_DIR="${HOME}/git/agent-helper-scripts"
+REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
 HELPER_TOOLS_REPO_BRANCH="${HELPER_TOOLS_REPO_BRANCH:-main}"
 
 NEXTEST_SKILL_REPO_URL="https://github.com/leynos/nextest-skill.git"

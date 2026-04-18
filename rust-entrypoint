@@ -43,13 +43,18 @@ function clone_or_update_helper_tools_repo()
     skills
   )
 
-  mkdir -p "${HOME}/git"
+  local helper_tools_repo_parent
+  helper_tools_repo_parent=$(dirname "${HELPER_TOOLS_REPO_DIR}")
+
+  mkdir -p "${helper_tools_repo_parent}"
   if [[ -d "${HELPER_TOOLS_REPO_DIR}/.git" ]]; then
     echo "Updating helper tools repo at ${HELPER_TOOLS_REPO_DIR}..."
     git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
     git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
+  elif [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
+    echo "Error: ${HELPER_TOOLS_REPO_DIR} exists but is not a git checkout" >&2
+    exit 1
   else
-    rm -rf "${HELPER_TOOLS_REPO_DIR}"
     echo "Cloning helper tools repo to ${HELPER_TOOLS_REPO_DIR}..."
     git clone \
       --branch "${HELPER_TOOLS_REPO_BRANCH}" \
@@ -169,8 +174,8 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 
 if needs git; then
-  apt-get update
-  apt-get install -y git
+  $SUDO apt-get update
+  $SUDO apt-get install -y git
 fi
 
 clone_or_update_helper_tools_repo

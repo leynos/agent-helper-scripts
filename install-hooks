@@ -4,7 +4,7 @@ set -euo pipefail
 # Install Claude Code hooks and hook installer.
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
-REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
+REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
 HELPER_TOOLS_REPO_BRANCH="${HELPER_TOOLS_REPO_BRANCH:-main}"
 
 INSTALL_BIN_DIR="${HOME}/.local/bin"
