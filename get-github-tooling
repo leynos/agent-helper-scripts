@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Install GitHub-oriented developer tooling and CLI utilities.
+# Required APT packages are declared via # requires-apt-packages: directives
+# and installed by install-required-apt-packages before this script runs.
+# Additional tooling not available through APT (e.g. mergiraf, cargo-binstall
+# binaries) is installed directly by this script.
+
 # requires-apt-packages: strace gdb bat ripgrep nano ed fd-find
 # requires-apt-packages: ltrace valgrind bpfcc-tools bpftrace
 # requires-apt-packages: lsof htop iotop ncdu tree delta tcpdump nmap

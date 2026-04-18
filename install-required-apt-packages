@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Scan selected helper scripts for # requires-apt-packages: directives and
+# install the deduplicated union of those packages in a single apt-get
+# transaction. Invoke this script with one or more script paths as arguments;
+# it exits cleanly with no action when called with no arguments or when no
+# directives are found.
+
 set -Eeuo pipefail
 
 if [ "$(whoami)" = root ]; then

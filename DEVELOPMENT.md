@@ -126,6 +126,17 @@ invocations with a single managed checkout. That change was made so that:
   - Scans the `get-*` and `install-*` helpers selected for the current run.
   - Installs their unconditional APT package requirements in a single
     deduplicated pass before those helpers execute.
+- `needs`
+  - Returns true (exit 0) when the named command is absent from `PATH`.
+  - Used as a lightweight guard: `if needs <cmd>; then …; fi`.
+  - Example: `if needs wget; then queue_optional_apt_package wget; fi`
+- `queue_optional_apt_package`
+  - Adds a package name to the deferred optional-install queue.
+  - Skips silently if the package has already been queued or installed during
+    the current entrypoint run, so repeated calls are idempotent.
+  - Packages are not installed immediately; call `install_optional_apt_packages`
+    to flush the queue before a bootstrap step that requires them.
+  - Example: `queue_optional_apt_package kopia`
 - `install_optional_apt_packages`
   - Queues entrypoint-owned optional packages and installs them only when the
     next bootstrap step actually requires them.

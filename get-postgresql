@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Install PostgreSQL server and client libraries.
+# Required APT packages are declared via # requires-apt-packages: directives
+# and delegated to install-required-apt-packages before any other work is done.
+
 set -Eeuo pipefail
 
 # requires-apt-packages: postgresql postgresql-contrib
