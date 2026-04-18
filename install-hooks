@@ -5,6 +5,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HOME}/git/agent-helper-scripts}"
+HELPER_TOOLS_REPO_BRANCH="${HELPER_TOOLS_REPO_BRANCH:-main}"
 
 INSTALL_BIN_DIR="${HOME}/.local/bin"
 INSTALL_HOOK_CMD="${INSTALL_BIN_DIR}/install-hook-cmd"
@@ -22,12 +23,19 @@ fi
 mkdir -p "${HOME}/git"
 if [[ -d "${REPO_DIR}" ]]; then
   echo "Updating existing repo at ${REPO_DIR}..."
-  git -C "${REPO_DIR}" fetch origin
+  git -C "${REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
   # This is a managed clone; discard any local changes to keep it in sync.
-  git -C "${REPO_DIR}" reset --hard origin/HEAD
+  git -C "${REPO_DIR}" reset --hard FETCH_HEAD
 else
   echo "Cloning repo to ${REPO_DIR}..."
-  git clone --depth 1 --filter=blob:none --sparse "${REPO_URL}" "${REPO_DIR}"
+  git clone \
+    --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+    --single-branch \
+    --depth 1 \
+    --filter=blob:none \
+    --sparse \
+    "${REPO_URL}" \
+    "${REPO_DIR}"
 fi
 
 git -C "${REPO_DIR}" sparse-checkout set hooks bin

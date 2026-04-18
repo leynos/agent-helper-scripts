@@ -5,10 +5,12 @@ set -xeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
+HELPER_TOOLS_REPO_BRANCH=${HELPER_TOOLS_REPO_BRANCH:-main}
 HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME:-${HELPER_TOOLS_REPO_URL##*/}}
 HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME%.git}
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_NAME}}
 export HELPER_TOOLS_REPO_DIR
+export HELPER_TOOLS_REPO_BRANCH
 
 if [ "$(whoami)" = root ]; then
   SUDO=
@@ -43,12 +45,19 @@ function clone_or_update_helper_tools_repo()
   mkdir -p "${HOME}/git"
   if [[ -d "${HELPER_TOOLS_REPO_DIR}/.git" ]]; then
     echo "Updating helper tools repo at ${HELPER_TOOLS_REPO_DIR}..."
-    git -C "${HELPER_TOOLS_REPO_DIR}" fetch origin
-    git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard origin/HEAD
+    git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
+    git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
   else
     rm -rf "${HELPER_TOOLS_REPO_DIR}"
     echo "Cloning helper tools repo to ${HELPER_TOOLS_REPO_DIR}..."
-    git clone --depth 1 --filter=blob:none --sparse "${HELPER_TOOLS_REPO_URL}" "${HELPER_TOOLS_REPO_DIR}"
+    git clone \
+      --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+      --single-branch \
+      --depth 1 \
+      --filter=blob:none \
+      --sparse \
+      "${HELPER_TOOLS_REPO_URL}" \
+      "${HELPER_TOOLS_REPO_DIR}"
   fi
 
   git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
