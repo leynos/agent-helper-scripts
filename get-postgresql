@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-# requires-apt-packages: postgresql postgresql-contrib
-# Package installation is driven by install-required-apt-packages metadata.
+set -Eeuo pipefail
 
-:
+# requires-apt-packages: postgresql postgresql-contrib
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+bash "${SCRIPT_DIR}/install-required-apt-packages" "$0"

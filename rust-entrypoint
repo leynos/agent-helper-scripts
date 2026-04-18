@@ -76,6 +76,7 @@ function clone_or_update_helper_tools_repo()
     get-github-tooling
     get-markdown-tooling
     get-python-tooling
+    get-postgresql
     get-rust-tooling
     install-required-apt-packages
     install-hooks
