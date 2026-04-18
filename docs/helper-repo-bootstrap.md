@@ -17,6 +17,9 @@ GitHub and piping them into `bash`.
 - Before the helper loop runs, `rust-entrypoint` scans the selected `get-*`
   and `install-*` scripts for `# requires-apt-packages: ...` metadata and
   installs the union of those packages in a single APT transaction.
+- Entry-point-owned optional packages, such as `wget` and `kopia`, are queued
+  and installed immediately before the bootstrap step that first needs them,
+  rather than at first mention.
 
 ## Environment Variables
 

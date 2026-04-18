@@ -59,6 +59,11 @@ consistent across scripts that need repository-owned helper files.
     install -y` pass before the main helper loop begins.
   - `rust-entrypoint` runs this helper after `add-repositories`, so repository
     provided packages such as `gh` are available from configured APT sources.
+- `rust-entrypoint` optional APT queue
+  - Defers entrypoint-managed packages such as `wget` and `kopia` until the
+    last point they are actually needed.
+  - Root execution no longer installs `sudo` as a convenience package; the
+    `SUDO` shim is expected to cover later helper scripts in that case.
 
 ## Configuration Patterns
 
@@ -114,6 +119,9 @@ invocations with a single managed checkout. That change was made so that:
   - Scans the `get-*` and `install-*` helpers selected for the current run.
   - Installs their unconditional APT package requirements in a single
     deduplicated pass before those helpers execute.
+- `install_optional_apt_packages`
+  - Queues entrypoint-owned optional packages and installs them only when the
+    next bootstrap step actually requires them.
 
 ### `install-hooks`
 
