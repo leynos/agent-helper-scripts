@@ -26,6 +26,7 @@ fi
 
 optional_apt_packages=()
 declare -A queued_optional_apt_packages=()
+declare -A installed_optional_apt_packages=()
 
 function needs()
 {
@@ -35,6 +36,10 @@ function needs()
 function queue_optional_apt_package()
 {
   local package=$1
+
+  if [[ -n "${installed_optional_apt_packages[${package}]:-}" ]]; then
+    return 0
+  fi
 
   if [[ -n "${queued_optional_apt_packages[${package}]:-}" ]]; then
     return 0
@@ -56,6 +61,7 @@ function install_optional_apt_packages()
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${optional_apt_packages[@]}"
 
   for package in "${optional_apt_packages[@]}"; do
+    installed_optional_apt_packages["${package}"]=1
     unset 'queued_optional_apt_packages[$package]'
   done
   optional_apt_packages=()

@@ -55,13 +55,20 @@ consistent across scripts that need repository-owned helper files.
 
 - `install-required-apt-packages`
   - Reads `# requires-apt-packages: ...` metadata comments from helper scripts.
+  - Metadata syntax is whitespace-separated package names after the colon, for
+    example `# requires-apt-packages: gh ripgrep fd-find`.
+  - Multiple metadata lines are allowed; comma-separated package lists are not
+    supported.
   - Deduplicates the declared packages and installs them in one `apt-get
     install -y` pass before the main helper loop begins.
-  - `rust-entrypoint` runs this helper after `add-repositories`, so repository
-    provided packages such as `gh` are available from configured APT sources.
+  - `rust-entrypoint` runs this helper after `add-repositories`, so
+    repository-provided packages such as `gh` are available from configured
+    APT sources.
 - `rust-entrypoint` optional APT queue
   - Defers entrypoint-managed packages such as `wget` and `kopia` until the
     last point they are actually needed.
+  - Deduplicates requests across the entire entrypoint run, so a package is
+    installed at most once even if multiple later steps request it.
   - Root execution no longer installs `sudo` as a convenience package; the
     `SUDO` shim is expected to cover later helper scripts in that case.
 
