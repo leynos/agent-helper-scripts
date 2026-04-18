@@ -204,6 +204,11 @@ if needs git; then
   $SUDO apt-get install -y git
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required but was not found on PATH after installation" >&2
+  exit 1
+fi
+
 clone_or_update_helper_tools_repo
 install_helper_script apt-update-if-stale
 
