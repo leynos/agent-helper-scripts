@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Bootstrap a machine for the helper-script toolchain.
+# This entrypoint configures base package sources, ensures core prerequisites
+# exist, clones the helper repository locally, and then executes the remaining
+# helper scripts from that managed checkout instead of piping repository
+# content directly from GitHub into the shell.
+
 set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive

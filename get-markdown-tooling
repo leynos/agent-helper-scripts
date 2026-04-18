@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Install markdown-focused tooling for helper-script environments.
+# This script installs CLI tools used for linting, formatting, and Mermaid
+# validation, and it expects helper-managed wrapper scripts to be available
+# from the cloned `agent-helper-scripts` checkout.
+
 if [ "$(whoami)" = root ]; then
   SUDO=
 else

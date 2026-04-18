@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Install Rust toolchains and companion developer tooling.
+# This script prepares the Rust compiler, supporting cargo utilities, linker
+# configuration, and heartbeat wrappers, and it reuses files from the cloned
+# `agent-helper-scripts` checkout for locally managed helper binaries.
+
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
         ;;
