@@ -33,6 +33,11 @@ function needs()
   ! command -v "$1" >/dev/null 2>&1
 }
 
+if needs sudo && [[ -n "${SUDO}" ]]; then
+  echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
+  exit 1
+fi
+
 function queue_optional_apt_package()
 {
   local package=$1
@@ -51,13 +56,14 @@ function queue_optional_apt_package()
 
 function install_optional_apt_packages()
 {
+  local apt_update_script="${HELPER_TOOLS_REPO_DIR}/apt-update-if-stale"
   local package
 
   if [[ ${#optional_apt_packages[@]} -eq 0 ]]; then
     return 0
   fi
 
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-update-if-stale
+  $SUDO bash "${apt_update_script}"
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${optional_apt_packages[@]}"
 
   for package in "${optional_apt_packages[@]}"; do
@@ -266,13 +272,6 @@ fi
 
 if needs rustup; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-fi
-
-if needs sudo; then
-  if [[ -n "${SUDO}" ]]; then
-    echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
-    exit 1
-  fi
 fi
 
 if [[ -d "/usr/local/rustup" ]]; then

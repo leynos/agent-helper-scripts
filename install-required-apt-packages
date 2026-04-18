@@ -14,18 +14,14 @@ SCRIPT_DIR=$(
 
 function run_apt_update_if_stale()
 {
-  if command -v apt-update-if-stale >/dev/null 2>&1; then
-    if [[ -n "${SUDO}" ]]; then
-      $SUDO apt-update-if-stale
-    else
-      apt-update-if-stale
-    fi
+  local apt_update_script
+
+  apt_update_script=$(command -v apt-update-if-stale 2>/dev/null) || apt_update_script="${SCRIPT_DIR}/apt-update-if-stale"
+
+  if [[ -n "${SUDO}" ]]; then
+    $SUDO bash "${apt_update_script}"
   else
-    if [[ -n "${SUDO}" ]]; then
-      $SUDO bash "${SCRIPT_DIR}/apt-update-if-stale"
-    else
-      bash "${SCRIPT_DIR}/apt-update-if-stale"
-    fi
+    bash "${apt_update_script}"
   fi
 }
 

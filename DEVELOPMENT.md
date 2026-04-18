@@ -65,8 +65,8 @@ consistent across scripts that need repository-owned helper files.
     repository-provided packages such as `gh` are available from configured
     APT sources.
 - `rust-entrypoint` optional APT queue
-  - Defers entrypoint-managed packages such as `wget` and `kopia` until the
-    last point they are actually needed.
+  - Queues entrypoint-managed packages such as `wget` and `kopia`, then
+    installs them immediately before the first bootstrap step that needs them.
   - Deduplicates requests across the entire entrypoint run, so a package is
     installed at most once even if multiple later steps request it.
   - Root execution no longer installs `sudo` as a convenience package; the
