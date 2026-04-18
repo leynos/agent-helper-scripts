@@ -14,6 +14,8 @@ else
   SUDO=sudo;
 fi
 
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
+
 function append_block_if_missing()
 {
   local file=$1
@@ -112,8 +114,12 @@ __EOF__
   sccache --start-server >/dev/null 2>&1 || true
 fi
 
-curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/notdeadyet > "${HOME}/.local/bin/notdeadyet"
-chmod 700 "${HOME}/.local/bin/notdeadyet"
+mkdir -p "${HOME}/.local/bin"
+if [[ ! -f "${HELPER_TOOLS_REPO_DIR}/notdeadyet" ]]; then
+  echo "Error: expected ${HELPER_TOOLS_REPO_DIR}/notdeadyet from the cloned agent-helper-scripts repo" >&2
+  exit 1
+fi
+install -m 0700 "${HELPER_TOOLS_REPO_DIR}/notdeadyet" "${HOME}/.local/bin/notdeadyet"
 read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
@@ -152,4 +158,3 @@ wget -O- --timeout=10 --waitretry=3 --retry-connrefused --progress=dot:mega "${a
 if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/local/bin/mold ]]; then
   $SUDO ln -sf /usr/local/bin/mold "$(realpath /usr/bin/ld)"
 fi
-

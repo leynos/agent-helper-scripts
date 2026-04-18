@@ -4,7 +4,11 @@ set -xeuo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
-HELPER_TOOLS_REPO=${HELPER_TOOLS_REPO:-https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main}
+HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME:-${HELPER_TOOLS_REPO_URL##*/}}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME%.git}
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_NAME}}
+export HELPER_TOOLS_REPO_DIR
 
 if [ "$(whoami)" = root ]; then
   SUDO=
@@ -12,13 +16,51 @@ else
   SUDO=sudo
 fi
 
-install -d "${HOME}/.local/bin"
-curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf "${HELPER_TOOLS_REPO}/apt-update-if-stale" > "${HOME}/.local/bin/apt-update-if-stale"
-chmod 700 "${HOME}/.local/bin/apt-update-if-stale"
-
 function needs()
 {
   ! command -v "$1" >/dev/null 2>&1
+}
+
+function clone_or_update_helper_tools_repo()
+{
+  local sparse_paths=(
+    add-repositories
+    apt-update-if-stale
+    get-ai-tooling
+    get-github-tooling
+    get-markdown-tooling
+    get-python-tooling
+    get-rust-tooling
+    install-hooks
+    install-skills
+    install-sub-agents
+    markdownlint
+    mdformat-all
+    notdeadyet
+    rust-setup
+  )
+
+  mkdir -p "${HOME}/git"
+  if [[ -d "${HELPER_TOOLS_REPO_DIR}/.git" ]]; then
+    echo "Updating helper tools repo at ${HELPER_TOOLS_REPO_DIR}..."
+    git -C "${HELPER_TOOLS_REPO_DIR}" fetch origin
+    git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard origin/HEAD
+  else
+    rm -rf "${HELPER_TOOLS_REPO_DIR}"
+    echo "Cloning helper tools repo to ${HELPER_TOOLS_REPO_DIR}..."
+    git clone --depth 1 --filter=blob:none --sparse "${HELPER_TOOLS_REPO_URL}" "${HELPER_TOOLS_REPO_DIR}"
+  fi
+
+  git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
+}
+
+function install_helper_script()
+{
+  local script_name=$1
+  local destination=${2:-"${HOME}/.local/bin/${script_name}"}
+
+  install -d "$(dirname "${destination}")"
+  install -m 0700 "${HELPER_TOOLS_REPO_DIR}/${script_name}" "${destination}"
 }
 
 function append_block_if_missing()
@@ -116,6 +158,14 @@ EOF
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
+if needs git; then
+  apt-get update
+  apt-get install -y git
+fi
+
+clone_or_update_helper_tools_repo
+install_helper_script apt-update-if-stale
+
 if needs uv; then
   curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
   if [[ -f "$HOME/.local/bin/env" ]]; then
@@ -162,7 +212,7 @@ cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
 EOF
 
 if (( ${WITH_ADD_REPOSITORIES:-1} )); then
-  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/add-repositories" | bash -xeuo pipefail
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/add-repositories"
 fi
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
@@ -199,12 +249,15 @@ tools=(
   install-sub-agents
 )
 
+if (( ${WITH_AI_TOOLING:-0} )); then
+  tools+=(get-ai-tooling)
+fi
+
 for tool in "${tools[@]}"; do
   echo "Running $tool..."
-  curl --no-progress-meter --retry 5 --retry-connrefused -fsSL "${HELPER_TOOLS_REPO}/$tool" | bash -xeuo pipefail
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
 done
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   kopia snapshot create "$CARGO_KOPIA_DEST"
 fi
-

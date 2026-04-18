@@ -6,11 +6,19 @@ else
   SUDO=sudo
 fi
 
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
+
 function get_bin() {
   local bin_name=$1
+  local source_path="${HELPER_TOOLS_REPO_DIR}/${bin_name}"
+
+  if [[ ! -f "${source_path}" ]]; then
+    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
+    exit 1
+  fi
+
   mkdir -p  "${HOME}/.local/bin"
-  curl --no-progress-meter "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/main/${bin_name}" -o  "${HOME}/.local/bin/${bin_name}"
-  chmod 755 "${HOME}/.local/bin/${bin_name}"
+  install -m 0755 "${source_path}" "${HOME}/.local/bin/${bin_name}"
 }
 
 # Install glow
