@@ -55,4 +55,4 @@ uv tool install nixie-cli
 get_bin mdformat-all
 
 MDTABLEFIX_VERSION=${MDTABLEFIX_VERSION:-0.4.0}
-cargo binstall --locked --no-confirm "kani-verifier@${MDTABLEFIX_VERSION}"
+cargo binstall --locked --no-confirm "mdtablefix@${MDTABLEFIX_VERSION}"
