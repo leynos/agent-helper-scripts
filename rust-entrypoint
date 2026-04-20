@@ -324,9 +324,9 @@ if [[ -n "${KOPIA_BUCKET:-}" ]]; then
 fi
 
 tools=(
-  get-markdown-tooling
   get-rust-tooling
   rust-setup
+  get-markdown-tooling
   get-github-tooling
   get-python-tooling
   install-skills
