@@ -23,6 +23,91 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
     . "${HOME}/.cargo/env"
 fi
 
+function release_checksum()
+{
+  local artifact_name=$1
+  local checksum_file=$2
+  local expected_sha
+
+  expected_sha=$(awk -v artifact_name="${artifact_name}" '$2 == artifact_name { print $1; exit }' "${checksum_file}")
+  if [[ -z "${expected_sha}" ]]; then
+    echo "Error: checksum for ${artifact_name} not found in ${checksum_file}" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${expected_sha}"
+}
+
+function act_archive_name()
+{
+  local os_name
+  local arch_name
+
+  case "$(uname -s)" in
+    Darwin)
+      os_name=Darwin
+      ;;
+    Linux)
+      os_name=Linux
+      ;;
+    CYGWIN_NT*|MINGW*|MSYS_NT*)
+      os_name=Windows
+      ;;
+    *)
+      echo "Error: unsupported OS for act: $(uname -s)" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64|amd64)
+      arch_name=x86_64
+      ;;
+    i386|i686|x86)
+      arch_name=i386
+      ;;
+    aarch64|arm64)
+      arch_name=arm64
+      ;;
+    armv6*)
+      arch_name=armv6
+      ;;
+    armv7*)
+      arch_name=armv7
+      ;;
+    *)
+      echo "Error: unsupported architecture for act: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+
+  printf 'act_%s_%s.tar.gz\n' "${os_name}" "${arch_name}"
+}
+
+function install_act()
+{
+  local act_version=${ACT_VERSION:-latest}
+  local archive_name
+  local release_base
+  local tmpdir
+  local expected_sha
+
+  archive_name=$(act_archive_name)
+  if [[ "${act_version}" == latest ]]; then
+    release_base=https://github.com/nektos/act/releases/latest/download
+  else
+    release_base="https://github.com/nektos/act/releases/download/${act_version}"
+  fi
+
+  tmpdir=$(mktemp -d)
+  vendcurl "${release_base}/checksums.txt" "${tmpdir}/checksums.txt"
+  expected_sha=$(release_checksum "${archive_name}" "${tmpdir}/checksums.txt")
+  vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
+  tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
+  install -m 0755 "${tmpdir}/act" "${HOME}/.local/bin/act"
+  rm -rf "${tmpdir}"
+}
+
 MERGIRAF_VERSION=${MERGIRAF_VERSION:-0.16.3}
 DIFFTASTIC_VERSION=${DIFFTASTIC_VERSION:-0.68.0}
 LETA_VERSION=${LETA_VERSION:-0.13.0}
@@ -30,9 +115,9 @@ ACTION_VALIDATOR_VERSION=${ACTION_VALIDATOR_VERSION:-0.9.0}
 VK_VERSION=${VK_VERSION:-0.5.0}
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
-curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL \
+vendcurl \
   "https://github.com/leynos/vk/releases/download/v${VK_VERSION}/vk" \
-  -o vk
+  vk
 chmod 755 vk
 popd || exit
 
@@ -56,9 +141,9 @@ leta workspace add .
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
 CHECKMAKE_VERSION=${CHECKMAKE_VERSION:-0.2.2}
-curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL \
+vendcurl \
   "https://github.com/checkmake/checkmake/releases/download/${CHECKMAKE_VERSION}/checkmake-${CHECKMAKE_VERSION}.linux.amd64" \
-  -o checkmake
+  checkmake
 chmod 755 checkmake
 popd || exit
 
@@ -74,9 +159,7 @@ __EOF
   echo "* merge=mergiraf" >> "${HOME}/.config/git/attributes"
 fi
 
-pushd "${HOME}/.local" || exit
-curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | $SUDO bash
-popd || exit
+install_act
 
 cargo binstall --no-confirm "action-validator@${ACTION_VALIDATOR_VERSION}"
 
