@@ -132,7 +132,8 @@ The discovery pass identified the following scoped GitHub download sites.
   there are no remaining GitHub-backed `curl` or `wget` invocations in scope.
 - [x] 2026-04-22T14:10:54+01:00: Ran sequential validation with tee logs and
   confirmed every gate passed.
-- [ ] Commit the change.
+- [x] 2026-04-22T14:10:54+01:00: Committed the change and pushed the branch to
+  `origin/adopt-vendcurl`.
 
 ## Surprises & Discoveries
 
