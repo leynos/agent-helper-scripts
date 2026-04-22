@@ -11,6 +11,116 @@ if [[ -f "${HOME}/.local/bin/env" ]]; then
   source "${HOME}/.local/bin/env"
 fi
 
+function tflint_platform()
+{
+  local machine_arch
+  local os_name
+
+  case "$(uname -m)" in
+    i386|i686)
+      machine_arch=386
+      ;;
+    x86_64)
+      machine_arch=amd64
+      ;;
+    arm64|aarch64)
+      machine_arch=arm64
+      ;;
+    *)
+      echo "Error: unsupported architecture for tflint: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$(uname -s)" in
+    Darwin*)
+      os_name=darwin_${machine_arch}
+      ;;
+    MINGW64*|MSYS_NT*)
+      os_name=windows_${machine_arch}
+      ;;
+    *)
+      os_name=linux_${machine_arch}
+      ;;
+  esac
+
+  printf '%s\n' "${os_name}"
+}
+
+function install_tflint()
+{
+  local tflint_version=${TFLINT_VERSION:-latest}
+  local platform
+  local release_url
+  local tmpdir
+  local archive_path
+  local dest
+
+  platform=$(tflint_platform)
+  tmpdir=$(mktemp -d)
+  archive_path="${tmpdir}/tflint_${platform}.zip"
+
+  if [[ "${tflint_version}" == latest ]]; then
+    release_url="https://github.com/terraform-linters/tflint/releases/latest/download/tflint_${platform}.zip"
+  else
+    release_url="https://github.com/terraform-linters/tflint/releases/download/${tflint_version}/tflint_${platform}.zip"
+  fi
+
+  vendcurl "${release_url}" "${archive_path}"
+  unzip -o "${archive_path}" -d "${tmpdir}"
+
+  dest="${TFLINT_INSTALL_PATH:-/usr/local/bin}"
+  if [[ -w "${dest}" ]]; then
+    INSTALL_SUDO=
+  else
+    INSTALL_SUDO=${SUDO}
+  fi
+
+  $INSTALL_SUDO mkdir -p "${dest}"
+  $INSTALL_SUDO install -c -v "${tmpdir}/tflint" "${dest}/"
+  "${dest}/tflint" -v
+  rm -rf "${tmpdir}"
+}
+
+function install_conftest()
+{
+  local conftest_version
+  local tmpdir
+  local metadata_path
+  local archive_name
+  local system_name
+  local arch_name
+
+  conftest_version=${CONFTEST_VERSION:-latest}
+  tmpdir=$(mktemp -d)
+  metadata_path="${tmpdir}/conftest-release.json"
+
+  if [[ "${conftest_version}" == latest ]]; then
+    vendcurl --validator none \
+      "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" \
+      "${metadata_path}"
+    conftest_version=$(
+      sed -n 's/.*"tag_name":[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' "${metadata_path}" \
+        | head -n 1
+    )
+    if [[ -z "${conftest_version}" ]]; then
+      echo "Error: unable to resolve latest conftest version" >&2
+      exit 1
+    fi
+  fi
+
+  system_name=$(uname -s)
+  arch_name=$(uname -m)
+  archive_name="conftest_${conftest_version}_${system_name}_${arch_name}.tar.gz"
+  vendcurl \
+    "https://github.com/open-policy-agent/conftest/releases/download/v${conftest_version}/${archive_name}" \
+    "${tmpdir}/${archive_name}"
+  tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
+  mkdir -p "${HOME}/.local/bin"
+  install -m 0755 "${tmpdir}/conftest" "${HOME}/.local/bin/conftest"
+  rm -rf "${tmpdir}"
+}
+
 pushd ~ || exit
 curl --no-progress-meter --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
 
@@ -26,17 +136,11 @@ $SUDO ./install-opentofu.sh --install-method deb
 rm -f install-opentofu.sh
 popd || exit
 
-curl --no-progress-meter https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+install_tflint
 
 mkdir -p ~/git
 pushd ~/git || exit
-LATEST_VERSION=$(wget -O - "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | cut -c 2-)
-ARCH=$(arch)
-SYSTEM=$(uname)
-wget "https://github.com/open-policy-agent/conftest/releases/download/v${LATEST_VERSION}/conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
-tar xzf "conftest_${LATEST_VERSION}_${SYSTEM}_${ARCH}.tar.gz"
-mkdir -p "$HOME/.local/bin/"
-mv conftest "$HOME/.local/bin/"
+install_conftest
 popd || exit
 
 uv tool install checkov

@@ -1,7 +1,74 @@
 #!/usr/bin/env bash
 
 # Tool for exchanging context packs with sub-agents
-curl --no-progress-meter -fsSL https://raw.githubusercontent.com/AmirTlinov/context_pack/main/scripts/install.sh | bash
+
+function install_context_pack()
+{
+  local context_pack_repo=${CONTEXT_PACK_REPO:-AmirTlinov/context_pack}
+  local context_pack_version=${CONTEXT_PACK_VERSION:-latest}
+  local install_dir=${CONTEXT_PACK_INSTALL_DIR:-${HOME}/.local/bin}
+  local binary_name=mcp-context-pack
+  local os_name
+  local arch_name
+  local target
+  local archive_name
+  local checksum_name=checksums.sha256
+  local release_base
+  local tmpdir
+  local expected_sha
+
+  case "$(uname -s)" in
+    Linux)
+      os_name=unknown-linux-gnu
+      ;;
+    Darwin)
+      os_name=apple-darwin
+      ;;
+    *)
+      echo "Error: unsupported OS for context_pack: $(uname -s)" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64|amd64)
+      arch_name=x86_64
+      ;;
+    aarch64|arm64)
+      arch_name=aarch64
+      ;;
+    *)
+      echo "Error: unsupported architecture for context_pack: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+
+  target="${arch_name}-${os_name}"
+  archive_name="${binary_name}-${target}.tar.gz"
+
+  if [[ "${context_pack_version}" == latest ]]; then
+    release_base="https://github.com/${context_pack_repo}/releases/latest/download"
+  else
+    release_base="https://github.com/${context_pack_repo}/releases/download/${context_pack_version}"
+  fi
+
+  tmpdir=$(mktemp -d)
+  vendcurl "${release_base}/${checksum_name}" "${tmpdir}/${checksum_name}"
+
+  expected_sha=$(awk -v archive_name="${archive_name}" '$2 == archive_name { print $1; exit }' "${tmpdir}/${checksum_name}")
+  if [[ -z "${expected_sha}" ]]; then
+    echo "Error: checksum for ${archive_name} not found in ${checksum_name}" >&2
+    exit 1
+  fi
+
+  vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
+  tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
+  mkdir -p "${install_dir}"
+  install -m 0755 "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
+  rm -rf "${tmpdir}"
+}
+
+install_context_pack
 
 mkdir -p ~/.codex
 
