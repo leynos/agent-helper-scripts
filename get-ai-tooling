@@ -7,7 +7,8 @@
 
 mkdir -p "${HOME}/git"
 pushd "${HOME}/git" || exit
-curl --no-progress-meter -LO https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz
+vendcurl https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz
 tar -xzf vidaimock-linux-x64.tar.gz
+mkdir -p "${HOME}/.local/bin"
 cp vidaimock/vidaimock "${HOME}/.local/bin"
 popd || exit
