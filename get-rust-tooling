@@ -79,7 +79,15 @@ KANI_VERIFIER_VERSION=${KANI_VERIFIER_VERSION:-0.67.0}
 if ! which rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
-curl --no-progress-meter -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+if [[ -n "${VENDCURL_BUCKET:-}" ]]; then
+  pushd "${HOME}/git"
+  vendcurl https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
+  tar xvzf cargo-binstall-x86_64-unknown-linux-musl.tgz
+  ./cargo-binstall --self-install || ./cargo-binstall -y --force cargo-binstall
+  popd
+else
+  curl --no-progress-meter -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+fi
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then

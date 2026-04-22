@@ -323,6 +323,8 @@ if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
 fi
 
+uv tool install "vendcurl==${VENDCURL_VERSION:-0.1.0}"
+
 tools=(
   get-rust-tooling
   rust-setup
