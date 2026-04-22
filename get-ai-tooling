@@ -11,4 +11,5 @@ vendcurl https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock
 tar -xzf vidaimock-linux-x64.tar.gz
 mkdir -p "${HOME}/.local/bin"
 cp vidaimock/vidaimock "${HOME}/.local/bin"
+rm -f vidaimock-linux-x64.tar.gz
 popd || exit
