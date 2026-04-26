@@ -741,6 +741,151 @@ def test_install_sub_agents_preserves_randomized_nonlegacy_candidates(
     )
 
 
+def test_install_sub_agents_handles_duplicate_features_sections(
+    tmp_path: Path,
+) -> None:
+    """Legacy cleanup preserves duplicate non-legacy features sections."""
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    complete_features = """[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+"""
+    partial_features = """[features]
+sqlite = true
+user_owned = true
+"""
+    original_config = f"""{complete_features}
+{partial_features}
+[profiles.default]
+model = "gpt-5.5"
+"""
+    config_path.write_text(original_config)
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    updated_config = config_path.read_text()
+    assert result.exit_code == 0, (
+        "duplicate features sections without a full legacy block should succeed: "
+        f"exit code was {result.exit_code}; stderr was {result.stderr!r}"
+    )
+    assert complete_features.strip() in updated_config, (
+        "complete user features section should survive: "
+        f"config was {updated_config!r}"
+    )
+    assert partial_features.strip() in updated_config, (
+        "partial user features section should survive: "
+        f"config was {updated_config!r}"
+    )
+    user_config = updated_config.split(
+        "### BEGIN agent-helper-scripts sub-agent config",
+        maxsplit=1,
+    )[0]
+    assert user_config.count("[features]") == 2, (
+        "duplicate features sections should not be silently dropped: "
+        f"config was {updated_config!r}"
+    )
+
+
+def test_install_sub_agents_handles_multiple_complete_legacy_blocks(
+    tmp_path: Path,
+) -> None:
+    """Legacy cleanup fails safely when a later complete block is unclosed."""
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    original_config = """[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.wyvern]
+config_file = "agents/wyvern.toml"
+nickname_candidates = [
+  "FirstWyvernNick",
+]
+
+[agents.scribe]
+config_file = "agents/scribe.toml"
+nickname_candidates = [
+  "FirstScribeNick",
+]
+
+[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.wyvern]
+config_file = "agents/wyvern.toml"
+nickname_candidates = [
+  "SecondWyvernNick",
+]
+
+[agents.scribe]
+config_file = "agents/scribe.toml"
+nickname_candidates = [
+  "SecondScribeNick",
+"""
+    config_path.write_text(original_config)
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    rewritten_config = config_path.read_text()
+    assert result.exit_code != 0, (
+        "multiple legacy blocks with an unclosed second block should fail: "
+        f"exit code was {result.exit_code}; stderr was {result.stderr!r}"
+    )
+    assert "legacy Codex config block was not closed" in result.stderr, (
+        "failure should explain the unclosed legacy block: "
+        f"stderr was {result.stderr!r}"
+    )
+    assert rewritten_config == original_config, (
+        "failed cleanup should leave multiple legacy blocks unchanged: "
+        f"expected {original_config!r} but got {rewritten_config!r}"
+    )
+
+
 def test_install_sub_agents_rejects_unclosed_legacy_config_after_scribe_file(
     tmp_path: Path,
 ) -> None:
