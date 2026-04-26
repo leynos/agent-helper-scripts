@@ -122,7 +122,7 @@ scripts reuse the same checkout when these variables are exported.
 Example:
 
 ```bash
-export HELPER_TOOLS_REPO_BRANCH=main
+export HELPER_TOOLS_REPO_BRANCH=my-feature-branch
 export HELPER_TOOLS_REPO_DIR="$HOME/git/agent-helper-scripts"
 bash rust-entrypoint
 ```
@@ -276,7 +276,7 @@ Set `SCCACHE_BUCKET` to install and configure `sccache` for Rust builds.
 These variables customize that installation:
 
 - `CONTEXT_PACK_REPO`
-  - Default: `AmirTlinov/context_pack`
+  - Default: `AmirTlinov/mcp-context-pack`
   - GitHub repository that publishes `mcp-context-pack` releases.
 - `CONTEXT_PACK_VERSION`
   - Default: `latest`
