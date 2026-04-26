@@ -181,7 +181,65 @@ def test_replace_managed_block_rejects_unclosed_sentinel(tmp_path: Path) -> None
     )
 
     assert result.returncode != 0, result.stderr
-    assert "missing its end sentinel" in result.stderr, result.stderr
+    assert "unbalanced sentinels" in result.stderr, result.stderr
+    assert target.read_text() == original, target.read_text()
+
+
+def test_replace_managed_block_rejects_duplicate_blocks(tmp_path: Path) -> None:
+    """replace_managed_block fails without changing duplicate managed blocks."""
+    target = tmp_path / "home" / ".codex" / "config.toml"
+    target.parent.mkdir(parents=True)
+    original = (
+        "before = true\n"
+        "### BEGIN managed marker\n"
+        "old = true\n"
+        "### END managed marker\n"
+        "middle = true\n"
+        "### BEGIN managed marker\n"
+        "older = true\n"
+        "### END managed marker\n"
+        "after = true\n"
+    )
+    target.write_text(original)
+    extracted = source_replace_managed_block()
+    assert extracted, "source_replace_managed_block() returned empty code"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        {extracted}
+        replace_managed_block {str(target)!r} "managed marker" $'new = true'
+        """,
+    )
+
+    assert result.returncode != 0, result.stderr
+    assert "duplicate managed block" in result.stderr, result.stderr
+    assert target.read_text() == original, target.read_text()
+
+
+def test_replace_managed_block_rejects_end_before_begin(tmp_path: Path) -> None:
+    """replace_managed_block fails when an end sentinel precedes its begin."""
+    target = tmp_path / "home" / ".codex" / "config.toml"
+    target.parent.mkdir(parents=True)
+    original = (
+        "before = true\n"
+        "### END managed marker\n"
+        "old = true\n"
+        "### BEGIN managed marker\n"
+        "after = true\n"
+    )
+    target.write_text(original)
+    extracted = source_replace_managed_block()
+    assert extracted, "source_replace_managed_block() returned empty code"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        {extracted}
+        replace_managed_block {str(target)!r} "managed marker" $'new = true'
+        """,
+    )
+
+    assert result.returncode != 0, result.stderr
+    assert "end sentinel appears before begin sentinel" in result.stderr, result.stderr
     assert target.read_text() == original, target.read_text()
 
 
