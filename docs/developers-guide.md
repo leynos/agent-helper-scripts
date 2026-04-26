@@ -276,6 +276,26 @@ clone_or_update_repo \
   "${HELPER_TOOLS_REPO_BRANCH}"
 ```
 
+## Makefile targets
+
+The Makefile provides the standard validation entrypoints used locally and in
+CI:
+
+- `make ci`
+  - Runs `check-fmt`, `lint`, `typecheck`, and `test`.
+- `make lint`
+  - Runs `syntax-check`, `shell-syntax-check`, and
+    `check-home-phase-boundary`.
+- `make shell-syntax-check`
+  - Validates all shell scripts with `bash -n`.
+- `make check-home-phase-boundary`
+  - Rejects APT, `sudo`, and linker mutation patterns in home-phase scripts.
+  - Scans non-comment lines only.
+- `make test-hooks`
+  - Runs the hook-only pytest subset.
+- `make test-entrypoints`
+  - Runs the entrypoint-only pytest subset.
+
 ## Validation expectations
 
 When changing bootstrap behaviour in this repository, replay the usual
