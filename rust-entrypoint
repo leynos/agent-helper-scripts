@@ -9,10 +9,8 @@ if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   set -x
 fi
 
-SCRIPT_DIR=$(
-  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
-)
-
+HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
+HELPER_TOOLS_REPO_BRANCH=${HELPER_TOOLS_REPO_BRANCH:-main}
 RUST_ENTRYPOINT_PHASE=${RUST_ENTRYPOINT_PHASE:-both}
 case "${RUST_ENTRYPOINT_PHASE}" in
   system|home|both)
@@ -22,6 +20,143 @@ case "${RUST_ENTRYPOINT_PHASE}" in
     exit 2
     ;;
 esac
+
+# Purpose:
+#   Resolve the directory containing this wrapper when it was executed from a
+#   file path.
+# Parameters:
+#   None.
+# Returns:
+#   Prints the wrapper directory, or an empty string when the wrapper is being
+#   executed from stdin.
+# Side effects:
+#   Reads BASH_SOURCE.
+function local_script_dir()
+{
+  local source_path=${BASH_SOURCE[0]:-}
+
+  if [[ -z "${source_path}" || ! -e "${source_path}" ]]; then
+    printf ''
+    return 0
+  fi
+
+  cd -- "$(dirname -- "${source_path}")" && pwd
+}
+
+# Purpose:
+#   Build the raw GitHub content URL for fetching delegate scripts.
+# Parameters:
+#   None.
+# Returns:
+#   Prints a raw content base URL.
+# Side effects:
+#   Reads helper repository environment variables.
+function raw_content_base_url()
+{
+  local repo_path
+  local repo_url=${HELPER_TOOLS_REPO_URL%.git}
+
+  if [[ -n "${BOOTSTRAP_RAW_BASE_URL:-}" ]]; then
+    printf '%s\n' "${BOOTSTRAP_RAW_BASE_URL%/}"
+    return 0
+  fi
+
+  case "${repo_url}" in
+    https://github.com/*/*)
+      repo_path=${repo_url#https://github.com/}
+      ;;
+    git@github.com:*/*)
+      repo_path=${repo_url#git@github.com:}
+      ;;
+    *)
+      printf 'Error: cannot derive raw content URL from HELPER_TOOLS_REPO_URL=%s\n' \
+        "${HELPER_TOOLS_REPO_URL}" >&2
+      printf 'Set BOOTSTRAP_RAW_BASE_URL to the raw helper script directory.\n' >&2
+      exit 1
+      ;;
+  esac
+
+  printf 'https://raw.githubusercontent.com/%s/refs/heads/%s\n' \
+    "${repo_path}" \
+    "${HELPER_TOOLS_REPO_BRANCH}"
+}
+
+# Purpose:
+#   Download split bootstrap delegate scripts into a temporary directory.
+# Parameters:
+#   None.
+# Returns:
+#   0 when delegate scripts are downloaded.
+# Side effects:
+#   Downloads files with curl, creates a temporary directory, and registers
+#   cleanup on process exit. Sets SCRIPT_DIR to the temporary directory.
+function fetch_delegate_scripts()
+{
+  local file
+  local raw_base_url
+  local tmpdir
+
+  if ! command -v curl >/dev/null 2>&1; then
+    printf 'Error: curl is required to fetch split bootstrap entrypoints.\n' >&2
+    exit 1
+  fi
+
+  raw_base_url=$(raw_content_base_url)
+  tmpdir=$(mktemp -d)
+  FETCHED_DELEGATE_DIR=${tmpdir}
+  export FETCHED_DELEGATE_DIR
+  trap 'rm -rf -- "${FETCHED_DELEGATE_DIR:-}"' EXIT
+
+  for file in bootstrap-adapters bootstrap-common rust-entrypoint-system rust-entrypoint-home; do
+    curl --no-progress-meter -fsSL "${raw_base_url}/${file}" -o "${tmpdir}/${file}"
+  done
+  chmod +x "${tmpdir}/rust-entrypoint-system" "${tmpdir}/rust-entrypoint-home"
+
+  SCRIPT_DIR=${tmpdir}
+}
+
+# Purpose:
+#   Resolve a directory containing the split bootstrap delegate scripts.
+# Parameters:
+#   None.
+# Returns:
+#   0 when SCRIPT_DIR points at usable delegate scripts.
+# Side effects:
+#   May download delegate scripts when local files are not available. Sets
+#   SCRIPT_DIR.
+function resolve_delegate_dir()
+{
+  local candidate_dir
+  local has_required_delegates=false
+
+  candidate_dir=$(local_script_dir)
+  case "${RUST_ENTRYPOINT_PHASE}" in
+    system)
+      [[ -n "${candidate_dir}" && -f "${candidate_dir}/rust-entrypoint-system" ]] \
+        && has_required_delegates=true
+      ;;
+    home)
+      [[ -n "${candidate_dir}" && -f "${candidate_dir}/rust-entrypoint-home" ]] \
+        && has_required_delegates=true
+      ;;
+    both)
+      [[ -n "${candidate_dir}" ]] \
+        && [[ -f "${candidate_dir}/rust-entrypoint-system" ]] \
+        && [[ -f "${candidate_dir}/rust-entrypoint-home" ]] \
+        && has_required_delegates=true
+      ;;
+  esac
+
+  if "${has_required_delegates}"; then
+    SCRIPT_DIR=${candidate_dir}
+    return 0
+  fi
+
+  fetch_delegate_scripts
+}
+
+SCRIPT_DIR=
+resolve_delegate_dir
 
 case "${RUST_ENTRYPOINT_PHASE}" in
   system)

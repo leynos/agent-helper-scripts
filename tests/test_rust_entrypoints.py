@@ -305,6 +305,70 @@ def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
     )
 
 
+def test_rust_entrypoint_fetches_delegates_when_run_from_stdin(tmp_path: Path) -> None:
+    """The wrapper fetches split delegates when executed without local files."""
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+    bin_dir = tmp_path / "bin"
+    run_log = tmp_path / "run.log"
+    bin_dir.mkdir()
+    write_script(
+        bin_dir / "curl",
+        r'''
+output_path=
+requested_url=
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      output_path=$2
+      shift 2
+      ;;
+    https://*)
+      requested_url=$1
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+requested_name=${requested_url##*/}
+case "${requested_name}" in
+  rust-entrypoint-system)
+    printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" system >> "${RUN_LOG:?}"\n' > "${output_path}"
+    ;;
+  rust-entrypoint-home)
+    printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" home >> "${RUN_LOG:?}"\n' > "${output_path}"
+    ;;
+  *)
+    printf '#!/usr/bin/env bash\n' > "${output_path}"
+    ;;
+esac
+''',
+    )
+
+    result = run_bash(
+        "-c",
+        '"${BASH_FOR_STDIN:?}" -s < rust-entrypoint',
+        cwd=tmp_path,
+        env={
+            "BASH_FOR_STDIN": BASH_PATH.as_posix(),
+            "BOOTSTRAP_RAW_BASE_URL": "https://example.invalid/bootstrap",
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "RUN_LOG": run_log.as_posix(),
+        },
+    )
+
+    assert result.exit_code == 0, (
+        "stdin wrapper dispatch should succeed after fetching delegates: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    actual_lines = run_log.read_text().splitlines()
+    assert actual_lines == ["system", "home"], (
+        "stdin wrapper should run fetched delegates in both-phase order: "
+        f"expected ['system', 'home'] but got {actual_lines!r}"
+    )
+
+
 def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
     """The wrapper rejects unsupported RUST_ENTRYPOINT_PHASE values."""
     copy_entrypoint_files(tmp_path, "rust-entrypoint")
