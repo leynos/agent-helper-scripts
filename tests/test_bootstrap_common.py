@@ -121,6 +121,24 @@ def test_append_block_if_missing_is_safe_under_concurrent_access(
     assert target.read_text().count(block) == 1, target.read_text()
 
 
+def test_fs_atomic_write_creates_temp_in_destination_directory(tmp_path: Path) -> None:
+    """fs_atomic_write must use a temp file beside the destination."""
+    dest_dir = tmp_path / "dest"
+    dest_dir.mkdir()
+    dest = dest_dir / "target.txt"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        printf 'hello' | fs_atomic_write {shlex.quote(str(dest))}
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert dest.read_text() == "hello"
+    remaining = [path for path in dest_dir.iterdir() if path != dest]
+    assert remaining == [], f"Stray temp files left: {remaining}"
+
+
 def test_ensure_profile_path_is_idempotent(tmp_path: Path) -> None:
     """ensure_profile_path writes one PATH export block to ~/.bashrc."""
     tool_dir = tmp_path / "home" / ".local" / "bin"
@@ -338,6 +356,62 @@ def test_ensure_top_level_toml_setting_ignores_table_keys(
     contents = target.read_text()
     assert contents.startswith("suppress_unstable_features_warning = true\n"), contents
     assert "[features]\nsuppress_unstable_features_warning = false" in contents, contents
+
+
+def test_ensure_top_level_toml_setting_ignores_key_inside_table(
+    tmp_path: Path,
+) -> None:
+    """A key nested under a TOML section must not be treated as top-level."""
+    toml = tmp_path / "config.toml"
+    toml.write_text("[features]\nsuppress_unstable_features_warning = false\n")
+    extracted = source_ensure_top_level_toml_setting()
+    assert extracted, "source_ensure_top_level_toml_setting() returned empty code"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        {extracted}
+        ensure_top_level_toml_setting {shlex.quote(str(toml))} suppress_unstable_features_warning true
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    content = toml.read_text()
+    assert content.startswith("suppress_unstable_features_warning = true"), content
+    assert "[features]\nsuppress_unstable_features_warning = false" in content, content
+
+
+def test_ensure_top_level_toml_setting_is_safe_under_concurrent_access(
+    tmp_path: Path,
+) -> None:
+    """Concurrent calls must not produce duplicate top-level keys."""
+    import concurrent.futures
+
+    toml = tmp_path / "config.toml"
+    toml.write_text("")
+    extracted = source_ensure_top_level_toml_setting()
+    assert extracted, "source_ensure_top_level_toml_setting() returned empty code"
+
+    def call(worker_id: int) -> subprocess.CompletedProcess[str]:
+        worker_path = tmp_path / f"toml-worker-{worker_id}"
+        worker_path.mkdir()
+        return run_bootstrap_script(
+            worker_path,
+            f"""
+            {extracted}
+            ensure_top_level_toml_setting {shlex.quote(str(toml))} my_key true
+            """,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(call, range(8)))
+
+    assert all(result.returncode == 0 for result in results), [
+        result.stderr for result in results
+    ]
+    lines = [
+        line for line in toml.read_text().splitlines() if line.startswith("my_key")
+    ]
+    assert len(lines) == 1, f"Expected exactly one my_key line, got: {lines}"
 
 
 @pytest.mark.parametrize(

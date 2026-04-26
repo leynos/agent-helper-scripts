@@ -124,12 +124,17 @@ function ensure_top_level_toml_setting()
 {
   local file=$1
   local key=$2
+  local lock_file
   local value=$3
   local tmp
 
-  tmp=$(mktemp)
+  mkdir -p "$(dirname -- "${file}")"
+  lock_file="${file}.lock"
+  (
+    flock -x 9
+    tmp=$(mktemp "$(dirname -- "${file}")/.tmp.$(basename -- "${file}").XXXXXX")
 
-  if [[ -f "${file}" ]] && awk -v key="${key}" '
+    if [[ -f "${file}" ]] && awk -v key="${key}" '
     {
       if ($0 ~ /^[[:space:]]*\[/) {
         in_table=1
@@ -146,7 +151,7 @@ function ensure_top_level_toml_setting()
     }
     END { exit found ? 0 : 1 }
   ' "${file}"; then
-    awk -v key="${key}" -v value="${value}" '
+      awk -v key="${key}" -v value="${value}" '
       function matches_key(line,    parts, candidate) {
         if (in_table) {
           return 0
@@ -172,14 +177,15 @@ function ensure_top_level_toml_setting()
         print
       }
     ' "${file}" > "${tmp}"
-  elif [[ -f "${file}" ]]; then
-    printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
-    cat "${file}" >> "${tmp}"
-  else
-    printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
-  fi
+    elif [[ -f "${file}" ]]; then
+      printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+      cat "${file}" >> "${tmp}"
+    else
+      printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+    fi
 
-  mv "${tmp}" "${file}"
+    mv "${tmp}" "${file}"
+  ) 9>"${lock_file}"
 }
 
 # Purpose:
