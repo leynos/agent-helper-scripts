@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Iterable
 
 from cmd_mox import CmdMox, skip_if_unsupported
 from cmd_mox.ipc import Invocation
@@ -633,7 +632,7 @@ nickname_candidates = [
 
 
 def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:
-    """Simulate HOME-phase git version and worktree checks."""
+    """Stub git for home-phase tests: handles version and rev-parse."""
     if invocation.args == ["version"]:
         return ("git version 2.45.0\n", "", 0)
     if "rev-parse" in invocation.args:
@@ -642,7 +641,7 @@ def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:
 
 
 def git_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
-    """Simulate system-phase git calls and log clone destinations."""
+    """Stub git for system-phase tests: logs invocations and handles clone."""
     if invocation.args == ["version"]:
         return ("git version 2.45.0\n", "", 0)
     if invocation.args and invocation.args[0] == "clone":
@@ -655,7 +654,7 @@ def git_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str,
 
 
 def log_invocation(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
-    """Append the invoked command to run_log and report success."""
+    """Record a command invocation to run_log and return success."""
     argv = " ".join([invocation.command, *invocation.args])
     with run_log.open("a") as handle:
         handle.write(f"{argv}\n")
@@ -663,7 +662,7 @@ def log_invocation(invocation: Invocation, run_log: Path) -> tuple[str, str, int
 
 
 def vendcurl_context_pack_handler(invocation: Invocation) -> tuple[str, str, int]:
-    """Write mock context-pack checksum or archive files."""
+    """Stub vendcurl to write a fake context-pack archive to the destination."""
     destination = Path(invocation.args[-1])
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.name == "checksums.sha256":
@@ -676,13 +675,13 @@ def vendcurl_context_pack_handler(invocation: Invocation) -> tuple[str, str, int
 
 
 def tar_context_pack_handler(invocation: Invocation) -> tuple[str, str, int]:
-    """Create a mock context-pack binary in the requested output directory."""
+    """Stub tar to unpack a fake mcp-context-pack into the -C directory."""
     output_dir = Path(invocation.args[invocation.args.index("-C") + 1])
     (output_dir / "mcp-context-pack").write_text("mock context pack")
     return ("", "", 0)
 
 
-def forbidden_invocations(journal: Iterable[Invocation]) -> list[Invocation]:
+def forbidden_invocations(journal: list[Invocation]) -> list[Invocation]:
     forbidden = {
         "apt-get",
         "apt-update-if-stale",
