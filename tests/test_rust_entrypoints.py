@@ -245,6 +245,7 @@ def create_system_helper_checkout(path: Path) -> None:
 
 
 def test_rust_entrypoint_dispatches_selected_phase(tmp_path: Path) -> None:
+    """The wrapper dispatches only the explicitly selected phase."""
     copy_entrypoint_files(tmp_path, "rust-entrypoint")
     run_log = tmp_path / "run.log"
     write_script(
@@ -274,6 +275,7 @@ def test_rust_entrypoint_dispatches_selected_phase(tmp_path: Path) -> None:
 
 
 def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
+    """The wrapper defaults to running system phase before home phase."""
     copy_entrypoint_files(tmp_path, "rust-entrypoint")
     run_log = tmp_path / "run.log"
     write_script(
@@ -303,6 +305,7 @@ def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
 
 
 def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
+    """The wrapper rejects unsupported RUST_ENTRYPOINT_PHASE values."""
     copy_entrypoint_files(tmp_path, "rust-entrypoint")
 
     result = run_bash(
@@ -383,6 +386,7 @@ def test_rust_entrypoint_does_not_trace_by_default(tmp_path: Path) -> None:
 
 
 def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path) -> None:
+    """Home phase runs helper scripts without invoking system commands."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-home")
     home = tmp_path / "home"
     helper_checkout = tmp_path / "helpers"
@@ -446,6 +450,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
 def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     tmp_path: Path,
 ) -> None:
+    """System phase uses a temporary checkout and installs package metadata."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-system")
     home = tmp_path / "home"
     run_log = tmp_path / "run.log"
@@ -530,6 +535,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
 def test_install_sub_agents_preserves_user_config_before_legacy_block(
     tmp_path: Path,
 ) -> None:
+    """install-sub-agents removes only the legacy block from Codex config."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
@@ -628,6 +634,7 @@ approval_policy = "never"
 def test_install_sub_agents_rejects_unclosed_legacy_config_block(
     tmp_path: Path,
 ) -> None:
+    """install-sub-agents preserves config when legacy cleanup cannot close."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
@@ -854,6 +861,7 @@ def tar_context_pack_handler(invocation: Invocation) -> tuple[str, str, int]:
 
 
 def forbidden_invocations(journal: list[Invocation]) -> list[Invocation]:
+    """Return command invocations that violate the home-phase boundary."""
     forbidden = {
         "apt-get",
         "apt-update-if-stale",
