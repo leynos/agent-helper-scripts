@@ -17,6 +17,15 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
     . "${HOME}/.cargo/env"
 fi
 
+# Purpose:
+#   Extract the expected checksum for a release artifact.
+# Parameters:
+#   $1 - Artifact filename to look up.
+#   $2 - Checksum file path.
+# Returns:
+#   Prints the checksum to stdout.
+# Side effects:
+#   Reads the checksum file and exits if the artifact is missing.
 function release_checksum()
 {
   local artifact_name=$1
@@ -32,6 +41,14 @@ function release_checksum()
   printf '%s\n' "${expected_sha}"
 }
 
+# Purpose:
+#   Resolve the act release archive name for the current OS and architecture.
+# Parameters:
+#   None.
+# Returns:
+#   Prints the archive filename to stdout.
+# Side effects:
+#   Runs uname and exits on unsupported platforms.
 function act_archive_name()
 {
   local os_name
@@ -78,6 +95,15 @@ function act_archive_name()
   printf 'act_%s_%s.tar.gz\n' "${os_name}" "${arch_name}"
 }
 
+# Purpose:
+#   Download, verify, and install the GitHub Actions act binary.
+# Parameters:
+#   None; reads ACT_VERSION from the environment.
+# Returns:
+#   0 when act is installed.
+# Side effects:
+#   Downloads checksums and an archive with vendcurl, extracts the archive, and
+#   writes ~/.local/bin/act.
 function install_act()
 {
   local act_version=${ACT_VERSION:-latest}

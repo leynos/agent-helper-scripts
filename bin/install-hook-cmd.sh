@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-# install-hook-cmd.sh
-#
-# Insert a "command" hook into ~/.claude/settings.json for the given hook type.
-# Idempotent: if the exact command already exists under that hook type, no change.
-#
-# Usage:
-#   ./install-hook-cmd.sh <HookType> <command...>
-#   ./install-hook-cmd.sh <HookType> --timeout <seconds> <command...>
-#
-# Examples:
-#   ./install-hook-cmd.sh Stop python3 ~/.claude/hooks/post-turn-quality-stop-hook.py
-#   ./install-hook-cmd.sh Stop --timeout 600 python3 ~/.claude/hooks/post-turn-quality-stop-hook.py
-#   ./install-hook-cmd.sh PreToolUse --timeout 30 bash -lc 'echo hello'
+# Insert a command hook into ~/.claude/settings.json for the requested hook
+# type. The script stores the remaining argv as a shell-escaped command string
+# and leaves existing identical command hooks unchanged.
+
+set -euo pipefail
 
 SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
 SETTINGS_DIR="$(dirname "$SETTINGS_FILE")"
 
+# Purpose:
+#   Print command usage and terminate with an argument error.
+# Parameters:
+#   None.
+# Returns:
+#   Does not return; exits with status 2.
+# Side effects:
+#   Writes usage text to stderr.
 usage() {
   cat >&2 <<'EOF'
 Usage:
@@ -72,6 +71,14 @@ if [[ ! -s "$SETTINGS_FILE" ]]; then
 fi
 
 tmp="$(mktemp "${SETTINGS_DIR}/settings.json.XXXXXX")"
+# Purpose:
+#   Remove the temporary settings file used for atomic replacement.
+# Parameters:
+#   None.
+# Returns:
+#   0 after attempting to remove the temporary file.
+# Side effects:
+#   Removes the file referenced by tmp when it exists.
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT
 

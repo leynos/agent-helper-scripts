@@ -6,6 +6,16 @@
 
 set -euo pipefail
 
+# Purpose:
+#   Install the context_pack binary from a GitHub release.
+# Parameters:
+#   None; reads CONTEXT_PACK_REPO, CONTEXT_PACK_VERSION, and
+#   CONTEXT_PACK_INSTALL_DIR from the environment.
+# Returns:
+#   0 when the binary is downloaded, verified, extracted, and installed.
+# Side effects:
+#   Downloads release files, creates the install directory, and writes the
+#   context_pack binary.
 function install_context_pack()
 {
   local context_pack_repo=${CONTEXT_PACK_REPO:-AmirTlinov/context_pack}
@@ -72,6 +82,16 @@ function install_context_pack()
   rm -rf "${tmpdir}"
 }
 
+# Purpose:
+#   Replace a sentinel-managed block in a file.
+# Parameters:
+#   $1 - File to update.
+#   $2 - Marker name used in BEGIN/END sentinels.
+#   $3 - Block content to place between sentinels.
+# Returns:
+#   0 when the file has been rewritten with the managed block.
+# Side effects:
+#   Creates a temporary file and replaces the target file.
 function replace_managed_block()
 {
   local file=$1
@@ -109,6 +129,16 @@ function replace_managed_block()
   mv "${tmp}" "${file}"
 }
 
+# Purpose:
+#   Ensure a top-level TOML key has one configured value.
+# Parameters:
+#   $1 - TOML file to update.
+#   $2 - Key name to write.
+#   $3 - TOML value to assign.
+# Returns:
+#   0 when the key exists exactly once with the requested value.
+# Side effects:
+#   Creates a temporary file and replaces the target file.
 function ensure_top_level_toml_setting()
 {
   local file=$1
@@ -142,6 +172,14 @@ function ensure_top_level_toml_setting()
   mv "${tmp}" "${file}"
 }
 
+# Purpose:
+#   Remove the old unmanaged Codex sub-agent config block when present.
+# Parameters:
+#   $1 - Codex config TOML file.
+# Returns:
+#   0 when no legacy block exists or it has been removed.
+# Side effects:
+#   May rewrite the config file without the legacy agent block.
 function remove_legacy_codex_config_block()
 {
   local file=$1

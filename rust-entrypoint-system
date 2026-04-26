@@ -14,6 +14,15 @@ SCRIPT_DIR=$(
 # shellcheck source=bootstrap-common
 source "${SCRIPT_DIR}/bootstrap-common"
 
+# Purpose:
+#   Replace stock Ubuntu APT sources with the configured mirror.
+# Parameters:
+#   None.
+# Returns:
+#   0 when source files are written and APT list state is cleared.
+# Side effects:
+#   Reads /etc/os-release, writes /etc/apt/sources.list.d, disables stock
+#   Ubuntu source files, cleans APT state, and removes /var/lib/apt/lists.
 function configure_ubuntu_sources()
 {
   local codename
@@ -47,6 +56,14 @@ EOF
   $SUDO sh -c 'rm -rf /var/lib/apt/lists/*'
 }
 
+# Purpose:
+#   Run the APT update helper from the temporary system helper checkout.
+# Parameters:
+#   $1 - Path to the temporary helper checkout.
+# Returns:
+#   0 when the update helper succeeds.
+# Side effects:
+#   May refresh APT package lists.
 function run_apt_update_if_stale()
 {
   local helper_checkout=$1
@@ -54,6 +71,15 @@ function run_apt_update_if_stale()
   $SUDO bash "${helper_checkout}/apt-update-if-stale"
 }
 
+# Purpose:
+#   Install required system packages in one apt-get transaction.
+# Parameters:
+#   $1 - Path to the temporary helper checkout.
+#   $@ - Package names after the helper checkout argument.
+# Returns:
+#   0 when no packages are requested or installation succeeds.
+# Side effects:
+#   May refresh APT lists and install packages.
 function install_system_packages()
 {
   local helper_checkout=$1
@@ -67,6 +93,15 @@ function install_system_packages()
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- "$@"
 }
 
+# Purpose:
+#   Attempt optional system-package installs without failing the phase.
+# Parameters:
+#   $1 - Path to the temporary helper checkout.
+#   $@ - Package names after the helper checkout argument.
+# Returns:
+#   0 even when an individual package installation fails.
+# Side effects:
+#   May refresh APT lists and install packages.
 function install_best_effort_system_packages()
 {
   local helper_checkout=$1

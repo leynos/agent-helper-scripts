@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Refresh APT package lists only when they are missing or stale.
+# The timestamp lives in system state instead of $HOME so warm-home caches do
+# not suppress updates on fresh system layers.
+
 set -euo pipefail
 
 if [ "$(whoami)" = root ]; then
@@ -12,6 +16,14 @@ stamp=/var/lib/agent-helper-scripts/apt/update-success-epoch
 now=$(date +%s)
 last=$(cat "$stamp" 2>/dev/null || echo 0)
 
+# Purpose:
+#   Detect whether APT currently has package-list files.
+# Parameters:
+#   None.
+# Returns:
+#   0 when at least one APT list entry exists; non-zero otherwise.
+# Side effects:
+#   Reads /var/lib/apt/lists.
 function apt_lists_exist()
 {
   find /var/lib/apt/lists -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .

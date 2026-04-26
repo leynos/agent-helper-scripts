@@ -1,8 +1,22 @@
+#!/usr/bin/env bash
+
+# Prepare an optional per-project Rust pre-build.
+# The script is normally skipped during warm-home cache creation and runs cargo
+# metadata/check only when RUST_PRE_BUILD is enabled.
+
 set -euo pipefail
 
 RUST_PRE_BUILD=${RUST_PRE_BUILD:-0}
 RUST_ANALYZER_PRECHECK=${RUST_ANALYZER_PRECHECK:-0}
 
+# Purpose:
+#   Preload Rust dependency and analysis state for the current project.
+# Parameters:
+#   None.
+# Returns:
+#   0 when cargo metadata, cargo check, and optional rust-analyzer checks pass.
+# Side effects:
+#   Runs cargo in the current workspace and may update Cargo build artifacts.
 perform_rust_pre_build() {
   cargo metadata --format-version=1 >/dev/null
   cargo check --workspace --all-targets

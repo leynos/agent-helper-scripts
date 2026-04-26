@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Wrap rustc with heartbeat logging while preserving the compiler invocation.
+# The script can optionally insert sccache in front of the real compiler when
+# sccache-related environment variables are present, and it cleans up temporary
+# stdin files and background heartbeat processes on exit.
+
 set -euo pipefail
 
 real_compiler="$1"
@@ -16,16 +22,39 @@ status=0
 
 compiler_cmd=()
 compiler_chain_message=""
-sccache_auto_wrapped=0
 
+# Purpose:
+#   Detect whether sccache auto-wrapping should be attempted.
+# Parameters:
+#   None.
+# Returns:
+#   0 when any supported sccache environment variable is set.
+# Side effects:
+#   Reads SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT, and SCCACHE_DIR.
 should_auto_wrap_sccache() {
   [[ -n "${SCCACHE_BUCKET:-}" || -n "${SCCACHE_WEBDAV_ENDPOINT:-}" || -n "${SCCACHE_DIR:-}" ]]
 }
 
+# Purpose:
+#   Return the basename of a compiler path.
+# Parameters:
+#   $1 - Compiler path or command name.
+# Returns:
+#   Prints the basename to stdout.
+# Side effects:
+#   Runs basename.
 compiler_basename() {
   basename -- "$1"
 }
 
+# Purpose:
+#   Interpret common truthy strings.
+# Parameters:
+#   $1 - Value to inspect.
+# Returns:
+#   0 for truthy values; non-zero otherwise.
+# Side effects:
+#   None.
 is_truthy() {
   case "$1" in
     1|true|TRUE|yes|YES|on|ON)
@@ -37,18 +66,34 @@ is_truthy() {
   esac
 }
 
+# Purpose:
+#   Emit verbose diagnostics when verbose mode is enabled.
+# Parameters:
+#   $1 - Message to write.
+# Returns:
+#   0 after checking the verbosity flag.
+# Side effects:
+#   Writes to stderr when RUSTC_HEARTBEAT_VERBOSE is truthy.
 log_verbose() {
   if is_truthy "$verbose"; then
     echo "$1" >&2
   fi
 }
 
+# Purpose:
+#   Build the compiler command, optionally prefixed with sccache.
+# Parameters:
+#   None; reads global compiler and sccache state.
+# Returns:
+#   0 after compiler_cmd and compiler_chain_message are populated.
+# Side effects:
+#   Reads PATH, mutates compiler_cmd, compiler_chain_message, and
+#   sccache_auto_wrapped.
 build_compiler_cmd() {
   if should_auto_wrap_sccache && [[ "$(compiler_basename "$real_compiler")" != "sccache" ]]; then
     if command -v sccache >/dev/null 2>&1; then
       compiler_cmd=("sccache" "$real_compiler")
       compiler_chain_message="[rustc-heartbeat] Auto-wrapping compiler with sccache because SCCACHE_BUCKET, SCCACHE_WEBDAV_ENDPOINT or SCCACHE_DIR is set: ${compiler_cmd[*]}"
-      sccache_auto_wrapped=1
       return 0
     fi
 
@@ -59,10 +104,26 @@ build_compiler_cmd() {
   compiler_chain_message="[rustc-heartbeat] Compiler chain: ${compiler_cmd[*]}"
 }
 
+# Purpose:
+#   Determine whether the active compiler command is sccache.
+# Parameters:
+#   None.
+# Returns:
+#   0 when compiler_cmd starts with sccache; non-zero otherwise.
+# Side effects:
+#   Reads compiler_cmd.
 is_sccache_wrapper() {
   [[ "${#compiler_cmd[@]}" -gt 0 ]] && [[ "$(compiler_basename "${compiler_cmd[0]}")" == "sccache" ]]
 }
 
+# Purpose:
+#   Print sccache statistics when enabled and sccache is active.
+# Parameters:
+#   None.
+# Returns:
+#   0 even if sccache statistics fail.
+# Side effects:
+#   May run sccache --show-stats and write to stderr.
 print_sccache_stats() {
   if [[ "$show_sccache_stats" == "1" ]] && is_sccache_wrapper; then
     {
@@ -72,6 +133,15 @@ print_sccache_stats() {
   fi
 }
 
+# Purpose:
+#   Stop the heartbeat process and remove temporary stdin files.
+# Parameters:
+#   None.
+# Returns:
+#   0 after cleanup attempts.
+# Side effects:
+#   May kill and wait for the ticker process and remove a temporary file.
+# shellcheck disable=SC2329
 cleanup() {
   if [[ -n "$ticker" ]]; then
     kill "$ticker" 2>/dev/null || true
@@ -134,7 +204,7 @@ trap cleanup EXIT INT TERM
 
 if [[ -n "$stdin_file" ]]; then
   args=("$@")
-  args[$((stdin_arg_index - 1))]="$stdin_file"
+  args[stdin_arg_index - 1]="$stdin_file"
   "${compiler_cmd[@]}" "${args[@]}" || status=$?
 else
   "${compiler_cmd[@]}" "$@" || status=$?

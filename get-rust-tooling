@@ -17,6 +17,16 @@ esac
 
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
 
+# Purpose:
+#   Replace a managed block in a file, appending it when absent.
+# Parameters:
+#   $1 - File to update.
+#   $2 - Marker name used in BEGIN/END sentinels.
+#   $3 - Block content to write between sentinels.
+# Returns:
+#   0 when the file has been rewritten with the managed block.
+# Side effects:
+#   Creates a temporary file and replaces the target file.
 function append_block_if_missing()
 {
   local file=$1

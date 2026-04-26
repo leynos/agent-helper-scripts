@@ -16,6 +16,14 @@
 
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
 
+# Purpose:
+#   Install a repository-owned helper binary into ~/.local/bin.
+# Parameters:
+#   $1 - Binary/script name relative to HELPER_TOOLS_REPO_DIR.
+# Returns:
+#   0 when the source exists and installation succeeds.
+# Side effects:
+#   Creates ~/.local/bin and writes an executable helper file.
 function get_bin() {
   local bin_name=$1
   local source_path="${HELPER_TOOLS_REPO_DIR}/${bin_name}"
