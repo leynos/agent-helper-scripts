@@ -103,6 +103,7 @@ def test_append_block_if_missing_is_safe_under_concurrent_access(
     block = "export MY_VAR=1"
 
     def call(worker_id: int) -> subprocess.CompletedProcess[str]:
+        """Invoke append_block_if_missing once in a subprocess worker."""
         worker_path = tmp_path / f"worker-{worker_id}"
         worker_path.mkdir()
         return run_bootstrap_script(
@@ -392,6 +393,7 @@ def test_ensure_top_level_toml_setting_is_safe_under_concurrent_access(
     assert extracted, "source_ensure_top_level_toml_setting() returned empty code"
 
     def call(worker_id: int) -> subprocess.CompletedProcess[str]:
+        """Invoke ensure_top_level_toml_setting once in a subprocess worker."""
         worker_path = tmp_path / f"toml-worker-{worker_id}"
         worker_path.mkdir()
         return run_bootstrap_script(
