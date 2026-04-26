@@ -98,8 +98,8 @@ function git_supports_sparse_checkout_skip_checks()
 # Returns:
 #   0 when the checkout exists and sparse-checkout is configured.
 # Side effects:
-#   Creates parent directories, runs git clone/fetch/reset, and updates the
-#   checkout's sparse-checkout selection.
+#   Creates parent directories, updates the checkout through git adapters, and
+#   refreshes the checkout's sparse-checkout selection.
 function clone_or_update_helper_tools_repo()
 {
   local checkout_dir=${1:-${HELPER_TOOLS_REPO_DIR}}

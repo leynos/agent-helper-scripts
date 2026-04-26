@@ -984,6 +984,11 @@ def sudo_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str
         args = [arg for arg in args[1:] if "=" not in arg]
     command = args[0]
     if command == "bash" and len(args) > 1:
+        if args[1] == "-c" and len(args) > 4 and "fs_install" in args[2]:
+            argv = " ".join(["install", *args[4:]])
+            with run_log.open("a") as handle:
+                handle.write(f"{argv}\n")
+            return ("", "", 0)
         with run_log.open("a") as handle:
             handle.write(f"{Path(args[1]).name}\n")
         return ("", "", 0)
