@@ -27,9 +27,12 @@ function _detect_sudo()
 }
 
 stamp=/var/lib/agent-helper-scripts/apt/update-success-epoch
-now=$(date +%s)
-last=$(cat "$stamp" 2>/dev/null || echo 0)
 sudo_cmd=$(_detect_sudo)
+if [[ -n "${sudo_cmd}" ]]; then
+  lock_file=/tmp/agent-helper-scripts-apt-update.lock
+else
+  lock_file=/var/lib/agent-helper-scripts/apt/update.lock
+fi
 
 # Purpose:
 #   Detect whether APT currently has package-list files.
@@ -62,10 +65,18 @@ function apt_lists_exist()
     2>/dev/null | grep -q .
 }
 
-if apt_lists_exist && [ $((now - last)) -lt 1800 ]; then
-  exit 0
-fi
-
 $sudo_cmd install -d -m 0755 "$(dirname "$stamp")"
-$sudo_cmd apt-get update
-printf '%s\n' "$now" | $sudo_cmd tee "$stamp" >/dev/null
+if [[ -z "${sudo_cmd}" ]]; then
+  $sudo_cmd install -m 0600 /dev/null "${lock_file}"
+fi
+(
+  flock -x 9
+  now=$(date +%s)
+  last=$(cat "$stamp" 2>/dev/null || echo 0)
+  if apt_lists_exist && [ $((now - last)) -lt 1800 ]; then
+    exit 0
+  fi
+
+  $sudo_cmd apt-get update
+  printf '%s\n' "$now" | $sudo_cmd tee "$stamp" >/dev/null
+) 9>"${lock_file}"

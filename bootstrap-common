@@ -186,16 +186,20 @@ function append_block_if_missing()
 {
   local file=$1
   local block=$2
+  local lock_file="${file}.lock"
 
   mkdir -p "$(dirname "${file}")"
   touch "${file}"
-  if [[ $(<"${file}") == *"${block}"* ]]; then
-    return 0
-  fi
-  if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
-    printf '\n' >> "${file}"
-  fi
-  printf '%s\n' "${block}" >> "${file}"
+  (
+    flock -x 9
+    if [[ $(<"${file}") == *"${block}"* ]]; then
+      exit 0
+    fi
+    if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${file}"
+    fi
+    printf '%s\n' "${block}" >> "${file}"
+  ) 9>"${lock_file}"
 }
 
 # Purpose:

@@ -90,6 +90,35 @@ def test_append_block_if_missing_is_idempotent(tmp_path: Path) -> None:
     assert contents.count("### END test block") == 1, contents
 
 
+def test_append_block_if_missing_is_safe_under_concurrent_access(
+    tmp_path: Path,
+) -> None:
+    """Concurrent calls must not produce duplicate blocks."""
+    import concurrent.futures
+
+    target = tmp_path / ".bashrc"
+    target.write_text("")
+    block = "export MY_VAR=1"
+
+    def call(worker_id: int) -> subprocess.CompletedProcess[str]:
+        worker_path = tmp_path / f"worker-{worker_id}"
+        worker_path.mkdir()
+        return run_bootstrap_script(
+            worker_path,
+            f"""
+            append_block_if_missing {shlex.quote(str(target))} {shlex.quote(block)}
+            """,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(call, range(8)))
+
+    assert all(result.returncode == 0 for result in results), [
+        result.stderr for result in results
+    ]
+    assert target.read_text().count(block) == 1, target.read_text()
+
+
 def test_ensure_profile_path_is_idempotent(tmp_path: Path) -> None:
     """ensure_profile_path writes one PATH export block to ~/.bashrc."""
     tool_dir = tmp_path / "home" / ".local" / "bin"
