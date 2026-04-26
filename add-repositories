@@ -61,16 +61,30 @@ function install_if_changed()
 }
 
 # Purpose:
-#   Detect whether APT currently has package-list files.
+#   Detect whether APT currently has package-list index files.
 # Parameters:
 #   None.
 # Returns:
-#   0 when at least one APT list entry exists; non-zero otherwise.
+#   0 when at least one non-empty APT index file exists; non-zero otherwise.
 # Side effects:
 #   Reads /var/lib/apt/lists.
 function apt_lists_exist()
 {
-  find /var/lib/apt/lists -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .
+  find /var/lib/apt/lists \
+    -mindepth 1 \
+    -type f \
+    -size +0c \
+    ! -name lock \
+    ! -path '*/partial/*' \
+    \( \
+      -name '*Packages*' \
+      -o -name '*Sources*' \
+      -o -name '*Release*' \
+      -o -name '*InRelease*' \
+    \) \
+    -print \
+    -quit \
+    2>/dev/null | grep -q .
 }
 
 # Purpose:

@@ -23,6 +23,16 @@ RUST_SKILL_REPO_DIR="${HOME}/git/rust-skill"
 
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+FD_BIN="${FD_BIN:-fd}"
+
+if ! command -v "${FD_BIN}" >/dev/null 2>&1; then
+  if command -v fdfind >/dev/null 2>&1; then
+    FD_BIN=fdfind
+  else
+    echo "Error: fd or fdfind is required but was not found on PATH" >&2
+    exit 1
+  fi
+fi
 
 # Purpose:
 #   Clone or update a skill repository, optionally with a sparse checkout.
@@ -104,8 +114,8 @@ function copy_skills() {
   mkdir -p "${CLAUDE_SKILLS_DIR}"
   
   # Copy skills to both destinations
-  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CODEX_SKILLS_DIR}/"
-  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CLAUDE_SKILLS_DIR}/"
+  "${FD_BIN}" --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CODEX_SKILLS_DIR}/"
+  "${FD_BIN}" --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CLAUDE_SKILLS_DIR}/"
   
   echo "Skills (${skills_src}) installed to:"
   echo "  ${CODEX_SKILLS_DIR}"

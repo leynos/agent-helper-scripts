@@ -87,8 +87,7 @@ log_verbose() {
 # Returns:
 #   0 after compiler_cmd and compiler_chain_message are populated.
 # Side effects:
-#   Reads PATH, mutates compiler_cmd, compiler_chain_message, and
-#   sccache_auto_wrapped.
+#   Reads PATH and mutates compiler_cmd and compiler_chain_message.
 build_compiler_cmd() {
   if should_auto_wrap_sccache && [[ "$(compiler_basename "$real_compiler")" != "sccache" ]]; then
     if command -v sccache >/dev/null 2>&1; then
@@ -125,7 +124,7 @@ is_sccache_wrapper() {
 # Side effects:
 #   May run sccache --show-stats and write to stderr.
 print_sccache_stats() {
-  if [[ "$show_sccache_stats" == "1" ]] && is_sccache_wrapper; then
+  if is_truthy "$show_sccache_stats" && is_sccache_wrapper; then
     {
       echo "[rustc-heartbeat] sccache stats:"
       "${compiler_cmd[0]}" --show-stats
@@ -151,6 +150,8 @@ cleanup() {
     rm -f "$stdin_file"
   fi
 }
+
+trap cleanup EXIT INT TERM
 
 build_compiler_cmd
 
@@ -199,8 +200,6 @@ while True:
     )
 PY
 ticker=$!
-
-trap cleanup EXIT INT TERM
 
 if [[ -n "$stdin_file" ]]; then
   args=("$@")

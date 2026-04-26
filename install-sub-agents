@@ -119,7 +119,16 @@ function replace_managed_block()
       !skip {
         print
       }
-    ' "${file}" > "${tmp}"
+      END {
+        if (skip) {
+          exit 1
+        }
+      }
+    ' "${file}" > "${tmp}" || {
+      rm -f "${tmp}"
+      echo "Error: managed block '${marker}' is missing its end sentinel in ${file}" >&2
+      return 1
+    }
 
     if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
       printf '\n' >> "${tmp}"
