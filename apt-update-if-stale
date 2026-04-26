@@ -46,6 +46,8 @@ function apt_lists_exist()
     -maxdepth 1 \
     -type f \
     -size +0c \
+    ! -name lock \
+    ! -path '*/partial/*' \
     \( \
       -name '*_Packages' \
       -o -name '*_Packages.*' \
