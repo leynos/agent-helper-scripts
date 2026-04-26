@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs TypeScript tooling into the user environment using bun.
 # Installs `@biomejs/biome` and `@typescript/native-preview` globally via bun,
-# and creates a tsgo → tsc symlink under ~/.bin/bin.
+# and creates a tsc -> tsgo symlink under ~/.bin/bin.
 # Requires: bun
 
 if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then

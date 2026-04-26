@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs Python tooling into the user environment using uv.
-# Installs ruff, pyright, ty, pyscn, and basedpyright as uv tools,
-# then ensures ~/.local/bin is on PATH.
+# Ensures ~/.local/bin is on PATH, then installs ruff, pyright, ty, pyscn,
+# and basedpyright as uv tools.
 # Requires: uv
 
 if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
@@ -18,7 +18,7 @@ esac
 
 # Python tooling
 uv tool install ruff
-uv tool install pyright[nodejs]
+uv tool install 'pyright[nodejs]'
 uv tool install ty
 uv tool install pyscn
 uv tool install basedpyright

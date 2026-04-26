@@ -140,10 +140,12 @@ def test_replace_managed_block_replaces_existing_block(tmp_path: Path) -> None:
         "### END managed marker\n"
         "after = true\n",
     )
+    extracted = source_replace_managed_block()
+    assert extracted, "source_replace_managed_block() returned empty code"
     result = run_bootstrap_script(
         tmp_path,
         f"""
-        {source_replace_managed_block()}
+        {extracted}
         replace_managed_block {str(target)!r} "managed marker" $'new = true'
         """,
     )
@@ -168,10 +170,12 @@ def test_replace_managed_block_rejects_unclosed_sentinel(tmp_path: Path) -> None
     target.parent.mkdir(parents=True)
     original = "before = true\n### BEGIN managed marker\nold = true\n"
     target.write_text(original)
+    extracted = source_replace_managed_block()
+    assert extracted, "source_replace_managed_block() returned empty code"
     result = run_bootstrap_script(
         tmp_path,
         f"""
-        {source_replace_managed_block()}
+        {extracted}
         replace_managed_block {str(target)!r} "managed marker" $'new = true'
         """,
     )

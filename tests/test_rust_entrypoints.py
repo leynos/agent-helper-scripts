@@ -138,11 +138,6 @@ def selected_helper_names(*, include_ai: bool = False) -> list[str]:
     list[str]
         Ordered helper names expected to run during the home phase.
 
-    Raises
-    ------
-    None
-        This helper does not perform filesystem or process operations.
-
     Notes
     -----
     The order mirrors ``bootstrap-common`` defaults used by the tests.

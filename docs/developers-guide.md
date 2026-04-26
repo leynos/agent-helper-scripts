@@ -255,13 +255,16 @@ Control-flow summary:
   - Run `fetch origin`.
   - Reset to `origin/HEAD`.
 - Missing checkout with `repo_branch` and `sparse_set`:
-  - Run `git clone --branch ... --single-branch --sparse`.
+  - Run `git clone --branch <branch> --single-branch --depth 1
+    --filter=blob:none --sparse`.
   - Apply sparse-checkout selection.
 - Missing checkout with `repo_branch` only:
-  - Run `git clone --branch ... --single-branch`.
-- Missing checkout with no `repo_branch`:
-  - Shallow-clone the default remote branch.
-  - Apply sparse-checkout selection when `sparse_set` is set.
+  - Run `git clone --branch <branch> --single-branch --depth 1`.
+- Missing checkout with no `repo_branch` and with `sparse_set`:
+  - Run `git clone --depth 1 --filter=blob:none --sparse`.
+  - Apply sparse-checkout selection.
+- Missing checkout with no `repo_branch` and no `sparse_set`:
+  - Run `git clone --depth 1`.
 
 Example:
 
