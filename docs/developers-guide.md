@@ -37,7 +37,7 @@ The phase dispatcher is `rust-entrypoint`. It reads
 
 - `git` is required for the cloning-based helper bootstrap model.
 - The system phase installs `git` automatically when it is missing, using
-  `$SUDO` on non-root machines.
+  `sudo` on non-root machines.
 - If `HELPER_TOOLS_REPO_DIR` already exists and is not a Git checkout, the
   bootstrap treats that as an error and exits rather than deleting the path.
 
@@ -118,8 +118,8 @@ sources before the home phase starts.
 
 Optional system packages such as `kopia`, `glow`, and best-effort Linux tracing
 packages are also installed by `rust-entrypoint-system`. Root execution no
-longer installs `sudo` as a convenience package; the `SUDO` shim is expected to
-cover system-phase helper scripts in that case.
+longer installs `sudo` as a convenience package; system-phase helpers detect
+whether `sudo` is required at their call sites.
 
 ## Configuration patterns
 

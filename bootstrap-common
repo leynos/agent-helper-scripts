@@ -20,11 +20,22 @@ HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_N
 export HELPER_TOOLS_REPO_DIR
 export HELPER_TOOLS_REPO_BRANCH
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
+# Purpose:
+#   Detect the privilege escalation command needed for system mutations.
+# Parameters:
+#   None.
+# Returns:
+#   Prints an empty string when running as root, otherwise prints sudo.
+# Side effects:
+#   Reads the shell EUID value.
+function _detect_sudo()
+{
+  if [[ "${EUID}" -eq 0 ]]; then
+    printf ''
+  else
+    printf 'sudo'
+  fi
+}
 
 # Purpose:
 #   Test whether a command is absent from PATH.
@@ -39,7 +50,7 @@ function needs()
   ! command -v "$1" >/dev/null 2>&1
 }
 
-if needs sudo && [[ -n "${SUDO}" ]]; then
+if needs sudo && [[ -n "$(_detect_sudo)" ]]; then
   echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
   exit 1
 fi

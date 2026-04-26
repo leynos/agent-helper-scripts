@@ -9,15 +9,27 @@ if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   set -x
 fi
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
+# Purpose:
+#   Detect the privilege escalation command needed for APT state changes.
+# Parameters:
+#   None.
+# Returns:
+#   Prints an empty string when running as root, otherwise prints sudo.
+# Side effects:
+#   Reads the shell EUID value.
+function _detect_sudo()
+{
+  if [[ "${EUID}" -eq 0 ]]; then
+    printf ''
+  else
+    printf 'sudo'
+  fi
+}
 
 stamp=/var/lib/agent-helper-scripts/apt/update-success-epoch
 now=$(date +%s)
 last=$(cat "$stamp" 2>/dev/null || echo 0)
+sudo_cmd=$(_detect_sudo)
 
 # Purpose:
 #   Detect whether APT currently has package-list files.
@@ -52,6 +64,6 @@ if apt_lists_exist && [ $((now - last)) -lt 1800 ]; then
   exit 0
 fi
 
-$SUDO install -d -m 0755 "$(dirname "$stamp")"
-$SUDO apt-get update
-printf '%s\n' "$now" | $SUDO tee "$stamp" >/dev/null
+$sudo_cmd install -d -m 0755 "$(dirname "$stamp")"
+$sudo_cmd apt-get update
+printf '%s\n' "$now" | $sudo_cmd tee "$stamp" >/dev/null

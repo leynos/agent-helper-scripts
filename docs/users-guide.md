@@ -299,6 +299,6 @@ is not part of the default `rust-entrypoint` helper list.
   - Exported by the bootstrap so APT does not prompt during unattended setup.
   - Most users should leave this unset.
 
-Internal variables such as `SUDO`, `SELECTED_TOOLS`, `PACKAGE_SCRIPTS`, and
+Internal variables such as `SELECTED_TOOLS`, `PACKAGE_SCRIPTS`, and
 `HELPER_TOOLS_SPARSE_PATHS` are implementation details. They are not stable
 configuration points.

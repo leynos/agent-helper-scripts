@@ -424,8 +424,8 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     home.mkdir()
 
     with CmdMox() as mox:
-        mox.stub("whoami").returns(stdout="root\n")
         mox.stub("git").runs(lambda invocation: git_system_handler(invocation, run_log))
+        mox.stub("sudo").runs(lambda invocation: sudo_system_handler(invocation, run_log))
         mox.stub("install").returns()
         mox.stub("apt-get").runs(lambda invocation: log_invocation(invocation, run_log))
         mox.stub("mv").runs(lambda invocation: log_invocation(invocation, run_log))
@@ -685,6 +685,24 @@ def git_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str,
 def log_invocation(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
     """Record a command invocation to run_log and return success."""
     argv = " ".join([invocation.command, *invocation.args])
+    with run_log.open("a") as handle:
+        handle.write(f"{argv}\n")
+    return ("", "", 0)
+
+
+def sudo_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
+    """Stub sudo by logging the privileged command it would execute."""
+    args = list(invocation.args)
+    if not args:
+        return ("", "", 0)
+    if args[0] == "env":
+        args = [arg for arg in args[1:] if "=" not in arg]
+    command = args[0]
+    if command == "bash" and len(args) > 1:
+        with run_log.open("a") as handle:
+            handle.write(f"{Path(args[1]).name}\n")
+        return ("", "", 0)
+    argv = " ".join([command, *args[1:]])
     with run_log.open("a") as handle:
         handle.write(f"{argv}\n")
     return ("", "", 0)
