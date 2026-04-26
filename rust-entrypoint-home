@@ -92,12 +92,12 @@ EOF
     bootstrap_log "Running helper: ${tool}"
     bash -euo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
   done
+
+  if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+    bootstrap_log "Creating KOPIA snapshot"
+    kopia snapshot create "$CARGO_KOPIA_DEST"
+  fi
 }
 
 run_locked_helper_bootstrap
 flock -u 9
-
-if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  bootstrap_log "Creating KOPIA snapshot"
-  kopia snapshot create "$CARGO_KOPIA_DEST"
-fi

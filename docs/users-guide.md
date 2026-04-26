@@ -122,10 +122,13 @@ scripts reuse the same checkout when these variables are exported.
 Example:
 
 ```bash
-export HELPER_TOOLS_REPO_BRANCH=local-global-split
-export HELPER_TOOLS_REPO_DIR="$HOME/git/agent-helper-scripts-test"
+export HELPER_TOOLS_REPO_BRANCH=main
+export HELPER_TOOLS_REPO_DIR="$HOME/git/agent-helper-scripts"
 bash rust-entrypoint
 ```
+
+Use `main` for the published helper scripts, or replace it with a specific
+helper branch when testing unpublished bootstrap changes.
 
 ## Feature toggles
 
@@ -269,18 +272,18 @@ Set `SCCACHE_BUCKET` to install and configure `sccache` for Rust builds.
 
 ## Sub-agent and context-pack settings
 
-`install-sub-agents` can install `context_pack` into the user environment.
+`install-sub-agents` can install `mcp-context-pack` into the user environment.
 These variables customize that installation:
 
 - `CONTEXT_PACK_REPO`
   - Default: `AmirTlinov/context_pack`
-  - GitHub repository that publishes `context_pack` releases.
+  - GitHub repository that publishes `mcp-context-pack` releases.
 - `CONTEXT_PACK_VERSION`
   - Default: `latest`
   - Release version to install.
 - `CONTEXT_PACK_INSTALL_DIR`
   - Default: `${HOME}/.local/bin`
-  - Directory that receives the `context_pack` binary.
+  - Directory that receives the `mcp-context-pack` binary.
 
 ## OpenTofu helper settings
 

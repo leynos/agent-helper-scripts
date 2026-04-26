@@ -311,9 +311,38 @@ def test_ensure_top_level_toml_setting_treats_key_as_literal(
     assert "suppressXunstable_features_warning = false" in contents, contents
 
 
+def test_ensure_top_level_toml_setting_ignores_table_keys(
+    tmp_path: Path,
+) -> None:
+    """ensure_top_level_toml_setting only replaces top-level TOML keys."""
+    target = tmp_path / "home" / ".codex" / "config.toml"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        "[features]\n"
+        "suppress_unstable_features_warning = false\n"
+        "\n"
+        "[profiles.default]\n"
+        "model = \"gpt-5.4\"\n",
+    )
+    extracted = source_ensure_top_level_toml_setting()
+    assert extracted, "source_ensure_top_level_toml_setting() returned empty code"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        {extracted}
+        ensure_top_level_toml_setting {str(target)!r} suppress_unstable_features_warning true
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    contents = target.read_text()
+    assert contents.startswith("suppress_unstable_features_warning = true\n"), contents
+    assert "[features]\nsuppress_unstable_features_warning = false" in contents, contents
+
+
 @pytest.mark.parametrize(
     ("filename", "content", "expected"),
-    (
+    [
         pytest.param(None, "", "MISSING", id="empty-dir"),
         pytest.param("lock", "locked", "MISSING", id="lock-file"),
         pytest.param(
@@ -329,7 +358,7 @@ def test_ensure_top_level_toml_setting_treats_key_as_literal(
             id="inrelease-index",
         ),
         pytest.param("Packages", "Package: bash\n", "MISSING", id="bare-packages"),
-    ),
+    ],
 )
 def test_apt_lists_exist_matches_only_real_index_files(
     tmp_path: Path,
@@ -408,10 +437,10 @@ def test_needs_reports_missing_commands(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("version", "expected_returncode"),
-    (
+    [
         ("2.38.0", 0),
         ("2.36.0", 1),
-    ),
+    ],
 )
 def test_git_supports_sparse_checkout_skip_checks_detects_version(
     tmp_path: Path,

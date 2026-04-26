@@ -4,6 +4,7 @@
 # The script installs OpenTofu through its upstream installer, downloads tflint
 # and conftest releases with vendcurl, and installs checkov through uv.
 
+set -euo pipefail
 if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   set -x
 fi

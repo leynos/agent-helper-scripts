@@ -43,11 +43,15 @@ if ! declare -F fs_atomic_write >/dev/null 2>&1; then
   function fs_atomic_write()
   {
     local destination=$1
+    local destination_dir
     local tmp
 
-    tmp=$(mktemp)
+    destination_dir=$(dirname -- "${destination}")
+    tmp=$(mktemp "${destination_dir}/.tmp.${destination##*/}.XXXXXX")
+    trap 'rm -f "${tmp}"' RETURN
     cat > "${tmp}"
     mv "${tmp}" "${destination}"
+    trap - RETURN
   }
 fi
 

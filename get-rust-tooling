@@ -43,6 +43,17 @@ CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.133}
 KANI_VERIFIER_VERSION=${KANI_VERIFIER_VERSION:-0.67.0}
 if ! command -v rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if [[ -f "${HOME}/.cargo/env" ]]; then
+    # shellcheck source=/dev/null
+    . "${HOME}/.cargo/env"
+  else
+    export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+  fi
+elif [[ -f "${HOME}/.cargo/env" ]]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/.cargo/env"
+else
+  export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 fi
 
 cargo_binstall_tmp=$(mktemp -d)
