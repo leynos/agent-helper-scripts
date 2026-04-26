@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+# Thin adapter layer for bootstrap side effects.
+# Tests may define any of these functions before sourcing bootstrap-common to
+# intercept side effects without spawning the real command.
+
+if ! declare -F git_clone >/dev/null 2>&1; then
+  function git_clone()
+  {
+    git clone "$@"
+  }
+fi
+
+if ! declare -F git_fetch >/dev/null 2>&1; then
+  function git_fetch()
+  {
+    git fetch "$@"
+  }
+fi
+
+if ! declare -F git_reset >/dev/null 2>&1; then
+  function git_reset()
+  {
+    git reset "$@"
+  }
+fi
+
+if ! declare -F git_sparse_set >/dev/null 2>&1; then
+  function git_sparse_set()
+  {
+    git sparse-checkout set "$@"
+  }
+fi
+
+if ! declare -F fs_install >/dev/null 2>&1; then
+  function fs_install()
+  {
+    install "$@"
+  }
+fi
+
+if ! declare -F fs_atomic_write >/dev/null 2>&1; then
+  function fs_atomic_write()
+  {
+    local destination=$1
+    local tmp
+
+    tmp=$(mktemp)
+    cat > "${tmp}"
+    mv "${tmp}" "${destination}"
+  }
+fi
+
+# Privilege detection is an adapter in spirit. Callers should use _detect_sudo
+# and run the returned command prefix instead of querying EUID directly.
+if ! declare -F _detect_sudo >/dev/null 2>&1; then
+  function _detect_sudo()
+  {
+    if [[ "${EUID}" -eq 0 ]]; then
+      printf ''
+    else
+      printf 'sudo'
+    fi
+  }
+fi

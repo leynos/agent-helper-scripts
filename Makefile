@@ -3,6 +3,7 @@ SHELL := /usr/bin/env
 
 ROOT_SHELL_SCRIPTS := \
 	$(wildcard add-* apt-* get-* install-* rust-*) \
+	bootstrap-adapters \
 	bootstrap-common \
 	markdownlint \
 	mdformat-all \

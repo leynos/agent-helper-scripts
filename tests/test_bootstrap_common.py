@@ -19,6 +19,7 @@ def run_bootstrap_script(
     body: str,
     *,
     env: dict[str, str] | None = None,
+    pre_source: str = "",
 ) -> subprocess.CompletedProcess[str]:
     """Source bootstrap-common in Bash and run body with an isolated HOME."""
     home = tmp_path / "home"
@@ -27,6 +28,7 @@ def run_bootstrap_script(
     script.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
+        f"{textwrap.dedent(pre_source)}\n"
         f"source {shlex.quote(str(REPO_ROOT / 'bootstrap-common'))}\n"
         f"{textwrap.dedent(body)}\n",
     )
@@ -553,6 +555,79 @@ def test_clone_or_update_helper_tools_repo_uses_local_git_remote(
     )
     assert checkout.exists(), f"helper checkout should exist at {checkout}"
     assert (checkout / ".git").exists(), f"helper checkout should contain .git at {checkout}"
+
+
+def test_clone_or_update_helper_tools_repo_uses_adapter_overrides(
+    tmp_path: Path,
+) -> None:
+    """clone_or_update_helper_tools_repo calls overridable git adapters."""
+    run_log = tmp_path / "run.log"
+    checkout = tmp_path / "helper-checkout"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        HELPER_TOOLS_REPO_URL=https://example.invalid/helpers.git
+        HELPER_TOOLS_REPO_BRANCH=test-branch
+        HELPER_TOOLS_REPO_DIR={shlex.quote(str(checkout))}
+        clone_or_update_helper_tools_repo
+        """,
+        env={"RUN_LOG": run_log.as_posix()},
+        pre_source=f"""
+        git_clone() {{
+          printf 'git_clone %s\\n' "$*" >> "{run_log}"
+          mkdir -p "${{@: -1}}/.git"
+        }}
+        git_fetch() {{
+          printf 'git_fetch %s\\n' "$*" >> "{run_log}"
+        }}
+        git_reset() {{
+          printf 'git_reset %s\\n' "$*" >> "{run_log}"
+        }}
+        git_sparse_set() {{
+          printf 'git_sparse_set %s\\n' "$*" >> "{run_log}"
+        }}
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    log_lines = run_log.read_text().splitlines()
+    assert log_lines[0].startswith("git_clone --branch test-branch"), log_lines
+    assert any(line.startswith("git_sparse_set --skip-checks") for line in log_lines), (
+        log_lines
+    )
+    assert not any(line.startswith("git_fetch ") for line in log_lines), log_lines
+    assert not any(line.startswith("git_reset ") for line in log_lines), log_lines
+
+
+def test_install_helper_script_uses_fs_install_adapter_override(
+    tmp_path: Path,
+) -> None:
+    """install_helper_script calls the filesystem adapter for install work."""
+    helper_checkout = tmp_path / "helpers"
+    source = helper_checkout / "mock-helper"
+    destination = tmp_path / "home" / ".local" / "bin" / "mock-helper"
+    run_log = tmp_path / "run.log"
+    helper_checkout.mkdir()
+    source.write_text("#!/usr/bin/env bash\nexit 0\n")
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        HELPER_TOOLS_REPO_DIR={shlex.quote(str(helper_checkout))}
+        install_helper_script mock-helper {shlex.quote(str(destination))}
+        """,
+        env={"RUN_LOG": run_log.as_posix()},
+        pre_source=f"""
+        fs_install() {{
+          printf 'fs_install %s\\n' "$*" >> "{run_log}"
+        }}
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert run_log.read_text().splitlines() == [
+        f"fs_install -d {destination.parent}",
+        f"fs_install -m 0755 {source} {destination}",
+    ]
 
 
 def test_build_selected_tools_adds_ai_tooling_when_enabled(

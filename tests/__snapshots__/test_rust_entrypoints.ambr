@@ -93,7 +93,7 @@
   apt-get install -y -- ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils
   clone-target-preexisting false
   git clone --branch main --single-branch --depth 1 --filter=blob:none --sparse https://github.com/leynos/agent-helper-scripts.git <temporary-helper-checkout>
-  git -C <temporary-helper-checkout> sparse-checkout set --skip-checks add-repositories apt-update-if-stale bootstrap-common get-ai-tooling get-github-tooling get-markdown-tooling get-python-tooling get-postgresql get-rust-tooling install-required-apt-packages install-hooks install-skills install-sub-agents markdownlint mdformat-all notdeadyet rust-entrypoint rust-entrypoint-home rust-entrypoint-system rust-setup skills
+  git sparse-checkout set --skip-checks add-repositories apt-update-if-stale bootstrap-common get-ai-tooling get-github-tooling get-markdown-tooling get-python-tooling get-postgresql get-rust-tooling install-required-apt-packages install-hooks install-skills install-sub-agents markdownlint mdformat-all notdeadyet rust-entrypoint rust-entrypoint-home rust-entrypoint-system rust-setup skills
   add-repositories
   install-required get-rust-tooling get-markdown-tooling get-github-tooling get-python-tooling install-skills install-hooks install-sub-agents
   apt-update-if-stale

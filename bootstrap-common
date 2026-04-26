@@ -9,6 +9,12 @@ if [[ -n "${AGENT_HELPER_BOOTSTRAP_COMMON_SOURCED:-}" ]]; then
   return 0
 fi
 AGENT_HELPER_BOOTSTRAP_COMMON_SOURCED=1
+BOOTSTRAP_COMMON_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-adapters
+source "${BOOTSTRAP_COMMON_DIR}/bootstrap-adapters"
 
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 
@@ -31,23 +37,6 @@ export HELPER_TOOLS_REPO_BRANCH
 function bootstrap_log()
 {
   printf '[bootstrap] %s\n' "$1" >&2
-}
-
-# Purpose:
-#   Detect the privilege escalation command needed for system mutations.
-# Parameters:
-#   None.
-# Returns:
-#   Prints an empty string when running as root, otherwise prints sudo.
-# Side effects:
-#   Reads the shell EUID value.
-function _detect_sudo()
-{
-  if [[ "${EUID}" -eq 0 ]]; then
-    printf ''
-  else
-    printf 'sudo'
-  fi
 }
 
 # Purpose:
@@ -122,15 +111,15 @@ function clone_or_update_helper_tools_repo()
   if [[ -e "${checkout_dir}" ]]; then
     if git_is_work_tree=$(git -C "${checkout_dir}" rev-parse --is-inside-work-tree 2>/dev/null) && [[ "${git_is_work_tree}" == true ]]; then
       bootstrap_log "Updating existing checkout at ${checkout_dir}"
-      git -C "${checkout_dir}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
-      git -C "${checkout_dir}" reset --hard FETCH_HEAD
+      (cd "${checkout_dir}" && git_fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}")
+      (cd "${checkout_dir}" && git_reset --hard FETCH_HEAD)
     else
       bootstrap_log "Error: ${checkout_dir} exists but is not a git checkout"
       exit 1
     fi
   else
     bootstrap_log "Cloning ${HELPER_TOOLS_REPO_URL} (branch: ${HELPER_TOOLS_REPO_BRANCH}) to ${checkout_dir}"
-    git clone \
+    git_clone \
       --branch "${HELPER_TOOLS_REPO_BRANCH}" \
       --single-branch \
       --depth 1 \
@@ -141,10 +130,10 @@ function clone_or_update_helper_tools_repo()
   fi
 
   if git_supports_sparse_checkout_skip_checks; then
-    git -C "${checkout_dir}" sparse-checkout set --skip-checks "${HELPER_TOOLS_SPARSE_PATHS[@]}"
+    (cd "${checkout_dir}" && git_sparse_set --skip-checks "${HELPER_TOOLS_SPARSE_PATHS[@]}")
   else
     git -C "${checkout_dir}" sparse-checkout init --no-cone
-    git -C "${checkout_dir}" sparse-checkout set "${HELPER_TOOLS_SPARSE_PATHS[@]}"
+    (cd "${checkout_dir}" && git_sparse_set "${HELPER_TOOLS_SPARSE_PATHS[@]}")
   fi
 }
 
@@ -168,8 +157,8 @@ function install_helper_script()
     exit 1
   fi
 
-  install -d "$(dirname "${destination}")"
-  install -m 0755 "${source_path}" "${destination}"
+  fs_install -d "$(dirname "${destination}")"
+  fs_install -m 0755 "${source_path}" "${destination}"
 }
 
 # Purpose:

@@ -391,7 +391,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(
     snapshot,
 ) -> None:
     """Home phase runs helper scripts without invoking system commands."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-home")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "rust-entrypoint-home")
     home = tmp_path / "home"
     helper_checkout = tmp_path / "helpers"
     run_log = tmp_path / "run.log"
@@ -452,7 +452,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     snapshot,
 ) -> None:
     """System phase uses a temporary checkout and installs package metadata."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-system")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "rust-entrypoint-system")
     home = tmp_path / "home"
     run_log = tmp_path / "run.log"
     home.mkdir()
@@ -514,7 +514,7 @@ def test_install_sub_agents_preserves_user_config_before_legacy_block(
     snapshot,
 ) -> None:
     """install-sub-agents removes only the legacy block from Codex config."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -586,7 +586,7 @@ def test_install_sub_agents_rejects_unclosed_legacy_config_block(
     tmp_path: Path,
 ) -> None:
     """install-sub-agents preserves config when legacy cleanup cannot close."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -650,7 +650,7 @@ def test_install_sub_agents_preserves_randomized_nonlegacy_candidates(
     tmp_path: Path,
 ) -> None:
     """Legacy cleanup ignores partial and interleaved candidate sections."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -696,7 +696,7 @@ def test_install_sub_agents_handles_duplicate_features_sections(
     tmp_path: Path,
 ) -> None:
     """Legacy cleanup preserves duplicate non-legacy features sections."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -758,7 +758,7 @@ def test_install_sub_agents_handles_multiple_complete_legacy_blocks(
     tmp_path: Path,
 ) -> None:
     """Legacy cleanup fails safely when a later complete block is unclosed."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -841,7 +841,7 @@ def test_install_sub_agents_rejects_unclosed_legacy_config_after_scribe_file(
     tmp_path: Path,
 ) -> None:
     """Legacy cleanup fails safely when EOF occurs after scribe config."""
-    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
