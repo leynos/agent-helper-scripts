@@ -9,6 +9,7 @@ home directory.
 from __future__ import annotations
 
 import shutil
+from random import Random
 from pathlib import Path
 
 from cmd_mox import CmdMox, skip_if_unsupported
@@ -369,7 +370,6 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
         for forbidden in (
             "apt-get",
             "apt-update-if-stale",
-            "sudo",
             "install",
             "update-ca-certificates",
             "realpath",
@@ -480,8 +480,8 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
         "system phase should update CA certificates: "
         f"log lines were {log_lines!r}"
     )
-    assert log_lines.count("apt-update-if-stale") == 1, (
-        "system phase should refresh APT once before best-effort installs: "
+    assert log_lines.count("apt-update-if-stale") == 2, (
+        "system phase should refresh APT through the stamp-aware helper: "
         f"log lines were {log_lines!r}"
     )
     assert "clone-target-preexisting false" in log_lines, (
@@ -502,7 +502,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
 def test_install_sub_agents_preserves_user_config_before_legacy_block(
     tmp_path: Path,
 ) -> None:
-    copy_entrypoint_files(tmp_path, "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -600,7 +600,7 @@ approval_policy = "never"
 def test_install_sub_agents_rejects_unclosed_legacy_config_block(
     tmp_path: Path,
 ) -> None:
-    copy_entrypoint_files(tmp_path, "install-sub-agents")
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
     config_path = codex_dir / "config.toml"
@@ -658,6 +658,103 @@ nickname_candidates = [
         "managed block should not be appended after parse failure: "
         f"config was {rewritten_config!r}"
     )
+
+
+def test_install_sub_agents_preserves_randomized_nonlegacy_candidates(
+    tmp_path: Path,
+) -> None:
+    """Legacy cleanup ignores partial and interleaved candidate sections."""
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    preserved_sections = [
+        "[features]\nchild_agents_m = true\nsqlite = true\n",
+        "[features]\nchild_agents_md = true\nuser_owned = true\n",
+        "[agents]\nmax_threads = 6\nuser_line = true\n",
+        "[agents.wyvern]\nconfig_file = \"agents/not-wyvern.toml\"\n",
+        "[agents.scribe]\nconfig_file = \"agents/not-scribe.toml\"\n",
+        "[profiles.interleaved]\nmodel = \"gpt-5.5\"\n",
+    ]
+    Random(20260426).shuffle(preserved_sections)
+    original_config = "\n".join(preserved_sections)
+    config_path.write_text(original_config)
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    assert result.exit_code == 0, result.stderr
+    updated_config = config_path.read_text()
+    for section in preserved_sections:
+        assert section.strip() in updated_config, (
+            "partial legacy-like candidate should be preserved: "
+            f"missing {section!r} from {updated_config!r}"
+        )
+    assert "gpt-5.5" not in result.stdout, (
+        "install-sub-agents should not print randomized user config values: "
+        f"stdout was {result.stdout!r}"
+    )
+
+
+def test_install_sub_agents_rejects_unclosed_legacy_config_after_scribe_file(
+    tmp_path: Path,
+) -> None:
+    """Legacy cleanup fails safely when EOF occurs after scribe config."""
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    original_config = """[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.wyvern]
+config_file = "agents/wyvern.toml"
+
+[agents.scribe]
+config_file = "agents/scribe.toml"
+"""
+    config_path.write_text(original_config)
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    assert result.exit_code != 0, (
+        "unclosed legacy config should fail after scribe config_file: "
+        f"exit code was {result.exit_code}; stderr was {result.stderr!r}"
+    )
+    assert "legacy Codex config block was not closed" in result.stderr, (
+        "failure should explain the unclosed legacy block: "
+        f"stderr was {result.stderr!r}"
+    )
+    assert config_path.read_text() == original_config, config_path.read_text()
 
 
 def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:

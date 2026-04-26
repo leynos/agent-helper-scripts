@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import textwrap
 from pathlib import Path
@@ -24,7 +25,7 @@ def run_bootstrap_script(
     script.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        f"source {str(REPO_ROOT / 'bootstrap-common')!r}\n"
+        f"source {shlex.quote(str(REPO_ROOT / 'bootstrap-common'))}\n"
         f"{textwrap.dedent(body)}\n",
     )
     script.chmod(0o755)
@@ -50,13 +51,22 @@ def run_bootstrap_script(
 
 
 def source_replace_managed_block() -> str:
-    """Return Bash code that sources replace_managed_block from install-sub-agents."""
+    """Return Bash code that sources canonical managed block replacement."""
+    return (
+        "replace_managed_block() {\n"
+        "  replace_or_append_managed_block_with_sentinels \"$@\"\n"
+        "}\n"
+    )
+
+
+def source_ensure_top_level_toml_setting() -> str:
+    """Return Bash code that sources ensure_top_level_toml_setting."""
     return (
         "source <(awk '\n"
-        "  /^function replace_managed_block[[:space:]]*[(][)]/ { emit=1 }\n"
+        "  /^function ensure_top_level_toml_setting[[:space:]]*[(][)]/ { emit=1 }\n"
         "  emit { print }\n"
         "  emit && /^}[[:space:]]*$/ { exit }\n"
-        f"' {str(REPO_ROOT / 'install-sub-agents')!r})"
+        f"' {shlex.quote(str(REPO_ROOT / 'install-sub-agents'))})"
     )
 
 
@@ -241,6 +251,31 @@ def test_replace_managed_block_rejects_end_before_begin(tmp_path: Path) -> None:
     assert result.returncode != 0, result.stderr
     assert "end sentinel appears before begin sentinel" in result.stderr, result.stderr
     assert target.read_text() == original, target.read_text()
+
+
+def test_ensure_top_level_toml_setting_treats_key_as_literal(
+    tmp_path: Path,
+) -> None:
+    """ensure_top_level_toml_setting does not treat key text as a regex."""
+    target = tmp_path / "home" / ".codex" / "config.toml"
+    target.parent.mkdir(parents=True)
+    target.write_text("suppressXunstable_features_warning = false\n")
+    extracted = source_ensure_top_level_toml_setting()
+    assert extracted, "source_ensure_top_level_toml_setting() returned empty code"
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        {extracted}
+        ensure_top_level_toml_setting {str(target)!r} 'suppress.unstable_features_warning' true
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    contents = target.read_text()
+    assert contents.startswith(
+        "suppress.unstable_features_warning = true\n",
+    ), contents
+    assert "suppressXunstable_features_warning = false" in contents, contents
 
 
 def test_needs_reports_missing_commands(tmp_path: Path) -> None:

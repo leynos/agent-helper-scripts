@@ -9,6 +9,13 @@ if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   set -x
 fi
 
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
+
 # Purpose:
 #   Install the context_pack binary from a GitHub release.
 # Parameters:
@@ -100,77 +107,7 @@ function install_context_pack()
 #   Creates a temporary file and replaces the target file.
 function replace_managed_block()
 {
-  local file=$1
-  local marker=$2
-  local block=$3
-  local begin_sentinel="### BEGIN ${marker}"
-  local end_sentinel="### END ${marker}"
-  local begin_count end_count
-  local tmp
-
-  begin_count=$(grep -cF "${begin_sentinel}" "${file}" 2>/dev/null || true)
-  end_count=$(grep -cF "${end_sentinel}" "${file}" 2>/dev/null || true)
-
-  if [[ "${begin_count}" -ne "${end_count}" ]]; then
-    printf 'replace_managed_block: unbalanced sentinels for %s in %s (%d BEGIN, %d END)\n' \
-      "${marker}" "${file}" "${begin_count}" "${end_count}" >&2
-    return 1
-  fi
-
-  if [[ "${begin_count}" -gt 1 ]]; then
-    printf 'replace_managed_block: duplicate managed block for %s in %s\n' \
-      "${marker}" "${file}" >&2
-    return 1
-  fi
-
-  if [[ "${begin_count}" -eq 1 ]] && ! awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
-    $0 == begin_sentinel {
-      seen_begin=1
-      next
-    }
-    $0 == end_sentinel && !seen_begin {
-      exit 1
-    }
-  ' "${file}"; then
-    printf 'replace_managed_block: end sentinel appears before begin sentinel for %s in %s\n' \
-      "${marker}" "${file}" >&2
-    return 1
-  fi
-
-  tmp=$(mktemp)
-  if [[ -f "${file}" ]]; then
-    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
-      $0 == begin_sentinel {
-        skip=1
-        next
-      }
-      $0 == end_sentinel {
-        skip=0
-        next
-      }
-      !skip {
-        print
-      }
-      END {
-        if (skip) {
-          exit 1
-        }
-      }
-    ' "${file}" > "${tmp}" || {
-      rm -f "${tmp}"
-      echo "Error: managed block '${marker}' is missing its end sentinel in ${file}" >&2
-      return 1
-    }
-
-    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
-      printf '\n' >> "${tmp}"
-    fi
-  else
-    : > "${tmp}"
-  fi
-
-  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
-  mv "${tmp}" "${file}"
+  replace_or_append_managed_block_with_sentinels "$@"
 }
 
 # Purpose:
@@ -192,14 +129,34 @@ function ensure_top_level_toml_setting()
 
   tmp=$(mktemp)
 
-  if [[ -f "${file}" ]] && grep -qE "^[[:space:]]*${key}[[:space:]]*=" "${file}"; then
+  if [[ -f "${file}" ]] && awk -v key="${key}" '
+    {
+      line=$0
+      sub(/^[[:space:]]*/, "", line)
+      split(line, parts, "=")
+      candidate=parts[1]
+      sub(/[[:space:]]*$/, "", candidate)
+      if (candidate == key) {
+        found=1
+        exit
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "${file}"; then
     awk -v key="${key}" -v value="${value}" '
-      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" && !done {
+      function matches_key(line,    parts, candidate) {
+        sub(/^[[:space:]]*/, "", line)
+        split(line, parts, "=")
+        candidate=parts[1]
+        sub(/[[:space:]]*$/, "", candidate)
+        return candidate == key
+      }
+      matches_key($0) && !done {
         print key " = " value
         done=1
         next
       }
-      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      matches_key($0) {
         next
       }
       {

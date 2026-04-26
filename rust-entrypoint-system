@@ -137,8 +137,12 @@ function install_best_effort_system_packages()
 }
 
 sudo_cmd=$(_detect_sudo)
+if needs sudo && [[ -n "${sudo_cmd}" ]]; then
+  echo "Error: sudo is required for the system phase when not running as root" >&2
+  exit 1
+fi
 configure_ubuntu_sources
-$sudo_cmd apt-get update
+run_apt_update_if_stale "${SCRIPT_DIR}"
 $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -- ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils
 
 if ! command -v git >/dev/null 2>&1; then

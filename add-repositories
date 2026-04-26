@@ -81,10 +81,13 @@ function apt_lists_exist()
     ! -name lock \
     ! -path '*/partial/*' \
     \( \
-      -name '*Packages*' \
-      -o -name '*Sources*' \
-      -o -name '*Release*' \
-      -o -name '*InRelease*' \
+      -name '*_Packages' \
+      -o -name '*_Packages.*' \
+      -o -name '*_Sources' \
+      -o -name '*_Sources.*' \
+      -o -name '*_Release' \
+      -o -name '*_InRelease' \
+      -o -name 'Release' \
     \) \
     -print \
     -quit \

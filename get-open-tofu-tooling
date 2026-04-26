@@ -82,6 +82,7 @@ function install_tflint()
 
   platform=$(tflint_platform)
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"; trap - RETURN' RETURN
   archive_path="${tmpdir}/tflint_${platform}.zip"
 
   if [[ "${tflint_version}" == latest ]]; then
@@ -103,7 +104,6 @@ function install_tflint()
   $INSTALL_SUDO mkdir -p "${dest}"
   $INSTALL_SUDO install -c -v "${tmpdir}/tflint" "${dest}/"
   "${dest}/tflint" -v
-  rm -rf "${tmpdir}"
 }
 
 # Purpose:
@@ -125,6 +125,7 @@ function install_conftest()
 
   conftest_version=${CONFTEST_VERSION:-latest}
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"; trap - RETURN' RETURN
   metadata_path="${tmpdir}/conftest-release.json"
 
   if [[ "${conftest_version}" == latest ]]; then
@@ -150,7 +151,6 @@ function install_conftest()
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
   mkdir -p "${HOME}/.local/bin"
   install -m 0755 "${tmpdir}/conftest" "${HOME}/.local/bin/conftest"
-  rm -rf "${tmpdir}"
 }
 
 pushd ~ || exit

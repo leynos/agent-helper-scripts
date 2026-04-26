@@ -50,11 +50,6 @@ function needs()
   ! command -v "$1" >/dev/null 2>&1
 }
 
-if needs sudo && [[ -n "$(_detect_sudo)" ]]; then
-  echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
-  exit 1
-fi
-
 HELPER_TOOLS_SPARSE_PATHS=(
   add-repositories
   apt-update-if-stale
@@ -188,6 +183,93 @@ function append_block_if_missing()
     printf '\n' >> "${file}"
   fi
   printf '%s\n' "${block}" >> "${file}"
+}
+
+# Purpose:
+#   Replace or append one sentinel-managed block in a file.
+# Parameters:
+#   $1 - File path to inspect and update.
+#   $2 - Marker name used in BEGIN/END sentinels.
+#   $3 - Block content to place between sentinels.
+# Returns:
+#   0 when the managed block is present exactly once with the requested content.
+# Side effects:
+#   Creates a temporary file and replaces the target file when sentinels are
+#   balanced, unique, and ordered correctly.
+function replace_or_append_managed_block_with_sentinels()
+{
+  local file=$1
+  local marker=$2
+  local block=$3
+  local begin_sentinel="### BEGIN ${marker}"
+  local end_sentinel="### END ${marker}"
+  local begin_count end_count
+  local tmp
+
+  begin_count=$(grep -cF "${begin_sentinel}" "${file}" 2>/dev/null || true)
+  end_count=$(grep -cF "${end_sentinel}" "${file}" 2>/dev/null || true)
+
+  if [[ "${begin_count}" -ne "${end_count}" ]]; then
+    printf 'replace_or_append_managed_block_with_sentinels: unbalanced sentinels for %s in %s (%d BEGIN, %d END)\n' \
+      "${marker}" "${file}" "${begin_count}" "${end_count}" >&2
+    return 1
+  fi
+
+  if [[ "${begin_count}" -gt 1 ]]; then
+    printf 'replace_or_append_managed_block_with_sentinels: duplicate managed block for %s in %s\n' \
+      "${marker}" "${file}" >&2
+    return 1
+  fi
+
+  if [[ "${begin_count}" -eq 1 ]] && ! awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+    $0 == begin_sentinel {
+      seen_begin=1
+      next
+    }
+    $0 == end_sentinel && !seen_begin {
+      exit 1
+    }
+  ' "${file}"; then
+    printf 'replace_or_append_managed_block_with_sentinels: end sentinel appears before begin sentinel for %s in %s\n' \
+      "${marker}" "${file}" >&2
+    return 1
+  fi
+
+  tmp=$(mktemp)
+  if [[ -f "${file}" ]]; then
+    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+      $0 == begin_sentinel {
+        skip=1
+        next
+      }
+      $0 == end_sentinel {
+        skip=0
+        next
+      }
+      !skip {
+        print
+      }
+      END {
+        if (skip) {
+          exit 1
+        }
+      }
+    ' "${file}" > "${tmp}" || {
+      rm -f "${tmp}"
+      printf 'replace_or_append_managed_block_with_sentinels: unbalanced sentinels for %s in %s\n' \
+        "${marker}" "${file}" >&2
+      return 1
+    }
+
+    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${tmp}"
+    fi
+  else
+    : > "${tmp}"
+  fi
+
+  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
+  mv "${tmp}" "${file}"
 }
 
 # Purpose:

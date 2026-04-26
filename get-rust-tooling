@@ -20,53 +20,12 @@ case ":${PATH}:" in
 esac
 
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
 
-# Purpose:
-#   Replace a managed block in a file, appending it when absent.
-# Parameters:
-#   $1 - File to update.
-#   $2 - Marker name used in BEGIN/END sentinels.
-#   $3 - Block content to write between sentinels.
-# Returns:
-#   0 when the file has been rewritten with the managed block.
-# Side effects:
-#   Creates a temporary file and replaces the target file.
-function append_block_if_missing()
-{
-  local file=$1
-  local marker=$2
-  local block=$3
-  local begin_sentinel="### BEGIN ${marker}"
-  local end_sentinel="### END ${marker}"
-  local tmp
-
-  tmp=$(mktemp)
-
-  if [[ -f "${file}" ]]; then
-    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
-      $0 == begin_sentinel {
-        skip=1
-        next
-      }
-      $0 == end_sentinel {
-        skip=0
-        next
-      }
-      !skip {
-        print
-      }
-    ' "${file}" > "${tmp}"
-
-    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
-      printf '\n' >> "${tmp}"
-    fi
-  else
-    : > "${tmp}"
-  fi
-
-  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
-  mv "${tmp}" "${file}"
-}
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
 
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
@@ -133,7 +92,7 @@ export CARGO_INCREMENTAL=0
 # Start the local sccache server quietly if it is not already running.
 sccache --start-server >/dev/null 2>&1 || true
 __EOF__
-  append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling sccache bootstrap" "${sccache_block}"
+  replace_or_append_managed_block_with_sentinels "${HOME}/.bashrc" "get-rust-tooling sccache bootstrap" "${sccache_block}"
 
   export CARGO_INCREMENTAL=0
   sccache --start-server >/dev/null 2>&1 || true
@@ -151,7 +110,7 @@ read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 __EOF__
-append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootstrap" "${rustc_wrapper_block}"
+replace_or_append_managed_block_with_sentinels "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootstrap" "${rustc_wrapper_block}"
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
