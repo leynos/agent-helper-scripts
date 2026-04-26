@@ -41,10 +41,20 @@ PYTHON_SCRIPTS := \
 	tests/conftest.py \
 	tests/test_rust_entrypoints.py
 PYTEST := uv run --with pytest --with cmd-mox --with cuprum python -m pytest
+HOOK_TESTS := hooks/test_post_turn_quality_stop_hook.py
+ENTRYPOINT_TESTS := tests/test_rust_entrypoints.py
+TEST_TARGETS := $(HOOK_TESTS) $(ENTRYPOINT_TESTS)
 
-.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test
+# Test targets:
+# - test-hooks: post-turn hook behavior and git-state decisions.
+# - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
+# - test: full pytest suite for all repository tests.
+# - ci: complete CI/CD gate sequence used by GitHub Actions.
+.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test-hooks test-entrypoints test ci
 
-all: check-fmt lint typecheck test
+all: ci
+
+ci: check-fmt lint typecheck test
 
 clean:
 	@echo "clean: nothing to clean"
@@ -67,4 +77,10 @@ typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
 test:
-	@$(PYTEST) hooks/test_post_turn_quality_stop_hook.py tests/test_rust_entrypoints.py -v
+	@$(PYTEST) $(TEST_TARGETS) -v
+
+test-hooks:
+	@$(PYTEST) $(HOOK_TESTS) -v
+
+test-entrypoints:
+	@$(PYTEST) $(ENTRYPOINT_TESTS) -v
