@@ -123,6 +123,8 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
+# Create only the parent directory. clone_or_update_helper_tools_repo rejects
+# existing non-git targets, so the checkout path itself must not pre-exist.
 system_helper_parent=$(mktemp -d)
 system_helper_checkout="${system_helper_parent}/agent-helper-scripts"
 trap 'rm -rf "${system_helper_parent}"' EXIT

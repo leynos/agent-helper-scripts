@@ -246,6 +246,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     assert any(line == "apt-get install -y -- linux-tools-generic" for line in log_lines)
     assert "update-ca-certificates" in log_lines
     assert "ln -sf /usr/bin/mold /usr/bin/ld" in log_lines
+    assert "clone-target-preexisting false" in log_lines
     assert not managed_checkout.exists()
 
 
@@ -259,7 +260,11 @@ def git_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str,
     if invocation.args == ["version"]:
         return ("git version 2.45.0\n", "", 0)
     if invocation.args and invocation.args[0] == "clone":
-        create_system_helper_checkout(Path(invocation.args[-1]))
+        checkout_target = Path(invocation.args[-1])
+        preexisting = str(checkout_target.exists()).lower()
+        with run_log.open("a") as handle:
+            handle.write(f"clone-target-preexisting {preexisting}\n")
+        create_system_helper_checkout(checkout_target)
     return log_invocation(invocation, run_log)
 
 
