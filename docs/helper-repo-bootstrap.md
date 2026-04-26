@@ -94,7 +94,7 @@ export WITH_AI_TOOLING=1
 export RUST_ENTRYPOINT_PHASE=both
 curl -fsSL \
   https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/remove-curl-bash-dependence/rust-entrypoint |
-  bash -xeuo pipefail
+  bash -euo pipefail
 ```
 
 For warm-cache providers, run the phases separately:

@@ -124,7 +124,7 @@ cover system-phase helper scripts in that case.
 export HELPER_TOOLS_REPO_BRANCH=feature-branch
 curl -fsSL \
   "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/feature-branch/rust-entrypoint" |
-  bash -xeuo pipefail
+  bash -euo pipefail
 ```
 
 ### Reuse a non-default checkout path

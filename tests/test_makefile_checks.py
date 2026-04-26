@@ -67,8 +67,19 @@ def test_home_phase_boundary_rejects_forbidden_commands(tmp_path: Path) -> None:
         f"HOME_PHASE_SCRIPTS={script.as_posix()}",
     )
 
-    assert result.returncode != 0
-    assert f"{script.as_posix()}:1:" in result.stdout
-    assert f"{script.as_posix()}:2:" in result.stdout
-    assert f"{script.as_posix()}:3:" in result.stdout
-    assert f"{script.as_posix()}:4:" in result.stdout
+    assert result.returncode != 0, (
+        "expected non-zero returncode, "
+        f"got {result.returncode}, stdout: {result.stdout}"
+    )
+    assert f"{script.as_posix()}:1:" in result.stdout, (
+        f"expected '{script.as_posix()}:1:' in stdout, got: {result.stdout}"
+    )
+    assert f"{script.as_posix()}:2:" in result.stdout, (
+        f"expected '{script.as_posix()}:2:' in stdout, got: {result.stdout}"
+    )
+    assert f"{script.as_posix()}:3:" in result.stdout, (
+        f"expected '{script.as_posix()}:3:' in stdout, got: {result.stdout}"
+    )
+    assert f"{script.as_posix()}:4:" in result.stdout, (
+        f"expected '{script.as_posix()}:4:' in stdout, got: {result.stdout}"
+    )
