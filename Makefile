@@ -35,7 +35,12 @@ HOME_PHASE_SCRIPTS := \
 	install-skills \
 	install-hooks \
 	install-sub-agents
-PYTHON_SCRIPTS := hooks/post-turn-quality-stop-hook.py
+PYTHON_SCRIPTS := \
+	hooks/post-turn-quality-stop-hook.py \
+	hooks/test_post_turn_quality_stop_hook.py \
+	tests/conftest.py \
+	tests/test_rust_entrypoints.py
+PYTEST := uv run --with pytest --with cmd-mox --with cuprum python -m pytest
 
 .PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test
 
@@ -62,4 +67,4 @@ typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
 test:
-	@python3 -m pytest hooks/test_post_turn_quality_stop_hook.py -v
+	@$(PYTEST) hooks/test_post_turn_quality_stop_hook.py tests/test_rust_entrypoints.py -v

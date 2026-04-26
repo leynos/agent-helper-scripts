@@ -1,0 +1,283 @@
+"""Process-level tests for the split Rust bootstrap entrypoints.
+
+The tests execute the shell entrypoints through cuprum and intercept dangerous
+external commands with cmd-mox. This keeps coverage close to the real scripts
+without touching package-manager state, remote Git repositories, or the real
+home directory.
+"""
+
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+from cmd_mox import CmdMox, skip_if_unsupported
+from cmd_mox.ipc import Invocation
+from cuprum import ExecutionContext, Program, ProgramCatalogue, ProjectSettings, scoped, sh
+
+
+skip_if_unsupported()
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+BASH_PATH = Path(shutil.which("bash") or "/usr/bin/bash").resolve()
+BASH = Program(BASH_PATH.as_posix())
+CATALOGUE = ProgramCatalogue(
+    projects=(
+        ProjectSettings(
+            name="agent-helper-scripts-entrypoint-tests",
+            programs=(BASH,),
+            documentation_locations=("docs/cuprum-users-guide.md",),
+            noise_rules=(),
+        ),
+    ),
+)
+
+
+def run_bash(
+    *args: str,
+    cwd: Path,
+    env: dict[str, str],
+):
+    cmd = sh.make(BASH, catalogue=CATALOGUE)(*args)
+    with scoped(allowlist=CATALOGUE.allowlist):
+        return cmd.run_sync(context=ExecutionContext(cwd=cwd, env=env))
+
+
+def write_script(path: Path, body: str) -> None:
+    path.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{body}\n")
+    path.chmod(0o755)
+
+
+def copy_entrypoint_files(target: Path, *names: str) -> None:
+    for name in names:
+        shutil.copy2(REPO_ROOT / name, target / name)
+        (target / name).chmod(0o755)
+
+
+def selected_helper_names(*, include_ai: bool = False) -> list[str]:
+    names = [
+        "get-rust-tooling",
+        "rust-setup",
+        "get-markdown-tooling",
+        "get-github-tooling",
+        "get-python-tooling",
+        "install-skills",
+        "install-hooks",
+        "install-sub-agents",
+    ]
+    if include_ai:
+        names.append("get-ai-tooling")
+    return names
+
+
+def create_helper_checkout(path: Path, *, include_ai: bool = False) -> None:
+    (path / ".git").mkdir(parents=True)
+    for helper_name in selected_helper_names(include_ai=include_ai):
+        write_script(
+            path / helper_name,
+            f'printf "%s\\n" "{helper_name}" >> "${{RUN_LOG:?}}"',
+        )
+
+
+def create_system_helper_checkout(path: Path) -> None:
+    path.mkdir(parents=True)
+    (path / ".git").mkdir()
+    write_script(
+        path / "add-repositories",
+        'printf "%s\\n" "add-repositories" >> "${RUN_LOG:?}"',
+    )
+    write_script(
+        path / "apt-update-if-stale",
+        'printf "%s\\n" "apt-update-if-stale" >> "${RUN_LOG:?}"',
+    )
+    write_script(
+        path / "install-required-apt-packages",
+        'printf "install-required" >> "${RUN_LOG:?}"\n'
+        'for arg in "$@"; do printf " %s" "${arg##*/}" >> "${RUN_LOG:?}"; done\n'
+        'printf "\\n" >> "${RUN_LOG:?}"',
+    )
+    for helper_name in selected_helper_names():
+        (path / helper_name).write_text("# requires-apt-packages: test-package\n")
+
+
+def test_rust_entrypoint_dispatches_selected_phase(tmp_path: Path) -> None:
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+    run_log = tmp_path / "run.log"
+    write_script(
+        tmp_path / "rust-entrypoint-system",
+        'printf "%s\\n" "system" >> "${RUN_LOG:?}"',
+    )
+    write_script(
+        tmp_path / "rust-entrypoint-home",
+        'printf "%s\\n" "home" >> "${RUN_LOG:?}"',
+    )
+
+    result = run_bash(
+        str(tmp_path / "rust-entrypoint"),
+        cwd=tmp_path,
+        env={"RUN_LOG": run_log.as_posix(), "RUST_ENTRYPOINT_PHASE": "system"},
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert run_log.read_text().splitlines() == ["system"]
+
+
+def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+    run_log = tmp_path / "run.log"
+    write_script(
+        tmp_path / "rust-entrypoint-system",
+        'printf "%s\\n" "system" >> "${RUN_LOG:?}"',
+    )
+    write_script(
+        tmp_path / "rust-entrypoint-home",
+        'printf "%s\\n" "home" >> "${RUN_LOG:?}"',
+    )
+
+    result = run_bash(
+        str(tmp_path / "rust-entrypoint"),
+        cwd=tmp_path,
+        env={"RUN_LOG": run_log.as_posix()},
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert run_log.read_text().splitlines() == ["system", "home"]
+
+
+def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+
+    result = run_bash(
+        str(tmp_path / "rust-entrypoint"),
+        cwd=tmp_path,
+        env={"RUST_ENTRYPOINT_PHASE": "sideways"},
+    )
+
+    assert result.exit_code == 2
+    assert "Unknown RUST_ENTRYPOINT_PHASE: sideways" in (result.stderr or "")
+
+
+def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path) -> None:
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-home")
+    home = tmp_path / "home"
+    helper_checkout = tmp_path / "helpers"
+    run_log = tmp_path / "run.log"
+    home.mkdir()
+    (home / ".bashrc").write_text("")
+    (home / ".profile").write_text("")
+    create_helper_checkout(helper_checkout, include_ai=True)
+
+    with CmdMox() as mox:
+        mox.stub("git").runs(git_home_handler)
+        mox.stub("uv").returns()
+        mox.stub("bun").returns()
+        mox.stub("rustup").returns()
+        for forbidden in (
+            "apt-get",
+            "apt-update-if-stale",
+            "sudo",
+            "install",
+            "update-ca-certificates",
+            "realpath",
+            "ln",
+        ):
+            mox.register_command(forbidden)
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "rust-entrypoint-home"),
+            cwd=tmp_path,
+            env={
+                "HOME": home.as_posix(),
+                "HELPER_TOOLS_REPO_DIR": helper_checkout.as_posix(),
+                "RUN_LOG": run_log.as_posix(),
+                "WITH_AI_TOOLING": "1",
+            },
+        )
+
+    assert result.exit_code == 0, result.stderr
+    assert run_log.read_text().splitlines() == selected_helper_names(include_ai=True)
+    assert 'export PATH="' in (home / ".bashrc").read_text()
+    assert ".bashrc" in (home / ".profile").read_text()
+    assert not forbidden_invocations(mox.journal)
+
+
+def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
+    tmp_path: Path,
+) -> None:
+    copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-system")
+    home = tmp_path / "home"
+    managed_checkout = home / "git" / "agent-helper-scripts"
+    run_log = tmp_path / "run.log"
+    home.mkdir()
+
+    with CmdMox() as mox:
+        mox.stub("whoami").returns(stdout="root\n")
+        mox.stub("git").runs(lambda invocation: git_system_handler(invocation, run_log))
+        mox.stub("install").returns()
+        mox.stub("apt-get").runs(lambda invocation: log_invocation(invocation, run_log))
+        mox.stub("sh").returns()
+        mox.stub("update-ca-certificates").runs(
+            lambda invocation: log_invocation(invocation, run_log)
+        )
+        mox.stub("realpath").returns(stdout="/usr/bin/ld.bfd\n")
+        mox.stub("ln").runs(lambda invocation: log_invocation(invocation, run_log))
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "rust-entrypoint-system"),
+            cwd=tmp_path,
+            env={
+                "HOME": home.as_posix(),
+                "RUN_LOG": run_log.as_posix(),
+                "WITH_MOLD_LD_OVERRIDE": "1",
+                "UBUNTU_APT_MIRROR": "https://mirror.example.invalid/ubuntu/",
+            },
+        )
+
+    assert result.exit_code == 0, result.stderr
+    log_lines = run_log.read_text().splitlines()
+    assert "add-repositories" in log_lines
+    assert any(
+        line.startswith("install-required get-rust-tooling get-markdown-tooling")
+        for line in log_lines
+    )
+    assert any(
+        line == "apt-get install -y -- linux-tools-common" for line in log_lines
+    )
+    assert any(line == "apt-get install -y -- linux-tools-generic" for line in log_lines)
+    assert "update-ca-certificates" in log_lines
+    assert "ln -sf /usr/bin/mold /usr/bin/ld" in log_lines
+    assert not managed_checkout.exists()
+
+
+def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:
+    if invocation.args == ["version"]:
+        return ("git version 2.45.0\n", "", 0)
+    return ("", "", 0)
+
+
+def git_system_handler(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
+    if invocation.args == ["version"]:
+        return ("git version 2.45.0\n", "", 0)
+    if invocation.args and invocation.args[0] == "clone":
+        create_system_helper_checkout(Path(invocation.args[-1]))
+    return log_invocation(invocation, run_log)
+
+
+def log_invocation(invocation: Invocation, run_log: Path) -> tuple[str, str, int]:
+    argv = " ".join([invocation.command, *invocation.args])
+    with run_log.open("a") as handle:
+        handle.write(f"{argv}\n")
+    return ("", "", 0)
+
+
+def forbidden_invocations(journal) -> list[Invocation]:
+    forbidden = {
+        "apt-get",
+        "apt-update-if-stale",
+        "sudo",
+        "install",
+        "update-ca-certificates",
+        "realpath",
+        "ln",
+    }
+    return [invocation for invocation in journal if invocation.command in forbidden]

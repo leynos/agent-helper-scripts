@@ -88,8 +88,9 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-system_helper_checkout=$(mktemp -d)
-trap 'rm -rf "${system_helper_checkout}"' EXIT
+system_helper_parent=$(mktemp -d)
+system_helper_checkout="${system_helper_parent}/agent-helper-scripts"
+trap 'rm -rf "${system_helper_parent}"' EXIT
 clone_or_update_helper_tools_repo "${system_helper_checkout}"
 
 if (( ${WITH_ADD_REPOSITORIES:-1} )); then
