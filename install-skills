@@ -7,6 +7,7 @@ set -euo pipefail
 # rust-skill), then copies skill files into ~/.codex/skills and
 # ~/.claude/skills. Behaviour is controlled by HELPER_TOOLS_REPO_DIR and
 # HELPER_TOOLS_REPO_BRANCH.
+# requires-apt-packages: git fd-find
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Install Rust toolchains and companion developer tooling.
-# This script prepares the Rust compiler, supporting cargo utilities, linker
-# configuration, and heartbeat wrappers, and it reuses files from the cloned
-# `agent-helper-scripts` checkout for locally managed helper binaries.
+# This script prepares the Rust compiler, supporting cargo utilities, and
+# heartbeat wrappers, and it reuses files from the cloned `agent-helper-scripts`
+# checkout for locally managed helper binaries.
 # requires-apt-packages: build-essential pkg-config libssl-dev ca-certificates
 # requires-apt-packages: libpq-dev libsqlite3-dev mold
 
@@ -14,12 +14,6 @@ case ":${PATH}:" in
         export PATH="${HOME}/.local/bin:$PATH"
         ;;
 esac
-
-if [ "$(whoami)" = root ]; then
-  SUDO=;
-else
-  SUDO=sudo;
-fi
 
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
 
@@ -69,23 +63,21 @@ else
   channel=stable
 fi
 
-$SUDO update-ca-certificates
-
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.8.5}
 SCCACHE_VERSION=${SCCACHE_VERSION:-0.14.0}
 CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.133}
 KANI_VERIFIER_VERSION=${KANI_VERIFIER_VERSION:-0.67.0}
-if ! which rustup >/dev/null 2>&1; then
+if ! command -v rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
 
-pushd "${HOME}/git"
+pushd "${HOME}/git" || exit
 vendcurl https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
 tar xvzf cargo-binstall-x86_64-unknown-linux-musl.tgz
 ./cargo-binstall --self-install || ./cargo-binstall -y --force cargo-binstall
 rm -f ./cargo-binstall-x86_64-unknown-linux-musl.tgz ./cargo-binstall
-popd
+popd || exit
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
@@ -162,12 +154,4 @@ if ((WITH_WHITAKER)); then
   }; then
     echo "Warning: Whitaker is not currently available in this environment"
   fi
-fi
-
-WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
-# Always install `mold` for Rust tooling, even when `WITH_MOLD_LD_OVERRIDE=0`.
-# The flag only controls whether `/usr/bin/ld` is relinked to `/usr/bin/mold`;
-# the packaged `mold` binary itself is still expected to be available.
-if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
-  $SUDO ln -sf /usr/bin/mold /usr/bin/ld
 fi

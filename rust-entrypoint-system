@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+# System phase for Rust helper bootstrap.
+# This entrypoint owns package repositories, package installation, certificate
+# updates, and other machine-level mutations that are not preserved by a warm
+# user-home cache.
+
+set -xeuo pipefail
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
+
+function configure_ubuntu_sources()
+{
+  local codename
+  local ubuntu_sources_tmp
+  local ubuntu_mirror=${UBUNTU_APT_MIRROR:-http://mirror.math.princeton.edu/pub/ubuntu/}
+
+  codename="$(
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    printf '%s\n' "${VERSION_CODENAME}"
+  )"
+  ubuntu_sources_tmp=$(mktemp)
+  cat > "${ubuntu_sources_tmp}" <<EOF
+Types: deb
+URIs: ${ubuntu_mirror}
+Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+By-Hash: yes
+EOF
+
+  $SUDO install -d /etc/apt/sources.list.d
+  $SUDO install -m 0644 "${ubuntu_sources_tmp}" /etc/apt/sources.list.d/zz-fast-ubuntu.sources
+  rm -f "${ubuntu_sources_tmp}"
+
+  # Disable the stock Ubuntu source definitions, but leave third-party repos alone.
+  [ ! -e /etc/apt/sources.list ] || $SUDO mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
+  [ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || $SUDO mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
+
+  $SUDO apt-get clean
+  $SUDO sh -c 'rm -rf /var/lib/apt/lists/*'
+}
+
+function run_apt_update_if_stale()
+{
+  local helper_checkout=$1
+
+  $SUDO bash "${helper_checkout}/apt-update-if-stale"
+}
+
+function install_system_packages()
+{
+  local helper_checkout=$1
+  shift
+
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+
+  run_apt_update_if_stale "${helper_checkout}"
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- "$@"
+}
+
+function install_best_effort_system_packages()
+{
+  local helper_checkout=$1
+  shift
+  local package
+
+  for package in "$@"; do
+    run_apt_update_if_stale "${helper_checkout}"
+    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- "${package}" || true
+  done
+}
+
+configure_ubuntu_sources
+$SUDO apt-get update
+$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required but was not found on PATH after installation" >&2
+  exit 1
+fi
+
+system_helper_checkout=$(mktemp -d)
+trap 'rm -rf "${system_helper_checkout}"' EXIT
+clone_or_update_helper_tools_repo "${system_helper_checkout}"
+
+if (( ${WITH_ADD_REPOSITORIES:-1} )); then
+  bash -xeuo pipefail "${system_helper_checkout}/add-repositories"
+fi
+
+build_selected_tools
+package_scripts_for_tools "${system_helper_checkout}" "${SELECTED_TOOLS[@]}"
+if [[ ${#PACKAGE_SCRIPTS[@]} -gt 0 ]]; then
+  bash -xeuo pipefail "${system_helper_checkout}/install-required-apt-packages" "${PACKAGE_SCRIPTS[@]}"
+fi
+
+optional_system_packages=()
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  optional_system_packages+=(kopia)
+fi
+if (( ${INSTALL_GLOW:-0} )); then
+  optional_system_packages+=(glow)
+fi
+if [[ ${#optional_system_packages[@]} -gt 0 ]]; then
+  install_system_packages "${system_helper_checkout}" "${optional_system_packages[@]}"
+fi
+
+install_best_effort_system_packages "${system_helper_checkout}" linux-tools-common linux-tools-generic
+
+$SUDO update-ca-certificates
+
+if [[ -d "/usr/local/rustup" ]]; then
+  $SUDO chmod -R a+rX,go-w "/usr/local/rustup"
+fi
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  $SUDO rm -f /root/.config/kopia/repository.config.update-info.json
+fi
+
+if (( ${WITH_MOLD_LD_OVERRIDE:-0} )) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
+  $SUDO ln -sf /usr/bin/mold /usr/bin/ld
+fi

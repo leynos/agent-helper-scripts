@@ -14,12 +14,6 @@
 # requires-apt-packages: fonts-liberation ca-certificates
 # requires-apt-packages: libx11-6 libxext6 libxfixes3 libxcb1
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
-
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
 
 function get_bin() {
@@ -34,13 +28,6 @@ function get_bin() {
   mkdir -p  "${HOME}/.local/bin"
   install -m 0755 "${source_path}" "${HOME}/.local/bin/${bin_name}"
 }
-
-# Install glow
-INSTALL_GLOW=${INSTALL_GLOW:-0}
-if ((INSTALL_GLOW)); then
-  $SUDO apt-update-if-stale
-  $SUDO apt-get install -y glow
-fi
 
 WITH_VALE=${WITH_VALE:-0}
 if ((WITH_VALE)); then

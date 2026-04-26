@@ -2,14 +2,15 @@
 
 ## Overview
 
-The helper bootstrap flow is split into two phases:
+The helper bootstrap flow is split by authority boundary:
 
-1. Fetch and run `rust-entrypoint`.
-2. Clone `agent-helper-scripts` locally and execute the remaining helper
-   scripts from that managed checkout.
+1. Run the system phase to configure APT repositories, APT packages,
+   certificates, and optional global linker state.
+2. Run the home phase to clone `agent-helper-scripts` locally and execute the
+   remaining helper scripts from that managed checkout.
 
-This keeps the follow-on bootstrap logic branchable, inspectable, and
-consistent across scripts that need repository-owned helper files.
+This keeps non-cacheable system mutations separate from warm-cache-friendly
+`$HOME` mutations while preserving branchable, inspectable helper logic.
 
 ## Mandatory Prerequisites
 
@@ -43,6 +44,16 @@ consistent across scripts that need repository-owned helper files.
 
 ### Bootstrap behaviour flags
 
+- `RUST_ENTRYPOINT_PHASE`
+  - Default: `both`
+  - `system`: installs APT repositories, APT packages, certificates, and
+    optional global linker changes. It is safe to run repeatedly on a fresh
+    system layer and must not rely on warm `$HOME` state.
+  - `home`: installs tools and configuration under `$HOME`. It is intended for
+    warm cache creation or refresh and must not run package-manager commands,
+    privilege escalation, or mutate machine-level package state.
+  - `both`: runs `system` and then `home` for backwards-compatible one-shot
+    setup.
 - `WITH_ADD_REPOSITORIES`
   - Default: `1`
   - Enables the prerequisite `add-repositories` run before the main helper
@@ -50,6 +61,14 @@ consistent across scripts that need repository-owned helper files.
 - `WITH_AI_TOOLING`
   - Default: `0`
   - Adds `get-ai-tooling` to the helper loop only when explicitly enabled.
+- `WITH_LETA_WORKSPACE_ADD`
+  - Default: `1`
+  - Controls whether `get-github-tooling` runs `leta workspace add .`.
+  - Set to `0` when creating a generic warm home cache that should not register
+    the current project directory.
+- `UBUNTU_APT_MIRROR`
+  - Default: `http://mirror.math.princeton.edu/pub/ubuntu/`
+  - Controls the Ubuntu mirror written by the system phase.
 
 ### Helper package metadata
 
@@ -61,16 +80,13 @@ consistent across scripts that need repository-owned helper files.
     supported.
   - Deduplicates the declared packages and installs them in one `apt-get
     install -y` pass before the main helper loop begins.
-  - `rust-entrypoint` runs this helper after `add-repositories`, so
-    repository-provided packages such as `gh` are available from configured
-    APT sources.
-- `rust-entrypoint` optional APT queue
-  - Queues entrypoint-managed packages such as `wget` and `kopia`, then
-    installs them immediately before the first bootstrap step that needs them.
-  - Deduplicates requests across the entire entrypoint run, so a package is
-    installed at most once even if multiple later steps request it.
+  - `rust-entrypoint-system` runs this helper after `add-repositories`, so
+    repository-provided packages such as `gh` are available from configured APT
+    sources before the home phase starts.
+  - Optional system packages such as `kopia`, `glow`, and best-effort Linux
+    tracing packages are installed by `rust-entrypoint-system`.
   - Root execution no longer installs `sudo` as a convenience package; the
-    `SUDO` shim is expected to cover later helper scripts in that case.
+    `SUDO` shim is expected to cover system-phase helper scripts in that case.
 
 ## Configuration Patterns
 
@@ -96,6 +112,13 @@ export HELPER_TOOLS_REPO_BRANCH=feature-branch
 export WITH_AI_TOOLING=1
 ```
 
+### Run phases explicitly
+
+```bash
+RUST_ENTRYPOINT_PHASE=system bash rust-entrypoint
+RUST_ENTRYPOINT_PHASE=home bash rust-entrypoint
+```
+
 ## Architectural Rationale
 
 The cloning-based approach replaces repeated repository-owned `curl | bash`
@@ -113,6 +136,11 @@ invocations with a single managed checkout. That change was made so that:
 
 ### `rust-entrypoint`
 
+- Dispatches to `rust-entrypoint-system`, `rust-entrypoint-home`, or both based
+  on `RUST_ENTRYPOINT_PHASE`.
+
+### `bootstrap-common`
+
 - `clone_or_update_helper_tools_repo`
   - Ensures the managed helper checkout exists at
     `HELPER_TOOLS_REPO_DIR`.
@@ -129,18 +157,27 @@ invocations with a single managed checkout. That change was made so that:
 - `needs`
   - Returns true (exit 0) when the named command is absent from `PATH`.
   - Used as a lightweight guard: `if needs <cmd>; then …; fi`.
-  - Example: `if needs wget; then queue_optional_apt_package wget; fi`
-- `queue_optional_apt_package`
-  - Adds a package name to the deferred optional-install queue.
-  - Skips silently if the package has already been queued or installed during
-    the current entrypoint run, so repeated calls are idempotent.
-  - Packages are not installed immediately; call `install_optional_apt_packages`
-    to flush the queue before a bootstrap step that requires them.
-  - Example: `queue_optional_apt_package kopia`
-- `install_optional_apt_packages`
-  - Installs previously-queued entrypoint-owned optional packages.
-  - Runs the deferred installation only when a subsequent bootstrap step
-    actually requires those packages.
+
+### `rust-entrypoint-system`
+
+- Configures Ubuntu APT sources using `UBUNTU_APT_MIRROR`.
+- Installs hard bootstrap prerequisites.
+- Clones a temporary sparse helper checkout without mutating
+  `HELPER_TOOLS_REPO_DIR`.
+- Runs `add-repositories` when enabled.
+- Installs package metadata from the selected helper scripts.
+- Installs optional system packages, runs certificate updates, and applies
+  `WITH_MOLD_LD_OVERRIDE` when requested.
+
+### `rust-entrypoint-home`
+
+- Updates shell profile PATH blocks and the current process PATH.
+- Clones or updates `HELPER_TOOLS_REPO_DIR`.
+- Installs user-level bootstrap tools and runs the selected home helpers.
+- Performs Kopia repository connect, restore, and snapshot work when
+  `KOPIA_BUCKET` is set.
+- Must not run package-manager commands, privilege escalation, or mutate
+  machine-level package state.
 
 ### `install-hooks`
 
@@ -197,3 +234,16 @@ validation sequence:
 - targeted `bash -n` on changed shell scripts
 - targeted `shellcheck` on changed shell scripts
 - `git diff --check`
+
+Split-specific checks:
+
+- `make lint` includes `check-home-phase-boundary`, which rejects forbidden
+  machine-level operations in the home phase scripts.
+- Run the system phase twice in a clean container when package-manager
+  behaviour changes.
+- Run the home phase with package-manager and privilege-escalation commands
+  shadowed to fail when home/system boundary behaviour changes.
+- Run the home phase twice against the same `$HOME` when managed config output
+  changes.
+- Restore a warm `$HOME` into a fresh system layer, clear APT lists, then run
+  the system phase when `apt-update-if-stale` changes.

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+# Home phase for Rust helper bootstrap.
+# This entrypoint owns only user-level setup under $HOME: profile PATH blocks,
+# managed helper checkouts, language toolchains, tool caches, and agent config.
+
+set -xeuo pipefail
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
+
+ensure_profile_path "${HOME}/.local/bin"
+ensure_profile_path "${HOME}/.cargo/bin"
+ensure_profile_path "${HOME}/.bun/bin"
+ensure_profile_sources_bashrc
+
+ensure_runtime_path "${HOME}/.local/bin"
+ensure_runtime_path "${HOME}/.cargo/bin"
+ensure_runtime_path "${HOME}/.bun/bin"
+export PATH
+
+clone_or_update_helper_tools_repo
+
+if needs uv; then
+  curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
+  if [[ -f "$HOME/.local/bin/env" ]]; then
+    # shellcheck source=/dev/null
+    source "$HOME/.local/bin/env"
+  fi
+fi
+
+if needs bun; then
+  curl --no-progress-meter -fsSL https://bun.sh/install | bash
+fi
+
+if needs rustup; then
+  curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+fi
+
+CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
+CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
+mkdir -p "${CARGO_KOPIA_SRC}"
+cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
+/*
+!/.crates.toml
+!/.crates2.json
+!/bin
+!/bin/**
+EOF
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  if (( ${KOPIA_CREATE:-0} )); then
+    kopia repository create s3 \
+      --bucket="${KOPIA_BUCKET:-}" \
+      --endpoint="${KOPIA_ENDPOINT:-}" \
+      --region="${KOPIA_REGION:-}" \
+      --access-key="${AWS_ACCESS_KEY_ID:-}" \
+      --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
+      --prefix=cargo/
+  fi
+  kopia repository connect s3 \
+    --bucket="${KOPIA_BUCKET:-}" \
+    --endpoint="${KOPIA_ENDPOINT:-}" \
+    --region="${KOPIA_REGION:-}" \
+    --access-key="${AWS_ACCESS_KEY_ID:-}" \
+    --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
+    --prefix=cargo/
+  kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
+fi
+
+uv tool install "vendcurl==${VENDCURL_VERSION:-0.1.0}"
+
+build_selected_tools
+for tool in "${SELECTED_TOOLS[@]}"; do
+  echo "Running $tool..."
+  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
+done
+
+if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  kopia snapshot create "$CARGO_KOPIA_DEST"
+fi

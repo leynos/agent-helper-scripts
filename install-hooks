@@ -6,6 +6,7 @@ set -euo pipefail
 # checkout, copies hook scripts into ~/.claude/hooks, and installs the
 # install-hook-cmd helper binary into ~/.local/bin. Behaviour is controlled by
 # HELPER_TOOLS_REPO_DIR, HELPER_TOOLS_REPO_BRANCH, and REPO_DIR.
+# requires-apt-packages: git python3
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"

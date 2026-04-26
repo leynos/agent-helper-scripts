@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-# Tool for exchanging context packs with sub-agents
+# Tool for exchanging context packs with sub-agents and installing managed
+# Codex agent configuration. Repeated runs replace managed blocks/files instead
+# of appending duplicate configuration.
+
+set -euo pipefail
 
 function install_context_pack()
 {
@@ -68,11 +72,117 @@ function install_context_pack()
   rm -rf "${tmpdir}"
 }
 
+function replace_managed_block()
+{
+  local file=$1
+  local marker=$2
+  local block=$3
+  local begin_sentinel="### BEGIN ${marker}"
+  local end_sentinel="### END ${marker}"
+  local tmp
+
+  tmp=$(mktemp)
+
+  if [[ -f "${file}" ]]; then
+    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+      $0 == begin_sentinel {
+        skip=1
+        next
+      }
+      $0 == end_sentinel {
+        skip=0
+        next
+      }
+      !skip {
+        print
+      }
+    ' "${file}" > "${tmp}"
+
+    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${tmp}"
+    fi
+  else
+    : > "${tmp}"
+  fi
+
+  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
+  mv "${tmp}" "${file}"
+}
+
+function ensure_top_level_toml_setting()
+{
+  local file=$1
+  local key=$2
+  local value=$3
+  local tmp
+
+  tmp=$(mktemp)
+
+  if [[ -f "${file}" ]] && grep -qE "^[[:space:]]*${key}[[:space:]]*=" "${file}"; then
+    awk -v key="${key}" -v value="${value}" '
+      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" && !done {
+        print key " = " value
+        done=1
+        next
+      }
+      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        next
+      }
+      {
+        print
+      }
+    ' "${file}" > "${tmp}"
+  elif [[ -f "${file}" ]]; then
+    printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+    cat "${file}" >> "${tmp}"
+  else
+    printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+  fi
+
+  mv "${tmp}" "${file}"
+}
+
+function remove_legacy_codex_config_block()
+{
+  local file=$1
+  local tmp
+
+  [[ -f "${file}" ]] || return 0
+  if grep -q '### BEGIN agent-helper-scripts sub-agent config' "${file}"; then
+    return 0
+  fi
+  grep -q 'config_file = "agents/wyvern.toml"' "${file}" || return 0
+  grep -q 'config_file = "agents/scribe.toml"' "${file}" || return 0
+
+  tmp=$(mktemp)
+  awk '
+    $0 == "[features]" {
+      skipping=1
+      seen_scribe=0
+      next
+    }
+    skipping {
+      if ($0 == "config_file = \"agents/scribe.toml\"") {
+        seen_scribe=1
+      }
+      if (seen_scribe && $0 == "]") {
+        skipping=0
+        next
+      }
+      next
+    }
+    {
+      print
+    }
+  ' "${file}" > "${tmp}"
+  mv "${tmp}" "${file}"
+}
+
 install_context_pack
 
-mkdir -p ~/.codex
+mkdir -p "${HOME}/.codex"
 
-cat >> ~/.codex/config.toml <<'__EOF'
+read -r -d '' codex_config_block <<'__EOF' || true
 [features]
 child_agents_md = true
 sqlite = true
@@ -125,13 +235,15 @@ nickname_candidates = [
 ]
 __EOF
 
-sed -i '1 i\suppress_unstable_features_warning = true' ~/.codex/config.toml
-cat ~/.codex/config.toml
+remove_legacy_codex_config_block "${HOME}/.codex/config.toml"
+ensure_top_level_toml_setting "${HOME}/.codex/config.toml" suppress_unstable_features_warning true
+replace_managed_block "${HOME}/.codex/config.toml" "agent-helper-scripts sub-agent config" "${codex_config_block}"
+cat "${HOME}/.codex/config.toml"
 
-mkdir -p ~/context
-mkdir -p ~/.codex/agents
+mkdir -p "${HOME}/context"
+mkdir -p "${HOME}/.codex/agents"
 
-cat >> ~/.codex/agents/wyvern.toml <<'__EOF'
+cat > "${HOME}/.codex/agents/wyvern.toml" <<'__EOF'
 model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
@@ -155,7 +267,7 @@ Rules:
 """
 __EOF
 
-cat >> ~/.codex/agents/scribe.toml <<'__EOF'
+cat > "${HOME}/.codex/agents/scribe.toml" <<'__EOF'
 model = "gpt-5.4-mini"
 model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"

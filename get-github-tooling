@@ -12,12 +12,6 @@
 # requires-apt-packages: clang lldb eza fzf hyperfine shellcheck
 # requires-apt-packages: libxslt1-dev gh nfpm podman bubblewrap proot mmdebstrap
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
-
 if [[ -f "${HOME}/.cargo/env" ]]; then
     # shellcheck source=/dev/null
     . "${HOME}/.cargo/env"
@@ -124,19 +118,16 @@ popd || exit
 uv tool install mbake
 bun install -g pajv
 
-# Tools to help developers
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y linux-tools-common || true
-$SUDO apt-get install -y linux-tools-generic || true
-
-ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
+ln -sf /usr/bin/fdfind "${HOME}/.local/bin/fd"
 
 cargo binstall --no-confirm "mergiraf@${MERGIRAF_VERSION}"
 cargo binstall --no-confirm "difftastic@${DIFFTASTIC_VERSION}"
 
 pwd
 cargo binstall --no-confirm "leta@${LETA_VERSION}"
-leta workspace add .
+if (( ${WITH_LETA_WORKSPACE_ADD:-1} )); then
+  leta workspace add .
+fi
 
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit
