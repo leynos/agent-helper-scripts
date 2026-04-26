@@ -38,7 +38,14 @@ function configure_ubuntu_sources()
   cat > "${ubuntu_sources_tmp}" <<EOF
 Types: deb
 URIs: ${ubuntu_mirror}
-Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
+Suites: ${codename} ${codename}-updates ${codename}-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+By-Hash: yes
+
+Types: deb
+URIs: https://security.ubuntu.com/ubuntu
+Suites: ${codename}-security
 Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 By-Hash: yes
@@ -108,8 +115,12 @@ function install_best_effort_system_packages()
   shift
   local package
 
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+
+  run_apt_update_if_stale "${helper_checkout}"
   for package in "$@"; do
-    run_apt_update_if_stale "${helper_checkout}"
     $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -- "${package}" || true
   done
 }
@@ -163,6 +174,12 @@ if [[ -n "${KOPIA_BUCKET:-}" ]]; then
   $SUDO rm -f /root/.config/kopia/repository.config.update-info.json
 fi
 
-if (( ${WITH_MOLD_LD_OVERRIDE:-0} )) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
-  $SUDO ln -sf /usr/bin/mold /usr/bin/ld
+if (( ${WITH_MOLD_LD_OVERRIDE:-0} )); then
+  if [[ -x /usr/bin/mold ]]; then
+    if [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
+      $SUDO ln -sf /usr/bin/mold /usr/bin/ld
+    fi
+  else
+    echo "Skipping mold ld override because /usr/bin/mold is not executable" >&2
+  fi
 fi

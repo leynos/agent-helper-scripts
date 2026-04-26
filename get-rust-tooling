@@ -82,12 +82,16 @@ if ! command -v rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
 
-pushd "${HOME}/git" || exit
+cargo_binstall_tmp=$(mktemp -d)
+trap 'rm -rf "${cargo_binstall_tmp}"' EXIT
+pushd "${cargo_binstall_tmp}" || exit
 vendcurl https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
 tar xvzf cargo-binstall-x86_64-unknown-linux-musl.tgz
 ./cargo-binstall --self-install || ./cargo-binstall -y --force cargo-binstall
 rm -f ./cargo-binstall-x86_64-unknown-linux-musl.tgz ./cargo-binstall
 popd || exit
+rm -rf "${cargo_binstall_tmp}"
+trap - EXIT
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then

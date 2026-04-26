@@ -96,16 +96,19 @@ function clone_or_update_helper_tools_repo()
 {
   local checkout_dir=${1:-${HELPER_TOOLS_REPO_DIR}}
   local checkout_parent
+  local git_is_work_tree
   checkout_parent=$(dirname "${checkout_dir}")
 
   mkdir -p "${checkout_parent}"
-  if [[ -d "${checkout_dir}/.git" ]]; then
-    echo "Updating helper tools repo at ${checkout_dir}..."
-    git -C "${checkout_dir}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
-    git -C "${checkout_dir}" reset --hard FETCH_HEAD
-  elif [[ -e "${checkout_dir}" ]]; then
-    echo "Error: ${checkout_dir} exists but is not a git checkout" >&2
-    exit 1
+  if [[ -e "${checkout_dir}" ]]; then
+    if git_is_work_tree=$(git -C "${checkout_dir}" rev-parse --is-inside-work-tree 2>/dev/null) && [[ "${git_is_work_tree}" == true ]]; then
+      echo "Updating helper tools repo at ${checkout_dir}..."
+      git -C "${checkout_dir}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
+      git -C "${checkout_dir}" reset --hard FETCH_HEAD
+    else
+      echo "Error: ${checkout_dir} exists but is not a git checkout" >&2
+      exit 1
+    fi
   else
     echo "Cloning helper tools repo to ${checkout_dir}..."
     git clone \
@@ -156,15 +159,17 @@ function install_helper_script()
 #   $1 - File path to inspect and update.
 #   $2 - Block text to append.
 # Returns:
-#   0 when the file is absent, already contains the block, or is updated.
+#   0 when the file exists and already contains the block or is updated.
 # Side effects:
-#   May append a newline and the requested block to the target file.
+#   Creates the target file when missing, and may append a newline and the
+#   requested block.
 function append_block_if_missing()
 {
   local file=$1
   local block=$2
 
-  [[ -f "${file}" ]] || return 0
+  mkdir -p "$(dirname "${file}")"
+  touch "${file}"
   if [[ $(<"${file}") == *"${block}"* ]]; then
     return 0
   fi
@@ -179,7 +184,7 @@ function append_block_if_missing()
 # Parameters:
 #   $1 - Directory to prepend to PATH when missing.
 # Returns:
-#   0 when the managed block is present or the profile file is absent.
+#   0 when the managed block is present.
 # Side effects:
 #   May append a PATH block to ~/.bashrc.
 function ensure_profile_path()
@@ -206,7 +211,7 @@ __EOF__
 # Parameters:
 #   None.
 # Returns:
-#   0 when the managed block is present or ~/.profile is absent.
+#   0 when the managed block is present.
 # Side effects:
 #   May append a Bash-specific sourcing block to ~/.profile.
 function ensure_profile_sources_bashrc()

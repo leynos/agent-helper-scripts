@@ -70,8 +70,17 @@ def selected_helper_names(*, include_ai: bool = False) -> list[str]:
     return names
 
 
-def create_helper_checkout(path: Path, *, include_ai: bool = False) -> None:
-    (path / ".git").mkdir(parents=True)
+def create_helper_checkout(
+    path: Path,
+    *,
+    include_ai: bool = False,
+    git_as_file: bool = False,
+) -> None:
+    path.mkdir(parents=True)
+    if git_as_file:
+        (path / ".git").write_text("gitdir: ../real-git-dir\n")
+    else:
+        (path / ".git").mkdir()
     for helper_name in selected_helper_names(include_ai=include_ai):
         write_script(
             path / helper_name,
@@ -163,9 +172,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
     helper_checkout = tmp_path / "helpers"
     run_log = tmp_path / "run.log"
     home.mkdir()
-    (home / ".bashrc").write_text("")
-    (home / ".profile").write_text("")
-    create_helper_checkout(helper_checkout, include_ai=True)
+    create_helper_checkout(helper_checkout, include_ai=True, git_as_file=True)
 
     with CmdMox() as mox:
         mox.stub("git").runs(git_home_handler)
@@ -245,7 +252,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     )
     assert any(line == "apt-get install -y -- linux-tools-generic" for line in log_lines)
     assert "update-ca-certificates" in log_lines
-    assert "ln -sf /usr/bin/mold /usr/bin/ld" in log_lines
+    assert log_lines.count("apt-update-if-stale") == 1
     assert "clone-target-preexisting false" in log_lines
     assert not managed_checkout.exists()
 
@@ -317,11 +324,65 @@ approval_policy = "never"
     assert "LegacyWyvernNick" not in updated_config
     assert "LegacyScribeNick" not in updated_config
     assert "### BEGIN agent-helper-scripts sub-agent config" in updated_config
+    assert "gpt-5.5" not in result.stdout
+    assert "Updated Codex sub-agent config at" in result.stdout
+
+
+def test_install_sub_agents_rejects_unclosed_legacy_config_block(
+    tmp_path: Path,
+) -> None:
+    copy_entrypoint_files(tmp_path, "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    original_config = """[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.wyvern]
+config_file = "agents/wyvern.toml"
+nickname_candidates = [
+  "LegacyWyvernNick",
+]
+
+[agents.scribe]
+config_file = "agents/scribe.toml"
+nickname_candidates = [
+  "LegacyScribeNick",
+"""
+    config_path.write_text(original_config)
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    assert result.exit_code != 0
+    assert "legacy Codex config block was not closed" in result.stderr
+    assert config_path.read_text() == original_config
+    assert "### BEGIN agent-helper-scripts sub-agent config" not in config_path.read_text()
 
 
 def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:
     if invocation.args == ["version"]:
         return ("git version 2.45.0\n", "", 0)
+    if "rev-parse" in invocation.args:
+        return ("true\n", "", 0)
     return ("", "", 0)
 
 

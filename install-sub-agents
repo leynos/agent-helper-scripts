@@ -67,6 +67,7 @@ function install_context_pack()
   fi
 
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"' EXIT
   vendcurl "${release_base}/${checksum_name}" "${tmpdir}/${checksum_name}"
 
   expected_sha=$(awk -v archive_name="${archive_name}" '$2 == archive_name { print $1; exit }' "${tmpdir}/${checksum_name}")
@@ -80,6 +81,7 @@ function install_context_pack()
   mkdir -p "${install_dir}"
   install -m 0755 "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
   rm -rf "${tmpdir}"
+  trap - EXIT
 }
 
 # Purpose:
@@ -360,10 +362,17 @@ function remove_legacy_codex_config_block()
 
     END {
       if (candidate) {
+        if (stage == "scribe" && seen_scribe) {
+          exit 1
+        }
         flush_candidate()
       }
     }
-  ' "${file}" > "${tmp}"
+  ' "${file}" > "${tmp}" || {
+    rm -f "${tmp}"
+    echo "Error: legacy Codex config block was not closed in ${file}" >&2
+    return 1
+  }
   mv "${tmp}" "${file}"
 }
 
@@ -427,7 +436,7 @@ __EOF
 remove_legacy_codex_config_block "${HOME}/.codex/config.toml"
 ensure_top_level_toml_setting "${HOME}/.codex/config.toml" suppress_unstable_features_warning true
 replace_managed_block "${HOME}/.codex/config.toml" "agent-helper-scripts sub-agent config" "${codex_config_block}"
-cat "${HOME}/.codex/config.toml"
+echo "Updated Codex sub-agent config at ${HOME}/.codex/config.toml"
 
 mkdir -p "${HOME}/context"
 mkdir -p "${HOME}/.codex/agents"
