@@ -14,6 +14,10 @@
 # requires-apt-packages: fonts-liberation ca-certificates
 # requires-apt-packages: libx11-6 libxext6 libxfixes3 libxcb1
 
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
 
 # Purpose:

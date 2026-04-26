@@ -7,6 +7,9 @@
 # directives are found.
 
 set -Eeuo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 if [ "$(whoami)" = root ]; then
   SUDO=

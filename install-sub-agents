@@ -5,6 +5,9 @@
 # of appending duplicate configuration.
 
 set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 # Purpose:
 #   Install the context_pack binary from a GitHub release.

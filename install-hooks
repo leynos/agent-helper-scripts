@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 # install-hooks: installs Claude Code hooks and the hook-installer helper into
 # the user environment. It clones or updates the agent-helper-scripts managed

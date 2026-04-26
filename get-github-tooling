@@ -12,6 +12,10 @@
 # requires-apt-packages: clang lldb eza fzf hyperfine shellcheck
 # requires-apt-packages: libxslt1-dev gh nfpm podman bubblewrap proot mmdebstrap
 
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 if [[ -f "${HOME}/.cargo/env" ]]; then
     # shellcheck source=/dev/null
     . "${HOME}/.cargo/env"

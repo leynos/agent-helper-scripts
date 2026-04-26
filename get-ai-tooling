@@ -5,6 +5,10 @@
 # release and places it in ~/.local/bin. Invoked only when WITH_AI_TOOLING is
 # enabled during the rust-entrypoint helper loop.
 
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 mkdir -p "${HOME}/git"
 pushd "${HOME}/git" || exit
 vendcurl https://github.com/vidaiUK/VidaiMock/releases/download/v0.1.2/vidaimock-linux-x64.tar.gz

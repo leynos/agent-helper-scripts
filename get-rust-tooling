@@ -7,6 +7,10 @@
 # requires-apt-packages: build-essential pkg-config libssl-dev ca-certificates
 # requires-apt-packages: libpq-dev libsqlite3-dev mold
 
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
         ;;

@@ -139,6 +139,12 @@ bash rust-entrypoint
   - Replaces `/usr/bin/ld` with a symlink to `/usr/bin/mold` when enabled.
   - This is a global linker change. Enable it only for images where that
     behaviour is intended.
+- `WITH_TRACE`
+  - Default: `0`
+  - Enables Bash xtrace (`set -x`) in the deployment entrypoints and helper
+    scripts.
+  - Use for debugging bootstrap failures. Avoid enabling it in logs that may
+    contain sensitive environment values.
 
 ### Tooling toggles
 

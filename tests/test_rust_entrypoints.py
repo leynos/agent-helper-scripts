@@ -324,6 +324,40 @@ def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
     )
 
 
+def test_rust_entrypoint_enables_trace_when_requested(tmp_path: Path) -> None:
+    """WITH_TRACE enables Bash xtrace in the wrapper without changing dispatch."""
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+    run_log = tmp_path / "run.log"
+    write_script(
+        tmp_path / "rust-entrypoint-system",
+        'printf "%s\\n" "system" >> "${RUN_LOG:?}"',
+    )
+
+    result = run_bash(
+        str(tmp_path / "rust-entrypoint"),
+        cwd=tmp_path,
+        env={
+            "RUN_LOG": run_log.as_posix(),
+            "RUST_ENTRYPOINT_PHASE": "system",
+            "WITH_TRACE": "1",
+        },
+    )
+
+    actual_lines = run_log.read_text().splitlines()
+    assert result.exit_code == 0, (
+        "traced system phase dispatch should succeed: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert actual_lines == ["system"], (
+        "traced system phase dispatch should still run the selected phase: "
+        f"expected ['system'] but got {actual_lines!r}"
+    )
+    assert "+ exec bash" in (result.stderr or ""), (
+        "WITH_TRACE should enable xtrace output: "
+        f"stderr was {result.stderr!r}"
+    )
+
+
 def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path) -> None:
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-home")
     home = tmp_path / "home"

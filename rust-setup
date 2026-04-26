@@ -5,6 +5,9 @@
 # metadata/check only when RUST_PRE_BUILD is enabled.
 
 set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 RUST_PRE_BUILD=${RUST_PRE_BUILD:-0}
 RUST_ANALYZER_PRECHECK=${RUST_ANALYZER_PRECHECK:-0}

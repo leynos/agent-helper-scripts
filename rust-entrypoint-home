@@ -4,7 +4,10 @@
 # This entrypoint owns only user-level setup under $HOME: profile PATH blocks,
 # managed helper checkouts, language toolchains, tool caches, and agent config.
 
-set -xeuo pipefail
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 SCRIPT_DIR=$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
@@ -77,7 +80,7 @@ uv tool install "vendcurl==${VENDCURL_VERSION:-0.1.0}"
 build_selected_tools
 for tool in "${SELECTED_TOOLS[@]}"; do
   echo "Running $tool..."
-  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
+  bash -euo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
 done
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then

@@ -90,6 +90,11 @@ behavioural contracts:
 - `UBUNTU_APT_MIRROR`
   - Defaults to `http://mirror.math.princeton.edu/pub/ubuntu/`.
   - Controls the Ubuntu mirror written by the system phase.
+- `WITH_TRACE`
+  - Defaults to `0`.
+  - Enables Bash xtrace in deployment entrypoints and helper scripts.
+  - Keep tracing opt-in so normal bootstrap logs do not leak environment
+    values.
 
 ## Helper package metadata
 

@@ -5,6 +5,9 @@
 # and delegated to install-required-apt-packages before any other work is done.
 
 set -Eeuo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 # requires-apt-packages: postgresql postgresql-contrib
 

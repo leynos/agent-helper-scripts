@@ -4,6 +4,10 @@
 # then ensures ~/.local/bin is on PATH.
 # Requires: uv
 
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
         ;;

@@ -5,7 +5,10 @@
 # updates, and other machine-level mutations that are not preserved by a warm
 # user-home cache.
 
-set -xeuo pipefail
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 SCRIPT_DIR=$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
@@ -142,13 +145,13 @@ trap 'rm -rf "${system_helper_parent}"' EXIT
 clone_or_update_helper_tools_repo "${system_helper_checkout}"
 
 if (( ${WITH_ADD_REPOSITORIES:-1} )); then
-  bash -xeuo pipefail "${system_helper_checkout}/add-repositories"
+  bash -euo pipefail "${system_helper_checkout}/add-repositories"
 fi
 
 build_selected_tools
 package_scripts_for_tools "${system_helper_checkout}" "${SELECTED_TOOLS[@]}"
 if [[ ${#PACKAGE_SCRIPTS[@]} -gt 0 ]]; then
-  bash -xeuo pipefail "${system_helper_checkout}/install-required-apt-packages" "${PACKAGE_SCRIPTS[@]}"
+  bash -euo pipefail "${system_helper_checkout}/install-required-apt-packages" "${PACKAGE_SCRIPTS[@]}"
 fi
 
 optional_system_packages=()

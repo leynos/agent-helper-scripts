@@ -5,6 +5,9 @@
 # or both. The default preserves the historical one-shot bootstrap behaviour.
 
 set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 SCRIPT_DIR=$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd

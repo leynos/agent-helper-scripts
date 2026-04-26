@@ -6,6 +6,9 @@
 # repository state changed or the lists are missing.
 
 set -Eeuo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 SCRIPT_NAME=$(basename "$0")
 REPOSITORIES_CHANGED=0
