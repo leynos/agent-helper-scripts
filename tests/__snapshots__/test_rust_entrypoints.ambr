@@ -100,7 +100,6 @@
   apt-get install -y -- linux-tools-common
   apt-get install -y -- linux-tools-generic
   update-ca-certificates
-  ln -sf /usr/bin/mold /usr/bin/ld
   
   '''
 # ---

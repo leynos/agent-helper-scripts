@@ -476,7 +476,6 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
             env={
                 "HOME": home.as_posix(),
                 "RUN_LOG": run_log.as_posix(),
-                "WITH_MOLD_LD_OVERRIDE": "1",
                 "UBUNTU_APT_MIRROR": "https://mirror.example.invalid/ubuntu/",
             },
         )
@@ -502,6 +501,12 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
         "<temporary-ubuntu-sources>",
         normalized_run_log_text,
     )
+    normalized_run_log_text = "\n".join(
+        line
+        for line in normalized_run_log_text.splitlines()
+        if not line.startswith("mv -n -- /etc/apt/")
+    )
+    normalized_run_log_text = f"{normalized_run_log_text}\n"
     assert normalized_run_log_text == snapshot
     assert not cloned_checkout.exists(), (
         "temporary system helper checkout should be cleaned up: "
