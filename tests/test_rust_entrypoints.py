@@ -9,6 +9,7 @@ home directory.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from random import Random
 from pathlib import Path
@@ -385,7 +386,10 @@ def test_rust_entrypoint_does_not_trace_by_default(tmp_path: Path) -> None:
     )
 
 
-def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path) -> None:
+def test_home_phase_runs_selected_helpers_without_system_commands(
+    tmp_path: Path,
+    snapshot,
+) -> None:
     """Home phase runs helper scripts without invoking system commands."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-home")
     home = tmp_path / "home"
@@ -420,8 +424,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
             },
         )
 
-    actual_lines = run_log.read_text().splitlines()
-    expected_lines = selected_helper_names(include_ai=True)
+    run_log_text = run_log.read_text()
     bashrc_text = (home / ".bashrc").read_text()
     profile_text = (home / ".profile").read_text()
     forbidden_calls = forbidden_invocations(mox.journal)
@@ -429,10 +432,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
         "home phase should succeed: "
         f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
     )
-    assert actual_lines == expected_lines, (
-        "home phase should run selected helpers in order: "
-        f"expected {expected_lines!r} but got {actual_lines!r}"
-    )
+    assert run_log_text == snapshot
     assert 'export PATH="' in bashrc_text, (
         "home phase should write PATH export block to .bashrc: "
         f".bashrc content was {bashrc_text!r}"
@@ -449,6 +449,7 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
 
 def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     tmp_path: Path,
+    snapshot,
 ) -> None:
     """System phase uses a temporary checkout and installs package metadata."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-system")
@@ -484,48 +485,24 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
         "system phase should succeed: "
         f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
     )
-    log_lines = run_log.read_text().splitlines()
+    run_log_text = run_log.read_text()
+    log_lines = run_log_text.splitlines()
     clone_lines = [line for line in log_lines if line.startswith("git clone ")]
-    assert "add-repositories" in log_lines, (
-        "system phase should run add-repositories: "
-        f"log lines were {log_lines!r}"
-    )
-    assert any(
-        line.startswith("install-required get-rust-tooling get-markdown-tooling")
-        for line in log_lines
-    ), (
-        "system phase should install packages for selected helpers: "
-        f"log lines were {log_lines!r}"
-    )
-    assert any(
-        line == "apt-get install -y -- linux-tools-common" for line in log_lines
-    ), (
-        "system phase should best-effort install linux-tools-common: "
-        f"log lines were {log_lines!r}"
-    )
-    assert any(
-        line == "apt-get install -y -- linux-tools-generic" for line in log_lines
-    ), (
-        "system phase should best-effort install linux-tools-generic: "
-        f"log lines were {log_lines!r}"
-    )
-    assert "update-ca-certificates" in log_lines, (
-        "system phase should update CA certificates: "
-        f"log lines were {log_lines!r}"
-    )
-    assert log_lines.count("apt-update-if-stale") == 2, (
-        "system phase should refresh APT through the stamp-aware helper: "
-        f"log lines were {log_lines!r}"
-    )
-    assert "clone-target-preexisting false" in log_lines, (
-        "system phase should clone into a non-pre-existing temp checkout: "
-        f"log lines were {log_lines!r}"
-    )
     assert clone_lines, (
         "system phase should log the git clone invocation: "
         f"log lines were {log_lines!r}"
     )
     cloned_checkout = Path(clone_lines[0].split()[-1])
+    normalized_run_log_text = run_log_text.replace(
+        cloned_checkout.as_posix(),
+        "<temporary-helper-checkout>",
+    )
+    normalized_run_log_text = re.sub(
+        r"/\S*/tmp\.\S+",
+        "<temporary-ubuntu-sources>",
+        normalized_run_log_text,
+    )
+    assert normalized_run_log_text == snapshot
     assert not cloned_checkout.exists(), (
         "temporary system helper checkout should be cleaned up: "
         f"found checkout at {cloned_checkout}"
@@ -534,6 +511,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
 
 def test_install_sub_agents_preserves_user_config_before_legacy_block(
     tmp_path: Path,
+    snapshot,
 ) -> None:
     """install-sub-agents removes only the legacy block from Codex config."""
     copy_entrypoint_files(tmp_path, "bootstrap-common", "install-sub-agents")
@@ -593,34 +571,7 @@ approval_policy = "never"
 
     assert result.exit_code == 0, result.stderr
     updated_config = config_path.read_text()
-    assert "[features]\nuser_feature = true" in updated_config, (
-        "user-owned features section should be preserved: "
-        f"config was {updated_config!r}"
-    )
-    assert '[profiles.default]\nmodel = "gpt-5.5"' in updated_config, (
-        "user-owned profile section should be preserved: "
-        f"config was {updated_config!r}"
-    )
-    assert '[agents.custom]\nconfig_file = "agents/custom.toml"' in updated_config, (
-        "user-owned custom agent section should be preserved: "
-        f"config was {updated_config!r}"
-    )
-    assert '[profiles.after]\napproval_policy = "never"' in updated_config, (
-        "config after the legacy block should be preserved: "
-        f"config was {updated_config!r}"
-    )
-    assert "LegacyWyvernNick" not in updated_config, (
-        "legacy wyvern nickname block should be removed: "
-        f"config was {updated_config!r}"
-    )
-    assert "LegacyScribeNick" not in updated_config, (
-        "legacy scribe nickname block should be removed: "
-        f"config was {updated_config!r}"
-    )
-    assert "### BEGIN agent-helper-scripts sub-agent config" in updated_config, (
-        "managed sub-agent config block should be appended: "
-        f"config was {updated_config!r}"
-    )
+    assert updated_config == snapshot
     assert "gpt-5.5" not in result.stdout, (
         "install-sub-agents should not print user config values: "
         f"stdout was {result.stdout!r}"

@@ -9,4 +9,5 @@ dev = [
   "cuprum",
   "hypothesis",
   "pytest",
+  "syrupy",
 ]
