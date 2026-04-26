@@ -399,6 +399,7 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
         mox.stub("git").runs(lambda invocation: git_system_handler(invocation, run_log))
         mox.stub("install").returns()
         mox.stub("apt-get").runs(lambda invocation: log_invocation(invocation, run_log))
+        mox.stub("mv").runs(lambda invocation: log_invocation(invocation, run_log))
         mox.stub("sh").returns()
         mox.stub("update-ca-certificates").runs(
             lambda invocation: log_invocation(invocation, run_log)
