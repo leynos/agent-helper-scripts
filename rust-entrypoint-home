@@ -72,6 +72,7 @@ EOF
         --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
         --prefix=cargo/
     fi
+    bootstrap_log "Connecting KOPIA repository"
     kopia repository connect s3 \
       --bucket="${KOPIA_BUCKET:-}" \
       --endpoint="${KOPIA_ENDPOINT:-}" \
@@ -79,14 +80,16 @@ EOF
       --access-key="${AWS_ACCESS_KEY_ID:-}" \
       --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
       --prefix=cargo/
+    bootstrap_log "Restoring cargo cache from snapshot"
     kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
   fi
 
   uv tool install "vendcurl==${VENDCURL_VERSION:-0.1.0}"
 
   build_selected_tools
+  bootstrap_log "Running ${#SELECTED_TOOLS[@]} selected helpers"
   for tool in "${SELECTED_TOOLS[@]}"; do
-    echo "Running $tool..."
+    bootstrap_log "Running helper: ${tool}"
     bash -euo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
   done
 }
@@ -95,5 +98,6 @@ run_locked_helper_bootstrap
 flock -u 9
 
 if [[ -n "${KOPIA_BUCKET:-}" ]]; then
+  bootstrap_log "Creating KOPIA snapshot"
   kopia snapshot create "$CARGO_KOPIA_DEST"
 fi

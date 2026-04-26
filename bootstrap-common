@@ -21,6 +21,19 @@ export HELPER_TOOLS_REPO_DIR
 export HELPER_TOOLS_REPO_BRANCH
 
 # Purpose:
+#   Emit a consistent bootstrap status line to stderr.
+# Parameters:
+#   $1 - Message to print after the bootstrap prefix.
+# Returns:
+#   0 after writing the log line.
+# Side effects:
+#   Writes to stderr.
+function bootstrap_log()
+{
+  printf '[bootstrap] %s\n' "$1" >&2
+}
+
+# Purpose:
 #   Detect the privilege escalation command needed for system mutations.
 # Parameters:
 #   None.
@@ -108,15 +121,15 @@ function clone_or_update_helper_tools_repo()
   mkdir -p "${checkout_parent}"
   if [[ -e "${checkout_dir}" ]]; then
     if git_is_work_tree=$(git -C "${checkout_dir}" rev-parse --is-inside-work-tree 2>/dev/null) && [[ "${git_is_work_tree}" == true ]]; then
-      echo "Updating helper tools repo at ${checkout_dir}..."
+      bootstrap_log "Updating existing checkout at ${checkout_dir}"
       git -C "${checkout_dir}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
       git -C "${checkout_dir}" reset --hard FETCH_HEAD
     else
-      echo "Error: ${checkout_dir} exists but is not a git checkout" >&2
+      bootstrap_log "Error: ${checkout_dir} exists but is not a git checkout"
       exit 1
     fi
   else
-    echo "Cloning helper tools repo to ${checkout_dir}..."
+    bootstrap_log "Cloning ${HELPER_TOOLS_REPO_URL} (branch: ${HELPER_TOOLS_REPO_BRANCH}) to ${checkout_dir}"
     git clone \
       --branch "${HELPER_TOOLS_REPO_BRANCH}" \
       --single-branch \
@@ -151,7 +164,7 @@ function install_helper_script()
   local source_path="${HELPER_TOOLS_REPO_DIR}/${script_name}"
 
   if [[ ! -f "${source_path}" ]]; then
-    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
+    bootstrap_log "Error: expected ${source_path} from the cloned agent-helper-scripts repo"
     exit 1
   fi
 
