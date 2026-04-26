@@ -530,15 +530,42 @@ approval_policy = "never"
 
     assert result.exit_code == 0, result.stderr
     updated_config = config_path.read_text()
-    assert "[features]\nuser_feature = true" in updated_config
-    assert '[profiles.default]\nmodel = "gpt-5.5"' in updated_config
-    assert '[agents.custom]\nconfig_file = "agents/custom.toml"' in updated_config
-    assert '[profiles.after]\napproval_policy = "never"' in updated_config
-    assert "LegacyWyvernNick" not in updated_config
-    assert "LegacyScribeNick" not in updated_config
-    assert "### BEGIN agent-helper-scripts sub-agent config" in updated_config
-    assert "gpt-5.5" not in result.stdout
-    assert "Updated Codex sub-agent config at" in result.stdout
+    assert "[features]\nuser_feature = true" in updated_config, (
+        "user-owned features section should be preserved: "
+        f"config was {updated_config!r}"
+    )
+    assert '[profiles.default]\nmodel = "gpt-5.5"' in updated_config, (
+        "user-owned profile section should be preserved: "
+        f"config was {updated_config!r}"
+    )
+    assert '[agents.custom]\nconfig_file = "agents/custom.toml"' in updated_config, (
+        "user-owned custom agent section should be preserved: "
+        f"config was {updated_config!r}"
+    )
+    assert '[profiles.after]\napproval_policy = "never"' in updated_config, (
+        "config after the legacy block should be preserved: "
+        f"config was {updated_config!r}"
+    )
+    assert "LegacyWyvernNick" not in updated_config, (
+        "legacy wyvern nickname block should be removed: "
+        f"config was {updated_config!r}"
+    )
+    assert "LegacyScribeNick" not in updated_config, (
+        "legacy scribe nickname block should be removed: "
+        f"config was {updated_config!r}"
+    )
+    assert "### BEGIN agent-helper-scripts sub-agent config" in updated_config, (
+        "managed sub-agent config block should be appended: "
+        f"config was {updated_config!r}"
+    )
+    assert "gpt-5.5" not in result.stdout, (
+        "install-sub-agents should not print user config values: "
+        f"stdout was {result.stdout!r}"
+    )
+    assert "Updated Codex sub-agent config at" in result.stdout, (
+        "install-sub-agents should print a non-sensitive update message: "
+        f"stdout was {result.stdout!r}"
+    )
 
 
 def test_install_sub_agents_rejects_unclosed_legacy_config_block(
@@ -585,10 +612,23 @@ nickname_candidates = [
             env={"HOME": home.as_posix()},
         )
 
-    assert result.exit_code != 0
-    assert "legacy Codex config block was not closed" in result.stderr
-    assert config_path.read_text() == original_config
-    assert "### BEGIN agent-helper-scripts sub-agent config" not in config_path.read_text()
+    assert result.exit_code != 0, (
+        "unclosed legacy config should fail: "
+        f"exit code was {result.exit_code}; stderr was {result.stderr!r}"
+    )
+    assert "legacy Codex config block was not closed" in result.stderr, (
+        "failure should explain the unclosed legacy block: "
+        f"stderr was {result.stderr!r}"
+    )
+    rewritten_config = config_path.read_text()
+    assert rewritten_config == original_config, (
+        "unclosed legacy config should not be rewritten: "
+        f"expected {original_config!r} but got {rewritten_config!r}"
+    )
+    assert "### BEGIN agent-helper-scripts sub-agent config" not in rewritten_config, (
+        "managed block should not be appended after parse failure: "
+        f"config was {rewritten_config!r}"
+    )
 
 
 def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:

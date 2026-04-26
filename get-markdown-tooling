@@ -33,7 +33,7 @@ function get_bin() {
     exit 1
   fi
 
-  mkdir -p  "${HOME}/.local/bin"
+  mkdir -p "${HOME}/.local/bin"
   cp "${source_path}" "${HOME}/.local/bin/${bin_name}"
   chmod 0755 "${HOME}/.local/bin/${bin_name}"
 }

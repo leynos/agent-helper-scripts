@@ -120,6 +120,7 @@ function install_act()
   fi
 
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"' EXIT
   vendcurl "${release_base}/checksums.txt" "${tmpdir}/checksums.txt"
   expected_sha=$(release_checksum "${archive_name}" "${tmpdir}/checksums.txt")
   vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
@@ -127,6 +128,7 @@ function install_act()
   cp "${tmpdir}/act" "${HOME}/.local/bin/act"
   chmod 0755 "${HOME}/.local/bin/act"
   rm -rf "${tmpdir}"
+  trap - EXIT
 }
 
 MERGIRAF_VERSION=${MERGIRAF_VERSION:-0.16.3}

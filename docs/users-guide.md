@@ -78,7 +78,7 @@ UBUNTU_APT_MIRROR=http://archive.ubuntu.com/ubuntu/ \
 
 Default: `1`
 
-`get-github-tooling` installs `leta`. By default it also runs:
+`get-github-tooling` installs `leta`. By default, it also runs:
 
 ```bash
 leta workspace add .

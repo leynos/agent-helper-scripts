@@ -26,7 +26,7 @@ def run_make(*args: str) -> subprocess.CompletedProcess[str]:
     ------------
     Starts a subprocess in the repository root.
     """
-    return subprocess.run(  # noqa: S603,S607
+    return subprocess.run(  # noqa: S603,S607 - controlled args, shell=False, repo-root make lookup.
         ["make", *args],
         cwd=REPO_ROOT,
         text=True,

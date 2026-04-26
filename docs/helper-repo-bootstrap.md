@@ -120,7 +120,7 @@ The cloning-based approach was introduced to solve three practical problems:
 - Warm-home cache providers need system mutations and `$HOME` mutations to be
   separable.
 
-By using a temporary checkout for system work and a managed checkout for home
-work, the bootstrap flow is more consistent, easier to test on branch-specific
-changes, and easier to extend without adding more raw GitHub fetches for
-repository-owned files.
+By using a temporary checkout for system work and a managed checkout for
+home-phase work, the bootstrap flow is more consistent, easier to test on
+branch-specific changes, and easier to extend without adding more raw GitHub
+fetches for repository-owned files.
