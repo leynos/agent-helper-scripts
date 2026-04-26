@@ -199,6 +199,7 @@ function ensure_top_level_toml_setting()
 function remove_legacy_codex_config_block()
 {
   local file=$1
+  local dest_dir
   local tmp
 
   [[ -f "${file}" ]] || return 0
@@ -208,7 +209,9 @@ function remove_legacy_codex_config_block()
   grep -q 'config_file = "agents/wyvern.toml"' "${file}" || return 0
   grep -q 'config_file = "agents/scribe.toml"' "${file}" || return 0
 
-  tmp=$(mktemp)
+  dest_dir=$(dirname -- "${file}")
+  tmp=$(mktemp "${dest_dir}/.tmp.$(basename -- "${file}").XXXXXX")
+  trap 'rm -f "${tmp}"; trap - RETURN' RETURN
   awk '
     function reset_candidate() {
       candidate=0
@@ -388,6 +391,7 @@ function remove_legacy_codex_config_block()
     return 1
   }
   mv "${tmp}" "${file}"
+  trap - RETURN
 }
 
 install_context_pack

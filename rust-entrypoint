@@ -59,30 +59,35 @@ function local_script_dir()
 function clone_or_update_delegate_repo()
 {
   local git_is_work_tree
+  local lock_file
 
   if ! command -v git >/dev/null 2>&1; then
     printf 'Error: git is required to clone split bootstrap entrypoints.\n' >&2
     exit 1
   fi
 
-  if [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
-    if git_is_work_tree=$(git -C "${HELPER_TOOLS_REPO_DIR}" rev-parse --is-inside-work-tree 2>/dev/null) \
-      && [[ "${git_is_work_tree}" == true ]]; then
-      git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
-      git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
+  mkdir -p "$(dirname -- "${HELPER_TOOLS_REPO_DIR}")"
+  lock_file="${HELPER_TOOLS_REPO_DIR}.lock"
+  {
+    flock -x 9
+    if [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
+      if git_is_work_tree=$(git -C "${HELPER_TOOLS_REPO_DIR}" rev-parse --is-inside-work-tree 2>/dev/null) \
+        && [[ "${git_is_work_tree}" == true ]]; then
+        git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
+        git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
+      else
+        printf 'Error: %s exists but is not a git checkout\n' "${HELPER_TOOLS_REPO_DIR}" >&2
+        exit 1
+      fi
     else
-      printf 'Error: %s exists but is not a git checkout\n' "${HELPER_TOOLS_REPO_DIR}" >&2
-      exit 1
+      git clone \
+        --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+        --single-branch \
+        --depth 1 \
+        "${HELPER_TOOLS_REPO_URL}" \
+        "${HELPER_TOOLS_REPO_DIR}"
     fi
-  else
-    mkdir -p "$(dirname -- "${HELPER_TOOLS_REPO_DIR}")"
-    git clone \
-      --branch "${HELPER_TOOLS_REPO_BRANCH}" \
-      --single-branch \
-      --depth 1 \
-      "${HELPER_TOOLS_REPO_URL}" \
-      "${HELPER_TOOLS_REPO_DIR}"
-  fi
+  } 9>"${lock_file}"
 
   SCRIPT_DIR=${HELPER_TOOLS_REPO_DIR}
 }

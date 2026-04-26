@@ -139,7 +139,7 @@ function install_conftest()
     )
     if [[ -z "${conftest_version}" ]]; then
       echo "Error: unable to resolve latest conftest version" >&2
-      exit 1
+      return 1
     fi
   fi
 
