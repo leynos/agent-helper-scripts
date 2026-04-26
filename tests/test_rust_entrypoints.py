@@ -250,6 +250,75 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
     assert not managed_checkout.exists()
 
 
+def test_install_sub_agents_preserves_user_config_before_legacy_block(
+    tmp_path: Path,
+) -> None:
+    copy_entrypoint_files(tmp_path, "install-sub-agents")
+    home = tmp_path / "home"
+    codex_dir = home / ".codex"
+    config_path = codex_dir / "config.toml"
+    home.mkdir()
+    codex_dir.mkdir()
+    config_path.write_text(
+        """[features]
+user_feature = true
+
+[profiles.default]
+model = "gpt-5.5"
+
+[agents.custom]
+config_file = "agents/custom.toml"
+
+[features]
+child_agents_md = true
+sqlite = true
+memories = true
+js_repl = true
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.wyvern]
+config_file = "agents/wyvern.toml"
+nickname_candidates = [
+  "LegacyWyvernNick",
+]
+
+[agents.scribe]
+config_file = "agents/scribe.toml"
+nickname_candidates = [
+  "LegacyScribeNick",
+]
+
+[profiles.after]
+approval_policy = "never"
+"""
+    )
+
+    with CmdMox() as mox:
+        mox.stub("vendcurl").runs(vendcurl_context_pack_handler)
+        mox.stub("tar").runs(tar_context_pack_handler)
+        mox.stub("install").returns()
+        mox.replay()
+        result = run_bash(
+            str(tmp_path / "install-sub-agents"),
+            cwd=tmp_path,
+            env={"HOME": home.as_posix()},
+        )
+
+    assert result.exit_code == 0, result.stderr
+    updated_config = config_path.read_text()
+    assert "[features]\nuser_feature = true" in updated_config
+    assert '[profiles.default]\nmodel = "gpt-5.5"' in updated_config
+    assert '[agents.custom]\nconfig_file = "agents/custom.toml"' in updated_config
+    assert '[profiles.after]\napproval_policy = "never"' in updated_config
+    assert "LegacyWyvernNick" not in updated_config
+    assert "LegacyScribeNick" not in updated_config
+    assert "### BEGIN agent-helper-scripts sub-agent config" in updated_config
+
+
 def git_home_handler(invocation: Invocation) -> tuple[str, str, int]:
     if invocation.args == ["version"]:
         return ("git version 2.45.0\n", "", 0)
@@ -272,6 +341,24 @@ def log_invocation(invocation: Invocation, run_log: Path) -> tuple[str, str, int
     argv = " ".join([invocation.command, *invocation.args])
     with run_log.open("a") as handle:
         handle.write(f"{argv}\n")
+    return ("", "", 0)
+
+
+def vendcurl_context_pack_handler(invocation: Invocation) -> tuple[str, str, int]:
+    destination = Path(invocation.args[-1])
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.name == "checksums.sha256":
+        destination.write_text(
+            "0 mcp-context-pack-x86_64-unknown-linux-gnu.tar.gz\n",
+        )
+    else:
+        destination.write_text("")
+    return ("", "", 0)
+
+
+def tar_context_pack_handler(invocation: Invocation) -> tuple[str, str, int]:
+    output_dir = Path(invocation.args[invocation.args.index("-C") + 1])
+    (output_dir / "mcp-context-pack").write_text("mock context pack")
     return ("", "", 0)
 
 

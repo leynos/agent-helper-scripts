@@ -194,23 +194,174 @@ function remove_legacy_codex_config_block()
 
   tmp=$(mktemp)
   awk '
-    $0 == "[features]" {
-      skipping=1
+    function reset_candidate() {
+      candidate=0
+      candidate_len=0
+      stage=""
+      child_agents_md=0
+      sqlite=0
+      memories=0
+      js_repl=0
+      multi_agent=0
+      max_threads=0
+      max_depth=0
+      seen_wyvern=0
       seen_scribe=0
+      delete candidate_lines
+    }
+
+    function remember(line) {
+      candidate_lines[++candidate_len]=line
+    }
+
+    function start_candidate(line) {
+      reset_candidate()
+      candidate=1
+      stage="features"
+      remember(line)
+    }
+
+    function flush_candidate(    line_index) {
+      for (line_index=1; line_index<=candidate_len; line_index++) {
+        print candidate_lines[line_index]
+      }
+      reset_candidate()
+    }
+
+    function is_section(line) {
+      return line ~ /^\[[^]]+\]$/
+    }
+
+    BEGIN {
+      reset_candidate()
+    }
+
+    !candidate {
+      if ($0 == "[features]") {
+        start_candidate($0)
+        next
+      }
+      print
       next
     }
-    skipping {
-      if ($0 == "config_file = \"agents/scribe.toml\"") {
-        seen_scribe=1
+
+    stage == "features" {
+      if ($0 == "[features]") {
+        flush_candidate()
+        start_candidate($0)
+        next
       }
-      if (seen_scribe && $0 == "]") {
-        skipping=0
+      if ($0 == "child_agents_md = true") {
+        child_agents_md=1
+        remember($0)
+        next
+      }
+      if ($0 == "sqlite = true") {
+        sqlite=1
+        remember($0)
+        next
+      }
+      if ($0 == "memories = true") {
+        memories=1
+        remember($0)
+        next
+      }
+      if ($0 == "js_repl = true") {
+        js_repl=1
+        remember($0)
+        next
+      }
+      if ($0 == "multi_agent = true") {
+        multi_agent=1
+        remember($0)
+        next
+      }
+      if ($0 == "[agents]") {
+        if (child_agents_md && sqlite && memories && js_repl && multi_agent) {
+          remember($0)
+          stage="agents"
+          next
+        }
+        flush_candidate()
+        print
+        next
+      }
+      if (is_section($0)) {
+        flush_candidate()
+        print
+        next
+      }
+      remember($0)
+      next
+    }
+
+    stage == "agents" {
+      if ($0 == "max_threads = 6") {
+        max_threads=1
+        remember($0)
+        next
+      }
+      if ($0 == "max_depth = 1") {
+        max_depth=1
+        remember($0)
+        next
+      }
+      if ($0 == "[agents.wyvern]") {
+        if (max_threads && max_depth) {
+          remember($0)
+          stage="wyvern"
+          next
+        }
+        flush_candidate()
+        print
+        next
+      }
+      remember($0)
+      if (is_section($0)) {
+        flush_candidate()
         next
       }
       next
     }
-    {
-      print
+
+    stage == "wyvern" {
+      remember($0)
+      if ($0 == "config_file = \"agents/wyvern.toml\"") {
+        seen_wyvern=1
+        next
+      }
+      if ($0 == "[agents.scribe]") {
+        if (seen_wyvern) {
+          stage="scribe"
+          next
+        }
+        flush_candidate()
+        next
+      }
+      if (is_section($0)) {
+        flush_candidate()
+        next
+      }
+      next
+    }
+
+    stage == "scribe" {
+      remember($0)
+      if ($0 == "config_file = \"agents/scribe.toml\"") {
+        seen_scribe=1
+        next
+      }
+      if (seen_scribe && $0 == "]") {
+        reset_candidate()
+        next
+      }
+      next
+    }
+
+    END {
+      if (candidate) {
+        flush_candidate()
+      }
     }
   ' "${file}" > "${tmp}"
   mv "${tmp}" "${file}"
