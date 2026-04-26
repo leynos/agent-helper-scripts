@@ -44,6 +44,11 @@ bash rust-entrypoint
 The home phase expects the system phase to have prepared the packages and
 shared libraries required by the user tools.
 
+## Upgrading
+
+See the [migration guide](migration-guide.md) when moving from the previous
+single-phase `rust-entrypoint` bootstrap to the system/home phase split.
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`
