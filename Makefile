@@ -21,7 +21,7 @@ HOME_PHASE_HELPERS != awk '\
 	} \
 ' bootstrap-common
 HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
-HOME_PHASE_BOUNDARY_PATTERN := (^|[^[:alnum:]_])(apt-get|apt-update-if-stale|sudo)([^[:alnum:]_]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
+HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|install|realpath|ln)([[:space:]]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
 PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py tests/*.py))
 PYTEST := uv run --with pytest --with cmd-mox --with cuprum python -m pytest
 HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))

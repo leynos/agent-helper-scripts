@@ -210,10 +210,10 @@ def greet() -> None:
 ## Execution context and hooks
 
 Cuprum provides `CuprumContext` to scope allowlists and execution hooks across
-your application. Contexts are backed by a `ContextVar`, giving you automatic
+an application. Contexts are backed by a `ContextVar`, giving automatic
 isolation across threads and async tasks.
 
-When you call `SafeCmd.run()` or `run_sync()`, Cuprum automatically:
+When `SafeCmd.run()` or `run_sync()` is called, Cuprum automatically:
 
 1. Checks the current context's allowlist and raises `ForbiddenProgramError` if
    the program is not permitted.
@@ -585,8 +585,8 @@ hook = MetricsHook(PrometheusMetrics())
 ### Tracing adapter
 
 The `tracing_adapter` module provides an OpenTelemetry-style tracing hook that
-creates spans for command execution. It uses protocol classes so you can
-implement the backend with your preferred tracing library.
+creates spans for command execution. It uses protocol classes so projects can
+implement the backend with their preferred tracing library.
 
 ```python
 from cuprum import ECHO, scoped, sh

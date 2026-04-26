@@ -1,7 +1,7 @@
 # CmdMox Usage Guide
 
 CmdMox provides a fluent API for mocking, stubbing and spying on external
-commands in your tests. This guide shows common patterns for everyday use.
+commands in tests. This guide shows common patterns for everyday use.
 
 ## Getting started
 
@@ -14,7 +14,7 @@ pip install cmd-mox
 On Windows the wheel also pulls in `pywin32`, which provides the `win32pipe`
 and `win32file` modules that power CmdMox's named-pipe IPC transport.
 
-In your `conftest.py`:
+In `conftest.py`:
 
 ```python
 pytest_plugins = ("cmd_mox.pytest_plugin",)
@@ -40,7 +40,7 @@ interpreter and forward all arguments to the shared `shim.py`, so no additional
 wrappers or entry points are required.
 
 When CmdMox enters replay mode on Windows it ensures `.CMD` is present in the
-effective `PATHEXT` value, even if developers customised their shell to omit
+effective `PATHEXT` value, even if developers customized their shell to omit
 the extension. The generated launchers always emit CRLF line endings and escape
 carets/percent signs so the Windows command processor parses them consistently
 with native batch scripts, even when arguments or installation paths include
@@ -65,8 +65,8 @@ installs runs only when the shim entrypoint executes. When shim helpers are
 reused directly, ``cmd_mox._shim_bootstrap.bootstrap_shim_path()`` should be
 called during setup first.
 
-When you need to make an explicit decision in a test module (for instance when
-using the context manager API), import the helper re-exported from the package:
+When a test module needs to make an explicit decision (for instance when using
+the context manager API), import the helper re-exported from the package:
 
 ```python
 from cmd_mox import skip_if_unsupported
@@ -74,12 +74,12 @@ from cmd_mox import skip_if_unsupported
 skip_if_unsupported()
 ```
 
-`skip_if_unsupported` defers to `pytest.skip` on unsupported platforms. If you
-only need to gate a code path, `cmd_mox.is_supported_platform()` returns a
-boolean instead. Advanced tests can override the detected platform by setting
-the `CMD_MOX_PLATFORM_OVERRIDE` environment variable, which is primarily useful
-for simulating alternative environments inside CI pipelines (for example to
-exercise Windows-specific shims from a Linux runner).
+`skip_if_unsupported` defers to `pytest.skip` on unsupported platforms. For
+code-path gating only, `cmd_mox.is_supported_platform()` returns a boolean
+instead. Advanced tests can override the detected platform by setting the
+`CMD_MOX_PLATFORM_OVERRIDE` environment variable, which is primarily useful for
+simulating alternative environments inside CI pipelines (for example to exercise
+Windows-specific shims from a Linux runner).
 
 The cmd-mox test suite also uses the `pytest.mark.requires_unix_sockets` marker
 for scenarios that need to bind a Unix domain socket. Marking these tests keeps
@@ -88,8 +88,8 @@ them green on platforms (or CI sandboxes) that disallow Unix sockets entirely.
 ## Basic workflow
 
 CmdMox follows a strict record → replay → verify lifecycle. First declare
-expectations, then run your code with the shims active, finally verify that
-interactions matched what was recorded.
+expectations, then run the code under test with the shims active, and finally
+verify that interactions matched what was recorded.
 
 The three phases are defined in the design document:
 
@@ -182,11 +182,11 @@ with CmdMox() as mox:
     subprocess.run(["ls"], check=True)
 ```
 
-If replay aborts—whether because your code raised an exception or you hit
-Ctrl+C—`CmdMox` still tears down the environment before surfacing the original
-error. The controller catches interruptions during replay startup, stops the
-IPC server, removes the shim directory (and its socket), and restores `PATH`
-before re-raising so you never leak temporary artefacts between tests.
+If replay aborts because the code under test raises an exception or the process
+receives Ctrl+C, `CmdMox` still tears down the environment before surfacing the
+original error. The controller catches interruptions during replay startup,
+stops the IPC server, removes the shim directory (and its socket), and restores
+`PATH` before re-raising so temporary artefacts do not leak between tests.
 
 ## Parallel execution and isolation
 
@@ -279,8 +279,8 @@ restricted to spy doubles.
 the context-manager API:
 
 - `verify_on_exit` (default `True`) automatically calls `verify()` when a replay
-  phase ends inside a `with CmdMox()` block. Disable it when you need to manage
-  verification manually. Verification still runs if the body raises; when both
+  phase ends inside a `with CmdMox()` block. Disable it when manual verification
+  management is required. Verification still runs if the body raises; when both
   verification and the body fail, the verification error is suppressed so the
   original exception surfaces.
 - `max_journal_entries` bounds the number of stored invocations (oldest entries
@@ -358,7 +358,7 @@ the full table of methods and examples.
 
 Most projects interact with the IPC server through `CmdMox`, but advanced
 scenarios can instantiate `cmd_mox.ipc.IPCServer` themselves. The server
-accepts optional callbacks so invocation handling can be customised without
+accepts optional callbacks so invocation handling can be customized without
 subclassing:
 
 ```python
@@ -380,7 +380,7 @@ On Windows the transport can be forced explicitly by swapping `IPCServer` for
 :class:`NamedPipeServer`; `CmdMox` selects it automatically based on
 ``os.name``.
 
-Projects that rely on :class:`CallbackIPCServer` can still customise startup
+Projects that rely on :class:`CallbackIPCServer` can still customize startup
 and accept timeouts by passing a :class:`TimeoutConfig` dataclass:
 
 ```python

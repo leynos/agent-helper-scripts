@@ -38,23 +38,115 @@ def run_bash(
     cwd: Path,
     env: dict[str, str],
 ):
+    """Run a Bash command through the cuprum allowlist.
+
+    Parameters
+    ----------
+    *args : str
+        Command arguments passed to the Bash executable.
+    cwd : Path
+        Working directory for the process.
+    env : dict[str, str]
+        Environment variables for the process.
+
+    Returns
+    -------
+    CommandResult
+        Cuprum result object with exit code, stdout and stderr.
+
+    Raises
+    ------
+    OSError
+        Raised by process startup failures such as a missing executable.
+
+    Notes
+    -----
+    The test catalogue allows only the configured Bash executable.
+    """
     cmd = sh.make(BASH, catalogue=CATALOGUE)(*args)
     with scoped(allowlist=CATALOGUE.allowlist):
         return cmd.run_sync(context=ExecutionContext(cwd=cwd, env=env))
 
 
 def write_script(path: Path, body: str) -> None:
+    """Write an executable Bash helper script.
+
+    Parameters
+    ----------
+    path : Path
+        Destination script path.
+    body : str
+        Script body appended after the shebang and safety options.
+
+    Returns
+    -------
+    None
+        The function writes the file in place.
+
+    Raises
+    ------
+    OSError
+        Raised when the file cannot be written or chmod fails.
+
+    Notes
+    -----
+    The generated script uses ``set -euo pipefail``.
+    """
     path.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{body}\n")
     path.chmod(0o755)
 
 
 def copy_entrypoint_files(target: Path, *names: str) -> None:
+    """Copy repository entrypoint files into a test workspace.
+
+    Parameters
+    ----------
+    target : Path
+        Directory that receives copied files.
+    *names : str
+        Repository-root file names to copy.
+
+    Returns
+    -------
+    None
+        Files are copied and made executable.
+
+    Raises
+    ------
+    OSError
+        Raised when copying or chmod fails.
+
+    Notes
+    -----
+    Tests use copied scripts so each run can mutate an isolated workspace.
+    """
     for name in names:
         shutil.copy2(REPO_ROOT / name, target / name)
         (target / name).chmod(0o755)
 
 
 def selected_helper_names(*, include_ai: bool = False) -> list[str]:
+    """Return helper script names selected by the default bootstrap.
+
+    Parameters
+    ----------
+    include_ai : bool, optional
+        Include ``get-ai-tooling`` when true.
+
+    Returns
+    -------
+    list[str]
+        Ordered helper names expected to run during the home phase.
+
+    Raises
+    ------
+    None
+        This helper does not perform filesystem or process operations.
+
+    Notes
+    -----
+    The order mirrors ``bootstrap-common`` defaults used by the tests.
+    """
     names = [
         "get-rust-tooling",
         "rust-setup",
@@ -76,6 +168,31 @@ def create_helper_checkout(
     include_ai: bool = False,
     git_as_file: bool = False,
 ) -> None:
+    """Create a mock managed helper checkout.
+
+    Parameters
+    ----------
+    path : Path
+        Checkout directory to create.
+    include_ai : bool, optional
+        Include a mock ``get-ai-tooling`` helper when true.
+    git_as_file : bool, optional
+        Write ``.git`` as a file to emulate Git worktree checkouts.
+
+    Returns
+    -------
+    None
+        The checkout directory and mock helper scripts are written in place.
+
+    Raises
+    ------
+    OSError
+        Raised when directories or helper scripts cannot be created.
+
+    Notes
+    -----
+    Each mock helper appends its name to ``RUN_LOG`` when executed.
+    """
     path.mkdir(parents=True)
     if git_as_file:
         (path / ".git").write_text("gitdir: ../real-git-dir\n")
@@ -89,6 +206,27 @@ def create_helper_checkout(
 
 
 def create_system_helper_checkout(path: Path) -> None:
+    """Create a mock temporary helper checkout for the system phase.
+
+    Parameters
+    ----------
+    path : Path
+        Temporary checkout directory to populate.
+
+    Returns
+    -------
+    None
+        System-phase helper scripts and package metadata are written in place.
+
+    Raises
+    ------
+    OSError
+        Raised when checkout files cannot be created.
+
+    Notes
+    -----
+    The mock ``apt-update-if-stale`` records calls instead of touching APT.
+    """
     path.mkdir(parents=True)
     (path / ".git").mkdir()
     write_script(
@@ -127,8 +265,15 @@ def test_rust_entrypoint_dispatches_selected_phase(tmp_path: Path) -> None:
         env={"RUN_LOG": run_log.as_posix(), "RUST_ENTRYPOINT_PHASE": "system"},
     )
 
-    assert result.exit_code == 0, result.stderr
-    assert run_log.read_text().splitlines() == ["system"]
+    actual_lines = run_log.read_text().splitlines()
+    assert result.exit_code == 0, (
+        "system phase dispatch should succeed: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert actual_lines == ["system"], (
+        "system phase dispatch should run only the system entrypoint: "
+        f"expected ['system'] but got {actual_lines!r}"
+    )
 
 
 def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
@@ -149,8 +294,15 @@ def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
         env={"RUN_LOG": run_log.as_posix()},
     )
 
-    assert result.exit_code == 0, result.stderr
-    assert run_log.read_text().splitlines() == ["system", "home"]
+    actual_lines = run_log.read_text().splitlines()
+    assert result.exit_code == 0, (
+        "both phase dispatch should succeed: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert actual_lines == ["system", "home"], (
+        "both phase dispatch should run system then home: "
+        f"expected ['system', 'home'] but got {actual_lines!r}"
+    )
 
 
 def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
@@ -162,8 +314,14 @@ def test_rust_entrypoint_rejects_unknown_phase(tmp_path: Path) -> None:
         env={"RUST_ENTRYPOINT_PHASE": "sideways"},
     )
 
-    assert result.exit_code == 2
-    assert "Unknown RUST_ENTRYPOINT_PHASE: sideways" in (result.stderr or "")
+    assert result.exit_code == 2, (
+        "unknown phase should exit with usage error: "
+        f"expected 2 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert "Unknown RUST_ENTRYPOINT_PHASE: sideways" in (result.stderr or ""), (
+        "unknown phase should name the rejected value: "
+        f"stderr was {result.stderr!r}"
+    )
 
 
 def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path) -> None:
@@ -201,11 +359,31 @@ def test_home_phase_runs_selected_helpers_without_system_commands(tmp_path: Path
             },
         )
 
-    assert result.exit_code == 0, result.stderr
-    assert run_log.read_text().splitlines() == selected_helper_names(include_ai=True)
-    assert 'export PATH="' in (home / ".bashrc").read_text()
-    assert ".bashrc" in (home / ".profile").read_text()
-    assert not forbidden_invocations(mox.journal)
+    actual_lines = run_log.read_text().splitlines()
+    expected_lines = selected_helper_names(include_ai=True)
+    bashrc_text = (home / ".bashrc").read_text()
+    profile_text = (home / ".profile").read_text()
+    forbidden_calls = forbidden_invocations(mox.journal)
+    assert result.exit_code == 0, (
+        "home phase should succeed: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert actual_lines == expected_lines, (
+        "home phase should run selected helpers in order: "
+        f"expected {expected_lines!r} but got {actual_lines!r}"
+    )
+    assert 'export PATH="' in bashrc_text, (
+        "home phase should write PATH export block to .bashrc: "
+        f".bashrc content was {bashrc_text!r}"
+    )
+    assert ".bashrc" in profile_text, (
+        "home phase should make .profile source .bashrc: "
+        f".profile content was {profile_text!r}"
+    )
+    assert not forbidden_calls, (
+        "home phase should not invoke system commands: "
+        f"forbidden calls were {forbidden_calls!r}"
+    )
 
 
 def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
@@ -213,7 +391,6 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
 ) -> None:
     copy_entrypoint_files(tmp_path, "bootstrap-common", "rust-entrypoint-system")
     home = tmp_path / "home"
-    managed_checkout = home / "git" / "agent-helper-scripts"
     run_log = tmp_path / "run.log"
     home.mkdir()
 
@@ -240,21 +417,56 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
             },
         )
 
-    assert result.exit_code == 0, result.stderr
+    assert result.exit_code == 0, (
+        "system phase should succeed: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
     log_lines = run_log.read_text().splitlines()
-    assert "add-repositories" in log_lines
+    clone_lines = [line for line in log_lines if line.startswith("git clone ")]
+    assert "add-repositories" in log_lines, (
+        "system phase should run add-repositories: "
+        f"log lines were {log_lines!r}"
+    )
     assert any(
         line.startswith("install-required get-rust-tooling get-markdown-tooling")
         for line in log_lines
+    ), (
+        "system phase should install packages for selected helpers: "
+        f"log lines were {log_lines!r}"
     )
     assert any(
         line == "apt-get install -y -- linux-tools-common" for line in log_lines
+    ), (
+        "system phase should best-effort install linux-tools-common: "
+        f"log lines were {log_lines!r}"
     )
-    assert any(line == "apt-get install -y -- linux-tools-generic" for line in log_lines)
-    assert "update-ca-certificates" in log_lines
-    assert log_lines.count("apt-update-if-stale") == 1
-    assert "clone-target-preexisting false" in log_lines
-    assert not managed_checkout.exists()
+    assert any(
+        line == "apt-get install -y -- linux-tools-generic" for line in log_lines
+    ), (
+        "system phase should best-effort install linux-tools-generic: "
+        f"log lines were {log_lines!r}"
+    )
+    assert "update-ca-certificates" in log_lines, (
+        "system phase should update CA certificates: "
+        f"log lines were {log_lines!r}"
+    )
+    assert log_lines.count("apt-update-if-stale") == 1, (
+        "system phase should refresh APT once before best-effort installs: "
+        f"log lines were {log_lines!r}"
+    )
+    assert "clone-target-preexisting false" in log_lines, (
+        "system phase should clone into a non-pre-existing temp checkout: "
+        f"log lines were {log_lines!r}"
+    )
+    assert clone_lines, (
+        "system phase should log the git clone invocation: "
+        f"log lines were {log_lines!r}"
+    )
+    cloned_checkout = Path(clone_lines[0].split()[-1])
+    assert not cloned_checkout.exists(), (
+        "temporary system helper checkout should be cleaned up: "
+        f"found checkout at {cloned_checkout}"
+    )
 
 
 def test_install_sub_agents_preserves_user_config_before_legacy_block(

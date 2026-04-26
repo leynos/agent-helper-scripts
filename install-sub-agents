@@ -79,7 +79,8 @@ function install_context_pack()
   vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
   mkdir -p "${install_dir}"
-  install -m 0755 "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
+  cp "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
+  chmod 0755 "${install_dir}/${binary_name}"
   rm -rf "${tmpdir}"
   trap - EXIT
 }

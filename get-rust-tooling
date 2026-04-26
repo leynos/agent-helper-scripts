@@ -140,7 +140,8 @@ if [[ ! -f "${HELPER_TOOLS_REPO_DIR}/notdeadyet" ]]; then
   echo "Error: expected ${HELPER_TOOLS_REPO_DIR}/notdeadyet from the cloned agent-helper-scripts repo" >&2
   exit 1
 fi
-install -m 0700 "${HELPER_TOOLS_REPO_DIR}/notdeadyet" "${HOME}/.local/bin/notdeadyet"
+cp "${HELPER_TOOLS_REPO_DIR}/notdeadyet" "${HOME}/.local/bin/notdeadyet"
+chmod 0700 "${HOME}/.local/bin/notdeadyet"
 read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"

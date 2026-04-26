@@ -55,7 +55,12 @@ def test_home_phase_boundary_ignores_comment_only_matches(tmp_path: Path) -> Non
 def test_home_phase_boundary_rejects_forbidden_commands(tmp_path: Path) -> None:
     """Boundary check fails when a home script invokes system commands."""
     script = tmp_path / "home-helper"
-    script.write_text("sudo apt-get update\n")
+    script.write_text(
+        "sudo apt-get update\n"
+        "install -m 0755 source target\n"
+        "realpath /usr/bin/ld\n"
+        "ln -sf /usr/bin/fdfind fd\n",
+    )
 
     result = run_make(
         "check-home-phase-boundary",
@@ -64,3 +69,6 @@ def test_home_phase_boundary_rejects_forbidden_commands(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert f"{script.as_posix()}:1:" in result.stdout
+    assert f"{script.as_posix()}:2:" in result.stdout
+    assert f"{script.as_posix()}:3:" in result.stdout
+    assert f"{script.as_posix()}:4:" in result.stdout

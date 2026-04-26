@@ -124,7 +124,8 @@ function install_act()
   expected_sha=$(release_checksum "${archive_name}" "${tmpdir}/checksums.txt")
   vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
-  install -m 0755 "${tmpdir}/act" "${HOME}/.local/bin/act"
+  cp "${tmpdir}/act" "${HOME}/.local/bin/act"
+  chmod 0755 "${HOME}/.local/bin/act"
   rm -rf "${tmpdir}"
 }
 
@@ -144,7 +145,11 @@ popd || exit
 uv tool install mbake
 bun install -g pajv
 
-ln -sf /usr/bin/fdfind "${HOME}/.local/bin/fd"
+cat > "${HOME}/.local/bin/fd" <<'__EOF__'
+#!/usr/bin/env bash
+exec /usr/bin/fdfind "$@"
+__EOF__
+chmod 0755 "${HOME}/.local/bin/fd"
 
 cargo binstall --no-confirm "mergiraf@${MERGIRAF_VERSION}"
 cargo binstall --no-confirm "difftastic@${DIFFTASTIC_VERSION}"

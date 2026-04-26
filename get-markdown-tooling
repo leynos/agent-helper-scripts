@@ -34,7 +34,8 @@ function get_bin() {
   fi
 
   mkdir -p  "${HOME}/.local/bin"
-  install -m 0755 "${source_path}" "${HOME}/.local/bin/${bin_name}"
+  cp "${source_path}" "${HOME}/.local/bin/${bin_name}"
+  chmod 0755 "${HOME}/.local/bin/${bin_name}"
 }
 
 WITH_VALE=${WITH_VALE:-0}

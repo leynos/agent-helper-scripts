@@ -1,8 +1,8 @@
 # Helper Repo Bootstrap
 
 The helper bootstrap flow starts from `rust-entrypoint`, then splits work by
-authority boundary. System work uses a temporary helper checkout. Home work uses
-the managed helper checkout under `$HOME`.
+authority boundary. System work uses a temporary helper checkout. Home-phase
+work uses the managed helper checkout under `$HOME`.
 
 This keeps package-manager and machine-level mutations separate from durable
 user-cache mutations while still running repository-owned helper scripts from a

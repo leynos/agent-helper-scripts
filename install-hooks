@@ -58,14 +58,17 @@ if [[ ! -d "${HOOKS_SRC}" ]]; then
 fi
 
 mkdir -p "${INSTALL_BIN_DIR}"
-install -m 0755 "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
+cp "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
+chmod 0755 "${INSTALL_HOOK_CMD}"
 
 mkdir -p "${CLAUDE_HOOKS_DIR}"
 installed_hooks=0
 shopt -s nullglob
 for hook in "${HOOKS_SRC}"/*; do
   [[ -f "${hook}" ]] || continue
-  install -m 0755 "${hook}" "${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+  hook_destination="${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+  cp "${hook}" "${hook_destination}"
+  chmod 0755 "${hook_destination}"
   installed_hooks=$((installed_hooks + 1))
 done
 shopt -u nullglob

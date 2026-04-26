@@ -26,9 +26,9 @@ The Rust bootstrap is split into two phases:
   - Runs `system` first and then `home`.
   - This is the default for the compatibility wrapper.
 
-Run `system` whenever you have a fresh or reset system layer. Run `home` when
-creating or refreshing a warm `$HOME` cache. In a warm-cache environment, run
-the phases separately:
+Run `system` for a fresh or reset system layer. Run `home` when creating or
+refreshing a warm `$HOME` cache. In a warm-cache environment, run the phases
+separately:
 
 ```bash
 RUST_ENTRYPOINT_PHASE=system bash rust-entrypoint
@@ -65,8 +65,8 @@ warm `$HOME` cache creation or refresh.
 Default: `http://mirror.math.princeton.edu/pub/ubuntu/`
 
 The system phase writes an Ubuntu source definition that points at this mirror.
-Set it when you need a local, regional, private, or provider-managed Ubuntu
-mirror.
+Set when a local, regional, private, or provider-managed Ubuntu mirror is
+required.
 
 ```bash
 UBUNTU_APT_MIRROR=http://archive.ubuntu.com/ubuntu/ \
@@ -106,7 +106,7 @@ scripts reuse the same checkout when these variables are exported.
 - `HELPER_TOOLS_REPO_DIR`
   - Default: `${HOME}/git/${HELPER_TOOLS_REPO_NAME}`
   - Managed helper checkout path.
-  - Set this when you need an isolated checkout.
+  - Set when an isolated checkout is required.
 - `REPO_DIR`
   - Default: `HELPER_TOOLS_REPO_DIR`, then
     `${HOME}/git/agent-helper-scripts`
@@ -259,7 +259,7 @@ Set `SCCACHE_BUCKET` to install and configure `sccache` for Rust builds.
 ## Sub-agent and context-pack settings
 
 `install-sub-agents` can install `context_pack` into the user environment.
-These variables customise that installation:
+These variables customize that installation:
 
 - `CONTEXT_PACK_REPO`
   - Default: `AmirTlinov/context_pack`
