@@ -282,19 +282,27 @@ The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
 - `make ci`
-  - Runs `check-fmt`, `lint`, `typecheck`, and `test`.
+  - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, and
+    `test`.
+  - Use this before pushing; it mirrors what the GitHub Actions workflow
+    executes.
 - `make lint`
   - Runs `syntax-check`, `shell-syntax-check`, and
     `check-home-phase-boundary`.
 - `make shell-syntax-check`
-  - Validates all shell scripts with `bash -n`.
+  - Runs `bash -n` over every shell script listed in `SHELL_SCRIPTS` to catch
+    syntax errors without executing any code.
 - `make check-home-phase-boundary`
   - Rejects APT, `sudo`, and linker mutation patterns in home-phase scripts.
   - Scans non-comment lines only.
 - `make test-hooks`
-  - Runs the hook-only pytest subset.
+  - Runs the hook-only pytest subset (`HOOK_TESTS`) via
+    `uv run python -m pytest`.
 - `make test-entrypoints`
-  - Runs the entrypoint-only pytest subset.
+  - Runs the entrypoint-only pytest subset (`ENTRYPOINT_TESTS`) via
+    `uv run python -m pytest`.
+  - Use this when iterating on `rust-entrypoint`, `rust-entrypoint-system`, or
+    `rust-entrypoint-home`.
 
 ## Validation expectations
 

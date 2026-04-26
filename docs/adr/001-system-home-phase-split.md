@@ -1,45 +1,40 @@
-# ADR 001: System/Home Phase Split
+# ADR 001 — System / home phase split
 
-## Status
-
-Accepted
-
-## Date
-
-2026-04-26
+**Status:** Accepted
+**Date:** 2026-04-26
 
 ## Context
 
-The previous `rust-entrypoint` model had no explicit authority boundary. One
-process configured repositories, installed packages, updated certificates,
-changed linker behaviour, installed user-scoped toolchains, and wrote
-home-directory configuration.
+The original `rust-entrypoint` ran both privileged operations and user-scoped
+operations in a single process. Privileged operations included APT repository
+setup, APT package installation, CA certificate updates, and linker
+configuration. User-scoped operations included toolchain installation, profile
+wiring, and Kopia restore/snapshot work.
 
-That made warm-cache bootstrap flows difficult to reason about. Privileged
-package mutations and credential-sensitive user operations could run in the
-same process, even though the system layer and `$HOME` cache have different
-lifecycles, risks, and recovery paths.
+This made it impossible to cache the privilege-requiring layer separately from
+the user-specific layer. It also created a risk of credential leakage when
+tracing was enabled, because credential-sensitive user operations and
+privileged package mutations shared one execution path.
 
 ## Decision
 
-Split the bootstrap into two phase-specific entrypoints:
+Split `rust-entrypoint` into two delegate scripts:
 
 - `rust-entrypoint-system`
-  - Owns privileged machine-layer work such as APT repositories, packages,
-    certificates, and optional linker changes.
+  - Privileged operations that mutate machine state.
+  - Runs as root or via `sudo`.
 - `rust-entrypoint-home`
-  - Owns user-scoped work under `$HOME`, including toolchains, helper
-    checkouts, shell profile updates, skills, hooks, and agent configuration.
+  - User-scoped warm mutations.
+  - Must never invoke `apt-get`, invoke `sudo`, or touch system paths.
 
-Keep `rust-entrypoint` as the compatibility wrapper and dispatch through
-`RUST_ENTRYPOINT_PHASE`.
+A dispatcher (`rust-entrypoint`) selects which scripts to run based on
+`RUST_ENTRYPOINT_PHASE` (`system`, `home`, or `both`).
 
 ## Consequences
 
-The system phase can be run and cached at the image or system layer without
-intentionally mutating the durable home checkout. The home phase can run during
-warm-cache creation or restore without re-acquiring privileges or touching APT
-state.
-
-The split also makes boundary checks meaningful: home-phase scripts must avoid
-APT, `/etc`, `/usr`, linker mutation, and privilege-escalation side effects.
+- The system phase can be baked into a container image layer, making home-phase
+  re-runs cheap.
+- The `check-home-phase-boundary` Makefile target statically enforces the
+  boundary; violations in non-comment lines fail the lint gate.
+- `WITH_TRACE` enables Bash xtrace only after the boundary check, so credentials
+  are never unconditionally exposed.
