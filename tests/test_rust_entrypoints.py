@@ -8,6 +8,7 @@ home directory.
 
 from __future__ import annotations
 
+import os
 import shutil
 from random import Random
 from pathlib import Path
@@ -351,6 +352,33 @@ def test_rust_entrypoint_enables_trace_when_requested(tmp_path: Path) -> None:
     assert "+ exec bash" in (result.stderr or ""), (
         "WITH_TRACE should enable xtrace output: "
         f"stderr was {result.stderr!r}"
+    )
+
+
+def test_rust_entrypoint_does_not_trace_by_default(tmp_path: Path) -> None:
+    """Bash xtrace must be absent when WITH_TRACE is unset."""
+    copy_entrypoint_files(tmp_path, "rust-entrypoint")
+    run_log = tmp_path / "run.log"
+    write_script(
+        tmp_path / "rust-entrypoint-system",
+        'printf "%s\\n" "system" >> "${RUN_LOG:?}"',
+    )
+    env = {**os.environ, "HOME": str(tmp_path), "RUN_LOG": run_log.as_posix()}
+    env["RUST_ENTRYPOINT_PHASE"] = "system"
+    env.pop("WITH_TRACE", None)
+
+    result = run_bash(
+        str(tmp_path / "rust-entrypoint"),
+        cwd=tmp_path,
+        env=env,
+    )
+
+    assert result.exit_code == 0, (
+        "system phase dispatch should succeed without tracing: "
+        f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
+    )
+    assert "+ " not in (result.stderr or ""), (
+        "xtrace output must not appear when WITH_TRACE is unset"
     )
 
 

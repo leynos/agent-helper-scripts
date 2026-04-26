@@ -8,6 +8,8 @@ import subprocess
 import textwrap
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -276,6 +278,72 @@ def test_ensure_top_level_toml_setting_treats_key_as_literal(
         "suppress.unstable_features_warning = true\n",
     ), contents
     assert "suppressXunstable_features_warning = false" in contents, contents
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "expected"),
+    (
+        pytest.param(None, "", "MISSING", id="empty-dir"),
+        pytest.param("lock", "locked", "MISSING", id="lock-file"),
+        pytest.param(
+            "archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages",
+            "Package: bash\n",
+            "OK",
+            id="packages-index",
+        ),
+        pytest.param(
+            "archive.ubuntu.com_ubuntu_dists_noble_InRelease",
+            "Suite: noble\n",
+            "OK",
+            id="inrelease-index",
+        ),
+        pytest.param("Packages", "Package: bash\n", "MISSING", id="bare-packages"),
+    ),
+)
+def test_apt_lists_exist_matches_only_real_index_files(
+    tmp_path: Path,
+    filename: str | None,
+    content: str,
+    expected: str,
+) -> None:
+    """apt_lists_exist recognises only underscore-anchored APT index files."""
+    lists_dir = tmp_path / "apt" / "lists"
+    lists_dir.mkdir(parents=True)
+    if filename is not None:
+        (lists_dir / filename).write_text(content)
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        APT_LISTS_DIR={shlex.quote(str(lists_dir))}
+        apt_lists_exist() {{
+          find "${{APT_LISTS_DIR}}" \\
+            -mindepth 1 \\
+            -maxdepth 1 \\
+            -type f \\
+            -size +0c \\
+            ! -name lock \\
+            ! -path '*/partial/*' \\
+            \\( \\
+              -name '*_Packages' \\
+              -o -name '*_Packages.*' \\
+              -o -name '*_Sources' \\
+              -o -name '*_Sources.*' \\
+              -o -name '*_Release' \\
+              -o -name '*_InRelease' \\
+              -o -name 'Release' \\
+            \\) \\
+            -print \\
+            -quit \\
+            2>/dev/null | grep -q .
+        }}
+        apt_lists_exist && echo OK || echo MISSING
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert expected in result.stdout.splitlines(), (
+        f"expected apt_lists_exist to report {expected}, got {result.stdout!r}"
+    )
 
 
 def test_needs_reports_missing_commands(tmp_path: Path) -> None:
