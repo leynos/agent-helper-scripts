@@ -375,6 +375,157 @@ def test_needs_reports_missing_commands(tmp_path: Path) -> None:
     assert "absent=missing" in result.stdout, result.stdout
 
 
+@pytest.mark.parametrize(
+    ("version", "expected_returncode"),
+    (
+        ("2.38.0", 0),
+        ("2.36.0", 1),
+    ),
+)
+def test_git_supports_sparse_checkout_skip_checks_detects_version(
+    tmp_path: Path,
+    version: str,
+    expected_returncode: int,
+) -> None:
+    """git_supports_sparse_checkout_skip_checks gates on Git 2.37 or newer."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_shim = bin_dir / "git"
+    git_shim.write_text(
+        "#!/usr/bin/env bash\n"
+        "case \"$1\" in\n"
+        "  --version|version) printf 'git version "
+        f"{version}"
+        "\\n' ;;\n"
+        "  *) exit 2 ;;\n"
+        "esac\n",
+    )
+    git_shim.chmod(0o755)
+    result = run_bootstrap_script(
+        tmp_path,
+        "git_supports_sparse_checkout_skip_checks",
+        env={"PATH": f"{bin_dir}:{os.environ['PATH']}"},
+    )
+
+    assert result.returncode == expected_returncode, (
+        "Git sparse-checkout skip-checks support detection returned "
+        f"{result.returncode}, expected {expected_returncode}; "
+        f"stdout={result.stdout!r}; stderr={result.stderr!r}"
+    )
+
+
+def test_install_helper_script_copies_executable(tmp_path: Path) -> None:
+    """install_helper_script copies helper content and writes mode 0755."""
+    helper_checkout = tmp_path / "helpers"
+    source = helper_checkout / "mock-helper"
+    destination = tmp_path / "home" / ".local" / "bin" / "mock-helper"
+    helper_checkout.mkdir()
+    source.write_text("#!/usr/bin/env bash\nprintf 'mock helper\\n'\n")
+    source.chmod(0o644)
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        HELPER_TOOLS_REPO_DIR={shlex.quote(str(helper_checkout))}
+        install_helper_script mock-helper {shlex.quote(str(destination))}
+        stat -c %a {shlex.quote(str(destination))}
+        """,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert destination.read_text() == source.read_text(), destination.read_text()
+    assert result.stdout.splitlines()[-1] == "755", result.stdout
+
+
+def test_package_scripts_for_tools_filters_helper_prefixes(tmp_path: Path) -> None:
+    """package_scripts_for_tools selects only get-* and install-* helpers."""
+    helper_checkout = tmp_path / "helpers"
+    helper_checkout.mkdir()
+    for script_name in ("get-foo", "install-bar", "some-other-script"):
+        script = helper_checkout / script_name
+        script.write_text("#!/usr/bin/env bash\nexit 0\n")
+        script.chmod(0o755)
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        SELECTED_TOOLS=(get-foo install-bar some-other-script)
+        package_scripts_for_tools {shlex.quote(str(helper_checkout))} "${{SELECTED_TOOLS[@]}}"
+        for script in "${{PACKAGE_SCRIPTS[@]}}"; do
+          basename "${{script}}"
+        done
+        """,
+    )
+
+    selected_scripts = result.stdout.splitlines()
+    assert result.returncode == 0, result.stderr
+    assert "get-foo" in selected_scripts, selected_scripts
+    assert "install-bar" in selected_scripts, selected_scripts
+    assert "some-other-script" not in selected_scripts, selected_scripts
+
+
+def test_clone_or_update_helper_tools_repo_uses_local_git_remote(
+    tmp_path: Path,
+) -> None:
+    """clone_or_update_helper_tools_repo can clone then update a local repo."""
+    source_repo = tmp_path / "source"
+    bare_repo = tmp_path / "upstream.git"
+    checkout = tmp_path / "helper-checkout"
+    subprocess.run(
+        ["git", "init", "--initial-branch=main", source_repo.as_posix()],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (source_repo / "bootstrap-common").write_text("# bootstrap common\n")
+    subprocess.run(
+        ["git", "-C", source_repo.as_posix(), "add", "bootstrap-common"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            source_repo.as_posix(),
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-m",
+            "initial",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "clone", "--bare", source_repo.as_posix(), bare_repo.as_posix()],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    result = run_bootstrap_script(
+        tmp_path,
+        f"""
+        HELPER_TOOLS_REPO_URL=file://{bare_repo}
+        HELPER_TOOLS_REPO_BRANCH=main
+        HELPER_TOOLS_REPO_DIR={shlex.quote(str(checkout))}
+        clone_or_update_helper_tools_repo
+        test -e {shlex.quote(str(checkout / ".git"))}
+        clone_or_update_helper_tools_repo
+        """,
+    )
+
+    assert result.returncode == 0, (
+        "clone_or_update_helper_tools_repo should clone and update local remote: "
+        f"stdout={result.stdout!r}; stderr={result.stderr!r}"
+    )
+    assert checkout.exists(), f"helper checkout should exist at {checkout}"
+    assert (checkout / ".git").exists(), f"helper checkout should contain .git at {checkout}"
+
+
 def test_build_selected_tools_adds_ai_tooling_when_enabled(
     tmp_path: Path,
 ) -> None:

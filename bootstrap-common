@@ -156,7 +156,7 @@ function install_helper_script()
   fi
 
   install -d "$(dirname "${destination}")"
-  install -m 0700 "${source_path}" "${destination}"
+  install -m 0755 "${source_path}" "${destination}"
 }
 
 # Purpose:
