@@ -305,44 +305,26 @@ def test_rust_entrypoint_both_runs_system_then_home(tmp_path: Path) -> None:
     )
 
 
-def test_rust_entrypoint_fetches_delegates_when_run_from_stdin(tmp_path: Path) -> None:
-    """The wrapper fetches split delegates when executed without local files."""
+def test_rust_entrypoint_clones_delegates_when_run_from_stdin(tmp_path: Path) -> None:
+    """The wrapper clones split delegates when executed without local files."""
     copy_entrypoint_files(tmp_path, "rust-entrypoint")
     bin_dir = tmp_path / "bin"
+    managed_checkout = tmp_path / "home" / "git" / "agent-helper-scripts"
     run_log = tmp_path / "run.log"
     bin_dir.mkdir()
     write_script(
-        bin_dir / "curl",
+        bin_dir / "git",
         r'''
-output_path=
-requested_url=
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -o)
-      output_path=$2
-      shift 2
-      ;;
-    https://*)
-      requested_url=$1
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-requested_name=${requested_url##*/}
-case "${requested_name}" in
-  rust-entrypoint-system)
-    printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" system >> "${RUN_LOG:?}"\n' > "${output_path}"
-    ;;
-  rust-entrypoint-home)
-    printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" home >> "${RUN_LOG:?}"\n' > "${output_path}"
-    ;;
-  *)
-    printf '#!/usr/bin/env bash\n' > "${output_path}"
-    ;;
-esac
+if [[ "$1" != clone ]]; then
+  printf 'unexpected git command: %s\n' "$*" >&2
+  exit 1
+fi
+checkout_dir=${@: -1}
+mkdir -p "${checkout_dir}/.git"
+printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" system >> "${RUN_LOG:?}"\n' > "${checkout_dir}/rust-entrypoint-system"
+printf '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%%s\\n" home >> "${RUN_LOG:?}"\n' > "${checkout_dir}/rust-entrypoint-home"
+chmod +x "${checkout_dir}/rust-entrypoint-system" "${checkout_dir}/rust-entrypoint-home"
+printf 'git %s\n' "$*" >> "${RUN_LOG:?}"
 ''',
     )
 
@@ -352,20 +334,26 @@ esac
         cwd=tmp_path,
         env={
             "BASH_FOR_STDIN": BASH_PATH.as_posix(),
-            "BOOTSTRAP_RAW_BASE_URL": "https://example.invalid/bootstrap",
+            "HOME": (tmp_path / "home").as_posix(),
+            "HELPER_TOOLS_REPO_BRANCH": "test-branch",
+            "HELPER_TOOLS_REPO_URL": "https://example.invalid/agent-helper-scripts.git",
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "RUN_LOG": run_log.as_posix(),
         },
     )
 
     assert result.exit_code == 0, (
-        "stdin wrapper dispatch should succeed after fetching delegates: "
+        "stdin wrapper dispatch should succeed after cloning delegates: "
         f"expected 0 but got {result.exit_code}; stderr={result.stderr!r}"
     )
     actual_lines = run_log.read_text().splitlines()
-    assert actual_lines == ["system", "home"], (
-        "stdin wrapper should run fetched delegates in both-phase order: "
-        f"expected ['system', 'home'] but got {actual_lines!r}"
+    assert actual_lines[0] == (
+        "git clone --branch test-branch --single-branch --depth 1 "
+        f"https://example.invalid/agent-helper-scripts.git {managed_checkout}"
+    ), f"stdin wrapper should clone into the managed checkout: {actual_lines!r}"
+    assert actual_lines[1:] == ["system", "home"], (
+        "stdin wrapper should run cloned delegates in both-phase order: "
+        f"expected ['system', 'home'] after clone but got {actual_lines[1:]!r}"
     )
 
 
