@@ -10,7 +10,17 @@ SCRIPT_DIR=$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
 )
 
-case "${RUST_ENTRYPOINT_PHASE:-both}" in
+RUST_ENTRYPOINT_PHASE=${RUST_ENTRYPOINT_PHASE:-both}
+case "${RUST_ENTRYPOINT_PHASE}" in
+  system|home|both)
+    ;;
+  *)
+    echo "Unknown RUST_ENTRYPOINT_PHASE: ${RUST_ENTRYPOINT_PHASE}" >&2
+    exit 2
+    ;;
+esac
+
+case "${RUST_ENTRYPOINT_PHASE}" in
   system)
     exec bash "${SCRIPT_DIR}/rust-entrypoint-system"
     ;;
@@ -20,9 +30,5 @@ case "${RUST_ENTRYPOINT_PHASE:-both}" in
   both)
     bash "${SCRIPT_DIR}/rust-entrypoint-system"
     exec bash "${SCRIPT_DIR}/rust-entrypoint-home"
-    ;;
-  *)
-    echo "Unknown RUST_ENTRYPOINT_PHASE: ${RUST_ENTRYPOINT_PHASE}" >&2
-    exit 2
     ;;
 esac

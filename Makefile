@@ -1,49 +1,33 @@
 SHELL := /usr/bin/env
 .SHELLFLAGS := bash -c
 
-SHELL_SCRIPTS := \
-	add-repositories \
-	apt-update-if-stale \
+ROOT_SHELL_SCRIPTS := \
+	$(wildcard add-* apt-* get-* install-* rust-*) \
 	bootstrap-common \
-	get-ai-tooling \
-	get-github-tooling \
-	get-markdown-tooling \
-	get-open-tofu-tooling \
-	get-postgresql \
-	get-python-tooling \
-	get-rust-tooling \
-	get-typescript-tooling \
-	install-hooks \
-	install-required-apt-packages \
-	install-skills \
-	install-sub-agents \
 	markdownlint \
 	mdformat-all \
 	notdeadyet \
-	python-setup \
-	rust-entrypoint \
-	rust-entrypoint-home \
-	rust-entrypoint-system \
-	rust-setup \
-	bin/install-hook-cmd.sh
-HOME_PHASE_SCRIPTS := \
-	rust-entrypoint-home \
-	get-rust-tooling \
-	get-markdown-tooling \
-	get-github-tooling \
-	get-python-tooling \
-	install-skills \
-	install-hooks \
-	install-sub-agents
-PYTHON_SCRIPTS := \
-	hooks/post-turn-quality-stop-hook.py \
-	hooks/test_post_turn_quality_stop_hook.py \
-	tests/conftest.py \
-	tests/test_rust_entrypoints.py
+	python-setup
+SHELL_SCRIPTS := $(sort $(ROOT_SHELL_SCRIPTS) $(wildcard bin/*.sh))
+HOME_PHASE_HELPERS != awk '\
+	/^[[:space:]]*SELECTED_TOOLS=[(][[:space:]]*$$/ { in_tools=1; next } \
+	in_tools && /^[[:space:]]*[)][[:space:]]*$$/ { in_tools=0; next } \
+	in_tools && /^[[:space:]]*[[:alnum:]_-]+[[:space:]]*$$/ { print $$1 } \
+	/SELECTED_TOOLS[+][=][(]/ { \
+		line=$$0; \
+		sub(/^.*SELECTED_TOOLS[+][=][(]/, "", line); \
+		sub(/\).*$$/, "", line); \
+		if (line != "") print line; \
+	} \
+' bootstrap-common
+HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
+HOME_PHASE_BOUNDARY_PATTERN := (^|[^[:alnum:]_])(apt-get|apt-update-if-stale|sudo)([^[:alnum:]_]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
+PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py tests/*.py))
 PYTEST := uv run --with pytest --with cmd-mox --with cuprum python -m pytest
-HOOK_TESTS := hooks/test_post_turn_quality_stop_hook.py
-ENTRYPOINT_TESTS := tests/test_rust_entrypoints.py
-TEST_TARGETS := $(HOOK_TESTS) $(ENTRYPOINT_TESTS)
+HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
+REPO_TESTS := $(sort $(wildcard tests/test_*.py))
+ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
+TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 
 # Test targets:
 # - test-hooks: post-turn hook behavior and git-state decisions.
@@ -69,7 +53,7 @@ shell-syntax-check:
 	@bash -n $(SHELL_SCRIPTS)
 
 check-home-phase-boundary:
-	@! grep -R --line-number -E '\bapt-get\b|\bapt-update-if-stale\b|\bsudo\b|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt' $(HOME_PHASE_SCRIPTS)
+	@awk 'BEGIN { forbidden = "$(HOME_PHASE_BOUNDARY_PATTERN)" } /^[[:space:]]*#/ { next } $$0 ~ forbidden { printf "%s:%d:%s\n", FILENAME, FNR, $$0; found=1 } END { exit found ? 1 : 0 }' $(HOME_PHASE_SCRIPTS)
 
 lint: syntax-check shell-syntax-check check-home-phase-boundary
 
