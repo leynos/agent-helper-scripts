@@ -7,6 +7,9 @@
 # directives are found.
 
 set -Eeuo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 if [ "$(whoami)" = root ]; then
   SUDO=
@@ -18,6 +21,14 @@ SCRIPT_DIR=$(
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
 )
 
+# Purpose:
+#   Run the repository-local or PATH-provided APT update helper.
+# Parameters:
+#   None.
+# Returns:
+#   0 when the update helper succeeds.
+# Side effects:
+#   May invoke sudo and may refresh /var/lib/apt/lists through apt-get update.
 function run_apt_update_if_stale()
 {
   local apt_update_script

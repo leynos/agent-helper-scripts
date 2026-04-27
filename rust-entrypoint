@@ -1,361 +1,149 @@
 #!/usr/bin/env bash
 
-# Bootstrap a machine for the helper-script toolchain.
-# This entrypoint configures base package sources, ensures core prerequisites
-# exist, clones the helper repository locally, and then executes the remaining
-# helper scripts from that managed checkout instead of piping repository
-# content directly from GitHub into the shell.
+# Compatibility wrapper for the split Rust bootstrap entrypoints.
+# RUST_ENTRYPOINT_PHASE selects the authority boundary to run: system, home,
+# or both. The default preserves the historical one-shot bootstrap behaviour.
 
-set -xeuo pipefail
-
-export DEBIAN_FRONTEND=noninteractive
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
 HELPER_TOOLS_REPO_BRANCH=${HELPER_TOOLS_REPO_BRANCH:-main}
-HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME:-${HELPER_TOOLS_REPO_URL##*/}}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_URL##*/}
 HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME%.git}
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_NAME}}
 export HELPER_TOOLS_REPO_DIR
 export HELPER_TOOLS_REPO_BRANCH
-
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
-fi
-
-optional_apt_packages=()
-declare -A queued_optional_apt_packages=()
-declare -A installed_optional_apt_packages=()
-
-function needs()
-{
-  ! command -v "$1" >/dev/null 2>&1
-}
-
-if needs sudo && [[ -n "${SUDO}" ]]; then
-  echo "Error: sudo is required when not running as root and is assumed to be preinstalled in this environment" >&2
-  exit 1
-fi
-
-function queue_optional_apt_package()
-{
-  local package=$1
-
-  if [[ -n "${installed_optional_apt_packages[${package}]:-}" ]]; then
-    return 0
-  fi
-
-  if [[ -n "${queued_optional_apt_packages[${package}]:-}" ]]; then
-    return 0
-  fi
-
-  queued_optional_apt_packages["${package}"]=1
-  optional_apt_packages+=("${package}")
-}
-
-function install_optional_apt_packages()
-{
-  local apt_update_script="${HELPER_TOOLS_REPO_DIR}/apt-update-if-stale"
-  local package
-
-  if [[ ${#optional_apt_packages[@]} -eq 0 ]]; then
-    return 0
-  fi
-
-  $SUDO bash "${apt_update_script}"
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${optional_apt_packages[@]}"
-
-  for package in "${optional_apt_packages[@]}"; do
-    installed_optional_apt_packages["${package}"]=1
-    unset 'queued_optional_apt_packages[$package]'
-  done
-  optional_apt_packages=()
-}
-
-function clone_or_update_helper_tools_repo()
-{
-  local sparse_paths=(
-    add-repositories
-    apt-update-if-stale
-    get-ai-tooling
-    get-github-tooling
-    get-markdown-tooling
-    get-python-tooling
-    get-postgresql
-    get-rust-tooling
-    install-required-apt-packages
-    install-hooks
-    install-skills
-    install-sub-agents
-    markdownlint
-    mdformat-all
-    notdeadyet
-    rust-setup
-    skills
-  )
-
-  local helper_tools_repo_parent
-  helper_tools_repo_parent=$(dirname "${HELPER_TOOLS_REPO_DIR}")
-
-  mkdir -p "${helper_tools_repo_parent}"
-  if [[ -d "${HELPER_TOOLS_REPO_DIR}/.git" ]]; then
-    echo "Updating helper tools repo at ${HELPER_TOOLS_REPO_DIR}..."
-    git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
-    git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
-  elif [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
-    echo "Error: ${HELPER_TOOLS_REPO_DIR} exists but is not a git checkout" >&2
-    exit 1
-  else
-    echo "Cloning helper tools repo to ${HELPER_TOOLS_REPO_DIR}..."
-    git clone \
-      --branch "${HELPER_TOOLS_REPO_BRANCH}" \
-      --single-branch \
-      --depth 1 \
-      --filter=blob:none \
-      --sparse \
-      "${HELPER_TOOLS_REPO_URL}" \
-      "${HELPER_TOOLS_REPO_DIR}"
-  fi
-
-  if git_supports_sparse_checkout_skip_checks; then
-    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set --skip-checks "${sparse_paths[@]}"
-  else
-    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout init --no-cone
-    git -C "${HELPER_TOOLS_REPO_DIR}" sparse-checkout set "${sparse_paths[@]}"
-  fi
-}
-
-function git_supports_sparse_checkout_skip_checks()
-{
-  local git_version
-  git_version=$(git version | awk '{print $3}')
-  printf '2.37.0\n%s\n' "${git_version}" | sort -V -C
-}
-
-function install_helper_script()
-{
-  local script_name=$1
-  local destination=${2:-"${HOME}/.local/bin/${script_name}"}
-  local source_path="${HELPER_TOOLS_REPO_DIR}/${script_name}"
-
-  if [[ ! -f "${source_path}" ]]; then
-    echo "Error: expected ${source_path} from the cloned agent-helper-scripts repo" >&2
-    exit 1
-  fi
-
-  install -d "$(dirname "${destination}")"
-  install -m 0700 "${source_path}" "${destination}"
-}
-
-function append_block_if_missing()
-{
-  local file=$1
-  local block=$2
-
-  [[ -f "${file}" ]] || return 0
-  if [[ $(<"${file}") == *"${block}"* ]]; then
-    return 0
-  fi
-  if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
-    printf '\n' >> "${file}"
-  fi
-  printf '%s\n' "${block}" >> "${file}"
-}
-
-function ensure_profile_path()
-{
-  local dir=$1
-  local block
-
-  read -r -d '' block <<__EOF__ || true
-# Added by rust-entrypoint to keep helper tooling on PATH.
-case ":\$PATH:" in
-  *:"${dir}":*)
+RUST_ENTRYPOINT_PHASE=${RUST_ENTRYPOINT_PHASE:-both}
+case "${RUST_ENTRYPOINT_PHASE}" in
+  system|home|both)
     ;;
   *)
-    export PATH="${dir}:\$PATH"
+    echo "Unknown RUST_ENTRYPOINT_PHASE: ${RUST_ENTRYPOINT_PHASE}" >&2
+    exit 2
     ;;
 esac
-__EOF__
 
-  append_block_if_missing "${HOME}/.bashrc" "${block}"
+# Purpose:
+#   Resolve the directory containing this wrapper when it was executed from a
+#   file path.
+# Parameters:
+#   None.
+# Returns:
+#   Prints the wrapper directory, or an empty string when the wrapper is being
+#   executed from stdin.
+# Side effects:
+#   Reads BASH_SOURCE.
+function local_script_dir()
+{
+  local source_path=${BASH_SOURCE[0]:-}
+
+  if [[ -z "${source_path}" || ! -e "${source_path}" ]]; then
+    printf ''
+    return 0
+  fi
+
+  cd -- "$(dirname -- "${source_path}")" && pwd
 }
 
-function ensure_profile_sources_bashrc()
+# Purpose:
+#   Clone or update the managed helper repository checkout.
+# Parameters:
+#   None.
+# Returns:
+#   0 when the managed helper checkout is ready.
+# Side effects:
+#   Runs git clone, fetch, and reset. Sets SCRIPT_DIR to HELPER_TOOLS_REPO_DIR.
+function clone_or_update_delegate_repo()
 {
-  local block
+  local git_is_work_tree
+  local lock_file
 
-  read -r -d '' block <<'__EOF__' || true
-# Added by rust-entrypoint so login shells pick up ~/.bashrc when Bash starts.
-if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
-  . "$HOME/.bashrc"
-fi
-__EOF__
+  if ! command -v git >/dev/null 2>&1; then
+    printf 'Error: git is required to clone split bootstrap entrypoints.\n' >&2
+    exit 1
+  fi
 
-  append_block_if_missing "${HOME}/.profile" "${block}"
+  mkdir -p "$(dirname -- "${HELPER_TOOLS_REPO_DIR}")"
+  lock_file="${HELPER_TOOLS_REPO_DIR}.lock"
+  {
+    flock -x 9
+    if [[ -e "${HELPER_TOOLS_REPO_DIR}" ]]; then
+      if git_is_work_tree=$(git -C "${HELPER_TOOLS_REPO_DIR}" rev-parse --is-inside-work-tree 2>/dev/null) \
+        && [[ "${git_is_work_tree}" == true ]]; then
+        git -C "${HELPER_TOOLS_REPO_DIR}" fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}"
+        git -C "${HELPER_TOOLS_REPO_DIR}" reset --hard FETCH_HEAD
+      else
+        printf 'Error: %s exists but is not a git checkout\n' "${HELPER_TOOLS_REPO_DIR}" >&2
+        exit 1
+      fi
+    else
+      git clone \
+        --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+        --single-branch \
+        --depth 1 \
+        "${HELPER_TOOLS_REPO_URL}" \
+        "${HELPER_TOOLS_REPO_DIR}"
+    fi
+  } 9>"${lock_file}"
+
+  SCRIPT_DIR=${HELPER_TOOLS_REPO_DIR}
 }
 
-function ensure_runtime_path()
+# Purpose:
+#   Resolve a directory containing the split bootstrap delegate scripts.
+# Parameters:
+#   None.
+# Returns:
+#   0 when SCRIPT_DIR points at usable delegate scripts.
+# Side effects:
+#   May clone or update the managed helper checkout when local files are absent. Sets
+#   SCRIPT_DIR.
+function resolve_delegate_dir()
 {
-  local dir=$1
+  local candidate_dir
+  local has_required_delegates=false
 
-  case ":${PATH}:" in
-    *:"${dir}":*)
+  candidate_dir=$(local_script_dir)
+  case "${RUST_ENTRYPOINT_PHASE}" in
+    system)
+      [[ -n "${candidate_dir}" && -f "${candidate_dir}/rust-entrypoint-system" ]] \
+        && has_required_delegates=true
       ;;
-    *)
-      PATH="${dir}:${PATH}"
+    home)
+      [[ -n "${candidate_dir}" && -f "${candidate_dir}/rust-entrypoint-home" ]] \
+        && has_required_delegates=true
+      ;;
+    both)
+      [[ -n "${candidate_dir}" ]] \
+        && [[ -f "${candidate_dir}/rust-entrypoint-system" ]] \
+        && [[ -f "${candidate_dir}/rust-entrypoint-home" ]] \
+        && has_required_delegates=true
       ;;
   esac
+
+  if "${has_required_delegates}"; then
+    SCRIPT_DIR=${candidate_dir}
+    return 0
+  fi
+
+  clone_or_update_delegate_repo
 }
 
-ensure_profile_path "${HOME}/.local/bin"
-ensure_profile_path "${HOME}/.cargo/bin"
-ensure_profile_path "${HOME}/.bun/bin"
-ensure_profile_sources_bashrc
+SCRIPT_DIR=
+resolve_delegate_dir
 
-ensure_runtime_path "${HOME}/.local/bin"
-ensure_runtime_path "${HOME}/.cargo/bin"
-ensure_runtime_path "${HOME}/.bun/bin"
-export PATH
-
-codename="$(
-  # shellcheck source=/dev/null
-  . /etc/os-release
-  printf '%s\n' "${VERSION_CODENAME}"
-)"
-ubuntu_sources_tmp=$(mktemp)
-cat > "${ubuntu_sources_tmp}" <<EOF
-Types: deb
-URIs: http://mirror.math.princeton.edu/pub/ubuntu/
-Suites: ${codename} ${codename}-updates ${codename}-backports ${codename}-security
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-By-Hash: yes
-EOF
-
-$SUDO install -d /etc/apt/sources.list.d
-$SUDO install -m 0644 "${ubuntu_sources_tmp}" /etc/apt/sources.list.d/zz-fast-ubuntu.sources
-rm -f "${ubuntu_sources_tmp}"
-
-# Disable the stock Ubuntu source definitions, but leave third-party repos alone.
-[ ! -e /etc/apt/sources.list ] || $SUDO mv -n -- /etc/apt/sources.list /etc/apt/sources.list.disabled
-[ ! -e /etc/apt/sources.list.d/ubuntu.sources ] || $SUDO mv -n -- /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.disabled
-
-$SUDO apt-get clean
-$SUDO sh -c 'rm -rf /var/lib/apt/lists/*'
-
-if needs git; then
-  $SUDO apt-get update
-  $SUDO apt-get install -y git
-fi
-
-if ! command -v git >/dev/null 2>&1; then
-  echo "Error: git is required but was not found on PATH after installation" >&2
-  exit 1
-fi
-
-clone_or_update_helper_tools_repo
-install_helper_script apt-update-if-stale
-
-if needs uv; then
-  curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
-  if [[ -f "$HOME/.local/bin/env" ]]; then
-    # shellcheck source=/dev/null
-    source "$HOME/.local/bin/env"
-  fi
-fi
-
-if needs bun; then
-  curl --no-progress-meter -fsSL https://bun.sh/install | bash
-fi
-
-if needs rustup; then
-  curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-fi
-
-if [[ -d "/usr/local/rustup" ]]; then
-  $SUDO chmod -R a+rX,go-w "/usr/local/rustup"
-fi
-
-if needs wget; then
-  queue_optional_apt_package apt-utils
-  queue_optional_apt_package wget
-fi
-
-CARGO_KOPIA_SRC="${CARGO_HOME:-${HOME}/.cargo}"
-CARGO_KOPIA_DEST="$(dirname "${CARGO_KOPIA_SRC}")"
-mkdir -p "${CARGO_KOPIA_SRC}"
-cat > "${CARGO_KOPIA_SRC}.kopiaignore" <<'EOF'
-/*
-!/.crates.toml
-!/.crates2.json
-!/bin
-!/bin/**
-EOF
-
-if (( ${WITH_ADD_REPOSITORIES:-1} )); then
-  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/add-repositories"
-fi
-
-install_optional_apt_packages
-
-if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  queue_optional_apt_package kopia
-  install_optional_apt_packages
-  if (( ${KOPIA_CREATE:-0} )); then
-    kopia repository create s3 \
-      --bucket="${KOPIA_BUCKET:-}" \
-      --endpoint="${KOPIA_ENDPOINT:-}" \
-      --region="${KOPIA_REGION:-}" \
-      --access-key="${AWS_ACCESS_KEY_ID:-}" \
-      --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
-      --prefix=cargo/
-  fi
-  kopia repository connect s3 \
-    --bucket="${KOPIA_BUCKET:-}" \
-    --endpoint="${KOPIA_ENDPOINT:-}" \
-    --region="${KOPIA_REGION:-}" \
-    --access-key="${AWS_ACCESS_KEY_ID:-}" \
-    --secret-access-key="${AWS_SECRET_ACCESS_KEY:-}" \
-    --prefix=cargo/
-  $SUDO rm -f /root/.config/kopia/repository.config.update-info.json
-  kopia snapshot restore latest --target-directory "$CARGO_KOPIA_DEST" || true
-fi
-
-uv tool install "vendcurl==${VENDCURL_VERSION:-0.1.0}"
-
-tools=(
-  get-rust-tooling
-  rust-setup
-  get-markdown-tooling
-  get-github-tooling
-  get-python-tooling
-  install-skills
-  install-hooks
-  install-sub-agents
-)
-
-if (( ${WITH_AI_TOOLING:-0} )); then
-  tools+=(get-ai-tooling)
-fi
-
-package_scripts=()
-for tool in "${tools[@]}"; do
-  if [[ "${tool}" == get-* ]] || [[ "${tool}" == install-* ]]; then
-    package_scripts+=("${HELPER_TOOLS_REPO_DIR}/${tool}")
-  fi
-done
-
-if [[ ${#package_scripts[@]} -gt 0 ]]; then
-  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/install-required-apt-packages" "${package_scripts[@]}"
-fi
-
-for tool in "${tools[@]}"; do
-  echo "Running $tool..."
-  bash -xeuo pipefail "${HELPER_TOOLS_REPO_DIR}/$tool"
-done
-
-if [[ -n "${KOPIA_BUCKET:-}" ]]; then
-  kopia snapshot create "$CARGO_KOPIA_DEST"
-fi
+case "${RUST_ENTRYPOINT_PHASE}" in
+  system)
+    exec bash "${SCRIPT_DIR}/rust-entrypoint-system"
+    ;;
+  home)
+    exec bash "${SCRIPT_DIR}/rust-entrypoint-home"
+    ;;
+  both)
+    bash "${SCRIPT_DIR}/rust-entrypoint-system"
+    exec bash "${SCRIPT_DIR}/rust-entrypoint-home"
+    ;;
+esac

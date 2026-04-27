@@ -1,7 +1,31 @@
 #!/usr/bin/env bash
 
-# Tool for exchanging context packs with sub-agents
+# Tool for exchanging context packs with sub-agents and installing managed
+# Codex agent configuration. Repeated runs replace managed blocks/files instead
+# of appending duplicate configuration.
 
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
+
+# Purpose:
+#   Install the context_pack binary from a GitHub release.
+# Parameters:
+#   None; reads CONTEXT_PACK_REPO, CONTEXT_PACK_VERSION, and
+#   CONTEXT_PACK_INSTALL_DIR from the environment.
+# Returns:
+#   0 when the binary is downloaded, verified, extracted, and installed.
+# Side effects:
+#   Downloads release files, creates the install directory, and writes the
+#   context_pack binary.
 function install_context_pack()
 {
   local context_pack_repo=${CONTEXT_PACK_REPO:-AmirTlinov/context_pack}
@@ -53,6 +77,7 @@ function install_context_pack()
   fi
 
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"' EXIT
   vendcurl "${release_base}/${checksum_name}" "${tmpdir}/${checksum_name}"
 
   expected_sha=$(awk -v archive_name="${archive_name}" '$2 == archive_name { print $1; exit }' "${tmpdir}/${checksum_name}")
@@ -64,15 +89,316 @@ function install_context_pack()
   vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
   mkdir -p "${install_dir}"
-  install -m 0755 "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
+  cp "${tmpdir}/${binary_name}" "${install_dir}/${binary_name}"
+  chmod 0755 "${install_dir}/${binary_name}"
   rm -rf "${tmpdir}"
+  trap - EXIT
+}
+
+# Purpose:
+#   Replace a sentinel-managed block in a file.
+# Parameters:
+#   $1 - File to update.
+#   $2 - Marker name used in BEGIN/END sentinels.
+#   $3 - Block content to place between sentinels.
+# Returns:
+#   0 when the file has been rewritten with the managed block.
+# Side effects:
+#   Creates a temporary file and replaces the target file.
+function replace_managed_block()
+{
+  replace_or_append_managed_block_with_sentinels "$@"
+}
+
+# Purpose:
+#   Ensure a top-level TOML key has one configured value.
+# Parameters:
+#   $1 - TOML file to update.
+#   $2 - Key name to write.
+#   $3 - TOML value to assign.
+# Returns:
+#   0 when the key exists exactly once with the requested value.
+# Side effects:
+#   Creates a temporary file and replaces the target file.
+function ensure_top_level_toml_setting()
+{
+  local file=$1
+  local key=$2
+  local lock_file
+  local value=$3
+  local tmp
+
+  mkdir -p "$(dirname -- "${file}")"
+  lock_file="${file}.lock"
+  (
+    flock -x 9
+    tmp=$(mktemp "$(dirname -- "${file}")/.tmp.$(basename -- "${file}").XXXXXX")
+
+    if [[ -f "${file}" ]] && awk -v key="${key}" '
+    /^[[:space:]]*\[([^\[]|$)/ {
+      in_table=1
+    }
+    !in_table {
+      line=$0
+      sub(/^[[:space:]]*/, "", line)
+      split(line, parts, "=")
+      candidate=parts[1]
+      sub(/[[:space:]]*$/, "", candidate)
+      if (candidate == key) {
+        found=1
+        exit
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "${file}"; then
+      awk -v key="${key}" -v value="${value}" '
+      function matches_key(line,    parts, candidate) {
+        if (in_table) {
+          return 0
+        }
+        sub(/^[[:space:]]*/, "", line)
+        split(line, parts, "=")
+        candidate=parts[1]
+        sub(/[[:space:]]*$/, "", candidate)
+        return candidate == key
+      }
+      /^[[:space:]]*\[([^\[]|$)/ {
+        in_table=1
+      }
+      matches_key($0) && !done {
+        print key " = " value
+        done=1
+        next
+      }
+      matches_key($0) {
+        next
+      }
+      {
+        print
+      }
+    ' "${file}" > "${tmp}"
+    elif [[ -f "${file}" ]]; then
+      printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+      cat "${file}" >> "${tmp}"
+    else
+      printf '%s = %s\n' "${key}" "${value}" > "${tmp}"
+    fi
+
+    mv "${tmp}" "${file}"
+  ) 9>"${lock_file}"
+}
+
+# Purpose:
+#   Remove the old unmanaged Codex sub-agent config block when present.
+# Parameters:
+#   $1 - Codex config TOML file.
+# Returns:
+#   0 when no legacy block exists or it has been removed.
+# Side effects:
+#   May rewrite the config file without the legacy agent block.
+function remove_legacy_codex_config_block()
+{
+  local file=$1
+  local dest_dir
+  local tmp
+
+  [[ -f "${file}" ]] || return 0
+  if grep -q '### BEGIN agent-helper-scripts sub-agent config' "${file}"; then
+    return 0
+  fi
+  grep -q 'config_file = "agents/wyvern.toml"' "${file}" || return 0
+  grep -q 'config_file = "agents/scribe.toml"' "${file}" || return 0
+
+  dest_dir=$(dirname -- "${file}")
+  tmp=$(mktemp "${dest_dir}/.tmp.$(basename -- "${file}").XXXXXX")
+  trap 'rm -f "${tmp}"; trap - RETURN' RETURN
+  awk '
+    function reset_candidate() {
+      candidate=0
+      candidate_len=0
+      stage=""
+      child_agents_md=0
+      sqlite=0
+      memories=0
+      js_repl=0
+      multi_agent=0
+      max_threads=0
+      max_depth=0
+      seen_wyvern=0
+      seen_scribe=0
+      delete candidate_lines
+    }
+
+    function remember(line) {
+      candidate_lines[++candidate_len]=line
+    }
+
+    function start_candidate(line) {
+      reset_candidate()
+      candidate=1
+      stage="features"
+      remember(line)
+    }
+
+    function flush_candidate(    line_index) {
+      for (line_index=1; line_index<=candidate_len; line_index++) {
+        print candidate_lines[line_index]
+      }
+      reset_candidate()
+    }
+
+    function is_section(line) {
+      return line ~ /^\[[^]]+\]$/
+    }
+
+    BEGIN {
+      reset_candidate()
+    }
+
+    !candidate {
+      if ($0 == "[features]") {
+        start_candidate($0)
+        next
+      }
+      print
+      next
+    }
+
+    stage == "features" {
+      if ($0 == "[features]") {
+        flush_candidate()
+        start_candidate($0)
+        next
+      }
+      if ($0 == "child_agents_md = true") {
+        child_agents_md=1
+        remember($0)
+        next
+      }
+      if ($0 == "sqlite = true") {
+        sqlite=1
+        remember($0)
+        next
+      }
+      if ($0 == "memories = true") {
+        memories=1
+        remember($0)
+        next
+      }
+      if ($0 == "js_repl = true") {
+        js_repl=1
+        remember($0)
+        next
+      }
+      if ($0 == "multi_agent = true") {
+        multi_agent=1
+        remember($0)
+        next
+      }
+      if ($0 == "[agents]") {
+        if (child_agents_md && sqlite && memories && js_repl && multi_agent) {
+          remember($0)
+          stage="agents"
+          next
+        }
+        flush_candidate()
+        print
+        next
+      }
+      if (is_section($0)) {
+        flush_candidate()
+        print
+        next
+      }
+      remember($0)
+      next
+    }
+
+    stage == "agents" {
+      if ($0 == "max_threads = 6") {
+        max_threads=1
+        remember($0)
+        next
+      }
+      if ($0 == "max_depth = 1") {
+        max_depth=1
+        remember($0)
+        next
+      }
+      if ($0 == "[agents.wyvern]") {
+        if (max_threads && max_depth) {
+          remember($0)
+          stage="wyvern"
+          next
+        }
+        flush_candidate()
+        print
+        next
+      }
+      remember($0)
+      if (is_section($0)) {
+        flush_candidate()
+        next
+      }
+      next
+    }
+
+    stage == "wyvern" {
+      remember($0)
+      if ($0 == "config_file = \"agents/wyvern.toml\"") {
+        seen_wyvern=1
+        next
+      }
+      if ($0 == "[agents.scribe]") {
+        if (seen_wyvern) {
+          stage="scribe"
+          next
+        }
+        flush_candidate()
+        next
+      }
+      if (is_section($0)) {
+        flush_candidate()
+        next
+      }
+      next
+    }
+
+    stage == "scribe" {
+      remember($0)
+      if ($0 == "config_file = \"agents/scribe.toml\"") {
+        seen_scribe=1
+        next
+      }
+      if (seen_scribe && $0 == "]") {
+        reset_candidate()
+        next
+      }
+      next
+    }
+
+    END {
+      if (candidate) {
+        if (stage == "scribe" && seen_scribe) {
+          exit 1
+        }
+        flush_candidate()
+      }
+    }
+  ' "${file}" > "${tmp}" || {
+    rm -f "${tmp}"
+    echo "Error: legacy Codex config block was not closed in ${file}" >&2
+    return 1
+  }
+  mv "${tmp}" "${file}"
+  trap - RETURN
 }
 
 install_context_pack
 
-mkdir -p ~/.codex
+mkdir -p "${HOME}/.codex"
 
-cat >> ~/.codex/config.toml <<'__EOF'
+read -r -d '' codex_config_block <<'__EOF' || true
 [features]
 child_agents_md = true
 sqlite = true
@@ -125,13 +451,15 @@ nickname_candidates = [
 ]
 __EOF
 
-sed -i '1 i\suppress_unstable_features_warning = true' ~/.codex/config.toml
-cat ~/.codex/config.toml
+remove_legacy_codex_config_block "${HOME}/.codex/config.toml"
+ensure_top_level_toml_setting "${HOME}/.codex/config.toml" suppress_unstable_features_warning true
+replace_managed_block "${HOME}/.codex/config.toml" "agent-helper-scripts sub-agent config" "${codex_config_block}"
+echo "Updated Codex sub-agent config at ${HOME}/.codex/config.toml"
 
-mkdir -p ~/context
-mkdir -p ~/.codex/agents
+mkdir -p "${HOME}/context"
+mkdir -p "${HOME}/.codex/agents"
 
-cat >> ~/.codex/agents/wyvern.toml <<'__EOF'
+cat > "${HOME}/.codex/agents/wyvern.toml" <<'__EOF'
 model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
@@ -155,7 +483,7 @@ Rules:
 """
 __EOF
 
-cat >> ~/.codex/agents/scribe.toml <<'__EOF'
+cat > "${HOME}/.codex/agents/scribe.toml" <<'__EOF'
 model = "gpt-5.4-mini"
 model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"

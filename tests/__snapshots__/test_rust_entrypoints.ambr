@@ -1,0 +1,105 @@
+# serializer version: 1
+# name: test_home_phase_runs_selected_helpers_without_system_commands
+  '''
+  get-rust-tooling
+  rust-setup
+  get-markdown-tooling
+  get-github-tooling
+  get-python-tooling
+  install-skills
+  install-hooks
+  install-sub-agents
+  get-ai-tooling
+  
+  '''
+# ---
+# name: test_install_sub_agents_preserves_user_config_before_legacy_block
+  '''
+  suppress_unstable_features_warning = true
+  [features]
+  user_feature = true
+  
+  [profiles.default]
+  model = "gpt-5.5"
+  
+  [agents.custom]
+  config_file = "agents/custom.toml"
+  
+  
+  [profiles.after]
+  approval_policy = "never"
+  ### BEGIN agent-helper-scripts sub-agent config
+  [features]
+  child_agents_md = true
+  sqlite = true
+  memories = true
+  js_repl = true
+  multi_agent = true
+  
+  [agents]
+  max_threads = 6
+  max_depth = 1
+  
+  [agents.wyvern]
+  description = "Fast reconnaissance sub-agent for read-heavy exploration, file triage, and concise summaries. Use when speed matters more than deep reasoning or code edits."
+  config_file = "agents/wyvern.toml"
+  nickname_candidates = [
+    "Cyvern",
+    "Ashwing",
+    "Grothkelm",
+    "Vesperax",
+    "Cindermaw",
+    "Thalweg",
+    "Quartzskein",
+    "Brondwythe",
+    "Sablerift",
+    "Noctule",
+    "Harroway",
+    "Scoriath",
+  ]
+  
+  [agents.scribe]
+  description = "Documentation-focused sub-agent for targeted changes to READMEs, ADRs, design docs, comments, and other prose-heavy project materials. Use when the task is primarily explanatory, editorial, or structural rather than behavioural."
+  config_file = "agents/scribe.toml"
+  nickname_candidates = [
+    "KilgoreTrout",
+    "RichardCastle",
+    "JessicaFletcher",
+    "ElleryQueen",
+    "AlanWake",
+    "LemonySnicket",
+    "PaulSheldon",
+    "BeedleBard",
+    "Adso",
+    "JoMarch",
+    "VickyVale",
+    "CarrieBradshaw",
+    "FordPrefect",
+    "JohnWatson",
+    "SidneyPrescott",
+    "Lemuel Gulliver",
+  ]
+  ### END agent-helper-scripts sub-agent config
+  
+  '''
+# ---
+# name: test_system_phase_uses_temporary_checkout_and_installs_system_packages
+  '''
+  install -d /etc/apt/sources.list.d
+  install -m 0644 <temporary-ubuntu-sources> /etc/apt/sources.list.d/zz-fast-ubuntu.sources
+  apt-get clean
+  sh -c rm -rf /var/lib/apt/lists/*
+  apt-update-if-stale
+  apt-get install -y -- ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils
+  clone-target-preexisting false
+  git clone --branch main --single-branch --depth 1 --filter=blob:none --sparse https://github.com/leynos/agent-helper-scripts.git <temporary-helper-checkout>
+  git sparse-checkout set --skip-checks add-repositories apt-update-if-stale bootstrap-common get-ai-tooling get-github-tooling get-markdown-tooling get-python-tooling get-postgresql get-rust-tooling install-required-apt-packages install-hooks install-skills install-sub-agents markdownlint mdformat-all notdeadyet rust-entrypoint rust-entrypoint-home rust-entrypoint-system rust-setup skills
+  add-repositories
+  install-required get-rust-tooling get-markdown-tooling get-github-tooling get-python-tooling install-skills install-hooks install-sub-agents
+  apt-update-if-stale
+  apt-get install -y -- linux-tools-common
+  apt-get install -y -- linux-tools-generic
+  update-ca-certificates
+  
+  '''
+# ---

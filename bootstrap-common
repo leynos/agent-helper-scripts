@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+
+# Shared bootstrap helpers for the system and home rust-entrypoint phases.
+# This file is sourced by entrypoints; it centralises repository selection,
+# helper-list construction, sparse checkout handling, and small profile helpers
+# without deciding which authority boundary the caller is allowed to mutate.
+
+if [[ -n "${AGENT_HELPER_BOOTSTRAP_COMMON_SOURCED:-}" ]]; then
+  return 0
+fi
+AGENT_HELPER_BOOTSTRAP_COMMON_SOURCED=1
+BOOTSTRAP_COMMON_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-adapters
+source "${BOOTSTRAP_COMMON_DIR}/bootstrap-adapters"
+
+export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
+
+HELPER_TOOLS_REPO_URL=${HELPER_TOOLS_REPO_URL:-https://github.com/leynos/agent-helper-scripts.git}
+HELPER_TOOLS_REPO_BRANCH=${HELPER_TOOLS_REPO_BRANCH:-main}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME:-${HELPER_TOOLS_REPO_URL##*/}}
+HELPER_TOOLS_REPO_NAME=${HELPER_TOOLS_REPO_NAME%.git}
+HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/${HELPER_TOOLS_REPO_NAME}}
+export HELPER_TOOLS_REPO_DIR
+export HELPER_TOOLS_REPO_BRANCH
+
+# Purpose:
+#   Emit a consistent bootstrap status line to stderr.
+# Parameters:
+#   $1 - Message to print after the bootstrap prefix.
+# Returns:
+#   0 after writing the log line.
+# Side effects:
+#   Writes to stderr.
+function bootstrap_log()
+{
+  printf '[bootstrap] %s\n' "$1" >&2
+}
+
+# Purpose:
+#   Test whether a command is absent from PATH.
+# Parameters:
+#   $1 - Command name to look up.
+# Returns:
+#   0 when the command is missing; non-zero when it is available.
+# Side effects:
+#   Reads the current PATH via command lookup.
+function needs()
+{
+  ! command -v "$1" >/dev/null 2>&1
+}
+
+HELPER_TOOLS_SPARSE_PATHS=(
+  add-repositories
+  apt-update-if-stale
+  bootstrap-common
+  get-ai-tooling
+  get-github-tooling
+  get-markdown-tooling
+  get-python-tooling
+  get-postgresql
+  get-rust-tooling
+  install-required-apt-packages
+  install-hooks
+  install-skills
+  install-sub-agents
+  markdownlint
+  mdformat-all
+  notdeadyet
+  rust-entrypoint
+  rust-entrypoint-home
+  rust-entrypoint-system
+  rust-setup
+  skills
+)
+
+# Purpose:
+#   Determine whether the installed Git supports sparse-checkout --skip-checks.
+# Parameters:
+#   None.
+# Returns:
+#   0 when Git is at least 2.37.0; non-zero otherwise.
+# Side effects:
+#   Runs git version.
+function git_supports_sparse_checkout_skip_checks()
+{
+  local git_version
+  git_version=$(git version | awk '{print $3}')
+  printf '2.37.0\n%s\n' "${git_version}" | sort -V -C
+}
+
+# Purpose:
+#   Clone or refresh the helper repository with the expected sparse paths.
+# Parameters:
+#   $1 - Optional checkout directory; defaults to HELPER_TOOLS_REPO_DIR.
+# Returns:
+#   0 when the checkout exists and sparse-checkout is configured.
+# Side effects:
+#   Creates parent directories, updates the checkout through git adapters, and
+#   refreshes the checkout's sparse-checkout selection.
+function clone_or_update_helper_tools_repo()
+{
+  local checkout_dir=${1:-${HELPER_TOOLS_REPO_DIR}}
+  local checkout_parent
+  local git_is_work_tree
+  checkout_parent=$(dirname "${checkout_dir}")
+
+  mkdir -p "${checkout_parent}"
+  if [[ -e "${checkout_dir}" ]]; then
+    if git_is_work_tree=$(git -C "${checkout_dir}" rev-parse --is-inside-work-tree 2>/dev/null) && [[ "${git_is_work_tree}" == true ]]; then
+      bootstrap_log "Updating existing checkout at ${checkout_dir}"
+      (cd "${checkout_dir}" && git_fetch --depth 1 origin "${HELPER_TOOLS_REPO_BRANCH}")
+      (cd "${checkout_dir}" && git_reset --hard FETCH_HEAD)
+    else
+      bootstrap_log "Error: ${checkout_dir} exists but is not a git checkout"
+      exit 1
+    fi
+  else
+    bootstrap_log "Cloning ${HELPER_TOOLS_REPO_URL} (branch: ${HELPER_TOOLS_REPO_BRANCH}) to ${checkout_dir}"
+    git_clone \
+      --branch "${HELPER_TOOLS_REPO_BRANCH}" \
+      --single-branch \
+      --depth 1 \
+      --filter=blob:none \
+      --sparse \
+      "${HELPER_TOOLS_REPO_URL}" \
+      "${checkout_dir}"
+  fi
+
+  if git_supports_sparse_checkout_skip_checks; then
+    (cd "${checkout_dir}" && git_sparse_set --skip-checks "${HELPER_TOOLS_SPARSE_PATHS[@]}")
+  else
+    git -C "${checkout_dir}" sparse-checkout init --no-cone
+    (cd "${checkout_dir}" && git_sparse_set "${HELPER_TOOLS_SPARSE_PATHS[@]}")
+  fi
+}
+
+# Purpose:
+#   Install a repository-owned helper script into a destination path.
+# Parameters:
+#   $1 - Script name relative to HELPER_TOOLS_REPO_DIR.
+#   $2 - Optional destination path; defaults to ~/.local/bin/<script_name>.
+# Returns:
+#   0 when the script is present and installation succeeds.
+# Side effects:
+#   Creates the destination directory and writes an executable file.
+function install_helper_script()
+{
+  local script_name=$1
+  local destination=${2:-"${HOME}/.local/bin/${script_name}"}
+  local source_path="${HELPER_TOOLS_REPO_DIR}/${script_name}"
+
+  if [[ ! -f "${source_path}" ]]; then
+    bootstrap_log "Error: expected ${source_path} from the cloned agent-helper-scripts repo"
+    exit 1
+  fi
+
+  fs_install -d "$(dirname "${destination}")"
+  fs_install -m 0755 "${source_path}" "${destination}"
+}
+
+# Purpose:
+#   Append a block to a file only when that exact block is absent.
+# Parameters:
+#   $1 - File path to inspect and update.
+#   $2 - Block text to append.
+# Returns:
+#   0 when the file exists and already contains the block or is updated.
+# Side effects:
+#   Creates the target file when missing, and may append a newline and the
+#   requested block.
+function append_block_if_missing()
+{
+  local file=$1
+  local block=$2
+  local lock_file="${file}.lock"
+
+  mkdir -p "$(dirname "${file}")"
+  touch "${file}"
+  (
+    flock -x 9
+    if [[ $(<"${file}") == *"${block}"* ]]; then
+      exit 0
+    fi
+    if [[ -s "${file}" ]] && [[ $(tail -c1 "${file}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${file}"
+    fi
+    printf '%s\n' "${block}" >> "${file}"
+  ) 9>"${lock_file}"
+}
+
+# Purpose:
+#   Replace or append one sentinel-managed block in a file.
+# Parameters:
+#   $1 - File path to inspect and update.
+#   $2 - Marker name used in BEGIN/END sentinels.
+#   $3 - Block content to place between sentinels.
+# Returns:
+#   0 when the managed block is present exactly once with the requested content.
+# Side effects:
+#   Creates a temporary file and replaces the target file when sentinels are
+#   balanced, unique, and ordered correctly.
+function replace_or_append_managed_block_with_sentinels()
+{
+  local file=$1
+  local marker=$2
+  local block=$3
+  local begin_sentinel="### BEGIN ${marker}"
+  local end_sentinel="### END ${marker}"
+  local begin_count end_count
+  local tmp
+
+  begin_count=$(grep -cF "${begin_sentinel}" "${file}" 2>/dev/null || true)
+  end_count=$(grep -cF "${end_sentinel}" "${file}" 2>/dev/null || true)
+
+  if [[ "${begin_count}" -ne "${end_count}" ]]; then
+    printf 'replace_or_append_managed_block_with_sentinels: unbalanced sentinels for %s in %s (%d BEGIN, %d END)\n' \
+      "${marker}" "${file}" "${begin_count}" "${end_count}" >&2
+    return 1
+  fi
+
+  if [[ "${begin_count}" -gt 1 ]]; then
+    printf 'replace_or_append_managed_block_with_sentinels: duplicate managed block for %s in %s\n' \
+      "${marker}" "${file}" >&2
+    return 1
+  fi
+
+  if [[ "${begin_count}" -eq 1 ]] && ! awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+    $0 == begin_sentinel {
+      seen_begin=1
+      next
+    }
+    $0 == end_sentinel && !seen_begin {
+      exit 1
+    }
+  ' "${file}"; then
+    printf 'replace_or_append_managed_block_with_sentinels: end sentinel appears before begin sentinel for %s in %s\n' \
+      "${marker}" "${file}" >&2
+    return 1
+  fi
+
+  tmp=$(mktemp)
+  if [[ -f "${file}" ]]; then
+    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
+      $0 == begin_sentinel {
+        skip=1
+        next
+      }
+      $0 == end_sentinel {
+        skip=0
+        next
+      }
+      !skip {
+        print
+      }
+      END {
+        if (skip) {
+          exit 1
+        }
+      }
+    ' "${file}" > "${tmp}" || {
+      rm -f "${tmp}"
+      printf 'replace_or_append_managed_block_with_sentinels: unbalanced sentinels for %s in %s\n' \
+        "${marker}" "${file}" >&2
+      return 1
+    }
+
+    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
+      printf '\n' >> "${tmp}"
+    fi
+  else
+    : > "${tmp}"
+  fi
+
+  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
+  mv "${tmp}" "${file}"
+}
+
+# Purpose:
+#   Ensure an exported PATH entry is present in ~/.bashrc.
+# Parameters:
+#   $1 - Directory to prepend to PATH when missing.
+# Returns:
+#   0 when the managed block is present.
+# Side effects:
+#   May append a PATH block to ~/.bashrc.
+function ensure_profile_path()
+{
+  local dir=$1
+  local block
+
+  read -r -d '' block <<__EOF__ || true
+# Added by rust-entrypoint to keep helper tooling on PATH.
+case ":\$PATH:" in
+  *:"${dir}":*)
+    ;;
+  *)
+    export PATH="${dir}:\$PATH"
+    ;;
+esac
+__EOF__
+
+  append_block_if_missing "${HOME}/.bashrc" "${block}"
+}
+
+# Purpose:
+#   Ensure login Bash sessions source ~/.bashrc through ~/.profile.
+# Parameters:
+#   None.
+# Returns:
+#   0 when the managed block is present.
+# Side effects:
+#   May append a Bash-specific sourcing block to ~/.profile.
+function ensure_profile_sources_bashrc()
+{
+  local block
+
+  read -r -d '' block <<'__EOF__' || true
+# Added by rust-entrypoint so login shells pick up ~/.bashrc when Bash starts.
+if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+__EOF__
+
+  append_block_if_missing "${HOME}/.profile" "${block}"
+}
+
+# Purpose:
+#   Prepend a directory to the current process PATH when it is missing.
+# Parameters:
+#   $1 - Directory to add.
+# Returns:
+#   0 after PATH has been inspected or updated.
+# Side effects:
+#   Mutates the shell's PATH variable.
+function ensure_runtime_path()
+{
+  local dir=$1
+
+  case ":${PATH}:" in
+    *:"${dir}":*)
+      ;;
+    *)
+      PATH="${dir}:${PATH}"
+      ;;
+  esac
+}
+
+# Purpose:
+#   Build the ordered list of helper scripts selected for the current run.
+# Parameters:
+#   None.
+# Returns:
+#   0 after SELECTED_TOOLS is populated.
+# Side effects:
+#   Assigns the global SELECTED_TOOLS array and includes AI tooling when
+#   WITH_AI_TOOLING is enabled.
+function build_selected_tools()
+{
+  SELECTED_TOOLS=(
+    get-rust-tooling
+    rust-setup
+    get-markdown-tooling
+    get-github-tooling
+    get-python-tooling
+    install-skills
+    install-hooks
+    install-sub-agents
+  )
+
+  if (( ${WITH_AI_TOOLING:-0} )); then
+    SELECTED_TOOLS+=(get-ai-tooling)
+  fi
+}
+
+# Purpose:
+#   Build the subset of selected helpers that can declare APT metadata.
+# Parameters:
+#   $1 - Helper checkout directory containing the selected scripts.
+#   $@ - Selected helper script names after the checkout argument.
+# Returns:
+#   0 after PACKAGE_SCRIPTS is populated.
+# Side effects:
+#   Assigns the global PACKAGE_SCRIPTS array.
+function package_scripts_for_tools()
+{
+  local helper_checkout=$1
+  shift
+
+  PACKAGE_SCRIPTS=()
+  local tool
+  for tool in "$@"; do
+    if [[ "${tool}" == get-* ]] || [[ "${tool}" == install-* ]]; then
+      PACKAGE_SCRIPTS+=("${helper_checkout}/${tool}")
+    fi
+  done
+}

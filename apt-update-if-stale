@@ -1,8 +1,82 @@
 #!/usr/bin/env bash
 
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-stamp="${state_home}/apt/update-success-epoch"
-mkdir -p "$(dirname "$stamp")"
-now=$(date +%s)
-last=$(cat "$stamp" 2>/dev/null || echo 0)
-[ $((now - last)) -lt 1800 ] || { apt-get update && printf '%s\n' "$now" >"$stamp"; }
+# Refresh APT package lists only when they are missing or stale.
+# The timestamp lives in system state instead of $HOME so warm-home caches do
+# not suppress updates on fresh system layers.
+
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
+# Purpose:
+#   Detect the privilege escalation command needed for APT state changes.
+# Parameters:
+#   None.
+# Returns:
+#   Prints an empty string when running as root, otherwise prints sudo.
+# Side effects:
+#   Reads the shell EUID value.
+function _detect_sudo()
+{
+  if [[ "${EUID}" -eq 0 ]]; then
+    printf ''
+  else
+    printf 'sudo'
+  fi
+}
+
+stamp=/var/lib/agent-helper-scripts/apt/update-success-epoch
+sudo_cmd=$(_detect_sudo)
+if [[ -n "${sudo_cmd}" ]]; then
+  lock_file=/tmp/agent-helper-scripts-apt-update.lock
+else
+  lock_file=/var/lib/agent-helper-scripts/apt/update.lock
+fi
+
+# Purpose:
+#   Detect whether APT currently has package-list files.
+# Parameters:
+#   None.
+# Returns:
+#   0 when at least one non-empty APT index file exists; non-zero otherwise.
+# Side effects:
+#   Reads /var/lib/apt/lists.
+function apt_lists_exist()
+{
+  find /var/lib/apt/lists \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -type f \
+    -size +0c \
+    ! -name lock \
+    ! -path '*/partial/*' \
+    \( \
+      -name '*_Packages' \
+      -o -name '*_Packages.*' \
+      -o -name '*_Sources' \
+      -o -name '*_Sources.*' \
+      -o -name '*_Release' \
+      -o -name '*_InRelease' \
+      -o -name 'Release' \
+    \) \
+    -print \
+    -quit \
+    2>/dev/null | grep -q .
+}
+
+$sudo_cmd install -d -m 0755 "$(dirname "$stamp")"
+if [[ -z "${sudo_cmd}" ]]; then
+  $sudo_cmd install -m 0600 /dev/null "${lock_file}"
+fi
+(
+  flock -x 9
+  now=$(date +%s)
+  last=$(cat "$stamp" 2>/dev/null || echo 0)
+  if apt_lists_exist && [ $((now - last)) -lt 1800 ]; then
+    exit 0
+  fi
+
+  $sudo_cmd apt-get update
+  printf '%s\n' "$now" | $sudo_cmd tee "$stamp" >/dev/null
+) 9>"${lock_file}"

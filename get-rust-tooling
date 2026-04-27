@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
 # Install Rust toolchains and companion developer tooling.
-# This script prepares the Rust compiler, supporting cargo utilities, linker
-# configuration, and heartbeat wrappers, and it reuses files from the cloned
-# `agent-helper-scripts` checkout for locally managed helper binaries.
+# This script prepares the Rust compiler, supporting cargo utilities, and
+# heartbeat wrappers, and it reuses files from the cloned `agent-helper-scripts`
+# checkout for locally managed helper binaries.
 # requires-apt-packages: build-essential pkg-config libssl-dev ca-certificates
 # requires-apt-packages: libpq-dev libsqlite3-dev mold
+
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*)
@@ -15,50 +19,13 @@ case ":${PATH}:" in
         ;;
 esac
 
-if [ "$(whoami)" = root ]; then
-  SUDO=;
-else
-  SUDO=sudo;
-fi
-
 HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
 
-function append_block_if_missing()
-{
-  local file=$1
-  local marker=$2
-  local block=$3
-  local begin_sentinel="### BEGIN ${marker}"
-  local end_sentinel="### END ${marker}"
-  local tmp
-
-  tmp=$(mktemp)
-
-  if [[ -f "${file}" ]]; then
-    awk -v begin_sentinel="${begin_sentinel}" -v end_sentinel="${end_sentinel}" '
-      $0 == begin_sentinel {
-        skip=1
-        next
-      }
-      $0 == end_sentinel {
-        skip=0
-        next
-      }
-      !skip {
-        print
-      }
-    ' "${file}" > "${tmp}"
-
-    if [[ -s "${tmp}" ]] && [[ $(tail -c1 "${tmp}" | wc -l) -eq 0 ]]; then
-      printf '\n' >> "${tmp}"
-    fi
-  else
-    : > "${tmp}"
-  fi
-
-  printf '%s\n%s\n%s\n' "${begin_sentinel}" "${block}" "${end_sentinel}" >> "${tmp}"
-  mv "${tmp}" "${file}"
-}
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
 
 # Rust tooling
 if [[ -n "${RUST_CHANNEL:-}" ]]; then
@@ -69,23 +36,36 @@ else
   channel=stable
 fi
 
-$SUDO update-ca-certificates
-
 WITH_LLVM_COV=${WITH_LLVM_COV:-1}
 CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.8.5}
 SCCACHE_VERSION=${SCCACHE_VERSION:-0.14.0}
 CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.133}
 KANI_VERIFIER_VERSION=${KANI_VERIFIER_VERSION:-0.67.0}
-if ! which rustup >/dev/null 2>&1; then
+if ! command -v rustup >/dev/null 2>&1; then
   curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if [[ -f "${HOME}/.cargo/env" ]]; then
+    # shellcheck source=/dev/null
+    . "${HOME}/.cargo/env"
+  else
+    export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+  fi
+elif [[ -f "${HOME}/.cargo/env" ]]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/.cargo/env"
+else
+  export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 fi
 
-pushd "${HOME}/git"
+cargo_binstall_tmp=$(mktemp -d)
+trap 'rm -rf "${cargo_binstall_tmp}"' EXIT
+pushd "${cargo_binstall_tmp}" || exit
 vendcurl https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
 tar xvzf cargo-binstall-x86_64-unknown-linux-musl.tgz
 ./cargo-binstall --self-install || ./cargo-binstall -y --force cargo-binstall
 rm -f ./cargo-binstall-x86_64-unknown-linux-musl.tgz ./cargo-binstall
-popd
+popd || exit
+rm -rf "${cargo_binstall_tmp}"
+trap - EXIT
 
 rustup toolchain install "${channel}"
 if [[ -f "${HOME}/.cargo/env" ]]; then
@@ -123,7 +103,7 @@ export CARGO_INCREMENTAL=0
 # Start the local sccache server quietly if it is not already running.
 sccache --start-server >/dev/null 2>&1 || true
 __EOF__
-  append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling sccache bootstrap" "${sccache_block}"
+  replace_or_append_managed_block_with_sentinels "${HOME}/.bashrc" "get-rust-tooling sccache bootstrap" "${sccache_block}"
 
   export CARGO_INCREMENTAL=0
   sccache --start-server >/dev/null 2>&1 || true
@@ -134,13 +114,14 @@ if [[ ! -f "${HELPER_TOOLS_REPO_DIR}/notdeadyet" ]]; then
   echo "Error: expected ${HELPER_TOOLS_REPO_DIR}/notdeadyet from the cloned agent-helper-scripts repo" >&2
   exit 1
 fi
-install -m 0700 "${HELPER_TOOLS_REPO_DIR}/notdeadyet" "${HOME}/.local/bin/notdeadyet"
+cp "${HELPER_TOOLS_REPO_DIR}/notdeadyet" "${HOME}/.local/bin/notdeadyet"
+chmod 0700 "${HOME}/.local/bin/notdeadyet"
 read -r -d '' rustc_wrapper_block <<'__EOF__' || true
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
 __EOF__
-append_block_if_missing "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootstrap" "${rustc_wrapper_block}"
+replace_or_append_managed_block_with_sentinels "${HOME}/.bashrc" "get-rust-tooling rustc wrapper bootstrap" "${rustc_wrapper_block}"
 
 export RUSTC_WRAPPER="${HOME}/.local/bin/notdeadyet"
 export RUSTC_HEARTBEAT_SECS=20
@@ -162,12 +143,4 @@ if ((WITH_WHITAKER)); then
   }; then
     echo "Warning: Whitaker is not currently available in this environment"
   fi
-fi
-
-WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
-# Always install `mold` for Rust tooling, even when `WITH_MOLD_LD_OVERRIDE=0`.
-# The flag only controls whether `/usr/bin/ld` is relinked to `/usr/bin/mold`;
-# the packaged `mold` binary itself is still expected to be available.
-if ((WITH_MOLD_LD_OVERRIDE)) && [[ "$(realpath /usr/bin/ld)" != /usr/bin/mold ]]; then
-  $SUDO ln -sf /usr/bin/mold /usr/bin/ld
 fi

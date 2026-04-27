@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+# Home phase for Rust helper bootstrap.
+# This entrypoint owns only user-level setup under $HOME: profile PATH blocks,
+# managed helper checkouts, language toolchains, tool caches, and agent config.
+#
+# INVARIANT: This script must never invoke apt-get, sudo, ld configuration,
+# or any other machine-level mutation. The check-home-phase-boundary
+# Makefile target enforces this statically; this comment documents the
+# runtime expectation.
+
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
+SCRIPT_DIR=$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
+# shellcheck source=bootstrap-common
+source "${SCRIPT_DIR}/bootstrap-common"
+
+PHASE_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+PHASE_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+PHASE_HOME=${HOME}
+PHASE_CARGO_HOME=${CARGO_HOME:-${PHASE_HOME}/.cargo}
+PHASE_HELPER_TOOLS_LOCK_DIR=${HELPER_TOOLS_LOCK_DIR:-${PHASE_HOME}/.cache/agent-helper-scripts}
+PHASE_HELPER_TOOLS_REPO_DIR=${HELPER_TOOLS_REPO_DIR}
+PHASE_KOPIA_BUCKET=${KOPIA_BUCKET:-}
+PHASE_KOPIA_CREATE=${KOPIA_CREATE:-0}
+PHASE_KOPIA_ENDPOINT=${KOPIA_ENDPOINT:-}
+PHASE_KOPIA_REGION=${KOPIA_REGION:-}
+PHASE_VENDCURL_VERSION=${VENDCURL_VERSION:-0.1.0}
+PHASE_WITH_AI_TOOLING=${WITH_AI_TOOLING:-0}
+
+ensure_profile_path "${PHASE_HOME}/.local/bin"
+ensure_profile_path "${PHASE_HOME}/.cargo/bin"
+ensure_profile_path "${PHASE_HOME}/.bun/bin"
+ensure_profile_sources_bashrc
+
+ensure_runtime_path "${PHASE_HOME}/.local/bin"
+ensure_runtime_path "${PHASE_HOME}/.cargo/bin"
+ensure_runtime_path "${PHASE_HOME}/.bun/bin"
+export PATH
+
+mkdir -p "${PHASE_HELPER_TOOLS_LOCK_DIR}"
+exec 9>"${PHASE_HELPER_TOOLS_LOCK_DIR}/helper-repo.lock"
+flock 9
+
+function run_locked_helper_bootstrap()
+{
+  local helper_tools_repo_dir=$1
+  local aws_access_key_id=$2
+  local aws_secret_access_key=$3
+  local cargo_home=$4
+  local kopia_bucket=$5
+  local kopia_create=$6
+  local kopia_endpoint=$7
+  local kopia_region=$8
+  local vendcurl_version=$9
+  shift 9
+  local with_ai_tooling=$1
+  local cargo_kopia_dest
+  local cargo_kopia_src
+
+  clone_or_update_helper_tools_repo "${helper_tools_repo_dir}"
+
+  if needs uv; then
+    curl --no-progress-meter -LsSf https://astral.sh/uv/install.sh | sh
+    if [[ -f "$HOME/.local/bin/env" ]]; then
+      # shellcheck source=/dev/null
+      source "$HOME/.local/bin/env"
+    fi
+  fi
+
+  if needs bun; then
+    curl --no-progress-meter -fsSL https://bun.sh/install | bash
+  fi
+
+  if needs rustup; then
+    curl --no-progress-meter --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  fi
+
+  cargo_kopia_src="${cargo_home}"
+  cargo_kopia_dest="$(dirname "${cargo_kopia_src}")"
+  mkdir -p "${cargo_kopia_src}"
+  cat > "${cargo_kopia_src}.kopiaignore" <<'EOF'
+/*
+!/.crates.toml
+!/.crates2.json
+!/bin
+!/bin/**
+EOF
+
+  if [[ -n "${kopia_bucket}" ]]; then
+    if (( kopia_create )); then
+      kopia repository create s3 \
+        --bucket="${kopia_bucket}" \
+        --endpoint="${kopia_endpoint}" \
+        --region="${kopia_region}" \
+        --access-key="${aws_access_key_id}" \
+        --secret-access-key="${aws_secret_access_key}" \
+        --prefix=cargo/
+    fi
+    bootstrap_log "Connecting KOPIA repository"
+    kopia repository connect s3 \
+      --bucket="${kopia_bucket}" \
+      --endpoint="${kopia_endpoint}" \
+      --region="${kopia_region}" \
+      --access-key="${aws_access_key_id}" \
+      --secret-access-key="${aws_secret_access_key}" \
+      --prefix=cargo/
+    bootstrap_log "Restoring cargo cache from snapshot"
+    kopia snapshot restore latest --target-directory "$cargo_kopia_dest" || true
+  fi
+
+  uv tool install "vendcurl==${vendcurl_version}"
+
+  WITH_AI_TOOLING=${with_ai_tooling} build_selected_tools
+  bootstrap_log "Running ${#SELECTED_TOOLS[@]} selected helpers"
+  for tool in "${SELECTED_TOOLS[@]}"; do
+    bootstrap_log "Running helper: ${tool}"
+    bash -euo pipefail "${helper_tools_repo_dir}/$tool"
+  done
+
+  if [[ -n "${kopia_bucket}" ]]; then
+    bootstrap_log "Creating KOPIA snapshot"
+    kopia snapshot create "$cargo_kopia_dest"
+  fi
+}
+
+run_locked_helper_bootstrap \
+  "${PHASE_HELPER_TOOLS_REPO_DIR}" \
+  "${PHASE_AWS_ACCESS_KEY_ID}" \
+  "${PHASE_AWS_SECRET_ACCESS_KEY}" \
+  "${PHASE_CARGO_HOME}" \
+  "${PHASE_KOPIA_BUCKET}" \
+  "${PHASE_KOPIA_CREATE}" \
+  "${PHASE_KOPIA_ENDPOINT}" \
+  "${PHASE_KOPIA_REGION}" \
+  "${PHASE_VENDCURL_VERSION}" \
+  "${PHASE_WITH_AI_TOOLING}"
+flock -u 9

@@ -12,10 +12,8 @@
 # requires-apt-packages: clang lldb eza fzf hyperfine shellcheck
 # requires-apt-packages: libxslt1-dev gh nfpm podman bubblewrap proot mmdebstrap
 
-if [ "$(whoami)" = root ]; then
-  SUDO=
-else
-  SUDO=sudo
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
 fi
 
 if [[ -f "${HOME}/.cargo/env" ]]; then
@@ -23,6 +21,15 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
     . "${HOME}/.cargo/env"
 fi
 
+# Purpose:
+#   Extract the expected checksum for a release artifact.
+# Parameters:
+#   $1 - Artifact filename to look up.
+#   $2 - Checksum file path.
+# Returns:
+#   Prints the checksum to stdout.
+# Side effects:
+#   Reads the checksum file and exits if the artifact is missing.
 function release_checksum()
 {
   local artifact_name=$1
@@ -38,6 +45,14 @@ function release_checksum()
   printf '%s\n' "${expected_sha}"
 }
 
+# Purpose:
+#   Resolve the act release archive name for the current OS and architecture.
+# Parameters:
+#   None.
+# Returns:
+#   Prints the archive filename to stdout.
+# Side effects:
+#   Runs uname and exits on unsupported platforms.
 function act_archive_name()
 {
   local os_name
@@ -84,6 +99,15 @@ function act_archive_name()
   printf 'act_%s_%s.tar.gz\n' "${os_name}" "${arch_name}"
 }
 
+# Purpose:
+#   Download, verify, and install the GitHub Actions act binary.
+# Parameters:
+#   None; reads ACT_VERSION from the environment.
+# Returns:
+#   0 when act is installed.
+# Side effects:
+#   Downloads checksums and an archive with vendcurl, extracts the archive, and
+#   writes ~/.local/bin/act.
 function install_act()
 {
   local act_version=${ACT_VERSION:-latest}
@@ -100,12 +124,15 @@ function install_act()
   fi
 
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"' EXIT
   vendcurl "${release_base}/checksums.txt" "${tmpdir}/checksums.txt"
   expected_sha=$(release_checksum "${archive_name}" "${tmpdir}/checksums.txt")
   vendcurl --sha256 "${expected_sha}" "${release_base}/${archive_name}" "${tmpdir}/${archive_name}"
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
-  install -m 0755 "${tmpdir}/act" "${HOME}/.local/bin/act"
+  cp "${tmpdir}/act" "${HOME}/.local/bin/act"
+  chmod 0755 "${HOME}/.local/bin/act"
   rm -rf "${tmpdir}"
+  trap - EXIT
 }
 
 MERGIRAF_VERSION=${MERGIRAF_VERSION:-0.16.3}
@@ -124,19 +151,20 @@ popd || exit
 uv tool install mbake
 bun install -g pajv
 
-# Tools to help developers
-$SUDO apt-update-if-stale
-$SUDO apt-get install -y linux-tools-common || true
-$SUDO apt-get install -y linux-tools-generic || true
-
-ln -s /usr/bin/fdfind "${HOME}/.local/bin/fd"
+cat > "${HOME}/.local/bin/fd" <<'__EOF__'
+#!/usr/bin/env bash
+exec /usr/bin/fdfind "$@"
+__EOF__
+chmod 0755 "${HOME}/.local/bin/fd"
 
 cargo binstall --no-confirm "mergiraf@${MERGIRAF_VERSION}"
 cargo binstall --no-confirm "difftastic@${DIFFTASTIC_VERSION}"
 
 pwd
 cargo binstall --no-confirm "leta@${LETA_VERSION}"
-leta workspace add .
+if (( ${WITH_LETA_WORKSPACE_ADD:-1} )); then
+  leta workspace add .
+fi
 
 mkdir -p "${HOME}/.local/bin"
 pushd "${HOME}/.local/bin" || exit

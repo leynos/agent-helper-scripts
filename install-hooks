@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 # install-hooks: installs Claude Code hooks and the hook-installer helper into
 # the user environment. It clones or updates the agent-helper-scripts managed
 # checkout, copies hook scripts into ~/.claude/hooks, and installs the
 # install-hook-cmd helper binary into ~/.local/bin. Behaviour is controlled by
 # HELPER_TOOLS_REPO_DIR, HELPER_TOOLS_REPO_BRANCH, and REPO_DIR.
+# requires-apt-packages: git python3
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
@@ -57,14 +61,17 @@ if [[ ! -d "${HOOKS_SRC}" ]]; then
 fi
 
 mkdir -p "${INSTALL_BIN_DIR}"
-install -m 0755 "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
+cp "${BIN_SRC}" "${INSTALL_HOOK_CMD}"
+chmod 0755 "${INSTALL_HOOK_CMD}"
 
 mkdir -p "${CLAUDE_HOOKS_DIR}"
 installed_hooks=0
 shopt -s nullglob
 for hook in "${HOOKS_SRC}"/*; do
   [[ -f "${hook}" ]] || continue
-  install -m 0755 "${hook}" "${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+  hook_destination="${CLAUDE_HOOKS_DIR}/$(basename "${hook}")"
+  cp "${hook}" "${hook_destination}"
+  chmod 0755 "${hook_destination}"
   installed_hooks=$((installed_hooks + 1))
 done
 shopt -u nullglob

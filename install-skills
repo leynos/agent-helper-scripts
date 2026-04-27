@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-# install-skills: installs agent skills into Codex and Claude configuration
-# directories. It clones or updates the agent-helper-scripts managed checkout
-# and additional skill repositories (nextest-skill, vidai-mock-skill,
-# rust-skill), then copies skill files into ~/.codex/skills and
-# ~/.claude/skills. Behaviour is controlled by HELPER_TOOLS_REPO_DIR and
-# HELPER_TOOLS_REPO_BRANCH.
+# Install agent skills into Codex and Claude configuration directories.
+# The script clones or updates the managed agent-helper-scripts checkout and
+# additional skill repositories, then copies their skill directories into
+# ~/.codex/skills and ~/.claude/skills.
+# requires-apt-packages: git fd-find
+
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
 
 REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
@@ -23,7 +26,29 @@ RUST_SKILL_REPO_DIR="${HOME}/git/rust-skill"
 
 CODEX_SKILLS_DIR="${HOME}/.codex/skills"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+FD_BIN="${FD_BIN:-fd}"
 
+if ! command -v "${FD_BIN}" >/dev/null 2>&1; then
+  if command -v fdfind >/dev/null 2>&1; then
+    FD_BIN=fdfind
+  else
+    echo "Error: fd or fdfind is required but was not found on PATH" >&2
+    exit 1
+  fi
+fi
+
+# Purpose:
+#   Clone or update a skill repository, optionally with a sparse checkout.
+# Parameters:
+#   $1 - Git repository URL.
+#   $2 - Local checkout directory.
+#   $3 - Optional sparse-checkout path set.
+#   $4 - Optional branch to fetch and reset to.
+# Returns:
+#   0 when the checkout exists and optional sparse-checkout is configured.
+# Side effects:
+#   Creates parent directories, runs git clone/fetch/reset, and may update
+#   sparse-checkout state.
 function clone_or_update_repo() {
   local repo_url=$1
   local repo_dir=${2%/}
@@ -69,6 +94,15 @@ clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}"
 clone_or_update_repo "${VIDAI_MOCK_SKILL_REPO_URL}" "${VIDAI_MOCK_SKILL_REPO_DIR}"
 clone_or_update_repo "${RUST_SKILL_REPO_URL}" "${RUST_SKILL_REPO_DIR}" "skills"
 
+# Purpose:
+#   Copy all immediate skill directories into Codex and Claude skill paths.
+# Parameters:
+#   $1 - Directory containing skill subdirectories.
+# Returns:
+#   0 when the source exists and copy commands succeed.
+# Side effects:
+#   Creates destination directories and copies skill directories into both
+#   ~/.codex/skills and ~/.claude/skills.
 function copy_skills() {
   local skills_src="$1"
  
@@ -83,8 +117,8 @@ function copy_skills() {
   mkdir -p "${CLAUDE_SKILLS_DIR}"
   
   # Copy skills to both destinations
-  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CODEX_SKILLS_DIR}/"
-  fd --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CLAUDE_SKILLS_DIR}/"
+  "${FD_BIN}" --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CODEX_SKILLS_DIR}/"
+  "${FD_BIN}" --type d --min-depth 1 --max-depth 1 . "$skills_src" -X cp -a -t "${CLAUDE_SKILLS_DIR}/"
   
   echo "Skills (${skills_src}) installed to:"
   echo "  ${CODEX_SKILLS_DIR}"

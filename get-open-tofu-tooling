@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# Install OpenTofu-oriented command-line tooling.
+# The script installs OpenTofu through its upstream installer, downloads tflint
+# and conftest releases with vendcurl, and installs checkov through uv.
+
+set -euo pipefail
+if [[ "${WITH_TRACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  set -x
+fi
+
 if [ "$(whoami)" = root ]; then
   SUDO=
 else
@@ -11,6 +20,14 @@ if [[ -f "${HOME}/.local/bin/env" ]]; then
   source "${HOME}/.local/bin/env"
 fi
 
+# Purpose:
+#   Resolve the tflint release platform suffix for the current machine.
+# Parameters:
+#   None.
+# Returns:
+#   Prints the platform suffix to stdout.
+# Side effects:
+#   Runs uname and exits on unsupported architectures.
 function tflint_platform()
 {
   local machine_arch
@@ -47,6 +64,14 @@ function tflint_platform()
   printf '%s\n' "${os_name}"
 }
 
+# Purpose:
+#   Download and install tflint.
+# Parameters:
+#   None; reads TFLINT_VERSION and TFLINT_INSTALL_PATH from the environment.
+# Returns:
+#   0 when tflint is installed and reports its version.
+# Side effects:
+#   Downloads an archive, unzips it, may use sudo, and writes the tflint binary.
 function install_tflint()
 {
   local tflint_version=${TFLINT_VERSION:-latest}
@@ -58,6 +83,7 @@ function install_tflint()
 
   platform=$(tflint_platform)
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"; trap - RETURN' RETURN
   archive_path="${tmpdir}/tflint_${platform}.zip"
 
   if [[ "${tflint_version}" == latest ]]; then
@@ -79,9 +105,16 @@ function install_tflint()
   $INSTALL_SUDO mkdir -p "${dest}"
   $INSTALL_SUDO install -c -v "${tmpdir}/tflint" "${dest}/"
   "${dest}/tflint" -v
-  rm -rf "${tmpdir}"
 }
 
+# Purpose:
+#   Download and install conftest.
+# Parameters:
+#   None; reads CONFTEST_VERSION from the environment.
+# Returns:
+#   0 when conftest is installed.
+# Side effects:
+#   May query the GitHub API, downloads an archive, and writes to ~/.local/bin.
 function install_conftest()
 {
   local conftest_version
@@ -93,6 +126,7 @@ function install_conftest()
 
   conftest_version=${CONFTEST_VERSION:-latest}
   tmpdir=$(mktemp -d)
+  trap 'rm -rf "${tmpdir}"; trap - RETURN' RETURN
   metadata_path="${tmpdir}/conftest-release.json"
 
   if [[ "${conftest_version}" == latest ]]; then
@@ -105,7 +139,7 @@ function install_conftest()
     )
     if [[ -z "${conftest_version}" ]]; then
       echo "Error: unable to resolve latest conftest version" >&2
-      exit 1
+      return 1
     fi
   fi
 
@@ -118,7 +152,6 @@ function install_conftest()
   tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
   mkdir -p "${HOME}/.local/bin"
   install -m 0755 "${tmpdir}/conftest" "${HOME}/.local/bin/conftest"
-  rm -rf "${tmpdir}"
 }
 
 pushd ~ || exit
