@@ -24,15 +24,12 @@ def run_bootstrap_script(
     """Source bootstrap-common in Bash and run body with an isolated HOME."""
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
-    script = tmp_path / "run-bootstrap-common.sh"
-    script.write_text(
-        "#!/usr/bin/env bash\n"
+    script_content = (
         "set -euo pipefail\n"
         f"{textwrap.dedent(pre_source)}\n"
         f"source {shlex.quote(str(REPO_ROOT / 'bootstrap-common'))}\n"
-        f"{textwrap.dedent(body)}\n",
+        f"{textwrap.dedent(body)}\n"
     )
-    script.chmod(0o755)
 
     process_env = os.environ.copy()
     process_env.update(
@@ -44,8 +41,9 @@ def run_bootstrap_script(
     if env:
         process_env.update(env)
 
-    return subprocess.run(  # noqa: S603 - generated script path, no shell interpolation.
-        [script.as_posix()],
+    return subprocess.run(  # noqa: S603,S607 - fixed bash argv, no shell or user input.
+        ["bash", "--norc", "--noprofile"],
+        input=script_content,
         cwd=tmp_path,
         env=process_env,
         text=True,
