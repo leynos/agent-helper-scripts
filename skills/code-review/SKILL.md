@@ -24,7 +24,8 @@ Good code review serves three purposes:
 
 1. **Catch defects** — bugs, security holes, performance traps
 2. **Enforce consistency** — style, patterns, architectural boundaries
-3. **Transfer knowledge** — reviewer learns the change, author learns alternatives
+3. **Transfer knowledge** — to enable the reviewer to learn the change and
+   the author to learn alternatives
 
 A review that only finds style nits has failed. A review that only finds bugs but ignores maintainability has also failed. Balance matters.
 

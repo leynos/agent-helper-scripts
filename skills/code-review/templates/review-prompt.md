@@ -63,7 +63,7 @@ Detect from manifest files:
 
 - `Cargo.toml` → Rust (check for `clippy.toml`, `.cargo/config.toml`)
 - `pyproject.toml` → Python (check for `ruff.toml`, `mypy.ini`, `.python-version`)
-- `package.json` → TypeScript (check for `tsconfig.json`, `.eslintrc.*`)
+- `package.json` → TypeScript/JavaScript (check for `tsconfig.json`, `.eslintrc.*`)
 
 ### CI Expectations
 
