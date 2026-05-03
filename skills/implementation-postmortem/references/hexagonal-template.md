@@ -39,7 +39,7 @@ For each adapter:
 
 | Adapter | Type | Lines | Boilerplate % | Logic % | Verdict |
 |---------|------|-------|---------------|---------|---------|
-| | in/out | | | | thin/concerning |
+| - | in/out | - | - | - | thin/concerning |
 
 **Red flags:**
 - Adapter > 200 lines (probably doing too much)
@@ -61,7 +61,7 @@ The fundamental rule: dependencies point inward (adapters → ports → domain).
 - Ports defined in domain, implemented in adapters?
 - No circular dependencies between layers?
 
-**Visualise:** Draw the actual dependency graph. Compare to intended hexagonal structure. Explain every deviation.
+**Visualize:** Draw the actual dependency graph. Compare to intended hexagonal structure. Explain every deviation.
 
 ### Application Service Layer
 
@@ -85,10 +85,10 @@ If present (orchestrating domain operations):
 
 | Layer | Test Type | Coverage | Notes |
 |-------|-----------|----------|-------|
-| Domain | Unit (no mocks needed) | | |
-| Ports | Contract tests | | |
-| Adapters | Integration (real infra) | | |
-| Application | Use-case tests (mocked ports) | | |
+| Domain | Unit (no mocks needed) | - | - |
+| Ports | Contract tests | - | - |
+| Adapters | Integration (real infra) | - | - |
+| Application | Use-case tests (mocked ports) | - | - |
 
 **Questions:**
 - Can domain tests run without any test infrastructure?

@@ -33,11 +33,11 @@ How much ceremony was required? Where did the abstraction fight you?
 
 | Strategy | Status | Composable | Opt-out Overhead | Notes |
 |----------|--------|------------|------------------|-------|
-| Length-prefixed | | | | |
-| Delimiter-based | | | | |
-| COBS | | | | |
-| Fixed-size | | | | |
-| Custom | | | | |
+| Length-prefixed | - | - | - | - |
+| Delimiter-based | - | - | - | - |
+| COBS | - | - | - | - |
+| Fixed-size | - | - | - | - |
+| Custom | - | - | - | - |
 
 **Integration questions:**
 - Are framing strategies truly composable/stackable?

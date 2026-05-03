@@ -6,7 +6,7 @@ Common vulnerabilities to catch during code review, with examples and mitigation
 
 ## Injection Attacks
 
-Injection occurs when untrusted input is incorporated into a command or query without proper sanitisation, allowing an attacker to alter the intended behaviour.
+Injection occurs when untrusted input is incorporated into a command or query without proper sanitization, allowing an attacker to alter the intended behaviour.
 
 ### SQL Injection
 
@@ -128,7 +128,7 @@ document.getElementById('content').innerHTML =
 **Server-side (Python/Jinja2):**
 
 ```python
-# Vulnerable - marking as safe without sanitisation
+# Vulnerable - marking as safe without sanitization
 return render_template('page.html', content=Markup(user_input))
 
 # Secure - let the template engine escape
@@ -138,7 +138,7 @@ return render_template('page.html', content=user_input)
 
 **Review checklist:**
 - [ ] User input never inserted via `innerHTML`, `v-html`, `dangerouslySetInnerHTML`
-- [ ] Template auto-escaping not disabled without sanitisation
+- [ ] Template auto-escaping not disabled without sanitization
 - [ ] `Markup()`, `| safe`, `{% autoescape false %}` audited
 - [ ] CSP headers configured to mitigate impact
 

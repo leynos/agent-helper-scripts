@@ -73,7 +73,7 @@ If tools are implemented as finite state machines:
 
 | Tool | States | Input Coverage | Command Emission | Cancellation | Verdict |
 |------|--------|----------------|------------------|--------------|---------|
-| | count | mouse/key/a11y | clean/interleaved | clean/leaky | |
+| - | count | mouse/key/a11y | clean/interleaved | clean/leaky | - |
 
 **Cross-tool questions:**
 - Clear tool trait/interface, or each tool invented its own patterns?
@@ -81,7 +81,7 @@ If tools are implemented as finite state machines:
 - Do tools update state via commands, not directly?
 
 **State machine smells:**
-- State explosion (FSM becoming untractable)
+- State explosion (FSM becoming intractable)
 - Missing transitions (input combinations not handled)
 - Commands interleaved with state logic (should be separate)
 
@@ -113,10 +113,10 @@ If the architecture defines explicit invariants, assess each:
 
 | Invariant | Status | Evidence |
 |-----------|--------|----------|
-| All behaviour through commands | ✓/✗ | |
-| Single source of truth | ✓/✗ | |
-| Deterministic state transitions | ✓/✗ | |
-| [Add project-specific invariants] | | |
+| All behaviour through commands | ✓/✗ | - |
+| Single source of truth | ✓/✗ | - |
+| Deterministic state transitions | ✓/✗ | - |
+| [Add project-specific invariants] | - | - |
 
 For any ✗:
 - What violated it
@@ -143,4 +143,4 @@ If the architecture specifies a module structure:
 - Circular dependencies between modules?
 - Types in wrong modules?
 
-**Visualise:** Draw actual dependency graph. Compare to intended structure. Explain every deviation.
+**Visualize:** Draw actual dependency graph. Compare to intended structure. Explain every deviation.

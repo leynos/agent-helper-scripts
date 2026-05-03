@@ -19,7 +19,7 @@ versions.
 
 | Key | What it Controls | Typical Default | Notes |
 |-----|-----------------|-----------------|-------|
-| `function_cyclomatic_complexity_warning` | Cyclomatic complexity at which a function is flagged by the Complex Method rule. | ~8–10 (language-dependent) | Raise to 15–20 for test code where complex parametrised setups are common. |
+| `function_cyclomatic_complexity_warning` | Cyclomatic complexity at which a function is flagged by the Complex Method rule. | ~8–10 (language-dependent) | Raise to 15–20 for test code where complex parametrized setups are common. |
 | `function_nesting_depth_warning` | Maximum nesting depth before Nested Complexity fires. | ~3–4 | Lowering to 2 is strict; useful for safety-critical code. Raising above 4 is rarely advisable. |
 
 ---

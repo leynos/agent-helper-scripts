@@ -18,7 +18,7 @@ Zod 4 is the current stable release (latest: 4.3.x). It ships three packages fro
 `zod` install: `zod` (classic), `zod/mini` (tree-shakable), and `zod/v4/core` (for library
 authors). TypeScript ≥5.5 and `strict: true` in tsconfig are hard requirements.
 
-```
+```bash
 npm install zod@^4.0.0
 ```
 
@@ -293,8 +293,8 @@ https://zod.dev/v4/changelog. A community codemod `zod-v3-to-v4` is available.
 ### Semantic changes (silent breakage risk)
 
 11. **`z.number()` rejects `Infinity`/`-Infinity`.**
-12. **`.int()` rejects unsafe integers** (outside `Number.MIN_SAFE_INTEGER` ..
-    `MAX_SAFE_INTEGER`).
+12. **`.int()` rejects unsafe integers** (outside `Number.MIN_SAFE_INTEGER` to
+    `Number.MAX_SAFE_INTEGER`).
 13. **`.default()` now short-circuits.** The default value must match the *output* type,
     not the input type. For pre-parse defaults, use `.prefault()`.
 14. **Defaults inside optional fields are applied:** `z.string().default("x").optional()`
