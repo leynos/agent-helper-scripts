@@ -284,11 +284,17 @@ complementary Rust formal verification tools:
 - **Kani** — bounded model checking backed by CBMC. Harnesses use
   `#[kani::proof]`, `kani::any()`, and `kani::assume()` to exhaustively explore
   finite state spaces. Useful for verifying invariants over small graph
-  structures and container operations.
+  structures and container operations. See
+  [`skills/kani/SKILL.md`](../skills/kani/SKILL.md) for authoring guidance and
+  [`skills/kani/references/kani-harness-example.rs`](../skills/kani/references/kani-harness-example.rs)
+  for an annotated harness reference.
 - **Verus** — deductive verification backed by the Z3 SMT solver. Proofs use
   the `verus!{}` macro with spec/proof/exec modes to verify properties over
   unbounded inputs. Useful for ordering invariants, extraction correctness, and
-  algebraic properties.
+  algebraic properties. See
+  [`skills/verus/SKILL.md`](../skills/verus/SKILL.md) for authoring guidance and
+  [`skills/verus/references/verus-proof-example.rs`](../skills/verus/references/verus-proof-example.rs)
+  for an annotated proof reference.
 
 ### Reference scripts
 
