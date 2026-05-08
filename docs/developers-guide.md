@@ -276,6 +276,57 @@ clone_or_update_repo \
   "${HELPER_TOOLS_REPO_BRANCH}"
 ```
 
+## Formal verification tooling
+
+The `skills/kani` and `skills/verus` directories contain agent skills for two
+complementary Rust formal verification tools:
+
+- **Kani** — bounded model checking backed by CBMC. Harnesses use
+  `#[kani::proof]`, `kani::any()`, and `kani::assume()` to exhaustively explore
+  finite state spaces. Useful for verifying invariants over small graph
+  structures and container operations.
+- **Verus** — deductive verification backed by the Z3 SMT solver. Proofs use
+  the `verus!{}` macro with spec/proof/exec modes to verify properties over
+  unbounded inputs. Useful for ordering invariants, extraction correctness, and
+  algebraic properties.
+
+### Reference scripts
+
+The Verus skill includes two reference helper scripts in
+`skills/verus/references/`:
+
+- `install-verus.sh` — downloads a version-pinned Verus release, verifies its
+  SHA-256 checksum against `tools/verus/SHA256SUMS`, and extracts it into
+  `.verus/<version>/`.
+- `run-verus.sh` — resolves the Verus binary (direct path, directory, default
+  install location, or fallback to `install-verus.sh`), ensures the required
+  Rust nightly toolchain is installed via `rustup`, and runs the proof file.
+
+Both scripts derive their working paths from `BASH_SOURCE[0]`, expecting the
+layout `<repo>/references/{install,run}-verus.sh` with `tools/verus/VERSION`
+and `tools/verus/SHA256SUMS` at the repository root.
+
+### Tests
+
+`tests/test_verus_scripts.py` provides process-level tests for both scripts.
+The tests build isolated file trees under `tmp_path`, symlink the real scripts
+into a fake repository structure, and exercise error paths (missing files,
+checksum mismatches) and the successful install flow. External commands are
+intercepted using fake scripts via `PATH` manipulation and `CmdMox` stubs for
+`rustup`.
+
+Run the Verus script tests in isolation:
+
+```bash
+make test-verus-scripts
+```
+
+Or as part of the full suite:
+
+```bash
+make ci
+```
+
 ## Makefile targets
 
 The Makefile provides the standard validation entrypoints used locally and in
@@ -303,6 +354,10 @@ CI:
     `uv run python -m pytest`.
   - Use this when iterating on `rust-entrypoint`, `rust-entrypoint-system`, or
     `rust-entrypoint-home`.
+- `make test-verus-scripts`
+  - Runs the Verus script pytest subset (`VERUS_TESTS`) via
+    `uv run python -m pytest`.
+  - Use this when iterating on `install-verus.sh` or `run-verus.sh`.
 
 ## Validation expectations
 
