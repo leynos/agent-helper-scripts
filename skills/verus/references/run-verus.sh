@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PROOF_FILE="${VERUS_PROOF_FILE:-${ROOT_DIR}/verus/edge_harvest_proofs.rs}"
 VERSION_FILE="${ROOT_DIR}/tools/verus/VERSION"
 
@@ -137,7 +137,7 @@ ensure_verus_toolchain() {
 }
 
 install_verus_fallback() {
-  VERUS_INSTALL_DIR="${DEFAULT_INSTALL_DIR}" "${ROOT_DIR}/references/install-verus.sh"
+  VERUS_INSTALL_DIR="${DEFAULT_INSTALL_DIR}" "${ROOT_DIR}/skills/verus/references/install-verus.sh"
 }
 
 try_resolve_verus_bin() {

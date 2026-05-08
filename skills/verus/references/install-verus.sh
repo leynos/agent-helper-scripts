@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 VERSION_FILE="${ROOT_DIR}/tools/verus/VERSION"
 CHECKSUM_FILE="${ROOT_DIR}/tools/verus/SHA256SUMS"
 

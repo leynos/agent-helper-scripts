@@ -22,7 +22,7 @@ class TestRunVerus:
         repo = make_repo_tree(tmp_path)
         (repo / "tools" / "verus" / "VERSION").unlink()
 
-        result = run_script(repo / "references" / "run-verus.sh", cwd=repo)
+        result = run_script(repo / "skills" / "verus" / "references" / "run-verus.sh", cwd=repo)
 
         assert result.returncode != 0
         assert "Missing Verus version file" in result.stderr
@@ -42,7 +42,7 @@ class TestRunVerus:
             mox.replay()
 
             result = run_script(
-                repo / "references" / "run-verus.sh",
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
                 cwd=repo,
                 env_overrides={
                     "VERUS_BIN": str(fake_verus),
@@ -68,7 +68,7 @@ class TestRunVerus:
             mox.replay()
 
             result = run_script(
-                repo / "references" / "run-verus.sh",
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
                 cwd=repo,
                 env_overrides={
                     "VERUS_BIN": str(verus_dir),
@@ -90,7 +90,7 @@ class TestRunVerus:
             mox.replay()
 
             result = run_script(
-                repo / "references" / "run-verus.sh",
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
                 cwd=repo,
                 env_overrides={
                     "VERUS_BIN": str(fake_verus),
@@ -114,7 +114,7 @@ class TestRunVerus:
         verus_bin.write_text("not executable\n")
         verus_bin.chmod(0o644)
 
-        result = run_script(repo / "references" / "run-verus.sh", cwd=repo)
+        result = run_script(repo / "skills" / "verus" / "references" / "run-verus.sh", cwd=repo)
 
         assert result.returncode != 0
         assert "Verus binary" in result.stderr or "not executable" in result.stderr
@@ -127,7 +127,7 @@ class TestRunVerus:
 
         # Replace the symlinked install-verus.sh with a fake that creates a
         # working verus binary.
-        fake_install = repo / "references" / "install-verus.sh"
+        fake_install = repo / "skills" / "verus" / "references" / "install-verus.sh"
         fake_install.unlink()
         fake_install.write_text(
             f'#!/bin/sh\n'
@@ -151,7 +151,7 @@ class TestRunVerus:
             mox.replay()
 
             result = run_script(
-                repo / "references" / "run-verus.sh",
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
                 cwd=repo,
                 env_overrides={
                     "VERUS_PROOF_FILE": str(proof_file),

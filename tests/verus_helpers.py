@@ -27,14 +27,14 @@ def make_repo_tree(tmp_path: Path) -> Path:
     """Build a minimal fake repository tree with tools/verus metadata.
 
     Returns the repo directory. The scripts are symlinked into
-    repo/references/ so that BASH_SOURCE[0]-derived ROOT_DIR resolves
-    to repo.
+    repo/skills/verus/references/ so that BASH_SOURCE[0]-derived ROOT_DIR
+    resolves to repo.
     """
     repo = tmp_path / "repo"
     tools = repo / "tools" / "verus"
     tools.mkdir(parents=True)
-    refs = repo / "references"
-    refs.mkdir()
+    refs = repo / "skills" / "verus" / "references"
+    refs.mkdir(parents=True)
 
     (tools / "VERSION").write_text(FAKE_VERSION)
 
@@ -42,7 +42,7 @@ def make_repo_tree(tmp_path: Path) -> Path:
     fake_sha = "a" * 64
     (tools / "SHA256SUMS").write_text(f"{fake_sha}  {archive_name}\n")
 
-    # Symlink the real scripts into the fake repo references/ directory.
+    # Symlink the real scripts into the fake repo skills/verus/references/.
     (refs / "install-verus.sh").symlink_to(INSTALL_SCRIPT)
     (refs / "run-verus.sh").symlink_to(RUN_SCRIPT)
 

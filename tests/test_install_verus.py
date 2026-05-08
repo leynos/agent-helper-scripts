@@ -31,7 +31,7 @@ class TestInstallVerus:
         verus_bin.chmod(0o755)
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
@@ -45,7 +45,7 @@ class TestInstallVerus:
         (repo / "tools" / "verus" / "VERSION").unlink()
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
@@ -59,7 +59,7 @@ class TestInstallVerus:
         (repo / "tools" / "verus" / "SHA256SUMS").unlink()
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
@@ -75,7 +75,7 @@ class TestInstallVerus:
         )
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
@@ -115,7 +115,7 @@ class TestInstallVerus:
         fake_curl.chmod(0o755)
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={
                 "VERUS_TARGET": FAKE_TARGET,
@@ -169,7 +169,7 @@ class TestInstallVerus:
         fake_curl.chmod(0o755)
 
         result = run_script(
-            repo / "references" / "install-verus.sh",
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
             cwd=repo,
             env_overrides={
                 "VERUS_TARGET": FAKE_TARGET,
