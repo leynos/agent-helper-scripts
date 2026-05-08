@@ -212,6 +212,13 @@ struct EdgeAssertion {
 }
 
 #[cfg(kani)]
+impl EdgeAssertion {
+    fn new(source: usize, target: usize, level: usize) -> Self {
+        EdgeAssertion { source, target, level }
+    }
+}
+
+#[cfg(kani)]
 fn assert_node_link(graph: &Graph, edge: EdgeAssertion, message: &str) {
     let has_link = graph
         .node(edge.source)
@@ -229,13 +236,8 @@ fn assert_no_node_link(graph: &Graph, edge: EdgeAssertion, message: &str) {
     kani::assert(!has_link, message);
 }
 
+#[cfg(kani)]
 fn add_bidirectional_edge(graph: &mut Graph, origin: usize, target: usize, level: usize) {
     add_edge_if_missing(graph, origin, target, level);
     add_edge_if_missing(graph, target, origin, level);
-}
-
-fn push_if_absent(list: &mut Vec<usize>, value: usize) {
-    if !list.contains(&value) {
-        list.push(value);
-    }
 }

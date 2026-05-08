@@ -28,7 +28,7 @@ PYTEST := uv run --group dev python -m pytest
 HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
-VERUS_TESTS := $(filter tests/test_verus_scripts.py,$(REPO_TESTS))
+VERUS_TESTS := $(filter tests/test_install_verus.py tests/test_run_verus.py,$(REPO_TESTS))
 TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 
 # Test targets:

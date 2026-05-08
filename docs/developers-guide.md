@@ -308,10 +308,11 @@ and `tools/verus/SHA256SUMS` at the repository root.
 
 ### Tests
 
-`tests/test_verus_scripts.py` provides process-level tests for both scripts.
+`tests/test_install_verus.py` and `tests/test_run_verus.py` provide
+process-level tests for both scripts.
 The tests build isolated file trees under `tmp_path`, symlink the real scripts
 into a fake repository structure, and exercise error paths (missing files,
-checksum mismatches) and the successful install flow. External commands are
+checksum mismatches) and the successful installation flow. External commands are
 intercepted using fake scripts via `PATH` manipulation and `CmdMox` stubs for
 `rustup`.
 
