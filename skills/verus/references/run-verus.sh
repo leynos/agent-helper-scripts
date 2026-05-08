@@ -18,7 +18,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-PROOF_FILE="${VERUS_PROOF_FILE:-${ROOT_DIR}/verus/edge_harvest_proofs.rs}"
+PROOF_FILE="${VERUS_PROOF_FILE:-verus/edge_harvest_proofs.rs}"
+if [[ "${PROOF_FILE}" != /* ]]; then
+  PROOF_FILE="${ROOT_DIR}/${PROOF_FILE}"
+fi
 VERSION_FILE="${ROOT_DIR}/tools/verus/VERSION"
 
 if [[ ! -f "${VERSION_FILE}" ]]; then

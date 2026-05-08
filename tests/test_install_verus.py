@@ -27,7 +27,7 @@ class TestInstallVerus:
         install_dir = repo / ".verus" / FAKE_VERSION / "verus"
         install_dir.mkdir(parents=True)
         verus_bin = install_dir / "verus"
-        verus_bin.write_text("#!/bin/sh\necho fake\n")
+        verus_bin.write_text(f"#!/bin/sh\necho verus {FAKE_VERSION}\n")
         verus_bin.chmod(0o755)
 
         result = run_script(

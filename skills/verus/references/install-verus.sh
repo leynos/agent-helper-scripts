@@ -43,8 +43,11 @@ if [[ -z "${EXPECTED_SHA}" ]]; then
 fi
 
 if [[ -x "${INSTALL_DIR}/verus/verus" ]]; then
-  echo "Verus ${VERUS_VERSION} already installed at ${INSTALL_DIR}/verus"
-  exit 0
+  if "${INSTALL_DIR}/verus/verus" --version 2>&1 | grep -Fq "${VERUS_VERSION}"; then
+    echo "Verus ${VERUS_VERSION} already installed at ${INSTALL_DIR}/verus"
+    exit 0
+  fi
+  echo "Existing Verus installation does not match ${VERUS_VERSION}; reinstalling." >&2
 fi
 
 mkdir -p "${INSTALL_DIR}"
@@ -73,15 +76,17 @@ if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
   exit 1
 fi
 
-unzip -q "${TMP_DIR}/${ARCHIVE}" -d "${INSTALL_DIR}"
+EXTRACT_ROOT="${TMP_DIR}/extract"
+mkdir -p "${EXTRACT_ROOT}"
+unzip -q "${TMP_DIR}/${ARCHIVE}" -d "${EXTRACT_ROOT}"
 
-EXTRACTED_DIR="${INSTALL_DIR}/verus-${VERUS_TARGET}"
+EXTRACTED_DIR="${EXTRACT_ROOT}/verus-${VERUS_TARGET}"
 if [[ ! -d "${EXTRACTED_DIR}" ]]; then
-  EXTRACTED_DIR="$(find "${INSTALL_DIR}" -maxdepth 1 -type d -name 'verus-*' | head -n 1)"
+  EXTRACTED_DIR="$(find "${EXTRACT_ROOT}" -maxdepth 1 -type d -name 'verus-*' | head -n 1)"
 fi
 
 if [[ -z "${EXTRACTED_DIR}" || ! -d "${EXTRACTED_DIR}" ]]; then
-  echo "Unable to locate extracted Verus directory under ${INSTALL_DIR}" >&2
+  echo "Unable to locate extracted Verus directory under ${EXTRACT_ROOT}" >&2
   exit 1
 fi
 
