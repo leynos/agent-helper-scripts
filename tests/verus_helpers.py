@@ -55,7 +55,28 @@ def run_script(
     cwd: Path,
     env_overrides: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a bash script with optional environment overrides."""
+    """Run a bash script with optional environment overrides.
+
+    Parameters
+    ----------
+    script : Path
+        Path to the bash script to execute.
+    cwd : Path
+        Working directory for the subprocess.
+    env_overrides : dict[str, str] | None
+        Optional environment variables merged into ``os.environ``.
+        Overrides take precedence over existing values.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        Completed process with captured stdout, stderr, and returncode.
+
+    Notes
+    -----
+    Runs ``["bash", str(script)]`` with ``capture_output=True`` and
+    ``check=False``.
+    """
     env = os.environ.copy()
     if env_overrides:
         env.update(env_overrides)
@@ -71,7 +92,19 @@ def run_script(
 
 
 def make_fake_verus(path: Path) -> None:
-    """Write a fake verus binary that reports a toolchain on --version."""
+    """Write a fake verus binary that reports a toolchain on ``--version``.
+
+    Parameters
+    ----------
+    path : Path
+        Destination for the generated shell script.
+
+    Notes
+    -----
+    Creates an executable shell script at *path* that responds to
+    ``--version`` with ``Toolchain: nightly-2025-11-05`` and prints
+    ``verified`` for any other argument.
+    """
     path.write_text(
         '#!/bin/sh\n'
         'case "$1" in\n'
