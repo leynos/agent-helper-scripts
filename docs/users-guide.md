@@ -199,6 +199,14 @@ Use these variables to pin or override versions installed by the home phase:
 - `KANI_VERIFIER_VERSION`
   - Default: `0.67.0`
   - Version of `kani-verifier`.
+- `VERUS_INSTALL_DIR`
+  - Default: `<repo>/.verus/<version>`
+  - Override the directory into which `install-verus.sh` extracts the Verus
+    toolchain. Set this if the default location conflicts with another install.
+- `VERUS_TARGET`
+  - Default: `x86-linux`
+  - Selects the Verus release asset to download. Override when targeting a
+    non-default platform (e.g. `aarch64-linux`).
 - `SCCACHE_VERSION`
   - Default: `0.14.0`
   - Version of `sccache` when `SCCACHE_BUCKET` is set.
