@@ -455,8 +455,8 @@ newcomer.
 
 ### Vec and heap allocation do not scale
 
-`kani::any::<Vec<T>>()` does not exist. Bounded collections must be constructed manually.
-collections. Even small `Vec`s with 2--3 elements can take minutes. A proof
+`kani::any::<Vec<T>>()` does not exist. Bounded collections must be constructed
+manually. Even small `Vec`s with 2--3 elements can take minutes. A proof
 harness with nondeterministic inventory of size 2 will likely take a couple of
 minutes to verify.
 

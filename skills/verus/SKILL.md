@@ -273,16 +273,16 @@ proof fn lemma_extract_from_layers_invariants(
 - Each sub-obligation has its own lemma.
 - The `decreases` clause makes termination explicit.
 
-### Positive example: canonicalisation correctness
+### Positive example: canonicalization correctness
 
 ```rust
-proof fn lemma_canonicalise_preserves_fields(edge: CandidateEdgeSpec)
+proof fn lemma_canonicalize_preserves_fields(edge: CandidateEdgeSpec)
     ensures
-        edge.canonicalise().distance == edge.distance,
-        edge.canonicalise().sequence == edge.sequence,
-        edge.canonicalise().source <= edge.canonicalise().target,
+        edge.canonicalize().distance == edge.distance,
+        edge.canonicalize().sequence == edge.sequence,
+        edge.canonicalize().source <= edge.canonicalize().target,
 {
-    let canonical = edge.canonicalise();
+    let canonical = edge.canonicalize();
     if edge.source <= edge.target {
         assert(canonical == edge);
     } else {
@@ -294,7 +294,7 @@ proof fn lemma_canonicalise_preserves_fields(edge: CandidateEdgeSpec)
 
 **Why this is good:**
 
-- The ensures clause is a complete specification of what canonicalisation must
+- The ensures clause is a complete specification of what canonicalization must
   preserve and establish.
 - The proof is a simple case split matching the function's structure.
 - No unnecessary lemma calls or context pollution.
@@ -498,7 +498,7 @@ then `nonlinear_arith` for the main theorem. Fall back to manual lemmas from
 
 ## Project structure
 
-### Proof file organisation
+### Proof file organization
 
 Keep Verus proofs in a dedicated directory (e.g., `verus/`) at the repository
 root, separate from the Cargo workspace:
@@ -673,7 +673,7 @@ files are compiled by Verus directly, not by `rustc`. This means:
 
 - Verus files cannot `use` production crate modules.
 - Type definitions must be duplicated as spec structs.
-- Keep the spec structs synchronised with production types manually (or via
+- Keep the spec structs synchronized with production types manually (or via
   code review).
 
 ### The Z3 timeout cliff
