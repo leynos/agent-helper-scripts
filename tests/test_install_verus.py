@@ -36,8 +36,28 @@ class TestInstallVerus:
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
 
-        assert result.returncode == 0
-        assert "already installed" in result.stdout
+        assert result.returncode == 0, result.stderr
+        assert "already installed" in result.stdout, result.stdout
+
+    def test_reinstall_on_mismatched_version(self, tmp_path: Path) -> None:
+        """When the existing binary reports a different version, reinstall."""
+        repo = make_repo_tree(tmp_path)
+
+        install_dir = repo / ".verus" / FAKE_VERSION / "verus"
+        install_dir.mkdir(parents=True)
+        verus_bin = install_dir / "verus"
+        verus_bin.write_text("#!/bin/sh\necho verus 0.0.0.wrong\n")
+        verus_bin.chmod(0o755)
+
+        result = run_script(
+            repo / "skills" / "verus" / "references" / "install-verus.sh",
+            cwd=repo,
+            env_overrides={"VERUS_TARGET": FAKE_TARGET},
+        )
+
+        assert result.returncode != 0, result.stdout
+        assert "does not match" in result.stderr, result.stderr
+        assert "already installed" not in result.stdout, result.stdout
 
     def test_missing_version_file(self, tmp_path: Path) -> None:
         """Missing VERSION file causes immediate non-zero exit."""
@@ -50,8 +70,8 @@ class TestInstallVerus:
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
 
-        assert result.returncode != 0
-        assert "Missing Verus version file" in result.stderr
+        assert result.returncode != 0, result.stdout
+        assert "Missing Verus version file" in result.stderr, result.stderr
 
     def test_missing_sha256sums_file(self, tmp_path: Path) -> None:
         """Missing SHA256SUMS file causes immediate non-zero exit."""
@@ -64,8 +84,8 @@ class TestInstallVerus:
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
 
-        assert result.returncode != 0
-        assert "Missing Verus checksum file" in result.stderr
+        assert result.returncode != 0, result.stdout
+        assert "Missing Verus checksum file" in result.stderr, result.stderr
 
     def test_missing_sha256sums_entry(self, tmp_path: Path) -> None:
         """SHA256SUMS with no matching entry causes non-zero exit."""
@@ -80,8 +100,8 @@ class TestInstallVerus:
             env_overrides={"VERUS_TARGET": FAKE_TARGET},
         )
 
-        assert result.returncode != 0
-        assert "Missing SHA-256" in result.stderr
+        assert result.returncode != 0, result.stdout
+        assert "Missing SHA-256" in result.stderr, result.stderr
 
     def test_checksum_mismatch(self, tmp_path: Path) -> None:
         """Checksum mismatch causes non-zero exit with error to stderr."""
@@ -123,8 +143,8 @@ class TestInstallVerus:
             },
         )
 
-        assert result.returncode != 0
-        assert "SHA-256 mismatch" in result.stderr
+        assert result.returncode != 0, result.stdout
+        assert "SHA-256 mismatch" in result.stderr, result.stderr
 
     def test_successful_install(self, tmp_path: Path) -> None:
         """Successful install creates the Verus binary at the expected path."""
