@@ -136,8 +136,24 @@ ensure_verus_toolchain() {
   TOOLCHAIN="${toolchain}"
 }
 
-RESOLVED_VERUS_BIN="$(resolve_verus_bin "${VERUS_BIN}" || true)"
-if [[ -n "${RESOLVED_VERUS_BIN}" ]]; then
+install_verus_fallback() {
+  VERUS_INSTALL_DIR="${DEFAULT_INSTALL_DIR}" "${ROOT_DIR}/references/install-verus.sh"
+}
+
+try_resolve_verus_bin() {
+  local candidate="$1"
+  local resolved
+
+  if resolved="$(resolve_verus_bin "${candidate}" 2>&1)"; then
+    echo "${resolved}"
+    return 0
+  else
+    echo "Could not resolve Verus binary '${candidate}': ${resolved}" >&2
+    return 1
+  fi
+}
+
+if RESOLVED_VERUS_BIN="$(try_resolve_verus_bin "${VERUS_BIN}")"; then
   VERUS_BIN="${RESOLVED_VERUS_BIN}"
 else
   if [[ "${VERUS_BIN}" != "${DEFAULT_VERUS_BIN}" ]]; then
@@ -150,12 +166,11 @@ else
     VERUS_BIN="${DEFAULT_VERUS_BIN}"
   fi
 
-  if [[ -z "$(resolve_verus_bin "${VERUS_BIN}" || true)" ]]; then
-    VERUS_INSTALL_DIR="${DEFAULT_INSTALL_DIR}" "${ROOT_DIR}/scripts/install-verus.sh"
+  if ! try_resolve_verus_bin "${VERUS_BIN}" >/dev/null 2>&1; then
+    install_verus_fallback
   fi
 
-  RESOLVED_VERUS_BIN="$(resolve_verus_bin "${VERUS_BIN}" || true)"
-  if [[ -n "${RESOLVED_VERUS_BIN}" ]]; then
+  if RESOLVED_VERUS_BIN="$(try_resolve_verus_bin "${VERUS_BIN}")"; then
     VERUS_BIN="${RESOLVED_VERUS_BIN}"
   fi
 fi
