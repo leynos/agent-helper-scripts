@@ -1,8 +1,11 @@
-// Reference: Kani harness structure from chutoro
-//
-// This file demonstrates the harness structure, helper patterns, and
-// integration approach used in a production Rust codebase (HNSW graph
-// library). It is included for reference, not compilation.
+//! Kani harness structure reference from a production HNSW graph library.
+//!
+//! This file demonstrates the harness structure, helper patterns, and
+//! integration approach used in a production Rust codebase. It is included
+//! for reference and is not compiled directly by `rustc`; harnesses require
+//! `#[cfg(kani)]` and are executed via `cargo kani`.
+//!
+//! Pairs with `skills/kani/SKILL.md`.
 
 // ---------------------------------------------------------------------------
 // Cargo.toml: declare kani as a valid cfg

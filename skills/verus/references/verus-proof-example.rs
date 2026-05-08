@@ -1,10 +1,12 @@
-// Reference: Verus proof structure from chutoro
-//
-// This file demonstrates the proof structure, spec type patterns, and lemma
-// composition approach used in a production Rust codebase (HNSW edge harvest
-// primitives). It is included for reference, not compilation by rustc.
-//
-// Run with: verus verus/edge_harvest_proofs.rs
+//! Verus proof structure reference from a production HNSW edge-harvest
+//! implementation.
+//!
+//! This file demonstrates the proof structure, spec type patterns, and lemma
+//! composition approach used in a production Rust codebase. It is included
+//! for reference and is not compiled directly by `rustc`; it is run with the
+//! Verus toolchain (`verus verus/edge_harvest_proofs.rs`).
+//!
+//! Pairs with `skills/verus/SKILL.md`.
 
 // ---------------------------------------------------------------------------
 // Project layout
