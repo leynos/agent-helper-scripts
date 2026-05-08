@@ -10,21 +10,21 @@ provide deductive (unbounded) formal verification of Rust code. Verus uses the
 Z3 SMT solver to statically verify that executable Rust code satisfies
 user-provided specifications with zero runtime overhead.
 
-## When to use this skill
+## When to apply this skill
 
-Use this skill when:
+Apply this skill when:
 
-- you need to verify properties over unbounded domains (arbitrary-length
-  sequences, any number of layers, all possible orderings),
-- you are proving that a pure function satisfies algebraic properties
-  (reflexivity, antisymmetry, transitivity, totality),
-- you are verifying extraction, transformation, or mapping logic that must
-  preserve structure,
+- properties over unbounded domains (arbitrary-length sequences, any number of
+  layers, all possible orderings) must be verified,
+- a pure function must be shown to satisfy algebraic properties (reflexivity,
+  antisymmetry, transitivity, totality),
+- extraction, transformation, or mapping logic that must preserve structure
+  requires verification,
 - bounded model checking (Kani) has become unwieldy due to state-space
   explosion,
-- you need compositional proofs where one lemma builds on another.
+- compositional proofs where one lemma builds on another are needed.
 
-Do not use this skill when:
+Do not apply this skill when:
 
 - bounded symbolic execution (Kani) would suffice and is simpler,
 - the code under verification is tightly coupled to I/O, concurrency, or
@@ -64,14 +64,14 @@ implementation.
 ### Version pinning
 
 Pin the Verus version in a file (e.g., `tools/verus/VERSION`) and store
-expected checksums in `tools/verus/SHA256SUMS`. The install script reads these
+expected checksums in `tools/verus/SHA256SUMS`. The installation script reads these
 files and verifies the download. This keeps CI deterministic.
 
 ### Running proofs
 
 Use a `make verus` target backed by a runner script that:
 
-1. Resolves the Verus binary (from `VERUS_BIN`, the install directory, or
+1. Resolves the Verus binary (from `VERUS_BIN`, the installation directory, or
    PATH).
 2. Parses the required Rust toolchain from `verus --version`.
 3. Installs the toolchain via `rustup` if missing.
@@ -355,7 +355,7 @@ proof fn prove_with_assume(x: int)
 **Why this is bad:**
 
 - `assume` instructs the solver to accept a fact without proof.
-- `assume(false)` proves anything. A stray `assume` can make your entire proof
+- `assume(false)` proves anything. A stray `assume` can make an entire proof
   vacuously true.
 - Complete proofs must contain `assert`s but **no** `assume`s.
 - Use `assume` only as a temporary placeholder during development, and replace
@@ -400,7 +400,7 @@ requires forall|i: int| 0 <= i < s.len() ==> #[trigger] is_even(s[i]),
 ```
 
 Then `assert(s[3] % 2 == 0)` **fails** because `is_even` never appears in the
-assertion, so the quantifier is never instantiated. You must first assert the
+assertion, so the quantifier is never instantiated. First assert the
 trigger-matching expression:
 
 ```rust
@@ -414,28 +414,32 @@ A matching loop occurs when instantiating a trigger produces new expressions
 that match the same trigger, causing potentially infinite instantiation.
 
 **Bad** (matching loop):
+
 ```rust
 forall|i: int|
     0 <= i < s.len() - 1 ==> #[trigger] s[i] <= s[i + 1]
 ```
+
 Matching `i = 2` produces `s[3]`, which matches `i = 3` producing `s[4]`,
 continuing indefinitely.
 
 **Good** (no matching loop):
+
 ```rust
 forall|i: int, j: int|
     #![trigger s[i], s[j]]
     0 <= i <= j < s.len() ==> s[i] <= s[j]
 ```
+
 Each instantiation requires two concrete `s[_]` expressions already in context.
 
 ### Practical trigger workflow
 
 1. Start with `#![auto]` and review the trigger note Verus prints.
-2. If the proof fails, check whether the concrete expressions in your
+2. When a proof fails, check whether the concrete expressions in the
    assertions match the auto-selected trigger.
-3. If not, add explicit `#[trigger]` annotations.
-4. If the proof is slow, check for matching loops.
+3. Otherwise, add explicit `#[trigger]` annotations.
+4. For slow proofs, check for matching loops.
 
 ## `assert(...) by { ... }`: scoping proof context
 
@@ -551,7 +555,7 @@ verus: ## Run Verus proofs
 
 Verus proofs operate on `spec` types (`nat`, `int`, `Seq`, `Set`) rather than
 production Rust types (`usize`, `i64`, `Vec`). Define spec structs that mirror
-your production data:
+production data:
 
 ```rust
 verus! {
@@ -581,7 +585,7 @@ Keep the correspondence explicit with comments naming the production type.
 
 If a proof fails and the logic seems correct, the problem is almost certainly
 a trigger mismatch. Before debugging the logic, check whether the concrete
-expressions in your assertions match the quantifier triggers. This accounts
+expressions in the assertions match the quantifier triggers. This accounts
 for the majority of "why does this obvious proof fail?" situations.
 
 ### `assert` in Verus is not `assert!` in Rust
@@ -592,7 +596,7 @@ effect. Rust `assert!` is a runtime panic. Do not confuse the two. Inside
 
 ### `assume` is a loaded gun
 
-Every `assume` in your proof is a soundness hole. Use it only during
+Every `assume` in a proof is a soundness hole. Use it only during
 development as a placeholder. Before considering a proof complete, search for
 and eliminate all `assume` statements. A proof with `assume(false)` anywhere
 in its call chain proves literally anything.
@@ -664,11 +668,11 @@ assert(edges[i] == rest_edges[j]);
 
 ### Verus is not a Cargo dependency
 
-Verus runs as a standalone binary, not through `cargo build`. Your Verus proof
+Verus runs as a standalone binary, not through `cargo build`. Verus proof
 files are compiled by Verus directly, not by `rustc`. This means:
 
 - Verus files cannot `use` production crate modules.
-- You must duplicate type definitions as spec structs.
+- Type definitions must be duplicated as spec structs.
 - Keep the spec structs synchronised with production types manually (or via
   code review).
 

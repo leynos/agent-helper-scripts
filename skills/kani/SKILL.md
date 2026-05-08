@@ -11,21 +11,21 @@ Bounded Model Checker) as its backend to explore every possible execution path
 within specified bounds, providing formal guarantees rather than probabilistic
 coverage.
 
-## When to use this skill
+## When to apply this skill
 
-Use this skill when:
+Apply this skill when:
 
-- you need to verify structural invariants in data structures (bidirectional
-  links, uniqueness, ordering, reachability),
-- you are writing or reviewing `unsafe` code and want exhaustive coverage of
-  undefined behaviour,
-- you are verifying bounded state machines, dispatch selectors, or parser-like
-  logic,
-- you want to complement property-based testing with exhaustive bounded
+- structural invariants in data structures (bidirectional links, uniqueness,
+  ordering, reachability) must be verified,
+- `unsafe` code is being written or reviewed and exhaustive coverage of
+  undefined behaviour is needed,
+- bounded state machines, dispatch selectors, or parser-like logic require
+  verification,
+- property-based testing should be complemented with exhaustive bounded
   exploration,
-- you are adding or modifying Kani harnesses in a codebase.
+- Kani harnesses are being added or modified in a codebase.
 
-Do not use this skill when:
+Do not apply this skill when:
 
 - the property requires unbounded induction over arbitrary-size inputs (use
   Verus instead),
@@ -60,7 +60,7 @@ Kani occupies a specific position in the verification hierarchy:
   engineering.
 
 Use Kani when bounded exhaustion is tractable. Move to Verus when the state
-space grows beyond what Kani can handle, or when you need unbounded guarantees.
+space grows beyond what Kani can handle, or when unbounded guarantees are needed.
 
 ## Installation
 
@@ -290,7 +290,7 @@ fn verify_over_constrained() {
   verification.
 - Bugs triggered by other inputs are invisible.
 - Use `--coverage -Z source-coverage` to detect this: target 100% code
-  coverage within your assumptions.
+  coverage within the assumptions.
 
 ### Negative example: excessive unwind bound
 
@@ -312,8 +312,8 @@ fn verify_wasteful() {
 
 - The loop runs exactly 3 times, so `#[kani::unwind(4)]` is sufficient.
 - An unwind of 1000 wastes solver time exploring 996 impossible iterations.
-- Start with a tight bound and increase only if you get unwinding assertion
-  failures.
+- Start with a tight bound and increase only if unwinding assertion failures
+  occur.
 
 ## What Kani can and cannot detect
 
@@ -387,7 +387,7 @@ within the last 24 hours, avoiding wasted compute on quiet days.
 ## Stubbing
 
 When production code uses features Kani cannot handle (inline assembly,
-complex serialisation, FFI), replace them with simplified versions:
+complex serialization, FFI), replace them with simplified versions:
 
 ```rust
 #[cfg(kani)]
@@ -435,15 +435,15 @@ their contracts in other harnesses, reducing solver load.
 
 ## Mutation testing
 
-Validate that your harness is sensitive to the bug it claims to catch. The
+Validate that the harness is sensitive to the bug it claims to catch. The
 simplest mutation test:
 
 1. Temporarily break the production code (e.g., skip inserting a reverse edge).
 2. Run the harness.
 3. Confirm it fails with a meaningful error message.
 
-If the harness still passes after the mutation, it is not testing what you
-think it is testing.
+If the harness still passes after the mutation, it is not testing what it
+appears to test.
 
 ## Common gotchas and hard-won lessons
 
@@ -455,7 +455,7 @@ newcomer.
 
 ### Vec and heap allocation do not scale
 
-`kani::any::<Vec<T>>()` does not exist. You must manually construct bounded
+`kani::any::<Vec<T>>()` does not exist. Bounded collections must be constructed manually.
 collections. Even small `Vec`s with 2--3 elements can take minutes. A proof
 harness with nondeterministic inventory of size 2 will likely take a couple of
 minutes to verify.
@@ -471,13 +471,13 @@ be surprised by a 30--60 second compilation phase before verification begins.
 Kani emits warnings about `caller_location`, foreign functions, and
 concurrency primitives (atomics, thread-locals) treated as sequential. These
 are only problematic if the relevant code is reachable by the harness. If the
-warnings mention code your harness does not exercise, they are safe to ignore.
+warnings mention code the harness does not exercise, they are safe to ignore.
 
 ### Coverage checking
 
-Use `cargo kani --coverage -Z source-coverage` to verify your assumptions are
+Use `cargo kani --coverage -Z source-coverage` to verify that assumptions are
 not over-constraining the search space. If coverage is less than 100% within
-your bounded configuration, your assumptions are hiding code paths.
+the bounded configuration, the assumptions are hiding code paths.
 
 ### Start small, grow deliberately
 
