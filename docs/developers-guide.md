@@ -309,8 +309,8 @@ The Verus skill includes two reference helper scripts in
   Rust nightly toolchain is installed via `rustup`, and runs the proof file.
 
 Both scripts derive their working paths from `BASH_SOURCE[0]`, expecting the
-layout `<repo>/references/{install,run}-verus.sh` with `tools/verus/VERSION`
-and `tools/verus/SHA256SUMS` at the repository root.
+layout `<repo>/skills/verus/references/{install,run}-verus.sh` with
+`tools/verus/VERSION` and `tools/verus/SHA256SUMS` at the repository root.
 
 ### Tests
 

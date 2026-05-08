@@ -85,8 +85,21 @@ if [[ -z "${EXTRACTED_DIR}" || ! -d "${EXTRACTED_DIR}" ]]; then
   exit 1
 fi
 
-rm -rf "${INSTALL_DIR}/verus"
-mv "${EXTRACTED_DIR}" "${INSTALL_DIR}/verus"
+BACKUP="${INSTALL_DIR}/verus.old.$$"
+if [[ -e "${INSTALL_DIR}/verus" ]]; then
+  mv "${INSTALL_DIR}/verus" "${BACKUP}"
+fi
+
+if ! mv "${EXTRACTED_DIR}" "${INSTALL_DIR}/verus"; then
+  echo "Failed to move extracted directory into place." >&2
+  if [[ -d "${BACKUP}" ]]; then
+    mv "${BACKUP}" "${INSTALL_DIR}/verus"
+    echo "Restored previous installation." >&2
+  fi
+  exit 1
+fi
+
+rm -rf "${BACKUP}"
 
 cat <<EOM
 Installed Verus ${VERUS_VERSION} in ${INSTALL_DIR}/verus
