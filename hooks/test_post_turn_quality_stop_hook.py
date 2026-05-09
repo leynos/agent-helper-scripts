@@ -208,7 +208,7 @@ class TestHasUnpushedCommits:
         )
 
     def test_empty_output(self) -> None:
-        """Empty rev-list output returns False."""
+        """Empty rev-list output returns None with an error message."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")

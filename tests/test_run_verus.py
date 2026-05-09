@@ -24,8 +24,10 @@ class TestRunVerus:
 
         result = run_script(repo / "skills" / "verus" / "references" / "run-verus.sh", cwd=repo)
 
-        assert result.returncode != 0
-        assert "Missing Verus version file" in result.stderr
+        assert result.returncode != 0, (
+            f"expected non-zero exit; stdout={result.stdout!r}; stderr={result.stderr!r}"
+        )
+        assert "Missing Verus version file" in result.stderr, result.stderr
 
     def test_verus_bin_direct_path(self, tmp_path: Path) -> None:
         """When VERUS_BIN points to an executable file, it is used directly."""
@@ -50,7 +52,9 @@ class TestRunVerus:
                 },
             )
 
-        assert result.returncode == 0
+        assert result.returncode == 0, (
+            f"unexpected exit {result.returncode}; stderr={result.stderr!r}"
+        )
         assert "[run-verus] operation=run-proof" in result.stderr, result.stderr
 
     def test_verus_bin_directory(self, tmp_path: Path) -> None:
@@ -77,7 +81,9 @@ class TestRunVerus:
                 },
             )
 
-        assert result.returncode == 0
+        assert result.returncode == 0, (
+            f"unexpected exit {result.returncode}; stderr={result.stderr!r}"
+        )
 
     def test_proof_file_not_found(self, tmp_path: Path) -> None:
         """When the proof file does not exist, exit non-zero with error."""
@@ -99,8 +105,10 @@ class TestRunVerus:
                 },
             )
 
-        assert result.returncode != 0
-        assert "Verus proof file not found" in result.stderr
+        assert result.returncode != 0, (
+            f"expected non-zero exit; stdout={result.stdout!r}; stderr={result.stderr!r}"
+        )
+        assert "Verus proof file not found" in result.stderr, result.stderr
 
     def test_verus_binary_not_executable_after_install(
         self, tmp_path: Path
@@ -117,8 +125,12 @@ class TestRunVerus:
 
         result = run_script(repo / "skills" / "verus" / "references" / "run-verus.sh", cwd=repo)
 
-        assert result.returncode != 0
-        assert "Verus binary" in result.stderr or "not executable" in result.stderr
+        assert result.returncode != 0, (
+            f"expected non-zero exit; stdout={result.stdout!r}; stderr={result.stderr!r}"
+        )
+        assert "Verus binary" in result.stderr or "not executable" in result.stderr, (
+            result.stderr
+        )
 
     def test_fallback_to_install(self, tmp_path: Path) -> None:
         """When no binary is resolvable, the script calls install-verus.sh."""
@@ -159,5 +171,7 @@ class TestRunVerus:
                 },
             )
 
-        assert result.returncode == 0
-        assert install_dir.exists()
+        assert result.returncode == 0, (
+            f"unexpected exit {result.returncode}; stderr={result.stderr!r}"
+        )
+        assert install_dir.exists(), f"install directory not found at {install_dir}"

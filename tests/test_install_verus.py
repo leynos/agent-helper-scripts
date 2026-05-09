@@ -357,8 +357,6 @@ class TestInstallVerusConcurrency:
             "VERUS_TARGET": FAKE_TARGET,
             "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
         }
-        script = str(repo / INSTALL_SCRIPT)
-
         def _run_install() -> subprocess.CompletedProcess[str]:
             return run_script(
                 repo / INSTALL_SCRIPT,
@@ -377,7 +375,9 @@ class TestInstallVerusConcurrency:
 
         installed_bin = install_dir / "verus" / "verus"
         assert installed_bin.exists(), f"binary not found at {installed_bin}"
-        assert installed_bin.stat().st_mode & stat.S_IXUSR
+        assert installed_bin.stat().st_mode & stat.S_IXUSR, (
+            f"verus binary not executable: mode={oct(installed_bin.stat().st_mode)}"
+        )
         assert installed_bin.read_text() == "#!/bin/sh\necho verus-fake\n", (
             "installed binary content does not match expected payload"
         )

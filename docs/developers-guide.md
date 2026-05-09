@@ -342,7 +342,7 @@ make ci
 Both Verus reference scripts emit structured diagnostic lines to **stderr**
 for all cross-boundary operations:
 
-```
+```text
 [<script>] operation=<op> [key=value ...]
 ```
 
