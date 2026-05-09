@@ -46,12 +46,12 @@ class Violation:
     message: str
 
 
-def extract_imports(source: str) -> Iterator[tuple[int, str]]:
+def extract_imports(source: str, source_name: str = "<unknown>") -> Iterator[tuple[int, str]]:
     """Yield (line_number, module_name) for all imports in source."""
     try:
-        tree = ast.parse(source)
+        tree = ast.parse(source, filename=source_name)
     except SyntaxError as e:
-        print(f"Warning: skipped source due to SyntaxError: {e}", file=sys.stderr)
+        print(f"Warning: skipped {source_name} due to SyntaxError: {e}", file=sys.stderr)
         return
     
     for node in ast.walk(tree):
@@ -67,7 +67,7 @@ def check_domain_layer(domain_path: Path) -> Iterator[Violation]:
     """Check domain layer for infrastructure imports."""
     for py_file in domain_path.rglob("*.py"):
         source = py_file.read_text(encoding="utf-8")
-        for line, module in extract_imports(source):
+        for line, module in extract_imports(source, str(py_file)):
             if module in INFRASTRUCTURE_MODULES:
                 yield Violation(
                     file=py_file,
@@ -90,7 +90,7 @@ def check_application_layer(app_path: Path) -> Iterator[Violation]:
     """Check application layer for adapter imports."""
     for py_file in app_path.rglob("*.py"):
         source = py_file.read_text(encoding="utf-8")
-        for line, module in extract_imports(source):
+        for line, module in extract_imports(source, str(py_file)):
             if module in ADAPTER_IMPORT_PATTERNS:
                 yield Violation(
                     file=py_file,
@@ -109,7 +109,7 @@ def check_domain_tests(tests_path: Path) -> Iterator[Violation]:
     
     for py_file in domain_tests.rglob("*.py"):
         source = py_file.read_text(encoding="utf-8")
-        for line, module in extract_imports(source):
+        for line, module in extract_imports(source, str(py_file)):
             if module in INFRASTRUCTURE_MODULES:
                 yield Violation(
                     file=py_file,

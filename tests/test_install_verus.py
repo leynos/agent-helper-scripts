@@ -401,22 +401,22 @@ class TestInstallVerusConcurrency:
             # does not wait the full 60 s.
             fake_flock = fake_bin_dir / "flock"
             fake_flock.write_text(
-                '#!/bin/sh\n'
+                '#!/bin/bash\n'
                 '# Replace -w <timeout> with -w 0 for instant timeout.\n'
-                'args=""\n'
+                'args=()\n'
                 'skip_next=false\n'
                 'for arg in "$@"; do\n'
                 '  if $skip_next; then\n'
-                '    args="$args 0"\n'
+                '    args+=(0)\n'
                 '    skip_next=false\n'
                 '    continue\n'
                 '  fi\n'
                 '  case "$arg" in\n'
-                '    -w) args="$args $arg"; skip_next=true ;;\n'
-                '    *) args="$args $arg" ;;\n'
+                '    -w) args+=("$arg"); skip_next=true ;;\n'
+                '    *) args+=("$arg") ;;\n'
                 '  esac\n'
                 'done\n'
-                'exec /usr/bin/flock $args\n'
+                'exec /usr/bin/flock "${args[@]}"\n'
             )
             fake_flock.chmod(0o755)
 
