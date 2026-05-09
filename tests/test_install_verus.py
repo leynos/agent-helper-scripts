@@ -40,6 +40,35 @@ def _make_fake_curl(tmp_path: Path, zip_path: Path) -> Path:
     return fake_bin_dir
 
 
+def _make_invalid_archive(tmp_path: Path, repo: Path) -> Path:
+    """Build a ZIP archive whose payload has no executable verus binary.
+
+    The archive passes checksum verification but the extracted ``verus``
+    file is not executable, triggering the post-move validation check.
+    Returns the fake bin directory (with fake curl on PATH).
+    """
+    archive_name = f"verus-{FAKE_VERSION}-{FAKE_TARGET}.zip"
+
+    zip_dir = tmp_path / "zip_build"
+    zip_dir.mkdir(exist_ok=True)
+    verus_tree = zip_dir / f"verus-{FAKE_TARGET}"
+    verus_tree.mkdir(exist_ok=True)
+    # Write a plain file without the executable bit.
+    not_exec = verus_tree / "verus"
+    not_exec.write_text("not-executable\n")
+
+    zip_path = tmp_path / archive_name
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(not_exec, f"verus-{FAKE_TARGET}/verus")
+
+    sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    (repo / "tools" / "verus" / "SHA256SUMS").write_text(
+        f"{sha}  {archive_name}\n"
+    )
+
+    return _make_fake_curl(tmp_path, zip_path)
+
+
 def _make_valid_archive(tmp_path: Path, repo: Path) -> Path:
     """Build a valid ZIP archive with correct checksum and return the fake bin dir."""
     archive_name = f"verus-{FAKE_VERSION}-{FAKE_TARGET}.zip"
@@ -113,6 +142,9 @@ class TestInstallVerus:
         assert "already installed" not in result.stdout, result.stdout
         installed_bin = install_dir / "verus" / "verus"
         assert installed_bin.exists(), f"binary not found at {installed_bin}"
+        assert installed_bin.read_text() == "#!/bin/sh\necho verus-fake\n", (
+            "installed binary was not replaced with the archive payload"
+        )
 
     @pytest.mark.parametrize(
         ("filename", "expected_error"),
@@ -231,6 +263,38 @@ class TestInstallVerus:
 
         assert result.returncode != 0, result.stderr
         assert "Failed to move" in result.stderr, result.stderr
+        assert "Restored previous installation" in result.stderr, result.stderr
+        restored_sentinel = install_dir / "verus" / "sentinel"
+        assert restored_sentinel.exists(), "backup was not restored"
+        assert restored_sentinel.read_text() == "original\n"
+
+    def test_post_move_validation_rolls_back(self, tmp_path: Path) -> None:
+        """When the extracted payload lacks an executable binary, rollback occurs."""
+        repo = make_repo_tree(tmp_path)
+        install_dir = repo / ".verus" / FAKE_VERSION
+
+        # Pre-existing installation that should be restored on validation failure.
+        verus_dir = install_dir / "verus"
+        verus_dir.mkdir(parents=True)
+        old_bin = verus_dir / "verus"
+        old_bin.write_text("#!/bin/sh\necho old-verus\n")
+        old_bin.chmod(0o755)
+        sentinel = verus_dir / "sentinel"
+        sentinel.write_text("original\n")
+
+        fake_bin_dir = _make_invalid_archive(tmp_path, repo)
+
+        result = run_script(
+            repo / INSTALL_SCRIPT,
+            cwd=repo,
+            env_overrides={
+                "VERUS_TARGET": FAKE_TARGET,
+                "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
+            },
+        )
+
+        assert result.returncode != 0, result.stderr
+        assert "missing or not executable" in result.stderr, result.stderr
         assert "Restored previous installation" in result.stderr, result.stderr
         restored_sentinel = install_dir / "verus" / "sentinel"
         assert restored_sentinel.exists(), "backup was not restored"

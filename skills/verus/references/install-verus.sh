@@ -91,7 +91,7 @@ unzip -q "${TMP_DIR}/${ARCHIVE}" -d "${EXTRACT_ROOT}"
 
 EXTRACTED_DIR="${EXTRACT_ROOT}/verus-${VERUS_TARGET}"
 if [[ ! -d "${EXTRACTED_DIR}" ]]; then
-  EXTRACTED_DIR="$(find "${EXTRACT_ROOT}" -maxdepth 1 -type d -name 'verus-*' | head -n 1)"
+  EXTRACTED_DIR="$(find "${EXTRACT_ROOT}" -maxdepth 1 -type d -name 'verus-*' -print -quit)"
 fi
 
 if [[ -z "${EXTRACTED_DIR}" || ! -d "${EXTRACTED_DIR}" ]]; then
