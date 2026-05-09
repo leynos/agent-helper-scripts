@@ -322,8 +322,14 @@ class TestInstallVerus:
         )
 
         assert result.returncode == 0, result.stderr
-        assert (install_dir / "verus" / "verus").exists()
-        assert (install_dir / "verus" / "verus").stat().st_mode & stat.S_IXUSR
+        installed_bin = install_dir / "verus" / "verus"
+        assert installed_bin.exists(), (
+            f"verus binary not found at {installed_bin}; stderr: {result.stderr}"
+        )
+        assert installed_bin.stat().st_mode & stat.S_IXUSR, (
+            f"verus binary not executable: mode={oct(installed_bin.stat().st_mode)}; "
+            f"stderr: {result.stderr}"
+        )
         assert "[install-verus] operation=download" in result.stderr, result.stderr
         assert "operation=checksum status=ok" in result.stderr, result.stderr
         assert "operation=install" in result.stderr, result.stderr
