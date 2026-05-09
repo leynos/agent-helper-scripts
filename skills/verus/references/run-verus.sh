@@ -74,7 +74,12 @@ ensure_toolchain_installed() {
   fi
 
   if ! rustup which --toolchain "${toolchain}" rustc >/dev/null 2>&1; then
-    rustup toolchain install "${toolchain}"
+    local _tc_status=0
+    rustup toolchain install "${toolchain}" || _tc_status=$?
+    echo "[run-verus] operation=install-toolchain toolchain=\"${toolchain}\" status=${_tc_status}" >&2
+    if [[ "${_tc_status}" -ne 0 ]]; then
+      exit "${_tc_status}"
+    fi
   fi
 }
 
@@ -126,6 +131,7 @@ ensure_verus_toolchain() {
   collect_verus_version_output
   toolchain="$(resolve_verus_toolchain "${VERUS_VERSION_OUTPUT}")"
 
+  echo "[run-verus] operation=resolve-toolchain toolchain=\"${toolchain}\"" >&2
   ensure_toolchain_installed "${toolchain}"
 
   if [[ "${VERUS_VERSION_STATUS}" -ne 0 ]]; then
@@ -191,14 +197,18 @@ fi
 
 ensure_verus_toolchain
 
-if "${VERUS_BIN}" "${PROOF_FILE}"; then
+echo "[run-verus] operation=run-proof binary=\"${VERUS_BIN}\" file=\"${PROOF_FILE}\"" >&2
+_proof_ts=$SECONDS
+_proof_status=0
+"${VERUS_BIN}" "${PROOF_FILE}" || _proof_status=$?
+echo "[run-verus] operation=run-proof elapsed=$((SECONDS - _proof_ts))s status=${_proof_status}" >&2
+
+if [[ "${_proof_status}" -eq 0 ]]; then
   exit 0
 else
-  # $? captures the exit status from the Verus invocation above.
-  status=$?
-  echo "Verus proofs failed (exit ${status})." >&2
+  echo "Verus proofs failed (exit ${_proof_status})." >&2
   echo "Binary: ${VERUS_BIN}" >&2
   echo "Proof file: ${PROOF_FILE}" >&2
   echo "Toolchain: ${TOOLCHAIN}" >&2
-  exit "${status}"
+  exit "${_proof_status}"
 fi

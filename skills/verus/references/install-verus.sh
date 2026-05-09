@@ -58,7 +58,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-curl -sSfL "${URL}" -o "${TMP_DIR}/${ARCHIVE}"
+echo "[install-verus] operation=download url=\"${URL}\" target=\"${ARCHIVE}\"" >&2
+_ts=$SECONDS
+_dl_status=0
+curl -sSfL --connect-timeout 30 --max-time 300 "${URL}" -o "${TMP_DIR}/${ARCHIVE}" || _dl_status=$?
+echo "[install-verus] operation=download elapsed=$((SECONDS - _ts))s status=${_dl_status}" >&2
+if [[ "${_dl_status}" -ne 0 ]]; then
+  exit "${_dl_status}"
+fi
 
 if command -v sha256sum >/dev/null 2>&1; then
   ACTUAL_SHA="$(sha256sum "${TMP_DIR}/${ARCHIVE}" | awk '{print $1}')"
@@ -70,11 +77,13 @@ else
 fi
 
 if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
+  echo "[install-verus] operation=checksum status=mismatch" >&2
   echo "SHA-256 mismatch for ${ARCHIVE}." >&2
   echo "Expected: ${EXPECTED_SHA}" >&2
   echo "Actual:   ${ACTUAL_SHA}" >&2
   exit 1
 fi
+echo "[install-verus] operation=checksum status=ok" >&2
 
 EXTRACT_ROOT="${TMP_DIR}/extract"
 mkdir -p "${EXTRACT_ROOT}"
@@ -105,6 +114,8 @@ if ! mv "${EXTRACTED_DIR}" "${INSTALL_DIR}/verus"; then
 fi
 
 rm -rf "${BACKUP}"
+
+echo "[install-verus] operation=install path=\"${INSTALL_DIR}/verus/verus\"" >&2
 
 cat <<EOM
 Installed Verus ${VERUS_VERSION} in ${INSTALL_DIR}/verus

@@ -207,6 +207,15 @@ Use these variables to pin or override versions installed by the home phase:
   - Default: `x86-linux`
   - Selects the Verus release asset to download. Override when targeting a
     non-default platform (e.g. `aarch64-linux`).
+- `VERUS_BIN`
+  - Default: `<repo>/.verus/<version>/verus/verus`
+  - Path to the Verus binary or a directory containing one. Override to point
+    `run-verus.sh` at an existing Verus installation without triggering a
+    download.
+- `VERUS_PROOF_FILE`
+  - Default: `verus/edge_harvest_proofs.rs`
+  - Path to the Verus proof file to verify, relative to the repo root.
+    Override when targeting a specific proof file during development.
 - `SCCACHE_VERSION`
   - Default: `0.14.0`
   - Version of `sccache` when `SCCACHE_BUCKET` is set.
