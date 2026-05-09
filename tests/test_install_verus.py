@@ -111,7 +111,8 @@ class TestInstallVerus:
         assert result.returncode == 0, result.stderr
         assert "does not match" in result.stderr, result.stderr
         assert "already installed" not in result.stdout, result.stdout
-        assert (install_dir / "verus" / "verus").exists()
+        installed_bin = install_dir / "verus" / "verus"
+        assert installed_bin.exists(), f"binary not found at {installed_bin}"
 
     @pytest.mark.parametrize(
         ("filename", "expected_error"),
@@ -180,6 +181,60 @@ class TestInstallVerus:
 
         assert result.returncode != 0, result.stdout
         assert "SHA-256 mismatch" in result.stderr, result.stderr
+
+    def test_failed_replacement_rolls_back(self, tmp_path: Path) -> None:
+        """When mv fails to place the extracted directory, the backup is restored."""
+        repo = make_repo_tree(tmp_path)
+        install_dir = repo / ".verus" / FAKE_VERSION
+
+        # Pre-existing installation that should be restored on failure.
+        verus_dir = install_dir / "verus"
+        verus_dir.mkdir(parents=True)
+        old_bin = verus_dir / "verus"
+        old_bin.write_text("#!/bin/sh\necho old-verus\n")
+        old_bin.chmod(0o755)
+        sentinel = verus_dir / "sentinel"
+        sentinel.write_text("original\n")
+
+        fake_bin_dir = _make_valid_archive(tmp_path, repo)
+
+        # Fake mv that fails once when placing the extracted dir into the
+        # install target (destination ends with /verus but not /verus.old),
+        # then delegates to real mv for subsequent calls (including restore).
+        real_mv = "/bin/mv"
+        flag_file = tmp_path / "mv_failed_once"
+        fake_mv = fake_bin_dir / "mv"
+        fake_mv.write_text(
+            f'#!/bin/sh\n'
+            f'last="$(eval echo \\${{$#}})"\n'
+            f'case "$last" in\n'
+            f'  */verus.old.*) exec {real_mv} "$@" ;;\n'
+            f'  */verus)\n'
+            f'    if [ ! -f "{flag_file}" ]; then\n'
+            f'      touch "{flag_file}"\n'
+            f'      exit 1\n'
+            f'    fi\n'
+            f'    ;;\n'
+            f'esac\n'
+            f'exec {real_mv} "$@"\n'
+        )
+        fake_mv.chmod(0o755)
+
+        result = run_script(
+            repo / INSTALL_SCRIPT,
+            cwd=repo,
+            env_overrides={
+                "VERUS_TARGET": FAKE_TARGET,
+                "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
+            },
+        )
+
+        assert result.returncode != 0, result.stderr
+        assert "Failed to move" in result.stderr, result.stderr
+        assert "Restored previous installation" in result.stderr, result.stderr
+        restored_sentinel = install_dir / "verus" / "sentinel"
+        assert restored_sentinel.exists(), "backup was not restored"
+        assert restored_sentinel.read_text() == "original\n"
 
     def test_successful_install(self, tmp_path: Path) -> None:
         """Successful install creates the Verus binary at the expected path."""

@@ -113,6 +113,16 @@ if ! mv "${EXTRACTED_DIR}" "${INSTALL_DIR}/verus"; then
   exit 1
 fi
 
+if [[ ! -f "${INSTALL_DIR}/verus/verus" || ! -x "${INSTALL_DIR}/verus/verus" ]]; then
+  echo "Verus binary missing or not executable after extraction." >&2
+  if [[ -d "${BACKUP}" ]]; then
+    rm -rf "${INSTALL_DIR}/verus"
+    mv "${BACKUP}" "${INSTALL_DIR}/verus"
+    echo "Restored previous installation." >&2
+  fi
+  exit 1
+fi
+
 rm -rf "${BACKUP}"
 
 echo "[install-verus] operation=install path=\"${INSTALL_DIR}/verus/verus\"" >&2
