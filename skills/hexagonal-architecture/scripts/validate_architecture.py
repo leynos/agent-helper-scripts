@@ -120,6 +120,11 @@ def check_domain_tests(tests_path: Path) -> Iterator[Violation]:
 
 
 def main() -> int:
+    """CLI entry point that validates hexagonal architecture boundaries.
+
+    Returns 0 when no violations are found and 1 when at least one violation
+    is detected.
+    """
     src_path = Path("src")
     tests_path = Path("tests")
     
