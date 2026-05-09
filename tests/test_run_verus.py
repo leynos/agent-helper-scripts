@@ -51,6 +51,7 @@ class TestRunVerus:
             )
 
         assert result.returncode == 0
+        assert "[run-verus] operation=run-proof" in result.stderr, result.stderr
 
     def test_verus_bin_directory(self, tmp_path: Path) -> None:
         """When VERUS_BIN is a directory containing a verus binary, resolve it."""

@@ -13,6 +13,15 @@
 # Required files (relative to repository root):
 #   tools/verus/VERSION     Pinned Verus release identifier.
 #   tools/verus/SHA256SUMS  Expected checksums for release assets.
+#
+# Diagnostic output (stderr):
+#   All diagnostic lines follow the format:
+#     [install-verus] operation=<op> [key=value ...]
+#   Known operations: download, checksum, install
+#   Fields emitted per operation:
+#     download  url=<url> target=<archive> elapsed=<n>s status=<exit-code>
+#     checksum  status=ok|mismatch
+#     install   path=<binary-path>
 
 set -euo pipefail
 

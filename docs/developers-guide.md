@@ -337,6 +337,27 @@ Or as part of the full suite:
 make ci
 ```
 
+### Structured diagnostics
+
+Both Verus reference scripts emit structured diagnostic lines to **stderr**
+for all cross-boundary operations:
+
+```
+[<script>] operation=<op> [key=value ...]
+```
+
+| Script | Operation | Fields |
+|--------|-----------|--------|
+| `install-verus.sh` | `download` | `url`, `target`, `elapsed`, `status` |
+| `install-verus.sh` | `checksum` | `status` (`ok` or `mismatch`) |
+| `install-verus.sh` | `install` | `path` |
+| `run-verus.sh` | `resolve-toolchain` | `toolchain` |
+| `run-verus.sh` | `install-toolchain` | `toolchain`, `status` |
+| `run-verus.sh` | `run-proof` | `binary`, `file`, `elapsed`, `status` |
+
+These lines are machine-parseable; pipe stderr through `grep '\[install-verus\]'`
+to extract installer diagnostics in CI.
+
 ## Makefile targets
 
 The Makefile provides the standard validation entrypoints used locally and in

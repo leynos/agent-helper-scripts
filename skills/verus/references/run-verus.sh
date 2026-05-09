@@ -13,6 +13,15 @@
 #
 # Required files (relative to repository root):
 #   tools/verus/VERSION  Pinned Verus release identifier.
+#
+# Diagnostic output (stderr):
+#   All diagnostic lines follow the format:
+#     [run-verus] operation=<op> [key=value ...]
+#   Known operations: resolve-toolchain, install-toolchain, run-proof
+#   Fields emitted per operation:
+#     resolve-toolchain   toolchain=<name>
+#     install-toolchain   toolchain=<name> status=<exit-code>
+#     run-proof           binary=<path> file=<path> elapsed=<n>s status=<exit-code>
 
 set -euo pipefail
 

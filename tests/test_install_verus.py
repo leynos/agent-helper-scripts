@@ -213,6 +213,7 @@ class TestInstallVerus:
 
         assert result.returncode != 0, result.stdout
         assert "SHA-256 mismatch" in result.stderr, result.stderr
+        assert "operation=checksum status=mismatch" in result.stderr, result.stderr
 
     def test_failed_replacement_rolls_back(self, tmp_path: Path) -> None:
         """When mv fails to place the extracted directory, the backup is restored."""
@@ -319,3 +320,6 @@ class TestInstallVerus:
         assert result.returncode == 0, result.stderr
         assert (install_dir / "verus" / "verus").exists()
         assert (install_dir / "verus" / "verus").stat().st_mode & stat.S_IXUSR
+        assert "[install-verus] operation=download" in result.stderr, result.stderr
+        assert "operation=checksum status=ok" in result.stderr, result.stderr
+        assert "operation=install" in result.stderr, result.stderr
