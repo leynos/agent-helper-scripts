@@ -18,7 +18,7 @@ import pytest
 
 from verus_helpers import FAKE_TARGET, FAKE_VERSION, make_repo_tree, run_script
 
-INSTALL_SCRIPT = "skills" / Path("verus") / "references" / "install-verus.sh"
+INSTALL_SCRIPT = Path("skills") / "verus" / "references" / "install-verus.sh"
 
 
 def _make_fake_curl(tmp_path: Path, zip_path: Path) -> Path:
