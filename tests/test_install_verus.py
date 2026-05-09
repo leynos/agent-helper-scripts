@@ -8,10 +8,14 @@ requirements.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import os
+import platform
 import stat
+import subprocess
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -323,3 +327,101 @@ class TestInstallVerus:
         assert "[install-verus] operation=download" in result.stderr, result.stderr
         assert "operation=checksum status=ok" in result.stderr, result.stderr
         assert "operation=install" in result.stderr, result.stderr
+
+
+_requires_flock = pytest.mark.skipif(
+    platform.system() != "Linux",
+    reason="flock-based locking requires Linux",
+)
+
+
+@_requires_flock
+class TestInstallVerusConcurrency:
+    """Concurrency and locking tests for install-verus.sh."""
+
+    def test_concurrent_installs_produce_valid_binary(
+        self, tmp_path: Path
+    ) -> None:
+        """Three concurrent installs all succeed with a valid binary."""
+        repo = make_repo_tree(tmp_path)
+        install_dir = repo / ".verus" / FAKE_VERSION
+
+        fake_bin_dir = _make_valid_archive(tmp_path, repo)
+        env_overrides = {
+            "VERUS_TARGET": FAKE_TARGET,
+            "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
+        }
+        script = str(repo / INSTALL_SCRIPT)
+
+        def _run_install() -> subprocess.CompletedProcess[str]:
+            return run_script(
+                repo / INSTALL_SCRIPT,
+                cwd=repo,
+                env_overrides=env_overrides,
+            )
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = [pool.submit(_run_install) for _ in range(3)]
+            results = [f.result() for f in futures]
+
+        for i, result in enumerate(results):
+            assert result.returncode == 0, (
+                f"install {i} failed: {result.stderr}"
+            )
+
+        installed_bin = install_dir / "verus" / "verus"
+        assert installed_bin.exists(), f"binary not found at {installed_bin}"
+        assert installed_bin.stat().st_mode & stat.S_IXUSR
+        assert installed_bin.read_text() == "#!/bin/sh\necho verus-fake\n", (
+            "installed binary content does not match expected payload"
+        )
+
+    def test_lock_timeout_exits_nonzero(self, tmp_path: Path) -> None:
+        """Held lock causes the installer to exit non-zero with a timeout diagnostic."""
+        repo = make_repo_tree(tmp_path)
+        install_dir = repo / ".verus" / FAKE_VERSION
+        install_dir.mkdir(parents=True)
+
+        lock_file = install_dir / ".install.lock"
+
+        fake_bin_dir = _make_valid_archive(tmp_path, repo)
+
+        # Hold the lock from the test process so the script times out
+        # immediately (flock -w 0).
+        with open(lock_file, "w") as lock_fd:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            # Override the flock timeout to 0 via a wrapper so the script
+            # does not wait the full 60 s.
+            fake_flock = fake_bin_dir / "flock"
+            fake_flock.write_text(
+                '#!/bin/sh\n'
+                '# Replace -w <timeout> with -w 0 for instant timeout.\n'
+                'args=""\n'
+                'skip_next=false\n'
+                'for arg in "$@"; do\n'
+                '  if $skip_next; then\n'
+                '    args="$args 0"\n'
+                '    skip_next=false\n'
+                '    continue\n'
+                '  fi\n'
+                '  case "$arg" in\n'
+                '    -w) args="$args $arg"; skip_next=true ;;\n'
+                '    *) args="$args $arg" ;;\n'
+                '  esac\n'
+                'done\n'
+                'exec /usr/bin/flock $args\n'
+            )
+            fake_flock.chmod(0o755)
+
+            result = run_script(
+                repo / INSTALL_SCRIPT,
+                cwd=repo,
+                env_overrides={
+                    "VERUS_TARGET": FAKE_TARGET,
+                    "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
+                },
+            )
+
+        assert result.returncode != 0, result.stderr
+        assert "operation=lock status=timeout" in result.stderr, result.stderr

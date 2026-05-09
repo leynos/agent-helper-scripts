@@ -17,8 +17,9 @@
 # Diagnostic output (stderr):
 #   All diagnostic lines follow the format:
 #     [install-verus] operation=<op> [key=value ...]
-#   Known operations: download, checksum, install
+#   Known operations: lock, download, checksum, install
 #   Fields emitted per operation:
+#     lock      status=acquired|timeout path=<lock-file>
 #     download  url=<url> target=<archive> elapsed=<n>s status=<exit-code>
 #     checksum  status=ok|mismatch
 #     install   path=<binary-path>
@@ -60,6 +61,23 @@ if [[ -x "${INSTALL_DIR}/verus/verus" ]]; then
 fi
 
 mkdir -p "${INSTALL_DIR}"
+
+LOCK_FILE="${INSTALL_DIR}/.install.lock"
+exec 9>"${LOCK_FILE}"
+if ! flock -x -w 60 9; then
+  echo "[install-verus] operation=lock status=timeout path=\"${LOCK_FILE}\"" >&2
+  exit 1
+fi
+echo "[install-verus] operation=lock status=acquired path=\"${LOCK_FILE}\"" >&2
+
+# Re-check idempotency after acquiring lock: a concurrent install may have
+# completed while this process was waiting.
+if [[ -x "${INSTALL_DIR}/verus/verus" ]]; then
+  if "${INSTALL_DIR}/verus/verus" --version 2>&1 | grep -Fq "${VERUS_VERSION}"; then
+    echo "Verus ${VERUS_VERSION} already installed at ${INSTALL_DIR}/verus"
+    exit 0
+  fi
+fi
 
 TMP_DIR="$(mktemp -d)"
 cleanup() {

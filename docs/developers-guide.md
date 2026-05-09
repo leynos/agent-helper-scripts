@@ -348,6 +348,7 @@ for all cross-boundary operations:
 
 | Script | Operation | Fields |
 |--------|-----------|--------|
+| `install-verus.sh` | `lock` | `status` (`acquired` or `timeout`), `path` |
 | `install-verus.sh` | `download` | `url`, `target`, `elapsed`, `status` |
 | `install-verus.sh` | `checksum` | `status` (`ok` or `mismatch`) |
 | `install-verus.sh` | `install` | `path` |
