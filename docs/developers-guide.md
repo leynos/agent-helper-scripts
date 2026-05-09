@@ -287,7 +287,10 @@ complementary Rust formal verification tools:
   structures and container operations. See
   [`skills/kani/SKILL.md`](../skills/kani/SKILL.md) for authoring guidance and
   [`skills/kani/references/kani-harness-example.rs`](../skills/kani/references/kani-harness-example.rs)
-  for an annotated harness reference.
+  for an annotated harness reference. Integration tests for Kani harnesses
+  require the Kani toolchain (`cargo kani setup`) and a Rust nightly compiler;
+  CI provisioning is tracked in
+  [issue `#14`](https://github.com/leynos/agent-helper-scripts/issues/14).
 - **Verus** — deductive verification backed by the Z3 SMT solver. Proofs use
   the `verus!{}` macro with spec/proof/exec modes to verify properties over
   unbounded inputs. Useful for ordering invariants, extraction correctness, and
