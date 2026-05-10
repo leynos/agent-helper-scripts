@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from cmd_mox import CmdMox
 
 from verus_helpers import FAKE_VERSION, make_fake_verus, make_repo_tree, run_script
@@ -29,8 +30,104 @@ class TestRunVerus:
         )
         assert "Missing Verus version file" in result.stderr, result.stderr
 
-    def test_verus_bin_direct_path(self, tmp_path: Path) -> None:
-        """When VERUS_BIN points to an executable file, it is used directly."""
+    @pytest.mark.parametrize(
+        "bin_value_factory, description",
+        [
+            (lambda d, v: v, "direct executable path"),
+            (lambda d, v: d, "directory containing verus binary"),
+        ],
+    )
+    def test_verus_bin_resolution(
+        self,
+        tmp_path: Path,
+        bin_value_factory,
+        description: str,
+    ) -> None:
+        """VERUS_BIN is resolved correctly whether it is a file or a directory."""
+        repo = make_repo_tree(tmp_path)
+
+        verus_dir = tmp_path / "verus-install"
+        verus_dir.mkdir()
+        fake_verus = verus_dir / "verus"
+        make_fake_verus(fake_verus)
+
+        proof_file = tmp_path / "proof.rs"
+        proof_file.write_text("fn main() {}\n")
+
+        bin_value = bin_value_factory(verus_dir, fake_verus)
+
+        with CmdMox() as mox:
+            mox.stub("rustup").returns(exit_code=0)
+            mox.replay()
+
+            result = run_script(
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
+                cwd=repo,
+                env_overrides={
+                    "VERUS_BIN": str(bin_value),
+                    "VERUS_PROOF_FILE": str(proof_file),
+                },
+            )
+
+        assert result.returncode == 0, (
+            f"{description}: unexpected exit {result.returncode}; stderr={result.stderr!r}"
+        )
+        assert "[run-verus] operation=resolve-toolchain" in result.stderr, result.stderr
+        assert "[run-verus] operation=run-proof" in result.stderr, (
+            f"{description}: run-proof diagnostic not emitted; stderr={result.stderr!r}"
+        )
+
+    def test_install_toolchain_diagnostic(self, tmp_path: Path) -> None:
+        """resolve-toolchain and install-toolchain diagnostics emitted when toolchain absent."""
+        repo = make_repo_tree(tmp_path)
+
+        fake_verus = tmp_path / "fake-verus"
+        make_fake_verus(fake_verus)
+
+        proof_file = tmp_path / "proof.rs"
+        proof_file.write_text("fn main() {}\n")
+
+        with CmdMox() as mox:
+            def _rustup_response(invocation):
+                """Return rustup responses that force the install-toolchain path."""
+                if invocation.args[:4] == [
+                    "which",
+                    "--toolchain",
+                    "nightly-2025-11-05",
+                    "rustc",
+                ]:
+                    return (
+                        "",
+                        "toolchain 'nightly-2025-11-05' is not installed\n",
+                        1,
+                    )
+                if invocation.args[:3] == [
+                    "toolchain",
+                    "install",
+                    "nightly-2025-11-05",
+                ]:
+                    return "", "", 0
+                return "", f"unexpected rustup args: {invocation.args!r}\n", 1
+
+            mox.stub("rustup").runs(_rustup_response)
+            mox.replay()
+
+            result = run_script(
+                repo / "skills" / "verus" / "references" / "run-verus.sh",
+                cwd=repo,
+                env_overrides={
+                    "VERUS_BIN": str(fake_verus),
+                    "VERUS_PROOF_FILE": str(proof_file),
+                },
+            )
+
+        assert "[run-verus] operation=resolve-toolchain" in result.stderr, result.stderr
+        assert "[run-verus] operation=install-toolchain" in result.stderr, result.stderr
+
+    def test_diagnostic_lines_match_snapshot(
+        self, tmp_path: Path, snapshot
+    ) -> None:
+        """Structured diagnostic lines emitted during proof run match the snapshot schema."""
         repo = make_repo_tree(tmp_path)
 
         fake_verus = tmp_path / "fake-verus"
@@ -52,38 +149,18 @@ class TestRunVerus:
                 },
             )
 
-        assert result.returncode == 0, (
-            f"unexpected exit {result.returncode}; stderr={result.stderr!r}"
-        )
-        assert "[run-verus] operation=run-proof" in result.stderr, result.stderr
+        import re
 
-    def test_verus_bin_directory(self, tmp_path: Path) -> None:
-        """When VERUS_BIN is a directory containing a verus binary, resolve it."""
-        repo = make_repo_tree(tmp_path)
-
-        verus_dir = tmp_path / "verus-install"
-        verus_dir.mkdir()
-        make_fake_verus(verus_dir / "verus")
-
-        proof_file = tmp_path / "proof.rs"
-        proof_file.write_text("fn main() {}\n")
-
-        with CmdMox() as mox:
-            mox.stub("rustup").returns(exit_code=0)
-            mox.replay()
-
-            result = run_script(
-                repo / "skills" / "verus" / "references" / "run-verus.sh",
-                cwd=repo,
-                env_overrides={
-                    "VERUS_BIN": str(verus_dir),
-                    "VERUS_PROOF_FILE": str(proof_file),
-                },
+        diag_lines = [
+            re.sub(
+                str(tmp_path),
+                "<tmp>",
+                re.sub(r"elapsed=\d+s", "elapsed=Xs", line),
             )
-
-        assert result.returncode == 0, (
-            f"unexpected exit {result.returncode}; stderr={result.stderr!r}"
-        )
+            for line in result.stderr.splitlines()
+            if line.startswith("[run-verus]")
+        ]
+        assert diag_lines == snapshot
 
     def test_proof_file_not_found(self, tmp_path: Path) -> None:
         """When the proof file does not exist, exit non-zero with error."""

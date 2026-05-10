@@ -334,6 +334,39 @@ class TestInstallVerus:
         assert "operation=checksum status=ok" in result.stderr, result.stderr
         assert "operation=install" in result.stderr, result.stderr
 
+    def test_diagnostic_lines_match_snapshot(
+        self, tmp_path: Path, snapshot
+    ) -> None:
+        """Structured diagnostic lines emitted during install match the snapshot schema."""
+        repo = make_repo_tree(tmp_path)
+        fake_bin_dir = _make_valid_archive(tmp_path, repo)
+
+        result = run_script(
+            repo / INSTALL_SCRIPT,
+            cwd=repo,
+            env_overrides={
+                "VERUS_TARGET": FAKE_TARGET,
+                "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
+            },
+        )
+
+        diag_lines = [
+            line for line in result.stderr.splitlines()
+            if line.startswith("[install-verus]")
+        ]
+        # Normalise elapsed times so snapshots are stable across runs.
+        import re
+
+        normalised = [
+            re.sub(
+                str(tmp_path),
+                "<tmp>",
+                re.sub(r"elapsed=\d+s", "elapsed=Xs", l),
+            )
+            for l in diag_lines
+        ]
+        assert normalised == snapshot
+
 
 _requires_flock = pytest.mark.skipif(
     platform.system() != "Linux",
@@ -357,7 +390,9 @@ class TestInstallVerusConcurrency:
             "VERUS_TARGET": FAKE_TARGET,
             "PATH": f"{fake_bin_dir}{os.pathsep}{os.environ['PATH']}",
         }
+
         def _run_install() -> subprocess.CompletedProcess[str]:
+            """Run install-verus.sh in the shared repo tree and return the result."""
             return run_script(
                 repo / INSTALL_SCRIPT,
                 cwd=repo,
@@ -372,6 +407,7 @@ class TestInstallVerusConcurrency:
             assert result.returncode == 0, (
                 f"install {i} failed: {result.stderr}"
             )
+            assert "operation=lock status=acquired" in result.stderr, result.stderr
 
         installed_bin = install_dir / "verus" / "verus"
         assert installed_bin.exists(), f"binary not found at {installed_bin}"
@@ -401,13 +437,13 @@ class TestInstallVerusConcurrency:
             # does not wait the full 60 s.
             fake_flock = fake_bin_dir / "flock"
             fake_flock.write_text(
-                '#!/bin/bash\n'
-                '# Replace -w <timeout> with -w 0 for instant timeout.\n'
+                '#!/bin/sh\n'
+                '# Replace -w <timeout> with -w 0 so the test times out immediately.\n'
                 'args=()\n'
                 'skip_next=false\n'
                 'for arg in "$@"; do\n'
                 '  if $skip_next; then\n'
-                '    args+=(0)\n'
+                '    args+=("0")\n'
                 '    skip_next=false\n'
                 '    continue\n'
                 '  fi\n'

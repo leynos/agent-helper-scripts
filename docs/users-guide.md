@@ -180,6 +180,37 @@ helper branch when testing unpublished bootstrap changes.
   - Runs `rust-analyzer analysis-stats .` before the optional pre-build when
     `rust-analyzer` is available.
 
+## Formal verification tooling
+
+Two agent skills support Rust formal verification. Use
+[`skills/kani/SKILL.md`](../skills/kani/SKILL.md) for bounded model checking
+(Kani) and [`skills/verus/SKILL.md`](../skills/verus/SKILL.md) for deductive
+verification (Verus).
+
+### Kani
+
+Kani performs bounded model checking: it exhaustively checks all inputs up to
+a configurable bound. Use it to verify absence of panics, arithmetic overflow,
+and undefined behaviour in bounded scenarios. Install via:
+
+    cargo install --locked kani-verifier && cargo kani setup
+
+No environment variables are required for basic use.
+
+### Verus
+
+Verus performs deductive verification backed by the Z3 SMT solver. Use it to
+prove correctness properties that hold for all inputs, not just bounded ones.
+The `skills/verus/references/` scripts handle installation and proof execution.
+
+The Verus environment variables documented in "Tool version settings" below
+control the installer and runner:
+
+- **`VERUS_INSTALL_DIR`** — where to extract the Verus toolchain.
+- **`VERUS_TARGET`** — which release asset to download (e.g. `aarch64-linux`).
+- **`VERUS_BIN`** — point to an existing binary or directory to skip download.
+- **`VERUS_PROOF_FILE`** — which proof file to verify (relative to repo root).
+
 ## Tool version settings
 
 Use these variables to pin or override versions installed by the home phase:
