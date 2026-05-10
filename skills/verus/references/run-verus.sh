@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# Reference: Verus proof runner script from chutoro
+#
+# This script resolves the Verus binary, ensures the required Rust toolchain
+# is installed, and runs the proof files. It handles multiple binary locations
+# (direct path, directory, environment variable, PATH lookup) and falls back
+# to installing Verus if no binary is found.
+#
+# Environment variables:
+#   VERUS_BIN         Path to Verus binary or directory containing it.
+#   VERUS_INSTALL_DIR Override the installation location.
+#   VERUS_PROOF_FILE  Override the proof file to verify (default: verus/edge_harvest_proofs.rs).
+#
+# Required files (relative to repository root):
+#   tools/verus/VERSION  Pinned Verus release identifier.
+#
+# Diagnostic output (stderr):
+#   All diagnostic lines follow the format:
+#     [run-verus] operation=<op> [key=value ...]
+#   Known operations: resolve-toolchain, install-toolchain, run-proof
+#   Fields emitted per operation:
+#     resolve-toolchain   toolchain=<name>
+#     install-toolchain   toolchain=<name> status=<exit-code>
+#     run-proof           binary=<path> file=<path> elapsed=<n>s status=<exit-code>
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+PROOF_FILE="${VERUS_PROOF_FILE:-verus/edge_harvest_proofs.rs}"
+if [[ "${PROOF_FILE}" != /* ]]; then
+  PROOF_FILE="${ROOT_DIR}/${PROOF_FILE}"
+fi
+VERSION_FILE="${ROOT_DIR}/tools/verus/VERSION"
+
+if [[ ! -f "${VERSION_FILE}" ]]; then
+  echo "Missing Verus version file: ${VERSION_FILE}" >&2
+  exit 1
+fi
+
+VERUS_VERSION="$(cat "${VERSION_FILE}")"
+DEFAULT_INSTALL_DIR="${VERUS_INSTALL_DIR:-${ROOT_DIR}/.verus/${VERUS_VERSION}}"
+DEFAULT_VERUS_BIN="${DEFAULT_INSTALL_DIR}/verus/verus"
+VERUS_BIN="${VERUS_BIN:-${DEFAULT_VERUS_BIN}}"
+
+resolve_verus_bin() {
+  local candidate="$1"
+
+  if [[ -z "${candidate}" ]]; then
+    return 1
+  fi
+
+  if [[ -d "${candidate}" ]]; then
+    local bin
+    for bin in "${candidate}/verus" "${candidate}/verus/verus" "${candidate}/bin/verus"; do
+      if [[ -f "${bin}" && -x "${bin}" ]]; then
+        echo "${bin}"
+        return 0
+      fi
+    done
+    return 1
+  fi
+
+  if [[ -f "${candidate}" && -x "${candidate}" ]]; then
+    echo "${candidate}"
+    return 0
+  fi
+
+  if command -v "${candidate}" >/dev/null 2>&1; then
+    command -v "${candidate}"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_toolchain_installed() {
+  local toolchain="$1"
+
+  if ! command -v rustup >/dev/null 2>&1; then
+    echo "rustup is required to install toolchain ${toolchain}" >&2
+    exit 1
+  fi
+
+  if ! rustup which --toolchain "${toolchain}" rustc >/dev/null 2>&1; then
+    local _tc_status=0
+    rustup toolchain install "${toolchain}" || _tc_status=$?
+    echo "[run-verus] operation=install-toolchain toolchain=\"${toolchain}\" status=${_tc_status}" >&2
+    if [[ "${_tc_status}" -ne 0 ]]; then
+      exit "${_tc_status}"
+    fi
+  fi
+}
+
+# parse_verus_toolchain handles "Toolchain: <name>" and
+# "required rust toolchain <name>" outputs from verus --version.
+parse_verus_toolchain() {
+  local output="$1"
+
+  local toolchain
+  toolchain="$(echo "${output}" | awk -F ':' '/Toolchain:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+  if [[ -n "${toolchain}" ]]; then
+    echo "${toolchain}"
+    return 0
+  fi
+
+  toolchain="$(
+    echo "${output}" | awk '/required rust toolchain/ {for (i = 1; i <= NF; i++) if ($i == "toolchain") {print $(i + 1); exit}}'
+  )"
+  if [[ -n "${toolchain}" ]]; then
+    echo "${toolchain}"
+    return 0
+  fi
+
+  return 1
+}
+
+collect_verus_version_output() {
+  VERUS_VERSION_STATUS=0
+  VERUS_VERSION_OUTPUT="$("${VERUS_BIN}" --version 2>&1)" || VERUS_VERSION_STATUS=$?
+}
+
+resolve_verus_toolchain() {
+  local output="$1"
+  local toolchain
+
+  toolchain="$(parse_verus_toolchain "${output}" || true)"
+  if [[ -z "${toolchain}" ]]; then
+    echo "Failed to parse Verus toolchain from output:" >&2
+    echo "${output}" >&2
+    exit 1
+  fi
+
+  echo "${toolchain}"
+}
+
+ensure_verus_toolchain() {
+  local toolchain
+
+  collect_verus_version_output
+  toolchain="$(resolve_verus_toolchain "${VERUS_VERSION_OUTPUT}")"
+
+  echo "[run-verus] operation=resolve-toolchain toolchain=\"${toolchain}\"" >&2
+  ensure_toolchain_installed "${toolchain}"
+
+  if [[ "${VERUS_VERSION_STATUS}" -ne 0 ]]; then
+    collect_verus_version_output
+    if [[ "${VERUS_VERSION_STATUS}" -ne 0 ]]; then
+      echo "Failed to run ${VERUS_BIN} --version after installing toolchain." >&2
+      echo "${VERUS_VERSION_OUTPUT}" >&2
+      exit 1
+    fi
+  fi
+
+  TOOLCHAIN="${toolchain}"
+}
+
+install_verus_fallback() {
+  VERUS_INSTALL_DIR="${DEFAULT_INSTALL_DIR}" "${SCRIPT_DIR}/install-verus.sh"
+}
+
+try_resolve_verus_bin() {
+  local candidate="$1"
+  local resolved
+
+  if resolved="$(resolve_verus_bin "${candidate}" 2>&1)"; then
+    echo "${resolved}"
+    return 0
+  else
+    echo "Could not resolve Verus binary '${candidate}': ${resolved}" >&2
+    return 1
+  fi
+}
+
+if RESOLVED_VERUS_BIN="$(try_resolve_verus_bin "${VERUS_BIN}")"; then
+  VERUS_BIN="${RESOLVED_VERUS_BIN}"
+else
+  if [[ "${VERUS_BIN}" != "${DEFAULT_VERUS_BIN}" ]]; then
+    if [[ -d "${VERUS_BIN}" ]]; then
+      echo "VERUS_BIN directory contains no recognised Verus binary: ${VERUS_BIN}" >&2
+    else
+      echo "VERUS_BIN is not executable: ${VERUS_BIN}" >&2
+    fi
+    echo "Falling back to ${DEFAULT_VERUS_BIN}" >&2
+    VERUS_BIN="${DEFAULT_VERUS_BIN}"
+  fi
+
+  if ! try_resolve_verus_bin "${VERUS_BIN}" >/dev/null 2>&1; then
+    install_verus_fallback
+  fi
+
+  if RESOLVED_VERUS_BIN="$(try_resolve_verus_bin "${VERUS_BIN}")"; then
+    VERUS_BIN="${RESOLVED_VERUS_BIN}"
+  fi
+fi
+
+if [[ ! -f "${VERUS_BIN}" || ! -x "${VERUS_BIN}" ]]; then
+  echo "Verus binary not found after install: ${VERUS_BIN}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${PROOF_FILE}" ]]; then
+  echo "Verus proof file not found: ${PROOF_FILE}" >&2
+  exit 1
+fi
+
+ensure_verus_toolchain
+
+echo "[run-verus] operation=run-proof binary=\"${VERUS_BIN}\" file=\"${PROOF_FILE}\"" >&2
+_proof_ts=$SECONDS
+_proof_status=0
+"${VERUS_BIN}" "${PROOF_FILE}" || _proof_status=$?
+echo "[run-verus] operation=run-proof elapsed=$((SECONDS - _proof_ts))s status=${_proof_status}" >&2
+
+if [[ "${_proof_status}" -eq 0 ]]; then
+  exit 0
+else
+  echo "Verus proofs failed (exit ${_proof_status})." >&2
+  echo "Binary: ${VERUS_BIN}" >&2
+  echo "Proof file: ${PROOF_FILE}" >&2
+  echo "Toolchain: ${TOOLCHAIN}" >&2
+  exit "${_proof_status}"
+fi

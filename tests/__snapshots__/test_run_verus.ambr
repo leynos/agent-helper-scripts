@@ -1,0 +1,8 @@
+# serializer version: 1
+# name: TestRunVerus.test_diagnostic_lines_match_snapshot
+  list([
+    '[run-verus] operation=resolve-toolchain toolchain="nightly-2025-11-05"',
+    '[run-verus] operation=run-proof binary="<tmp>/fake-verus" file="<tmp>/proof.rs"',
+    '[run-verus] operation=run-proof elapsed=Xs status=0',
+  ])
+# ---

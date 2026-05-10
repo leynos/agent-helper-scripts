@@ -46,11 +46,24 @@ class Violation:
     message: str
 
 
-def extract_imports(source: str) -> Iterator[tuple[int, str]]:
-    """Yield (line_number, module_name) for all imports in source."""
+def extract_imports(
+    source: str,
+    source_name: str = "<unknown>",
+) -> Iterator[tuple[int, str]]:
+    """Yield (line_number, module_name) for all imports in source.
+
+    Args:
+        source: Python source text to parse.
+        source_name: Human-readable label for diagnostic messages
+            (typically a file path).
+    """
     try:
-        tree = ast.parse(source)
-    except SyntaxError:
+        tree = ast.parse(source, filename=source_name)
+    except SyntaxError as e:
+        print(
+            f"Warning: skipped {source_name!r} due to SyntaxError: {e}",
+            file=sys.stderr,
+        )
         return
     
     for node in ast.walk(tree):
@@ -65,8 +78,8 @@ def extract_imports(source: str) -> Iterator[tuple[int, str]]:
 def check_domain_layer(domain_path: Path) -> Iterator[Violation]:
     """Check domain layer for infrastructure imports."""
     for py_file in domain_path.rglob("*.py"):
-        source = py_file.read_text()
-        for line, module in extract_imports(source):
+        source = py_file.read_text(encoding="utf-8")
+        for line, module in extract_imports(source, source_name=str(py_file)):
             if module in INFRASTRUCTURE_MODULES:
                 yield Violation(
                     file=py_file,
@@ -88,8 +101,8 @@ def check_domain_layer(domain_path: Path) -> Iterator[Violation]:
 def check_application_layer(app_path: Path) -> Iterator[Violation]:
     """Check application layer for adapter imports."""
     for py_file in app_path.rglob("*.py"):
-        source = py_file.read_text()
-        for line, module in extract_imports(source):
+        source = py_file.read_text(encoding="utf-8")
+        for line, module in extract_imports(source, source_name=str(py_file)):
             if module in ADAPTER_IMPORT_PATTERNS:
                 yield Violation(
                     file=py_file,
@@ -107,8 +120,8 @@ def check_domain_tests(tests_path: Path) -> Iterator[Violation]:
         return
     
     for py_file in domain_tests.rglob("*.py"):
-        source = py_file.read_text()
-        for line, module in extract_imports(source):
+        source = py_file.read_text(encoding="utf-8")
+        for line, module in extract_imports(source, source_name=str(py_file)):
             if module in INFRASTRUCTURE_MODULES:
                 yield Violation(
                     file=py_file,
@@ -120,6 +133,14 @@ def check_domain_tests(tests_path: Path) -> Iterator[Violation]:
 
 
 def main() -> int:
+    """Validate hexagonal architecture boundaries from the CLI.
+
+    Returns
+    -------
+    int
+        0 when no violations are found, 1 when at least one violation is
+        detected or the ``src/`` directory is missing.
+    """
     src_path = Path("src")
     tests_path = Path("tests")
     

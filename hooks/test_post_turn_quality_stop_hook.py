@@ -52,6 +52,7 @@ hook = _load_hook_module()
 def _completed(
     returncode: int, stdout: str = "", stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
+    """Build a ``CompletedProcess`` stub with the given return code and output."""
     return subprocess.CompletedProcess(
         args=["unit-test"], returncode=returncode, stdout=stdout, stderr=stderr
     )
@@ -145,6 +146,7 @@ class TestGetUpstreamRef:
     """Tests for get_upstream_ref()."""
 
     def test_returns_upstream(self) -> None:
+        """Successful rev-parse --abbrev-ref returns the tracking ref."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="origin/main\n")
             ref, err = hook.get_upstream_ref(REPO)
@@ -152,6 +154,7 @@ class TestGetUpstreamRef:
         assert err is None, f"expected no error but got {err!r}"
 
     def test_no_upstream(self) -> None:
+        """Non-zero rev-parse exit returns None."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(128, stderr="no upstream")
             ref, err = hook.get_upstream_ref(REPO)
@@ -161,6 +164,7 @@ class TestGetUpstreamRef:
         )
 
     def test_empty_stdout(self) -> None:
+        """Empty stdout from rev-parse returns None."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="")
             ref, err = hook.get_upstream_ref(REPO)
@@ -177,6 +181,7 @@ class TestHasUnpushedCommits:
     """Tests for has_unpushed_commits()."""
 
     def test_ahead_of_upstream(self) -> None:
+        """Positive rev-list count returns True."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="2\n")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
@@ -184,6 +189,7 @@ class TestHasUnpushedCommits:
         assert err is None, f"expected no error but got {err!r}"
 
     def test_not_ahead_of_upstream(self) -> None:
+        """Zero rev-list count returns False."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="0\n")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
@@ -191,6 +197,7 @@ class TestHasUnpushedCommits:
         assert err is None, f"expected no error but got {err!r}"
 
     def test_rev_list_error(self) -> None:
+        """Non-zero rev-list exit returns None."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(128, stderr="fatal: bad revision")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
@@ -201,6 +208,7 @@ class TestHasUnpushedCommits:
         )
 
     def test_empty_output(self) -> None:
+        """Empty rev-list output returns None with an error message."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
@@ -210,6 +218,7 @@ class TestHasUnpushedCommits:
         )
 
     def test_non_integer_output(self) -> None:
+        """Non-integer rev-list output returns None."""
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="two\n")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
