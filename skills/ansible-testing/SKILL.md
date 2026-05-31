@@ -28,7 +28,9 @@ Local-first testing for Ansible collections, roles, and modules.
   anti-pattern for new code; if the user has one, migrate it into a collection
   first (see Phase 0).
 - **Molecule**: Primary harness for roles. Use the `molecule-plugins[podman]`
-  driver. Never use the legacy `molecule-docker` driver.
+  driver. Never use the legacy `molecule-docker` driver. For end-to-end
+  scenarios that exercise a role or collection workflow against a managed
+  system, recommend Molecule with Podman first.
 - **ansible-test**: Primary harness for modules, plugins, and collection-level
   sanity/unit/integration. Run locally via
   `--controller origin:python=venv/3.12` and
@@ -53,8 +55,9 @@ Before writing any files, determine:
 
 2. **What kind of test is needed?**
    - Role behaviour → Molecule
+   - End-to-end role or collection workflow → Molecule with Podman
    - Module / plugin logic → `ansible-test units`
-   - Module / plugin integration → `ansible-test integration`
+   - Module / plugin integration contract → `ansible-test integration`
    - Code quality → `ansible-test sanity`
    - All of the above → all of the above
 
@@ -74,7 +77,7 @@ Before writing any files, determine:
 A correct collection layout is a prerequisite for `ansible-test`. Scaffold
 or verify this structure before doing anything else:
 
-```
+```text
 ansible_collections/
 └── <namespace>/
     └── <collection>/
@@ -197,9 +200,26 @@ Adjust the image and command for the target OS.
 ---
 dependency:
   name: galaxy
+  # Add options only when the scenario has requirements files. Keep
+  # `force: false` so local dependency caches can be reused.
+  # options:
+  #   requirements-file: ${MOLECULE_SCENARIO_DIRECTORY}/requirements.yml
+  #   role-file: ${MOLECULE_SCENARIO_DIRECTORY}/requirements.yml
+  #   force: false
 
 driver:
   name: podman
+
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy
 
 platforms:
   # Systemd-capable UBI9 — use for roles that manage services
@@ -224,11 +244,22 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: ${MOLECULE_PROJECT_DIRECTORY}/.cache/collections
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/.cache/roles
+    PROFILE_TASKS_SORT_ORDER: descending
+    PROFILE_TASKS_TASK_OUTPUT_LIMIT: "20"
   config_options:
     defaults:
       interpreter_python: /usr/bin/python3
       # python3 must be present in the container image; add a prepare step
       # if the image does not ship it.
+      gathering: smart
+      fact_caching: jsonfile
+      fact_caching_connection: ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts
+      fact_caching_timeout: 3600
+      callbacks_enabled: timer, profile_tasks
+      retry_files_enabled: false
     connection:
       pipelining: false   # required for Podman
 
@@ -242,6 +273,7 @@ lint: |
 ```
 
 > **SELinux note**: On a host with SELinux enforcing, run once:
+>
 > ```bash
 > sudo setsebool -P container_manage_cgroup 1
 > ```
@@ -255,6 +287,8 @@ lint: |
 - name: Converge
   hosts: all
   gather_facts: true
+  gather_subset:
+    - min
 
   pre_tasks:
     # Ensure Python 3 is available in the UBI image
@@ -322,6 +356,112 @@ molecule idempotence
 molecule lint
 ```
 
+### 3f. Molecule performance guidance
+
+Molecule should be the default end-to-end test harness, but keep it fast
+enough that developers will actually run it. Optimise in this order:
+
+1. **Use Podman with pre-built, Python-enabled images**
+   - Keep `pre_build_image: true` for pulled or locally built images that
+     already contain Python, systemd support when needed, and common packages.
+   - Prefer `registry.access.redhat.com/ubi9/ubi-init` for service roles and
+     `registry.access.redhat.com/ubi9/ubi` for stateless roles.
+   - If a role needs heavy prerequisites, create a local `Containerfile` for
+     the Molecule image and build it outside the test loop:
+
+     ```bash
+     podman build -f Containerfile.molecule-ubi9 -t molecule-ubi9:latest .
+     ```
+
+     Then use:
+
+     ```yaml
+     platforms:
+       - name: ubi9-init
+         image: localhost/molecule-ubi9:latest
+         pre_build_image: true
+     ```
+
+2. **Cache Galaxy dependencies and facts**
+   - Keep Molecule dependency `force: false`.
+   - Set `ANSIBLE_COLLECTIONS_PATH`, `ANSIBLE_ROLES_PATH`, and
+     `fact_caching_connection` under a project-local `.cache/` directory.
+   - Add `.cache/` to `.gitignore`; the cache is local state, not source.
+   - Do not write playbooks that depend on cache files existing. A cache miss
+     must only make the run slower, not change behaviour.
+
+3. **Use the shortest useful Molecule command while developing**
+   - Fast role iteration: `molecule converge`
+   - Check assertions after a converge: `molecule verify`
+   - Check idempotence after behaviour stabilises:
+     `molecule converge && molecule idempotence`
+   - Commit gate: `molecule test`
+   - Keep containers during a focused local debugging loop with
+     `molecule test --destroy=never`, then run `molecule destroy` when done.
+
+4. **Limit fact gathering deliberately**
+   - Use `gather_facts: false` for verify plays that only inspect files,
+     commands, package state, or service state via explicit modules.
+   - When facts are needed, prefer a small `gather_subset` such as `min`, then
+     add only the subsets the role actually consumes.
+
+5. **Reduce package-manager work**
+   - Put package prerequisites in the image when they are stable test
+     dependencies.
+   - In the role, install package lists in one task instead of many single
+     package tasks.
+   - For apt-based images, use `cache_valid_time` when updating the cache:
+
+     ```yaml
+     - name: Install packages
+       ansible.builtin.apt:
+         name:
+           - curl
+           - git
+           - python3
+         state: present
+         update_cache: true
+         cache_valid_time: 3600
+     ```
+
+6. **Profile before guessing**
+   - Keep `callbacks_enabled: timer, profile_tasks` in Molecule when
+     investigating slow roles.
+   - Review the slowest tasks, then remove profiling callbacks from normal CI
+     output if they become noisy.
+
+7. **Parallelise scenarios only on suitable runners**
+   - Prefer Molecule's native worker mode over background shell jobs:
+
+     ```bash
+     molecule test --all --workers cpus-1
+     ```
+
+   - `--workers` requires collection mode with `galaxy.yml`.
+   - Use `shared_state: true` in scenario configs when using the native
+     worker mode so the default scenario owns shared create/destroy lifecycle.
+   - Treat this as a CI or dedicated-runner optimisation. In shared agent
+     workspaces, follow the host instructions and run gates sequentially.
+   - Do not combine `--workers > 1` with `--destroy=never`.
+
+8. **Use Mitogen only as an explicit compatibility choice**
+   - Mitogen can speed task execution for compatible Ansible versions, but it
+     is an extra strategy plugin and must be validated against the project's
+     ansible-core version before becoming the default.
+   - Do not add it to a generated scenario unless the user asks for it or the
+     collection already standardises on it.
+
+When improving a slow suite, time the baseline and each change:
+
+```bash
+time molecule create
+time molecule converge
+time molecule idempotence
+time molecule verify
+time molecule destroy
+time molecule test
+```
+
 ---
 
 ## Phase 4 — ansible-test: sanity
@@ -344,7 +484,7 @@ ansible-test sanity --list-tests
 Common failures and fixes:
 
 | Test | Typical cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `validate-modules` | Missing `DOCUMENTATION`, `EXAMPLES`, or `RETURN` | Add the YAML documentation block |
 | `pep8` | PEP 8 violations | `autopep8 --in-place` or fix manually |
 | `pylint` | Linting errors | Fix or add `# pylint: disable=...` with justification |
@@ -356,7 +496,7 @@ Common failures and fixes:
 
 Unit tests live at `tests/unit/` and mirror the plugin structure.
 
-```
+```text
 tests/unit/
 └── plugins/
     └── modules/
@@ -454,10 +594,18 @@ ansible-test coverage report
 
 ## Phase 6 — ansible-test: integration tests
 
-Integration tests exercise modules end-to-end against a real (or
-container-based) managed node.
+Use `ansible-test integration` for module and plugin integration contracts:
+argument handling, idempotent module behaviour, return values, failure paths,
+and collection-level integration targets.
 
-```
+For end-to-end role or workflow tests, prefer Molecule with Podman instead of
+`ansible-test integration`. Molecule gives the scenario lifecycle that e2e
+tests usually need: create, prepare, converge, idempotence, verify, cleanup,
+and destroy against disposable Podman-managed systems.
+
+`ansible-test integration` targets live here:
+
+```text
 tests/integration/
 └── targets/
     └── <target_name>/
@@ -468,13 +616,14 @@ tests/integration/
 
 ### 6a. aliases file
 
-```
+```text
 # tests/integration/targets/<target_name>/aliases
 posix/ci/group1
 ```
 
 Mark tests that cannot run in CI:
-```
+
+```text
 unsupported
 ```
 
@@ -639,10 +788,13 @@ jobs:
 ## Quick-reference command table
 
 | Goal | Command |
-|---|---|
+| --- | --- |
 | Full Molecule cycle | `molecule test` |
+| E2E role/workflow test | `molecule test` with `driver.name: podman` |
 | Apply role only | `molecule converge` |
 | Run assertions only | `molecule verify` |
+| Time slow Molecule step | `time molecule converge` |
+| All Molecule scenarios on dedicated runner | `molecule test --all --workers cpus-1` |
 | Shell into container | `molecule login` |
 | Lint YAML + Ansible | `molecule lint` |
 | Sanity (local) | `ansible-test sanity --python 3.12 --local` |
@@ -650,7 +802,7 @@ jobs:
 | Unit tests (local) | `ansible-test units --python 3.12 --local` |
 | Unit tests (specific) | `ansible-test units --python 3.12 --local plugins/modules/my_module.py` |
 | Integration (local) | `ansible-test integration --controller "origin:python=venv/3.12" --target "controller:python=venv/3.12" <target>` |
-| Integration (Podman target) | `ansible-test integration --controller "origin:python=venv/3.12" --target "docker:ubi9/ubi,python=3.12" <target>` |
+| Integration (Podman target) | `ansible-test integration --controller "origin:python=venv/3.12" --target "docker:registry.access.redhat.com/ubi9/ubi,python=3.12" <target>` |
 | Integration (SSH target) | `ansible-test integration --controller "origin:python=venv/3.12" --target "ssh:user@host,python=3.12" <target>` |
 | Coverage report | `ansible-test coverage report` |
 | List integration targets | `ansible-test integration --list-targets` |
