@@ -223,7 +223,7 @@ scenario:
 
 platforms:
   # Systemd-capable UBI9 — use for roles that manage services
-  - name: ubi9-init
+  - name: ubi9-init-${MOLECULE_INSTANCE_SUFFIX}
     image: registry.access.redhat.com/ubi9/ubi-init:latest
     pre_build_image: true
     command: /usr/sbin/init
@@ -238,7 +238,7 @@ platforms:
 
   # Stateless UBI9 — use for roles that only manage files / packages
   # Uncomment and remove the entry above if systemd is not needed.
-  # - name: ubi9
+  # - name: ubi9-${MOLECULE_INSTANCE_SUFFIX}
   #   image: registry.access.redhat.com/ubi9/ubi:latest
   #   pre_build_image: true
 
@@ -256,7 +256,7 @@ provisioner:
       # if the image does not ship it.
       gathering: smart
       fact_caching: jsonfile
-      fact_caching_connection: ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts
+      fact_caching_connection: ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}
       fact_caching_timeout: 3600
       callbacks_enabled: timer, profile_tasks
       retry_files_enabled: false
@@ -340,9 +340,11 @@ Write assertions using `ansible.builtin.assert` and `check_mode`:
 
 ```bash
 # Full test cycle (lint → create → converge → verify → destroy)
-molecule test
+MOLECULE_INSTANCE_SUFFIX="$(id -un)-$(git branch --show-current)-manual-$$" \
+  molecule test
 
 # Iterative development
+export MOLECULE_INSTANCE_SUFFIX="$(id -un)-$(git branch --show-current)-manual-$$"
 molecule create          # start containers
 molecule converge        # apply the role
 molecule verify          # run assertions
@@ -356,7 +358,76 @@ molecule idempotence
 molecule lint
 ```
 
-### 3f. Molecule performance guidance
+### 3f. Molecule test isolation on shared hosts
+
+When multiple agents may test different branches or repositories on the same
+VM, make Podman resource names unique per run. Unsuffixed Molecule platform
+names become Podman container names, so two branches with `name: ubi9-init`
+can collide, reuse the wrong container, or destroy each other's test instance.
+
+Use the pattern from `dev-env-rocky`: generate a short
+`MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID
+in the Makefile, pass it to every scenario invocation, and append it to every
+Podman-backed platform name and shared cache path.
+
+```make
+.RECIPEPREFIX := >
+MOLECULE_BRANCH := $(shell git branch --show-current 2>/dev/null || basename "$$PWD")
+MOLECULE_INSTANCE_SUFFIX_GENERATED := $(shell \
+  printf '%s-%s-%s' "$$(id -un)" "$(MOLECULE_BRANCH)" "$$$$" | \
+  tr -c '[:alnum:]_.-' '-' | cut -c 1-48)
+MOLECULE_INSTANCE_SUFFIX ?= $(MOLECULE_INSTANCE_SUFFIX_GENERATED)
+
+.PHONY: molecule
+molecule:
+> cd roles/<role_name> && \
+>   MOLECULE_INSTANCE_SUFFIX=$(MOLECULE_INSTANCE_SUFFIX) \
+>   molecule test -s default
+```
+
+In `molecule.yml`, suffix every platform and any persistent test cache with
+that variable:
+
+```yaml
+platforms:
+  - name: ubi9-init-${MOLECULE_INSTANCE_SUFFIX}
+    image: registry.access.redhat.com/ubi9/ubi-init:latest
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      fact_caching: jsonfile
+      fact_caching_connection: >-
+        ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}
+```
+
+For focused manual runs, set the suffix explicitly:
+
+```bash
+MOLECULE_INSTANCE_SUFFIX="$(id -un)-$(git branch --show-current)-manual-$$" \
+  molecule converge -s default
+MOLECULE_INSTANCE_SUFFIX="$(id -un)-$(git branch --show-current)-manual-$$" \
+  molecule verify -s default
+```
+
+Rules for new scenarios:
+
+- Never use static Podman platform names such as `instance`, `ubi9`, or
+  `rocky10` on shared developer hosts.
+- Keep `MOLECULE_INSTANCE_SUFFIX` generation in the project test wrapper or
+  Makefile so normal gate commands are isolated by default.
+- Do not use shell-style default expansion in platform names, such as
+  `${MOLECULE_INSTANCE_SUFFIX:-local}`. Molecule interpolates environment
+  variables; it does not run platform names through a shell.
+- Include the suffix in fact-cache directories, temporary host paths, and any
+  other shared resource that can survive across Molecule steps.
+- Run Molecule scenarios sequentially in shared agent workspaces. Throughput
+  comes from per-agent suffix isolation, not from one agent spawning several
+  Podman scenarios at once.
+
+### 3g. Molecule performance guidance
 
 Molecule should be the default end-to-end test harness, but keep it fast
 enough that developers will actually run it. Optimise in this order:
@@ -386,6 +457,8 @@ enough that developers will actually run it. Optimise in this order:
    - Keep Molecule dependency `force: false`.
    - Set `ANSIBLE_COLLECTIONS_PATH`, `ANSIBLE_ROLES_PATH`, and
      `fact_caching_connection` under a project-local `.cache/` directory.
+   - Include `MOLECULE_INSTANCE_SUFFIX` in `fact_caching_connection` on shared
+     hosts so concurrent branch runs do not reuse each other's facts.
    - Add `.cache/` to `.gitignore`; the cache is local state, not source.
    - Do not write playbooks that depend on cache files existing. A cache miss
      must only make the run slower, not change behaviour.
