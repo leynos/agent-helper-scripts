@@ -1,0 +1,44 @@
+#!/bin/bash
+# get-pr-number.sh
+
+get_pr_number() {
+    local project_dir="${1:-.}"
+    
+    # Method 1: GitHub CLI (preferred)
+    if command -v gh &>/dev/null; then
+        local pr_num
+        pr_num=$(gh pr view --json number --jq '.number' 2>/dev/null)
+        if [ -n "$pr_num" ]; then
+            echo "$pr_num"
+            return 0
+        fi
+    fi
+    
+    # Method 2: Branch naming convention (e.g., pr/123, pull/123)
+    local branch
+    branch=$(git -C "$project_dir" branch --show-current 2>/dev/null)
+    if [[ "$branch" =~ ^(pr|pull)[/-]([0-9]+) ]]; then
+        echo "${BASH_REMATCH[2]}"
+        return 0
+    fi
+    
+    # Method 3: GitHub API (requires GITHUB_TOKEN)
+    if [ -n "$GITHUB_TOKEN" ]; then
+        local repo origin
+        origin=$(git -C "$project_dir" remote get-url origin 2>/dev/null)
+        repo=$(echo "$origin" | sed -E 's/.*[/:]([^/]+\/[^/]+?)(\.git)?$/\1/' | sed 's/\.git$//')
+        branch=$(git -C "$project_dir" branch --show-current 2>/dev/null)
+        
+        if [ -n "$repo" ] && [ -n "$branch" ]; then
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${repo}/pulls?head=${repo%%/*}:${branch}&state=open" \
+                | jq -r '.[0].number // empty' 2>/dev/null
+            return
+        fi
+    fi
+    
+    echo ""
+    return 1
+}
+
+get_pr_number "$@"

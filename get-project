@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+if [[ $PWD == *".worktrees/"* ]]; then
+  PROJECT="${PWD%%.worktrees/*}"
+  PROJECT="${PROJECT##*/}"
+else
+  PROJECT="${PWD##*/}"
+fi
+
+echo "${PROJECT}"
