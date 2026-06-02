@@ -28,4 +28,4 @@ with_all_md() {
 }
 
 with_all_md mdtablefix --wrap --renumber --breaks --ellipsis --fences --in-place
-with_all_md markdownlint --fix
+with_all_md markdownlint-cli2 --fix
