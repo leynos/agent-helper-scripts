@@ -2,7 +2,12 @@
 
 **Generated**: {TIMESTAMP}  
 **Issue ID**: {ISSUE_REF}  
-**Severity**: {SEVERITY}
+**Severity**: {SEVERITY}  
+**Falsification sub-agent**: {alchemist if available; otherwise nearest
+available investigation-oriented sub-agent}  
+**Planning agent boundary**: This document was prepared by the planning agent.
+Falsification must be executed by the named sub-agent, not by the planning
+agent.
 
 ## Problem Statement
 
@@ -10,16 +15,16 @@
 
 ## Context Summary
 
-| Aspect | Details |
-|--------|---------|
-| First observed | {datetime or commit} |
-| Reproduction rate | {percentage or conditions} |
-| Affected components | {list} |
-| Recent changes | {relevant deployments/updates} |
+| Aspect              | Details                        |
+| ------------------- | ------------------------------ |
+| First observed      | {datetime or commit}           |
+| Reproduction rate   | {percentage or conditions}     |
+| Affected components | {list}                         |
+| Recent changes      | {relevant deployments/updates} |
 
 ### Error Artefacts
 
-```
+```plaintext
 {Stack trace, error message, or relevant log excerpt}
 ```
 
@@ -39,16 +44,17 @@
 
 **Prediction**: If this hypothesis holds, then {observable consequence}.
 
-#### Falsification Plan
+#### H1 Falsification Plan
 
-| Step | Action | Expected Negative Result |
-|------|--------|--------------------------|
-| 1 | {Command or investigation} | {Outcome that would disprove H1} |
-| 2 | {Follow-up if step 1 inconclusive} | {Outcome} |
+| Step | Action                             | Expected Negative Result         |
+| ---- | ---------------------------------- | -------------------------------- |
+| 1    | {Command or investigation}         | {Outcome that would disprove H1} |
+| 2    | {Follow-up if step 1 inconclusive} | {Outcome}                        |
 
 **Tooling**: {Scripts, commands, or instrumentation required}
 
-**Confidence on falsification**: {How decisively does a negative result rule this out?}
+**Confidence on falsification**: {How decisively does a negative result rule
+this out?}
 
 ---
 
@@ -60,15 +66,16 @@
 
 **Prediction**: If this hypothesis holds, then {observable consequence}.
 
-#### Falsification Plan
+#### H2 Falsification Plan
 
-| Step | Action | Expected Negative Result |
-|------|--------|--------------------------|
-| 1 | {Command or investigation} | {Outcome that would disprove H2} |
+| Step | Action                     | Expected Negative Result         |
+| ---- | -------------------------- | -------------------------------- |
+| 1    | {Command or investigation} | {Outcome that would disprove H2} |
 
 **Tooling**: {Scripts, commands, or instrumentation required}
 
-**Confidence on falsification**: {How decisively does a negative result rule this out?}
+**Confidence on falsification**: {How decisively does a negative result rule
+this out?}
 
 ---
 
@@ -84,9 +91,13 @@
 
 ## Termination Criteria
 
-- **Root cause identified**: A hypothesis survives all falsification attempts while others are eliminated.
-- **Escalation trigger**: {Condition under which to escalate or revise hypotheses, e.g., all hypotheses falsified.}
+- **Root cause identified**: A hypothesis survives all falsification attempts
+  while others are eliminated.
+- **Escalation trigger**: {Condition under which to escalate or revise
+  hypotheses, e.g., all hypotheses falsified.}
 
 ## Notes for Executing Agent
 
-{Any additional guidance: environment setup, access requirements, stakeholder contacts, time constraints.}
+{Any additional guidance: environment setup, access requirements, stakeholder
+contacts, time constraints. Include enough context for the sub-agent to execute
+without access to the planning agent's hidden reasoning.}

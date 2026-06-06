@@ -40,6 +40,8 @@ Every ExecPlan must satisfy all of the following:
   and decisions are finalized; each revision must remain self-contained.
 - End-to-end and observable: it must produce demonstrably working behaviour,
   not merely "code changes that compile".
+- Test-first delivery: all code changes must follow Red-Green-Refactor when
+  the project has any practical test framework for the affected behaviour.
 - Plain language: define every term of art immediately, or do not use it.
 - Outcome-focused: begin with why the work matters and how to observe success.
 - Controlled delegation: the agent implementing the plan proceeds
@@ -143,8 +145,29 @@ Be safe and idempotent:
 Validation is not optional:
 
 - Include instructions to run tests, lint, and any relevant runtime checks.
-- Establush a failing test suite prior to implementation (red, green,
-  refactor).
+- Establish a failing test suite prior to implementation using
+  Red-Green-Refactor:
+  - Red: add or update the smallest test that specifies the missing behaviour
+    and run it before production-code changes. The command must fail for the
+    expected reason.
+  - Green: make the smallest production-code change that makes the red test
+    pass, then run the focused test again.
+  - Refactor: clean up the implementation without changing behaviour, rerunning
+    the focused test and the relevant wider gates afterwards.
+- Where the test framework supports expected-failure markers, use strict
+  expected failures to enforce the red stage. For example, in pytest use
+  `@pytest.mark.xfail(strict=True, reason="...")` until the red failure is
+  observed, then remove the marker as part of the green step. Do not leave
+  expected-failure markers in the final passing implementation unless the plan
+  explicitly scopes a known unresolved defect.
+- If Red-Green-Refactor is genuinely unavailable, document why in `Constraints`
+  or `Decision Log`, then use the nearest observable substitute such as a
+  reproducer script, golden fixture, compile-fail test, approval test, or manual
+  runtime check.
+- Where behaviour-driven development (BDD) is used, include the feature
+  specification in the ExecPlan. Name the feature file path, quote or embed the
+  relevant `Feature`, `Scenario`, `Given`, `When`, and `Then` statements, and
+  keep the specification synchronized with the implementation milestones.
 - Include expected outputs (even short ones) so a novice can tell success from
   failure.
 
@@ -312,9 +335,10 @@ concrete and minimal.
 Structure as stages with explicit go/no-go points where appropriate:
 
 - Stage A: understand and propose (no code changes)
-- Stage B: scaffolding and tests (small, verifiable diffs)
+- Stage B: red tests or BDD feature specification (small, verifiable diffs that
+  fail before implementation for the expected reason)
 - Stage C: implementation (minimal change to satisfy tests)
-- Stage D: hardening, documentation, cleanup
+- Stage D: refactor, documentation, and cleanup
 
 Each stage ends with validation. Do not proceed to the next stage if the
 current stage's validation fails.
@@ -331,6 +355,17 @@ Describe how to start or exercize the system and what to observe. Phrase
 acceptance as behaviour, with specific inputs and outputs. If tests are
 involved, say "run <project's test command> and expect <N> passed; the new test
 <name> fails before the change and passes after".
+
+For code changes, record the Red-Green-Refactor evidence:
+
+- Red command and expected failure, including any strict expected-failure marker
+  used to prove the test fails for the intended reason.
+- Green command and expected pass after the minimal implementation.
+- Refactor command sequence and expected pass after cleanup.
+
+For BDD changes, include the feature specification that drives the work and the
+BDD runner command that proves the scenario fails before implementation and
+passes afterwards.
 
 Quality criteria (what "done" means):
 
