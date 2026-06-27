@@ -152,6 +152,7 @@ GET /api/runs
 GET /api/runs/:id
 GET /api/runs/:id/events
 GET /api/runs/:id/events?since=N
+GET /api/runs/:id/result
 GET /api/stream
 GET /api/adapters
 GET /api/capabilities
@@ -173,6 +174,7 @@ readable state:
 curl -s http://127.0.0.1:4317/api/runs | python3 -m json.tool
 curl -s http://127.0.0.1:4317/api/runs/"$RUN" | python3 -m json.tool
 curl -s http://127.0.0.1:4317/api/runs/"$RUN"/events?since=0
+curl -s http://127.0.0.1:4317/api/runs/"$RUN"/result | python3 -m json.tool
 ```
 
 Control over API:

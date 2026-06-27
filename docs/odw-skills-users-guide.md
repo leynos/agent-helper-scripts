@@ -33,18 +33,30 @@ descriptions should also trigger implicitly for prompts that mention ODW,
 dynamic workflows, `agent()`, `parallel()`, `pipeline()`, `odw status`,
 `odw logs`, run IDs, or the ODW dashboard.
 
-If the skills are not installed yet, point the agent at the repository paths:
+If the skills are not installed yet, point the agent at a stable repository or
+installed path. From this checkout, relative paths are enough:
 
 ```text
-Use the skill at
-/data/leynos/Projects/agent-helper-scripts.worktrees/odw-skill/skills/odw-authoring
-to write an ODW workflow for ...
+Use the skill at skills/odw-authoring to write an ODW workflow for ...
 ```
 
 ```text
+Use the skill at skills/odw-supervision to inspect run <run_id>.
+```
+
+For the managed helper checkout, use:
+
+```text
 Use the skill at
-/data/leynos/Projects/agent-helper-scripts.worktrees/odw-skill/skills/odw-supervision
-to inspect run <run_id>.
+${HELPER_TOOLS_REPO_DIR:-$HOME/git/agent-helper-scripts}/skills/odw-authoring
+to write an ODW workflow for ...
+```
+
+After installation, the Codex paths are also stable:
+
+```text
+Use the skill at ~/.codex/skills/odw-authoring to write an ODW workflow for ...
+Use the skill at ~/.codex/skills/odw-supervision to inspect run <run_id>.
 ```
 
 ## Using `$odw-authoring`
@@ -72,7 +84,9 @@ A good agent should then:
   `phase()`, `log()`, `args`, `budget`, `workflow()`, and `validate()`.
 - Add JSON Schemas where later workflow stages need structured data.
 - Keep fan-out, loops, and agent calls bounded.
-- Validate or run the workflow when asked.
+- Use `validate(source)` only inside workflows that generate workflow source.
+- Run the workflow with an explicit `odw run <script.js|name>` target when
+  asked.
 
 For an implementation-oriented request, give the agent the file path, pattern,
 result shape, and run expectation:
@@ -87,7 +101,8 @@ The workflow should:
 - return structured JSON with summary, findings, and followups
 - accept { "focus": "..." } as args
 
-After writing it, run it with `odw run --wait`.
+After writing it, run it with:
+`odw run .odw/workflows/review-docs.js --wait --args '{"focus":"..."}'`.
 ```
 
 ### What to include in an authoring prompt
@@ -264,6 +279,7 @@ Use the API when you need machine-readable state:
 curl -s http://127.0.0.1:4317/api/runs | python3 -m json.tool
 curl -s http://127.0.0.1:4317/api/runs/"$RUN" | python3 -m json.tool
 curl -s http://127.0.0.1:4317/api/runs/"$RUN"/events?since=0
+curl -s http://127.0.0.1:4317/api/runs/"$RUN"/result | python3 -m json.tool
 ```
 
 ## End-to-end example

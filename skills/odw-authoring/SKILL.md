@@ -28,8 +28,11 @@ agent turn is enough.
 2. Draft a workflow script with literal `meta`, injected primitives, bounded
    fan-out, and explicit phases.
 3. Use schemas anywhere a later step consumes agent output as data.
-4. Validate or dry-check the source before running it.
-5. Run with `odw run`, inspect the result, and only then act on outputs.
+4. For generated workflow source, use the injected `validate(source)` primitive
+   inside the generating workflow before saving or running the child.
+5. For host-authored workflow files, run only when asked, using a bounded
+   `odw run <script.js|name> --wait` smoke run with representative args.
+6. Inspect the result before acting on outputs.
 
 ## Script Contract
 
@@ -109,7 +112,9 @@ calling `workflow()` again inside a child fails clearly.
 Use `validate(source)` when a workflow generates workflow source and needs a
 compile check before running or saving it. This is an ODW extension; do not
 expect the same script to run unchanged in Claude Code if it depends on
-`validate()`.
+`validate()`. Do not invent a host-side `odw validate` command; ordinary
+workflow files are checked by launching a bounded `odw run <script.js|name>
+--wait` smoke run when the user asks to execute them.
 
 ## Schemas
 
@@ -181,9 +186,10 @@ its prompts and run it in `inplace` mode. Do not rely on
 `agent(..., { isolation: "worktree" })` for this; ODW treats that option as a
 request for isolated copy workspaces, not a persistent git-worktree lifecycle.
 
-Prefer a throwaway `--source` directory for `inplace` runs. Point `--source` at a
-real repository only when the user explicitly wants real-tree edits and accepts
-that subagents may modify files, create worktrees, commit, merge, or push.
+Prefer a throwaway `--source` directory for `inplace` runs. Point `--source` at
+a real repository only when the user explicitly wants real-tree edits and
+accepts that subagents may modify files, create worktrees, commit, merge, or
+push.
 
 For multi-provider workflows, keep provider differences explicit:
 
