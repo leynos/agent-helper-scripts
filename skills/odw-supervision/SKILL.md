@@ -7,7 +7,7 @@ description: >
   mention ODW run IDs, `odw status`, `odw logs`, `odw result`, `odw serve`,
   `events.jsonl`, `status.json`, `result.json`, `error.json`, `worker.log`,
   run directories, dashboard jobs, SSE streams, Claude Code workflow visibility,
-  or workflow supervision.
+  `workspaceMode`, `inplace`, multi-provider handoff, or workflow supervision.
 ---
 
 # ODW Supervision
@@ -215,6 +215,52 @@ Use this order:
    adapter override.
 6. Adapter config and PATH when the error is "command not found" or an agent CLI
    is not installed.
+
+## Workspace Mode Diagnosis
+
+Always check workspace mode when a run involves implementation, review, build
+artifacts, git worktrees, commits, merges, or multi-provider handoff through
+files. The key question is whether later `agent()` calls were supposed to see
+state created by earlier `agent()` calls.
+
+In `workspaceMode: "copy"`, each agent runs in a throwaway copy of the source
+tree. Symptoms of using copy mode for a stateful workflow include:
+
+- A later agent cannot find a file, branch, worktree path, build artifact, or
+  commit that an earlier agent reported creating.
+- A workflow returns patches or summaries, but the real `--source` tree did not
+  change.
+- A path returned by one agent points under a temporary ODW workspace and is gone
+  by the next phase.
+- Multi-provider implement/review loops repeatedly appear to review stale or
+  missing files.
+
+In `workspaceMode: "inplace"`, agents run in the real `--source` directory.
+Symptoms and risks are different:
+
+- File changes, build artifacts, branches, git worktrees, commits, merges, and
+  pushes may be real side effects, not just workflow output.
+- Concurrent agents can collide unless the workflow uses independent worktrees
+  or serializes shared git operations behind one integration lock.
+- A failed or stopped run may leave dirty files, live worktrees, branches, or
+  partially completed pushes that must be inspected before rerun.
+
+For workflows that need persistent git worktrees, do not treat
+`agent(..., { isolation: "worktree" })` as proof that ODW created real git
+worktrees. In ODW that option requests isolated copy workspaces. Real git
+worktrees must be created and managed by the workflow or by the invoked agents,
+and the run must use `workspaceMode: "inplace"` if later agents need those paths.
+
+When diagnosing or preparing a rerun:
+
+1. Read `meta.json` for `source`, `config`, workflow name, args, and adapter.
+2. Inspect the referenced `odw.config.json` for `workspaceMode`.
+3. Search `events.jsonl` and logs for routing notes, returned worktree paths,
+   adapter labels, merge/push phases, and schema failures.
+4. If `inplace` was used, inspect the real repository state before rerunning:
+   `git status`, worktree list, recent branches, and any advertised commits.
+5. If copy mode was used for a stateful workflow, report it as a launch/config
+   mismatch rather than rerunning blindly.
 
 Common causes:
 

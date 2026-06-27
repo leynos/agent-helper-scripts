@@ -6,8 +6,9 @@ description: >
   mention `odw`, Open Dynamic Workflows, Claude Code workflow dialect, dynamic
   workflows, multi-agent orchestration, `agent()`, `parallel()`, `pipeline()`,
   nested `workflow()`, workflow generation, JSON-Schema agent outputs, adapter
-  routing, or examples such as fan-out/reduce, deep research, adversarial
-  verification, routing, tournament, or loop-until-dry workflows.
+  routing, `workspaceMode`, `inplace`, multi-provider handoff, or examples such
+  as fan-out/reduce, deep research, adversarial verification, routing,
+  tournament, or loop-until-dry workflows.
 ---
 
 # ODW Authoring
@@ -69,7 +70,8 @@ Use `agent(prompt, opts?)` for every real subtask. Important options:
   `kimi`.
 - `model`: forward a model id only when the adapter declares a model flag.
 - `agentType`: persona injected into the prompt. It is not an adapter name.
-- `isolation: 'worktree'`: request isolated workspace semantics.
+- `isolation: 'worktree'`: request isolated workspace semantics. In ODW this is
+  satisfied by copy isolation, not by creating a real git worktree.
 
 Use `parallel(thunks)` when the next step needs the whole batch at once:
 
@@ -161,6 +163,40 @@ Pick the smallest pattern that fits the task:
   "inplace"` and a throwaway `--source` directory unless the user explicitly
   wants real-tree edits.
 
+## Workspace Mode
+
+Assume `workspaceMode: "copy"` unless proven otherwise. In copy mode each
+`agent()` call runs in its own throwaway copy of `--source`; files, branches,
+worktrees, build artefacts, and other local state created by one agent are not a
+handoff channel to later agents.
+
+Use `workspaceMode: "inplace"` only when later agents must observe filesystem or
+git state created by earlier agents. This is required for shared-directory
+implement/review loops, multi-provider workflows that pass code through disk, and
+roadmap-build workflows that intentionally create git worktrees, commit, merge,
+or push.
+
+When a workflow needs real git worktrees, make the workflow own that lifecycle in
+its prompts and run it in `inplace` mode. Do not rely on
+`agent(..., { isolation: "worktree" })` for this; ODW treats that option as a
+request for isolated copy workspaces, not a persistent git-worktree lifecycle.
+
+Prefer a throwaway `--source` directory for `inplace` runs. Point `--source` at a
+real repository only when the user explicitly wants real-tree edits and accepts
+that subagents may modify files, create worktrees, commit, merge, or push.
+
+For multi-provider workflows, keep provider differences explicit:
+
+- Use `adapter` per call for role assignment, such as `claude` for implementation
+  and `codex` for review.
+- Configure command permissions per adapter in `odw.config.json`; do not assume
+  each CLI can edit files, run commands, or use the same model flag.
+- Use schemas for cross-provider handoffs so one provider's prose does not become
+  another provider's parser contract.
+- Serialize shared git operations with a JavaScript lock or single integration
+  phase; let providers work concurrently only in independent worktrees or
+  independent read-only checks.
+
 ## Safety And Determinism
 
 - Bound fan-out with args, `budget.total`, `maxRounds`, and ODW config
@@ -173,8 +209,6 @@ Pick the smallest pattern that fits the task:
   accounting. Use them to scale depth, not as exact billing.
 - Remember that ODW never commits, pushes, or applies diffs by itself. The host
   agent must inspect the returned result before acting.
-- Keep `workspaceMode: "copy"` unless the workflow intentionally needs agents
-  to share files through one directory.
 - When using Claude with command execution, only override it with
   `--dangerously-skip-permissions` against a throwaway source directory.
 

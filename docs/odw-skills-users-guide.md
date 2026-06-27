@@ -103,6 +103,9 @@ Include the details that affect orchestration:
 - Bounds such as number of agents, max rounds, budget, or timeout.
 - The desired result shape, such as Markdown report, JSON object, patches, or
   findings.
+- Whether agents need to share files or git state. Ask for `workspaceMode:
+  "inplace"` only when later agents must see files, branches, worktrees, commits,
+  or build artefacts created by earlier agents.
 
 Example:
 
@@ -115,6 +118,25 @@ Adapter: codex.
 Bounds: max 6 agent calls.
 Return: JSON with stale_refs, recommended_edits, and confidence.
 ```
+
+For side-effecting multi-provider workflows, make the trust boundary explicit:
+
+```text
+Use $odw-authoring to adapt the df12-build workflow for ODW.
+
+Goal: run roadmap tasks with Claude implementing and Codex reviewing.
+Workspace: this intentionally edits a real repository, creates git-donkey
+worktrees, commits, merges, and may push. Use workspaceMode "inplace"; do not
+use copy mode for cross-agent worktree handoff.
+Providers: assign adapters per phase, e.g. claude for implementation, codex for
+code review, and a second provider for adversarial design review where useful.
+Safety: serialize integration and pushes behind one merge lock; allow parallel
+work only in independent worktrees. Use schemas for all cross-provider returns.
+```
+
+Avoid `inplace` for ordinary review or research workflows. In copy mode each
+agent gets an isolated workspace, which is safer when no later agent needs to see
+that agent's filesystem changes.
 
 ## Using `$odw-supervision`
 
@@ -172,6 +194,23 @@ The agent should separate:
 - Schema validation failures.
 - Workspace or config mismatches.
 - Runaway loops, dispatch caps, or stop requests.
+
+For `inplace` or multi-provider runs, ask the agent to inspect both ODW state and
+the real repository state:
+
+```text
+Use $odw-supervision to diagnose run abc123. This was intended to be an
+inplace, multi-provider roadmap build. Check meta.json, config, events.jsonl,
+adapter labels, returned worktree paths, git status, git worktree list, recent
+branches, and whether integration/push phases were serialized. Do not rerun it
+until you have identified whether this is a workflow bug, adapter failure, or
+workspaceMode mismatch.
+```
+
+When a workflow passes files, branches, or worktree paths between agents, a run
+launched in copy mode is usually a configuration error. When a workflow runs in
+`inplace`, assume it may have left real repository side effects and inspect them
+before rerunning or cleaning up.
 
 ### Controls
 
