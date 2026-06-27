@@ -1,0 +1,4 @@
+interface:
+  display_name: "ODW Authoring"
+  short_description: "Write reliable ODW workflow scripts"
+  default_prompt: "Use $odw-authoring to design and write an Open Dynamic Workflows script for this task."
