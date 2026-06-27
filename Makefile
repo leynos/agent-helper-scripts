@@ -28,16 +28,14 @@ PYTEST := uv run --group dev python -m pytest
 HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
-VERUS_TESTS := $(filter tests/test_install_verus.py tests/test_run_verus.py,$(REPO_TESTS))
 TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 
 # Test targets:
 # - test-hooks: post-turn hook behavior and git-state decisions.
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
-# - test-verus-scripts: Verus install/run script process tests.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test-hooks test-entrypoints test-verus-scripts test ci
+.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test-hooks test-entrypoints test ci
 
 all: ci
 
@@ -71,6 +69,3 @@ test-hooks:
 
 test-entrypoints:
 	@$(PYTEST) $(ENTRYPOINT_TESTS) -v
-
-test-verus-scripts:
-	@$(PYTEST) $(VERUS_TESTS) -v

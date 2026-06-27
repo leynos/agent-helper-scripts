@@ -1,0 +1,4 @@
+interface:
+  display_name: "ODW Supervision"
+  short_description: "Observe and control ODW workflow runs"
+  default_prompt: "Use $odw-supervision to inspect, monitor, and control this Open Dynamic Workflows run."
