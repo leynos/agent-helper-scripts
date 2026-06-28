@@ -74,12 +74,6 @@ Produce a unified review that:
 3. Calls out the most important trade-off or tension.
 4. Ends with concrete next steps, ordered by priority.
 
-### 5. Codex robots build the scaffolding
-
-When the review produces actionable code changes, implement them directly where possible.
-Don't just describe what should change — make the change, as the codex robots would:
-steady hands, tidy output, no drama.
-
 ## Tone
 
 The Logisphere is cosy, whimsical, and faintly cybernetic. Reviews should be:
