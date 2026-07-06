@@ -275,10 +275,12 @@ agent_tools_subagents:
       is staged or committed and the planning agent needs an
       evidence-backed gate report. Do not use to author code or
       documentation; this subagent never edits tracked files.
-    # TODO: the rate-limit back-off in the instructions below calls `vsleep`,
-    # which is slated to be renamed to `catnap`. Once the `catnap` rename is
-    # finalized, update this instructions body (and regenerate the scrutineer
-    # Codex/Claude snapshots) to invoke `catnap` instead of `vsleep`.
+    # TODO(#27): the rate-limit back-off in the instructions below calls
+    # `vsleep`, which is slated to be renamed to `catnap`. Once the `catnap`
+    # rename is finalized, update this instructions body (and regenerate the
+    # scrutineer Codex/Claude snapshots) to invoke `catnap` instead of
+    # `vsleep`. Tracked in
+    # https://github.com/leynos/agent-helper-scripts/issues/27
     instructions: |
       You are Test Runner, the execution counterpart to a planning agent
       that needs a deterministic gate report on the current branch.
