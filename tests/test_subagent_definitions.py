@@ -10,11 +10,33 @@ from __future__ import annotations
 
 from typing import cast
 
+import pytest
 from subagent_manifest import (
     load_provider,
     load_subagent_entries,
     load_subagent_entry,
 )
+
+# Every managed subagent that ships a Claude Code provider block. The shared
+# enabled/model contract is asserted once, parametrized over this tuple; the
+# per-subagent tool grants are pinned by the dedicated tests below.
+CLAUDE_SUBAGENTS = ("wyvern", "scribe", "alchemist", "scrutineer")
+
+
+@pytest.mark.parametrize("name", CLAUDE_SUBAGENTS)
+def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
+    """Each managed subagent is enabled on Claude Code and pinned to sonnet.
+
+    The Codex provider selects the Spark model for these subagents, so the
+    Claude provider must track that choice with ``sonnet``; enabling the
+    provider is what causes the agent definition to be rendered at all.
+    """
+    claude = load_provider(name, "claude")
+
+    assert claude["enabled"] is True, f"{name} must be enabled on Claude Code"
+    assert claude["model"] == "sonnet", (
+        f"{name} must use sonnet on Claude Code to match the Codex Spark choice"
+    )
 
 
 def test_scribe_codex_subagent_uses_spark_model() -> None:
@@ -32,18 +54,19 @@ def test_scribe_codex_subagent_uses_spark_model() -> None:
     )
 
 
-def test_scribe_claude_subagent_uses_sonnet() -> None:
-    """Scribe's manifest entry must use sonnet on the Claude provider."""
+def test_scribe_claude_subagent_tools_are_exact() -> None:
+    """Scribe's Claude tools must be exactly its documentation-editing set.
+
+    Exact-set matching, rather than a subset check, ensures an unexpected
+    extra Claude tool (for example ``Bash``) fails the test instead of
+    slipping through untested.
+    """
     claude = load_provider("scribe", "claude")
 
-    assert claude["enabled"] is True, "Scribe must be enabled on Claude Code"
-    assert claude["model"] == "sonnet", (
-        "Scribe must use sonnet on Claude Code to match the Codex Spark choice"
-    )
     tools = cast("list[str]", claude["tools"])
-    assert {"Read", "Edit", "Write"}.issubset(set(tools)), (
-        "Scribe's Claude tools must include Read, Edit, and Write so the "
-        "subagent can perform documentation edits"
+    assert set(tools) == {"Read", "Edit", "Write", "Grep", "Glob"}, (
+        "Scribe's Claude tools must be exactly Read, Edit, Write, Grep, Glob "
+        "so it can edit and navigate documentation but gains no other grants"
     )
 
 
@@ -51,7 +74,6 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     """Wyvern's Claude tooling must remain read-only to mirror the Codex sandbox."""
     claude = load_provider("wyvern", "claude")
 
-    assert claude["enabled"] is True
     tools = cast("list[str]", claude["tools"])
     assert {"Read", "Grep", "Glob"} == set(tools), (
         "Wyvern's Claude tools must stay read-only (Read, Grep, Glob) to "
@@ -84,18 +106,21 @@ def test_alchemist_codex_subagent_uses_spark_model_and_context_pack() -> None:
     )
 
 
-def test_alchemist_claude_subagent_has_edit_tools() -> None:
-    """Alchemist's Claude entry must grant Edit and Write for instrumentation."""
+def test_alchemist_claude_subagent_tools_are_exact() -> None:
+    """Alchemist's Claude tools must be exactly its instrumentation set.
+
+    Exact-set matching guards against an unexpected extra Claude tool
+    slipping through untested, while still confirming Edit and Write are
+    present so the subagent can add tests, fixtures, or scratch
+    instrumentation.
+    """
     claude = load_provider("alchemist", "claude")
 
-    assert claude["enabled"] is True, "Alchemist must be enabled on Claude Code"
-    assert claude["model"] == "sonnet", (
-        "Alchemist must use sonnet on Claude Code to match the Codex Spark choice"
-    )
     tools = cast("list[str]", claude["tools"])
-    assert {"Edit", "Write"}.issubset(set(tools)), (
-        "Alchemist's Claude tools must include Edit and Write so the subagent "
-        "can add tests, fixtures, or scratch instrumentation"
+    assert set(tools) == {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}, (
+        "Alchemist's Claude tools must be exactly Bash, Read, Grep, Glob, "
+        "Edit, Write so it can instrument and run experiments but gains no "
+        "other grants"
     )
 
 
@@ -125,10 +150,6 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
     """Scrutineer's Claude tooling must stay read-only: no Edit or Write."""
     claude = load_provider("scrutineer", "claude")
 
-    assert claude["enabled"] is True, "Scrutineer must be enabled on Claude Code"
-    assert claude["model"] == "sonnet", (
-        "Scrutineer must use sonnet on Claude Code to match the Codex Spark choice"
-    )
     tools = cast("list[str]", claude["tools"])
     assert {"Bash", "Read", "Grep", "Glob"} == set(tools), (
         "Scrutineer's Claude tools must be exactly Bash, Read, Grep, Glob so "

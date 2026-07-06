@@ -529,6 +529,9 @@ def test_system_phase_uses_temporary_checkout_and_installs_system_packages(
                 "HOME": home.as_posix(),
                 "RUN_LOG": run_log.as_posix(),
                 "UBUNTU_APT_MIRROR": "https://mirror.example.invalid/ubuntu/",
+                # Pin the codename so the phase stays deterministic regardless of
+                # the host's /etc/os-release (RHEL derivatives omit VERSION_CODENAME).
+                "UBUNTU_CODENAME": "noble",
             },
         )
 

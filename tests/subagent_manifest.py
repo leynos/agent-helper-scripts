@@ -84,6 +84,17 @@ def load_subagent_entries() -> list[dict[str, object]]:
 def load_subagent_entry(name: str) -> dict[str, object]:
     """Return the manifest entry whose ``name`` matches the supplied value.
 
+    Parameters
+    ----------
+    name : str
+        The ``name`` field of the manifest entry to return.
+
+    Returns
+    -------
+    dict[str, object]
+        The validated manifest entry mapping whose ``name`` field equals
+        *name*.
+
     Raises
     ------
     OSError
@@ -108,6 +119,20 @@ def load_subagent_entry(name: str) -> dict[str, object]:
 
 def load_provider(name: str, provider: str) -> dict[str, object]:
     """Return the named subagent's provider sub-mapping from the manifest.
+
+    Parameters
+    ----------
+    name : str
+        The ``name`` field of the manifest entry to look up.
+    provider : str
+        The provider key (for example ``"codex"``, ``"claude"``, or
+        ``"goose"``) whose sub-mapping should be returned.
+
+    Returns
+    -------
+    dict[str, object]
+        The provider sub-mapping stored under ``providers[provider]`` for
+        the named subagent entry.
 
     Raises
     ------
