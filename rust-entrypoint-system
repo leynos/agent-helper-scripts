@@ -23,6 +23,10 @@ source "${SCRIPT_DIR}/bootstrap-common"
 PHASE_INSTALL_GLOW=${INSTALL_GLOW:-0}
 PHASE_KOPIA_BUCKET=${KOPIA_BUCKET:-}
 PHASE_UBUNTU_APT_MIRROR=${UBUNTU_APT_MIRROR:-http://mirror.math.princeton.edu/pub/ubuntu/}
+# Optional override for the Ubuntu release codename. When empty the codename is
+# read from /etc/os-release; set it to keep the phase deterministic on hosts
+# whose os-release omits VERSION_CODENAME (for example RHEL derivatives).
+PHASE_UBUNTU_CODENAME=${UBUNTU_CODENAME:-}
 PHASE_WITH_ADD_REPOSITORIES=${WITH_ADD_REPOSITORIES:-1}
 PHASE_WITH_AI_TOOLING=${WITH_AI_TOOLING:-0}
 PHASE_WITH_MOLD_LD_OVERRIDE=${WITH_MOLD_LD_OVERRIDE:-0}
@@ -53,6 +57,8 @@ function run_fs_install()
 # Parameters:
 #   $1 - Ubuntu mirror URL.
 #   $2 - Privilege command, empty when already root.
+#   $3 - Optional codename override; when empty the codename is read from
+#        /etc/os-release.
 # Returns:
 #   0 when source files are written and APT list state is cleared.
 # Side effects:
@@ -62,14 +68,23 @@ function configure_ubuntu_sources()
 {
   local ubuntu_mirror=$1
   local sudo_cmd=$2
-  local codename
+  local codename=${3:-}
   local ubuntu_sources_tmp
 
-  codename="$(
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    printf '%s\n' "${VERSION_CODENAME}"
-  )"
+  if [[ -z "${codename}" ]]; then
+    codename="$(
+      # shellcheck source=/dev/null
+      . /etc/os-release
+      # Default under `set -u`: a missing VERSION_CODENAME (as on RHEL
+      # derivatives) must surface as the clear diagnostic below, not a
+      # cryptic "unbound variable" abort of the whole phase.
+      printf '%s\n' "${VERSION_CODENAME:-}"
+    )"
+  fi
+  if [[ -z "${codename}" ]]; then
+    bootstrap_log "Error: could not determine the Ubuntu release codename; set UBUNTU_CODENAME to override"
+    exit 1
+  fi
   ubuntu_sources_tmp=$(mktemp)
   cat > "${ubuntu_sources_tmp}" <<EOF
 Types: deb
@@ -182,7 +197,7 @@ if needs sudo && [[ -n "${sudo_cmd}" ]]; then
   bootstrap_log "Error: sudo is required for the system phase when not running as root"
   exit 1
 fi
-configure_ubuntu_sources "${PHASE_UBUNTU_APT_MIRROR}" "${sudo_cmd}"
+configure_ubuntu_sources "${PHASE_UBUNTU_APT_MIRROR}" "${sudo_cmd}" "${PHASE_UBUNTU_CODENAME}"
 run_apt_update_if_stale "${SCRIPT_DIR}" "${sudo_cmd}"
 bootstrap_log "Installing required packages: ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils"
 $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -- ca-certificates curl git gnupg tar xz-utils unzip wget apt-utils

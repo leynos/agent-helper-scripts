@@ -304,6 +304,54 @@ CI:
   - Use this when iterating on `rust-entrypoint`, `rust-entrypoint-system`, or
     `rust-entrypoint-home`.
 
+## Subagent manifest
+
+`agents/subagents.yml` is the provider-neutral source of truth for the managed
+subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`). For the user-facing
+description of what each subagent does and how downstream provisioning renders
+the manifest, see the `## Sub-agent definitions` section in
+[docs/users-guide.md](users-guide.md). This section covers the test-loader
+concerns only.
+
+### Test helper: `tests/subagent_manifest.py`
+
+`tests/subagent_manifest.py` loads the manifest with `yaml.safe_load` and
+performs structural validation, exposing three public functions:
+
+- `load_subagent_entries()` — returns every `agent_tools_subagents` entry as a
+  validated mapping.
+- `load_subagent_entry(name)` — returns the single entry whose `name` field
+  matches the supplied value; raises `LookupError` if no such entry exists.
+- `load_provider(name, provider)` — returns the provider sub-mapping stored
+  under `providers[provider]` for the named entry; raises `TypeError` when the
+  entry carries no `providers` mapping or the provider value is not a mapping,
+  and `LookupError` when the named provider block is absent.
+
+The module deliberately surfaces typed errors at every structural boundary:
+`OSError` (manifest unreadable), `yaml.YAMLError` (invalid YAML), `TypeError`
+(unexpected shape), and `LookupError` (missing entry or provider). This ensures
+a malformed manifest fails loudly rather than silently producing empty or
+incorrect test data.
+
+### Test suites
+
+Two test suites consume the helper:
+
+- `tests/test_subagent_definitions.py` — happy-path deployment-contract
+  regressions. It asserts specific model choices, sandbox modes, tool grants,
+  and load-bearing instruction prose for each subagent. Any edit that weakens
+  one of those values fails a test rather than silently degrading a provisioned
+  agent.
+- `tests/test_subagent_manifest.py` — error-path coverage of the loader. It
+  exercises the typed-error contract directly, confirming that malformed or
+  incomplete manifests produce the expected exception types.
+
+### PyYAML dependency
+
+PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
+`[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
+dependency of any bootstrap script; only the manifest test helper imports it.
+
 ## Validation expectations
 
 When changing bootstrap behaviour in this repository, replay the usual

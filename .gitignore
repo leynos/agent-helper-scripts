@@ -191,15 +191,13 @@ cython_debug/
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
-.cursorindexingignore<<<<<<< ours
+.cursorindexingignore
 
+# GrepAI local index
 .grepai/
 
-||||||| original
-
-=======
-
+# Windows "mark of the web" metadata streams
 *:Zone.Identifier
-.grepai
 
->>>>>>> theirs
+# memtrace local knowledge-graph database
+.memdb/
