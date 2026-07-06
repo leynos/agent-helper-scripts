@@ -9,5 +9,6 @@ dev = [
   "cuprum",
   "hypothesis",
   "pytest",
+  "pyyaml>=6.0.3",
   "syrupy",
 ]
