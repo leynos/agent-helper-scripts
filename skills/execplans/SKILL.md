@@ -173,7 +173,7 @@ Validation is not optional:
 
 Capture evidence:
 
-- When steps produce output, include concise transcripts as indented examples.
+- When steps produce output, include concise transcripts as codefenced examples.
 - Keep evidence focused on what proves success.
 
 ## Mandatory living sections (always present)
@@ -383,9 +383,9 @@ Quality method (how we check):
 If steps can be repeated safely, say so. If a step is risky, provide a safe
 retry or rollback path. Keep the environment clean after completion.
 
-## Artifacts and notes
+## Artefacts and notes
 
-Include the most important transcripts, diffs, or snippets as indented
+Include the most important transcripts, diffs, or snippets as codefenced
 examples. Keep them concise and focused on what proves success.
 
 ## Interfaces and dependencies
