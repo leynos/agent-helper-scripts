@@ -200,4 +200,7 @@ cython_debug/
 *:Zone.Identifier
 
 # memtrace local knowledge-graph database
-.memdb/mutants/
+.memdb/
+
+# mutmut mutation-testing working copy and results
+mutants/
