@@ -3,6 +3,17 @@ name = "agent-helper-scripts"
 version = "0.0.0"
 requires-python = ">=3.13"
 
+[tool.mutmut]
+# The only importable Python product code is the Stop-hook script in
+# hooks/; its co-located pytest module loads it in-process via importlib
+# (Path(__file__)-relative), so mutants are attributable inside mutmut's
+# mutants/ sandbox. The tests/ suite exercises shell scripts and
+# repository files through root-relative paths the sandbox does not
+# copy, so it stays outside the mutation test selection.
+source_paths = ["hooks/"]
+do_not_mutate = ["hooks/test_*.py"]
+pytest_add_cli_args_test_selection = ["hooks/"]
+
 [dependency-groups]
 dev = [
   "cmd-mox",

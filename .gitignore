@@ -200,4 +200,4 @@ cython_debug/
 *:Zone.Identifier
 
 # memtrace local knowledge-graph database
-.memdb/
+.memdb/mutants/
