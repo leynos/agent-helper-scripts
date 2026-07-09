@@ -32,7 +32,12 @@ import pytest
 def _load_hook_module() -> ModuleType:
     """Load the hook script as a module despite the dashes in the filename."""
     hook_path = Path(__file__).parent / "post-turn-quality-stop-hook.py"
-    spec = importlib.util.spec_from_file_location("post_turn_quality_stop_hook", hook_path)
+    # The module name must match the path-derived name mutmut assigns
+    # ("hooks.<file stem>"), so mutation runs can attribute trampoline
+    # hits recorded by this suite to the mutants it generates.
+    spec = importlib.util.spec_from_file_location(
+        "hooks.post-turn-quality-stop-hook", hook_path
+    )
     assert spec is not None, "expected import spec to be created for hook module"
     assert spec.loader is not None, "expected import spec loader for hook module"
     mod = importlib.util.module_from_spec(spec)
