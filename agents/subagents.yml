@@ -78,6 +78,19 @@ agent_tools_subagents:
         model: gpt-5.3-codex-spark
         reasoning_effort: medium
         sandbox_mode: read-only
+        nickname_candidates:
+          - wyvern
+          - ashwing
+          - grothkelm
+          - vesperax
+          - cindermaw
+          - thalweg
+          - quartzskein
+          - brondwythe
+          - sablerift
+          - noctule
+          - harroway
+          - scoriath
       claude:
         enabled: true
         scope: user
