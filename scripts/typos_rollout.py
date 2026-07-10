@@ -402,6 +402,84 @@ def _refresh_local(source: Path, cache: Path, metadata: Path) -> RefreshResult:
     return RefreshResult("refreshed", cache)
 
 
+def _conditional_headers(saved: Mapping[str, object]) -> dict[str, str]:
+    """Build conditional HTTP headers from persisted validators."""
+    headers = {}
+    if isinstance(saved.get("etag"), str):
+        headers["If-None-Match"] = saved["etag"]
+    if isinstance(saved.get("last_modified"), str):
+        headers["If-Modified-Since"] = saved["last_modified"]
+    return headers
+
+
+def _write_remote_cache(
+    source: str,
+    cache: Path,
+    metadata: Path,
+    response: Response,
+) -> RefreshResult:
+    """Validate and atomically persist a remote dictionary response."""
+    content = response.read()
+    _dictionary_from_text(content.decode())
+    _atomic_write(cache, content)
+    _write_metadata(
+        metadata,
+        {
+            "source": source,
+            "etag": response.headers.get("ETag"),
+            "last_modified": response.headers.get("Last-Modified"),
+        },
+    )
+    return RefreshResult("refreshed", cache)
+
+
+def _remote_response_result(
+    source: str,
+    cache: Path,
+    metadata: Path,
+    saved: Mapping[str, object],
+    response: Response,
+) -> RefreshResult:
+    """Return the cache result for a successful HTTP response."""
+    if response.status == 304 and _valid_cache(cache):
+        return RefreshResult("current", cache)
+    if _valid_cache(cache) and _remote_is_not_newer(saved, response.headers):
+        return RefreshResult("current", cache)
+    return _write_remote_cache(source, cache, metadata, response)
+
+
+def _stale_cache_or_raise(cache: Path, error: OSError | URLError) -> RefreshResult:
+    """Return a valid stale cache or propagate the download failure."""
+    if _valid_cache(cache):
+        return RefreshResult("stale-cache", cache)
+    raise error
+
+
+def _http_error_result(cache: Path, error: HTTPError) -> RefreshResult:
+    """Translate an HTTP failure into the available cache result."""
+    if error.code == 304 and _valid_cache(cache):
+        return RefreshResult("current", cache)
+    return _stale_cache_or_raise(cache, error)
+
+
+def _refresh_http(
+    source: str,
+    cache: Path,
+    metadata: Path,
+    opener: Callable[..., Response],
+) -> RefreshResult:
+    """Refresh a cache from a remote source with validated stale fallback."""
+    saved = _read_metadata(metadata)
+    request = Request(source, headers=_conditional_headers(saved))
+    try:
+        with opener(request, timeout=30.0) as response:
+            return _remote_response_result(source, cache, metadata, saved, response)
+    except HTTPError as error:
+        return _http_error_result(cache, error)
+    except (OSError, URLError) as error:
+        return _stale_cache_or_raise(cache, error)
+
+
 def refresh_base(
     source: str | Path,
     cache: Path,
@@ -446,42 +524,7 @@ def refresh_base(
         return RefreshResult("offline-cache", cache)
     if isinstance(source, Path) or "://" not in source_text:
         return _refresh_local(Path(source_text), cache, metadata)
-
-    saved = _read_metadata(metadata)
-    headers = {}
-    if isinstance(saved.get("etag"), str):
-        headers["If-None-Match"] = saved["etag"]
-    if isinstance(saved.get("last_modified"), str):
-        headers["If-Modified-Since"] = saved["last_modified"]
-    request = Request(source_text, headers=headers)
-    try:
-        with opener(request, timeout=30.0) as response:
-            if response.status == 304 and _valid_cache(cache):
-                return RefreshResult("current", cache)
-            if _valid_cache(cache) and _remote_is_not_newer(saved, response.headers):
-                return RefreshResult("current", cache)
-            content = response.read()
-            _dictionary_from_text(content.decode())
-            _atomic_write(cache, content)
-            _write_metadata(
-                metadata,
-                {
-                    "source": source_text,
-                    "etag": response.headers.get("ETag"),
-                    "last_modified": response.headers.get("Last-Modified"),
-                },
-            )
-    except HTTPError as error:
-        if error.code == 304 and _valid_cache(cache):
-            return RefreshResult("current", cache)
-        if _valid_cache(cache):
-            return RefreshResult("stale-cache", cache)
-        raise
-    except (OSError, URLError):
-        if _valid_cache(cache):
-            return RefreshResult("stale-cache", cache)
-        raise
-    return RefreshResult("refreshed", cache)
+    return _refresh_http(source_text, cache, metadata, opener)
 
 
 def harvest_oxford_forms(text: str) -> tuple[str, ...]:
