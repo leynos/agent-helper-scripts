@@ -440,7 +440,7 @@ def test_apt_lists_exist_matches_only_real_index_files(
     content: str,
     expected: str,
 ) -> None:
-    """apt_lists_exist recognises only underscore-anchored APT index files."""
+    """apt_lists_exist recognizes only underscore-anchored APT index files."""
     lists_dir = tmp_path / "apt" / "lists"
     lists_dir.mkdir(parents=True)
     if filename is not None:

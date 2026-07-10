@@ -47,7 +47,7 @@ purpose, declared in the `[dependency-groups] dev` array of `pyproject.toml`.
   per-provider drift is structurally prevented.
 - Tests fail loudly when a deployment contract is weakened, making regressions
   easy to attribute to a specific change.
-- Typed errors from the loader localise manifest mistakes to the precise
+- Typed errors from the loader localize manifest mistakes to the precise
   structural boundary that is violated.
 
 **Costs and trade-offs:**

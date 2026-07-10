@@ -44,7 +44,7 @@ Use these defaults unless the user asks otherwise:
 - Output mode: `--toon --compact` for token efficiency.
 - Scope: always include `--workspace`; add `--project` when known.
 - Query language: English.
-- Query style: describe behavior and intent, not symbol spelling.
+- Query style: describe behaviour and intent, not symbol spelling.
 
 ## Standard Workflow
 
@@ -109,7 +109,7 @@ Bad query examples:
 Guidelines:
 
 - 3 to 7 words is usually best.
-- Prefer behavior and outcomes over syntax.
+- Prefer behaviour and outcomes over syntax.
 
 ## Output Mode Selection
 

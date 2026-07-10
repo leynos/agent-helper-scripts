@@ -157,7 +157,7 @@ See [references/anti-patterns.md](references/anti-patterns.md) for common violat
 Consult [references/language-specific.md](references/language-specific.md) for:
 - Python: Protocol classes, ABC, structural vs nominal typing
 - TypeScript: Interface patterns, dependency injection approaches
-- Go: Interface satisfaction, package organisation
+- Go: Interface satisfaction, package organization
 - Rust: Trait definitions, module boundaries
 
 ## Decision Records

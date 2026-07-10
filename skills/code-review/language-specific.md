@@ -61,7 +61,7 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] All function signatures have type hints
 - [ ] Return types specified (including `-> None`)
 - [ ] `Optional[X]` or `X | None` for nullable types
-- [ ] Generic types parameterised (`list[str]` not `list`)
+- [ ] Generic types parameterized (`list[str]` not `list`)
 - [ ] `TypedDict` or dataclass for structured dicts
 - [ ] `mypy` passes in strict mode (or project's configured mode)
 

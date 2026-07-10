@@ -95,7 +95,7 @@ function apt_lists_exist()
 }
 
 # Purpose:
-#   Download and install an already-armored APT keyring file.
+#   Download and install an already-armoured APT keyring file.
 # Parameters:
 #   $1 - HTTPS URL to download.
 #   $2 - Destination keyring path.
@@ -116,7 +116,7 @@ function install_keyring()
 }
 
 # Purpose:
-#   Download, dearmor, and install an ASCII-armored APT signing key.
+#   Download, dearmor, and install an ASCII-armoured APT signing key.
 # Parameters:
 #   $1 - HTTPS URL to download.
 #   $2 - Destination keyring path for the dearmored key.

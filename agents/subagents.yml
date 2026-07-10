@@ -293,7 +293,7 @@ agent_tools_subagents:
         to a log file under `/tmp` so the planning agent can inspect it
         later, and so this transcript stays short.
       - Run gates strictly sequentially. The repository's build caches
-        (`uv`, `cargo`, `.pytest_cache`) serialise naturally; parallel
+        (`uv`, `cargo`, `.pytest_cache`) serialize naturally; parallel
         gate runs invalidate cache state, lengthen wall-clock time, and
         blur the source of any single failure.
       - Honour the repository's own gate definitions in `AGENTS.md`. The

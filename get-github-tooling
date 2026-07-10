@@ -22,14 +22,14 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
 fi
 
 # Purpose:
-#   Extract the expected checksum for a release artifact.
+#   Extract the expected checksum for a release artefact.
 # Parameters:
-#   $1 - Artifact filename to look up.
+#   $1 - Artefact filename to look up.
 #   $2 - Checksum file path.
 # Returns:
 #   Prints the checksum to stdout.
 # Side effects:
-#   Reads the checksum file and exits if the artifact is missing.
+#   Reads the checksum file and exits if the artefact is missing.
 function release_checksum()
 {
   local artifact_name=$1

@@ -1,0 +1,33 @@
+# Repository-specific identifiers and deliberate negative spelling fixtures.
+
+schema = 1
+
+[oxford]
+stems = []
+
+[words]
+accepted = [
+  "ANALYZER",
+  "MOLD",
+  "analyzer",
+  "ises",
+  "mold",
+]
+
+[words.corrections]
+
+[patterns]
+ignore = [
+  'RUST_ANALYZER(?:_PRECHECK)?',
+  '\brust-analyzer\b',
+  '\bMOLD\b',
+  '\bmold\b',
+  '\bartifact_name\b',
+  '\bcolor:',
+]
+
+[files]
+exclude = [
+  "tests/test_typos_rollout.py",
+  "typos.local.toml",
+]

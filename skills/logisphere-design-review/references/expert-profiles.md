@@ -41,7 +41,7 @@ plausible idea.
 - What prior art exists? Has someone solved a structurally similar problem in another domain?
 - If we fast-forward two years, what's most likely to need changing? Does the design accommodate that?
 
-**Red flags:** No alternatives considered, designing for requirements that don't exist yet, premature optimisation disguised as architecture, complexity justified by hypothetical future needs.
+**Red flags:** No alternatives considered, designing for requirements that don't exist yet, premature optimization disguised as architecture, complexity justified by hypothetical future needs.
 
 ---
 
@@ -64,7 +64,7 @@ but "what will become the bottleneck, and at what scale?"
 - How does the system behave during a traffic spike — does it shed load gracefully or fall over?
 - What needs caching, and what's the invalidation strategy?
 
-**Red flags:** No load estimates, "we'll optimise later" without identifying what to optimise, synchronous chains longer than three hops, unbounded fan-out, no cost model.
+**Red flags:** No load estimates, "we'll optimize later" without identifying what to optimize, synchronous chains longer than three hops, unbounded fan-out, no cost model.
 
 ---
 
@@ -82,7 +82,7 @@ meet. A good interface contract outlives the implementation behind it.
 - How will the API evolve? Can fields be added without breaking existing consumers (additive changes)?
 - What's the versioning strategy? How do old and new clients coexist during migration?
 - Are error responses structured and specific enough for clients to act on programmatically?
-- Is the data model normalised appropriately? Are there denormalisations, and are they justified?
+- Is the data model normalized appropriately? Are there denormalizations, and are they justified?
 - What are the trust boundaries? Where does validation occur?
 - Are there implicit contracts (ordering guarantees, delivery semantics, consistency levels) that should be explicit?
 - If two teams implemented against this spec independently, would the results be interoperable?

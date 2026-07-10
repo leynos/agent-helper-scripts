@@ -173,7 +173,7 @@ export ANSIBLE_TEST_PREFER_PODMAN=1
 
 ## Phase 3 — Molecule setup (roles)
 
-### 3a. Initialise a new Molecule scenario
+### 3a. Initialize a new Molecule scenario
 
 Run from inside the role directory
 (`~/ansible_collections/<ns>/<col>/roles/<role>/`):
@@ -182,7 +182,7 @@ Run from inside the role directory
 molecule init scenario default --driver-name podman
 ```
 
-If the role directory does not yet exist, initialise it first:
+If the role directory does not yet exist, initialize it first:
 
 ```bash
 cd ~/ansible_collections/<ns>/<col>
@@ -430,7 +430,7 @@ Rules for new scenarios:
 ### 3g. Molecule performance guidance
 
 Molecule should be the default end-to-end test harness, but keep it fast
-enough that developers will actually run it. Optimise in this order:
+enough that developers will actually run it. Optimize in this order:
 
 1. **Use Podman with pre-built, Python-enabled images**
    - Keep `pre_build_image: true` for pulled or locally built images that
@@ -466,7 +466,7 @@ enough that developers will actually run it. Optimise in this order:
 3. **Use the shortest useful Molecule command while developing**
    - Fast role iteration: `molecule converge`
    - Check assertions after a converge: `molecule verify`
-   - Check idempotence after behaviour stabilises:
+   - Check idempotence after behaviour stabilizes:
      `molecule converge && molecule idempotence`
    - Commit gate: `molecule test`
    - Keep containers during a focused local debugging loop with
@@ -513,7 +513,7 @@ enough that developers will actually run it. Optimise in this order:
    - `--workers` requires collection mode with `galaxy.yml`.
    - Use `shared_state: true` in scenario configs when using the native
      worker mode so the default scenario owns shared create/destroy lifecycle.
-   - Treat this as a CI or dedicated-runner optimisation. In shared agent
+   - Treat this as a CI or dedicated-runner optimization. In shared agent
      workspaces, follow the host instructions and run gates sequentially.
    - Do not combine `--workers > 1` with `--destroy=never`.
 
@@ -522,7 +522,7 @@ enough that developers will actually run it. Optimise in this order:
      is an extra strategy plugin and must be validated against the project's
      ansible-core version before becoming the default.
    - Do not add it to a generated scenario unless the user asks for it or the
-     collection already standardises on it.
+     collection already standardizes on it.
 
 When improving a slow suite, time the baseline and each change:
 

@@ -306,7 +306,7 @@ https://zod.dev/v4/changelog. A community codemod `zod-v3-to-v4` is available.
 18. **Error map precedence changed:** schema-level `error` now takes priority over
     parse-time `error`.
 19. **`z.record()` with enum keys is now exhaustive** — all enum members must be present.
-    Use `z.partialRecord()` for the old behavior.
+    Use `z.partialRecord()` for the old behaviour.
 20. **`.pick()` / `.omit()` on refined schemas now throws** (4.3+) — previously silently
     dropped refinements.
 

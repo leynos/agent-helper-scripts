@@ -1,6 +1,6 @@
 # Lint Solutions Reference
 
-Solutions for non-obvious Biome lint errors. Organised by rule category.
+Solutions for non-obvious Biome lint errors. Organized by rule category.
 
 ## Suspicious Category
 

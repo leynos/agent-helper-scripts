@@ -281,6 +281,30 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
+### Shared en-GB-oxendict spelling data
+
+The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
+generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
+there only when it is valid across repositories. Product names, quoted
+upstream terms and fixture-specific vocabulary belong in the consumer
+repository's tracked `typos.local.toml` overlay.
+
+The executable `scripts/typos_rollout.py` provides two commands. `harvest`
+emits JSON Lines evidence for both plain-British `-ise` and Oxford `-ize`
+forms found in Git-tracked UTF-8 text. `generate` conditionally refreshes the
+untracked `.typos-oxendict-base.toml` cache, merges any local overlay, validates
+the result as TOML, and atomically writes deterministic `typos.toml` output.
+The companion `.typos-oxendict-base.json` stores HTTP validators. When the
+network is unavailable, a valid existing cache remains usable with
+`--offline`; generation fails rather than silently inventing an empty base when
+no cache exists.
+
+Run `make spelling` after dictionary or generator changes. The target generates
+the committed config from the local authoritative base and runs the version of
+`typos` pinned by `TYPOS_VERSION`. The full `make ci` sequence includes this
+gate. Tests assert byte-for-byte config drift, TOML validity, cache freshness,
+offline recovery and real-binary Oxford behaviour.
+
 - `make ci`
   - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, and
     `test`.

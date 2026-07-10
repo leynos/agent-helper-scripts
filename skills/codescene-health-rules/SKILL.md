@@ -3,7 +3,7 @@ name: codescene-health-rules
 description: >
   Generate, modify, or audit `.codescene/code-health-rules.json` files that control
   CodeScene's code health scan behaviour. Use this skill whenever the user wants to
-  customise CodeScene rule weights, disable specific smells, adjust metric thresholds,
+  customize CodeScene rule weights, disable specific smells, adjust metric thresholds,
   scope rules to test vs application code, apply language-specific overrides, or add
   in-source `@codescene` directives. Also trigger when the user asks why a CodeScene
   rule is firing, or wants to suppress a smell across a repo or folder subtree.

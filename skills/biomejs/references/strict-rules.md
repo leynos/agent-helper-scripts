@@ -1,6 +1,6 @@
 # Strict Rules Reference
 
-Rules beyond "recommended" for teams wanting tighter code quality. Organised by goal.
+Rules beyond "recommended" for teams wanting tighter code quality. Organized by goal.
 
 ## Type Safety Hardening
 

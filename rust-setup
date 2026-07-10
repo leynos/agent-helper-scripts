@@ -19,7 +19,7 @@ RUST_ANALYZER_PRECHECK=${RUST_ANALYZER_PRECHECK:-0}
 # Returns:
 #   0 when cargo metadata, cargo check, and optional rust-analyzer checks pass.
 # Side effects:
-#   Runs cargo in the current workspace and may update Cargo build artifacts.
+#   Runs cargo in the current workspace and may update Cargo build artefacts.
 perform_rust_pre_build() {
   cargo metadata --format-version=1 >/dev/null
   cargo check --workspace --all-targets

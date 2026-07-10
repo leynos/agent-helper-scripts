@@ -302,7 +302,7 @@ func InitializeServer(cfg *config.Config) (*Server, error) {
 }
 ```
 
-### Package Organisation
+### Package Organization
 
 ```
 /
@@ -422,7 +422,7 @@ impl Money {
 }
 ```
 
-### Module Organisation
+### Module Organization
 
 ```
 src/

@@ -24,7 +24,7 @@ or API.
 1. Identify the run handle: run ID, workflow name, run directory, or dashboard
    entry.
 2. Read current state before acting.
-3. Follow events or inspect artifacts depending on the question.
+3. Follow events or inspect artefacts depending on the question.
 4. Use controls only when the user asks or the run is clearly exceeding the
    agreed envelope.
 5. Inspect `result.json` or `error.json` before taking follow-up action.
@@ -90,7 +90,7 @@ For live progress:
 odw logs <run_id> --follow
 ```
 
-For artifact-level diagnosis:
+For artefact-level diagnosis:
 
 ```bash
 RUN_DIR=$(find "${ODW_RUNS_ROOT:-$HOME/.odw/runs}" -type d -name '<run_id>' -print -quit)
@@ -101,7 +101,7 @@ tail -n 200 "$RUN_DIR/worker.log"
 ```
 
 Prefer the CLI first. Drop to files when the CLI cannot find the run, the user
-asks for raw artifacts, or you need to distinguish workflow errors from worker
+asks for raw artefacts, or you need to distinguish workflow errors from worker
 process errors.
 
 Terminal states are `done`, `failed`, and `stopped`. A run in a terminal state
@@ -221,14 +221,14 @@ Use this order:
 ## Workspace Mode Diagnosis
 
 Always check workspace mode when a run involves implementation, review, build
-artifacts, git worktrees, commits, merges, or multi-provider handoff through
+artefacts, git worktrees, commits, merges, or multi-provider handoff through
 files. The key question is whether later `agent()` calls were supposed to see
 state created by earlier `agent()` calls.
 
 In `workspaceMode: "copy"`, each agent runs in a throwaway copy of the source
 tree. Symptoms of using copy mode for a stateful workflow include:
 
-- A later agent cannot find a file, branch, worktree path, build artifact, or
+- A later agent cannot find a file, branch, worktree path, build artefact, or
   commit that an earlier agent reported creating.
 - A workflow returns patches or summaries, but the real `--source` tree did not
   change.
@@ -240,7 +240,7 @@ tree. Symptoms of using copy mode for a stateful workflow include:
 In `workspaceMode: "inplace"`, agents run in the real `--source` directory.
 Symptoms and risks are different:
 
-- File changes, build artifacts, branches, git worktrees, commits, merges, and
+- File changes, build artefacts, branches, git worktrees, commits, merges, and
   pushes may be real side effects, not just workflow output.
 - Concurrent agents can collide unless the workflow uses independent worktrees
   or serializes shared git operations behind one integration lock.
@@ -288,7 +288,7 @@ changes. Before acting:
   the result.
 - Validate changes in the target repo with that repo's gates before committing.
 - Report failed or stopped runs with the concrete state, useful log lines, and
-  artifact paths.
+  artefact paths.
 
 ODW does not commit, push, merge, or apply diffs by itself. Those remain host
 agent responsibilities after inspection.

@@ -54,7 +54,7 @@ repeated carets will therefore reach the server with a single literal caret.
 Deeply nested workspaces can easily exceed the traditional `MAX_PATH` limit on
 Windows. The environment manager now asks the filesystem for a short (8.3)
 alias whenever the shim directory path would overflow the limit, ensuring shims
-remain invokable while still cleaning up the real directory afterwards. PATH
+remain invocable while still cleaning up the real directory afterwards. PATH
 filtering honours the underlying filesystem semantics too, so variations in
 casing no longer leave behind duplicate entries when passthrough spies merge
 their lookup paths.

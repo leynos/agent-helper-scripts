@@ -94,7 +94,7 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
 - [ ] No `in` checks against lists inside loops
 - [ ] No `list.index()` inside loops
 - [ ] No string concatenation with `+=` in loops
-- [ ] DataFrame operations vectorised, not row-by-row
+- [ ] DataFrame operations vectorized, not row-by-row
 - [ ] Regex compiled outside loops (`re.compile`)
 - [ ] Sorting not repeated unnecessarily
 
@@ -589,7 +589,7 @@ def handle_request(request):
 
 ---
 
-## Startup & Initialisation
+## Startup & Initialization
 
 ### Eager Loading
 
@@ -630,7 +630,7 @@ def rarely_used_function():
 - [ ] Heavy imports deferred until needed
 - [ ] Large data loaded lazily
 - [ ] Startup path profiled
-- [ ] Health checks don't trigger expensive initialisation
+- [ ] Health checks don't trigger expensive initialization
 
 ---
 

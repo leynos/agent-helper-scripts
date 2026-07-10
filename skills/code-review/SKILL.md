@@ -226,7 +226,7 @@ The code should not introduce vulnerabilities.
 - No SQL/command/log/XSS injection vectors
 - No hardcoded secrets
 - Appropriate use of cryptographic primitives
-- Safe deserialisation
+- Safe deserialization
 - No TOCTOU race conditions
 
 **See:** `guides/security-issues.md` for detailed patterns and examples.
@@ -339,7 +339,7 @@ If something is particularly well done, say so. Positive reinforcement shapes fu
 
 ### Ask Questions
 
-If you don't understand why something was done a certain way, ask. The author may have context you lack. Or they may realise their approach needs better documentation.
+If you don't understand why something was done a certain way, ask. The author may have context you lack. Or they may realize their approach needs better documentation.
 
 ### Consider the Author
 
@@ -379,7 +379,7 @@ Your preferred approach isn't necessarily better. If the code works, follows con
 
 For detailed patterns and examples, see:
 
-- `guides/security-issues.md` — Injection attacks (SQL, shell, log, XSS, prompt), TOCTOU race conditions, secret exposure, authentication/authorisation flaws, cryptographic issues, deserialisation, path traversal
+- `guides/security-issues.md` — Injection attacks (SQL, shell, log, XSS, prompt), TOCTOU race conditions, secret exposure, authentication/authorisation flaws, cryptographic issues, deserialization, path traversal
 - `guides/performance-concerns.md` — Algorithmic complexity (accidental quadratic), resource leaks, bad neighbour problems, database performance, network efficiency, memory management, concurrency issues
 - `checklists/language-specific.md` — Rust, Python, TypeScript checklists
 - `examples/code-smells.md` — Before/after examples of common smells

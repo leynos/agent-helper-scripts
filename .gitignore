@@ -204,3 +204,8 @@ cython_debug/
 
 # mutmut mutation-testing working copy and results
 mutants/
+
+# Untracked cache of the estate-wide en-GB-oxendict dictionary. The generated
+# typos.toml remains tracked and is guarded by a drift test.
+.typos-oxendict-base.json
+.typos-oxendict-base.toml

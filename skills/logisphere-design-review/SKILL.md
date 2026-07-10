@@ -101,7 +101,7 @@ proposal is good. This isn't contrarianism; it's calibration. The alternative sh
 
 If no credible alternative exists, say so explicitly — that's a strong signal the design is on solid ground.
 
-### 7. Synthesise into a design verdict
+### 7. Synthesize into a design verdict
 
 Produce a unified assessment:
 
