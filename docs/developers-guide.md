@@ -283,6 +283,9 @@ CI:
 
 ### Shared en-GB-oxendict spelling data
 
+The architecture and trade-offs are recorded in
+[ADR 003](adr/003-shared-oxford-spelling-base.md).
+
 The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
 generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
 there only when it is valid across repositories. Product names, quoted
@@ -315,8 +318,8 @@ treated as Oxford `-ize` families. Future harvests must retain per-repository
 JSON Lines evidence until curation and record generic additions here.
 
 - `make ci`
-  - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, and
-    `test`.
+  - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, `test`,
+    and `spelling`.
   - Use this before pushing; it mirrors what the GitHub Actions workflow
     executes.
 - `make lint`

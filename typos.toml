@@ -1,5 +1,5 @@
 # Generated from the shared en-GB-oxendict dictionary.
-# Regenerate with scripts/typos_rollout.py; do not edit by hand.
+# Regenerate with scripts/typos_rollout_cli.py generate; do not edit by hand.
 
 [files]
 extend-exclude = [

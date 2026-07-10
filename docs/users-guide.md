@@ -49,6 +49,32 @@ shared libraries required by the user tools.
 See the [migration guide](migration-guide.md) when moving from the previous
 single-phase `rust-entrypoint` bootstrap to the system/home phase split.
 
+## Shared spelling tools
+
+Run `make spelling` in this checkout to generate and validate the estate-wide
+en-GB-oxendict configuration. The command uses the tracked shared base in
+`data/typos-oxendict-base.toml`, merges repository-only exceptions from
+`typos.local.toml`, writes generated `typos.toml`, and checks the repository
+with the pinned `typos` version.
+
+Consumer repositories use the same generation model. Their generator fetches
+the shared base into ignored `.typos-oxendict-base.toml` and records freshness
+metadata in `.typos-oxendict-base.json`. A valid cache supports offline runs;
+the tracked `typos.toml` remains deterministic and reviewable.
+
+The rollout CLI exposes the underlying operations:
+
+```bash
+uv run --script scripts/typos_rollout_cli.py generate --repository .
+uv run --script scripts/typos_rollout_cli.py harvest ../project
+```
+
+`generate` accepts a local path or HTTP URL with `--source`, and `--offline`
+requires an existing valid cache. `harvest` emits JSON Lines evidence for
+Oxford `-ize` and plain-British `-ise` candidates in Git-tracked UTF-8 text.
+Generic spellings belong in the shared base; product names, quoted upstream
+terms, and deliberate fixtures belong in a consumer's `typos.local.toml`.
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`

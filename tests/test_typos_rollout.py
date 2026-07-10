@@ -12,6 +12,8 @@ import types
 import typing as typ
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "typos_rollout.py"
@@ -24,7 +26,8 @@ COMMITTED_CONFIG_PATH = REPOSITORY_ROOT / "typos.toml"
 def rollout_fixture() -> types.ModuleType:
     """Load the executable script as a module for focused unit tests."""
     spec = importlib.util.spec_from_file_location("typos_rollout", SCRIPT_PATH)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None, "could not create a module specification"
+    assert spec.loader is not None, "module specification has no loader"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -63,10 +66,27 @@ def test_oxford_stem_generates_correct_and_incorrect_forms(
 
     mappings = rollout.generate_word_mappings(rollout.load_dictionary(source))
 
-    assert mappings["organize"] == "organize"
-    assert mappings["organise"] == "organize"
-    assert mappings["organizations"] == "organizations"
-    assert mappings["organisations"] == "organizations"
+    assert mappings["organize"] == "organize", "Oxford form was not accepted"
+    assert mappings["organise"] == "organize", "plain-British form was not corrected"
+    assert mappings["organizations"] == "organizations", "Oxford plural was not accepted"
+    assert mappings["organisations"] == "organizations", "plain-British plural was not corrected"
+
+
+@given(stem=st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=16))
+def test_oxford_mapping_property_covers_every_suffix_pair(
+    rollout: types.ModuleType,
+    stem: str,
+) -> None:
+    """Every safe stem expands to correction and identity entries."""
+    mappings = rollout.generate_word_mappings(rollout.Dictionary(stems=(stem,)))
+
+    for plain_british, oxford in rollout.SUFFIX_PAIRS:
+        assert mappings[f"{stem}{plain_british}"] == f"{stem}{oxford}", (
+            f"missing correction for {stem}{plain_british}"
+        )
+        assert mappings[f"{stem}{oxford}"] == f"{stem}{oxford}", (
+            f"missing identity for {stem}{oxford}"
+        )
 
 
 def test_merge_rejects_conflicting_corrections(
@@ -111,10 +131,13 @@ def test_rendered_config_is_deterministic_valid_toml(
     second = rollout.render_typos_config(dictionary)
     parsed = tomllib.loads(first)
 
-    assert first == second
-    assert parsed["default"]["locale"] == "en-gb"
-    assert parsed["default"]["extend-words"]["organise"] == "organize"
-    assert first.endswith("\n") and not first.endswith("\n\n")
+    assert first == second, "renderer output changed between identical calls"
+    assert parsed["default"]["locale"] == "en-gb", "generated locale is not en-gb"
+    assert parsed["default"]["extend-words"]["organise"] == "organize", (
+        "generated config omitted the Oxford correction"
+    )
+    assert first.endswith("\n"), "generated config lacks a trailing newline"
+    assert not first.endswith("\n\n"), "generated config has multiple trailing newlines"
 
 
 def test_refresh_base_copies_only_newer_local_source(
@@ -136,10 +159,35 @@ def test_refresh_base_copies_only_newer_local_source(
     os.utime(source, ns=(3_000_000_000, 3_000_000_000))
     refreshed = rollout.refresh_base(source, cache, metadata=metadata)
 
-    assert first.status == "refreshed"
-    assert unchanged.status == "current"
-    assert refreshed.status == "refreshed"
-    assert rollout.load_dictionary(cache).stems == ("newer",)
+    assert first.status == "refreshed", "first local refresh did not populate the cache"
+    assert unchanged.status == "current", "older local source replaced a newer cache"
+    assert refreshed.status == "refreshed", "newer local source did not refresh the cache"
+    assert rollout.load_dictionary(cache).stems == ("newer",), (
+        "cache does not contain the newest local source"
+    )
+
+
+def test_local_refresh_replaces_cache_from_different_source(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """An explicit local authority replaces a cache populated elsewhere."""
+    first_source = tmp_path / "first.toml"
+    second_source = tmp_path / "second.toml"
+    cache = tmp_path / ".typos-base.toml"
+    metadata = tmp_path / ".typos-base.json"
+    first_source.write_text(dictionary_text(stem="first"), encoding="utf-8")
+    second_source.write_text(dictionary_text(stem="second"), encoding="utf-8")
+    os.utime(first_source, ns=(3_000_000_000, 3_000_000_000))
+    os.utime(second_source, ns=(1_000_000_000, 1_000_000_000))
+    rollout.refresh_base(first_source, cache, metadata=metadata)
+
+    result = rollout.refresh_base(second_source, cache, metadata=metadata)
+
+    assert result.status == "refreshed", "different explicit source reused stale cache"
+    assert rollout.load_dictionary(cache).stems == ("second",), (
+        "cache did not switch to the explicit authoritative source"
+    )
 
 
 def test_refresh_base_offline_requires_valid_cache(
@@ -166,7 +214,7 @@ def test_refresh_base_offline_requires_valid_cache(
         offline=True,
     )
 
-    assert result.status == "offline-cache"
+    assert result.status == "offline-cache", "offline mode did not reuse the valid cache"
 
 
 def test_http_refresh_uses_saved_etag(
@@ -214,10 +262,14 @@ def test_http_refresh_uses_saved_etag(
         opener=opener,
     )
 
-    assert requests[1].get_header("If-none-match") == '"estate-v1"'
-    assert json.loads(metadata.read_text())["etag"] == '"estate-v1"'
-    assert first.status == "refreshed"
-    assert second.status == "current"
+    assert requests[1].get_header("If-none-match") == '"estate-v1"', (
+        "subsequent request omitted the saved ETag"
+    )
+    assert json.loads(metadata.read_text())["etag"] == '"estate-v1"', (
+        "refresh metadata omitted the response ETag"
+    )
+    assert first.status == "refreshed", "first HTTP response did not populate the cache"
+    assert second.status == "current", "unchanged HTTP response refreshed the cache"
 
 
 def test_invalid_download_does_not_replace_valid_cache(
@@ -254,7 +306,7 @@ def test_invalid_download_does_not_replace_valid_cache(
             opener=lambda *_args, **_kwargs: InvalidResponse(),
         )
 
-    assert cache.read_bytes() == original
+    assert cache.read_bytes() == original, "invalid download replaced the valid cache"
 
 
 def test_harvest_finds_both_oxford_and_plain_british_forms(
@@ -265,7 +317,7 @@ def test_harvest_finds_both_oxford_and_plain_british_forms(
         "We organize releases after organising fixtures and analyse results."
     )
 
-    assert forms == ("organising", "organize")
+    assert forms == ("organising", "organize"), "harvest omitted or added Oxford candidates"
 
 
 @pytest.mark.parametrize(
@@ -283,7 +335,41 @@ def test_harvest_excludes_dictionary_managed_paths(
     """Harvesting omits generated and dependency-managed spelling evidence."""
     dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
 
-    assert rollout.is_harvest_excluded(relative_path, dictionary)
+    assert rollout.is_harvest_excluded(relative_path, dictionary), (
+        f"managed path was not excluded: {relative_path}"
+    )
+
+
+def test_harvest_repository_merges_local_exclusions(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Repository-local excluded fixtures do not enter harvest evidence."""
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "fixture.md").write_text(
+        "The fixture deliberately says organise.\n",
+        encoding="utf-8",
+    )
+    (repository / "kept.md").write_text(
+        "The guide says organize.\n",
+        encoding="utf-8",
+    )
+    (repository / "typos.local.toml").write_text(
+        dictionary_text().replace('[files]\nexclude = [".git"]', '[files]\nexclude = ["fixture.md"]'),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q", repository], check=True)
+    subprocess.run(
+        ["git", "-C", repository, "add", "fixture.md", "kept.md", "typos.local.toml"],
+        check=True,
+    )
+
+    findings = rollout.harvest_repository(repository)
+
+    assert {finding["path"] for finding in findings} == {"kept.md"}, (
+        "harvest included a repository-local excluded fixture"
+    )
 
 
 def test_write_config_is_atomic_and_matches_renderer(
@@ -298,8 +384,10 @@ def test_write_config_is_atomic_and_matches_renderer(
 
     rollout.write_config(output, dictionary)
 
-    assert output.read_text(encoding="utf-8") == rollout.render_typos_config(dictionary)
-    assert list(tmp_path.glob(".typos.toml.*")) == []
+    assert output.read_text(encoding="utf-8") == rollout.render_typos_config(dictionary), (
+        "written config differs from rendered config"
+    )
+    assert list(tmp_path.glob(".typos.toml.*")) == [], "atomic-write temporary file remains"
 
 
 def test_committed_config_matches_shared_dictionary(
@@ -313,17 +401,27 @@ def test_committed_config_matches_shared_dictionary(
         )
     )
 
-    assert COMMITTED_CONFIG_PATH.read_text(encoding="utf-8") == expected
+    assert COMMITTED_CONFIG_PATH.read_text(encoding="utf-8") == expected, (
+        "committed config has drifted from shared and local dictionaries"
+    )
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     """The CI entrypoint generates config and runs a pinned typos binary."""
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
-    assert "ci: check-fmt lint typecheck test spelling" in makefile
-    assert re.search(r"^TYPOS_VERSION\s*\?=\s*\S+", makefile, re.MULTILINE)
-    assert "scripts/typos_rollout_cli.py generate" in makefile
-    assert "typos@$(TYPOS_VERSION)" in makefile
+    assert "ci: check-fmt lint typecheck test" in makefile, "CI prerequisites changed"
+    assert "+$(MAKE) spelling" in makefile, "CI does not serialize spelling after tests"
+    assert re.search(r"^TYPOS_VERSION\s*\?=\s*\S+", makefile, re.MULTILINE), (
+        "Makefile does not pin typos"
+    )
+    assert "scripts/typos_rollout_cli.py generate" in makefile, (
+        "spelling target does not generate configuration"
+    )
+    assert "typos@$(TYPOS_VERSION)" in makefile, "spelling target bypasses the version pin"
+    assert "--config typos.toml --force-exclude ." in makefile, (
+        "spelling target does not apply generated configuration and exclusions"
+    )
 
 
 @pytest.mark.slow
@@ -337,7 +435,7 @@ def test_generated_config_loads_in_pinned_typos(
         pytest.skip("uv is unavailable to run the pinned typos binary")
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
     match = re.search(r"^TYPOS_VERSION\s*\?=\s*(\S+)", makefile, re.MULTILINE)
-    assert match is not None
+    assert match is not None, "TYPOS_VERSION not found in Makefile"
     config = tmp_path / "typos.toml"
     rollout.write_config(
         config,
@@ -376,6 +474,6 @@ def test_generated_config_loads_in_pinned_typos(
         if entry.get("type") == "typo"
     }
 
-    assert corrections.get("organise") == ["organize"]
-    assert corrections.get("color") == ["colour"]
-    assert "analyse" not in corrections
+    assert corrections.get("organise") == ["organize"], "Oxford correction was not enforced"
+    assert corrections.get("color") == ["colour"], "British colour spelling was not enforced"
+    assert "analyse" not in corrections, "valid -yse spelling was rejected"

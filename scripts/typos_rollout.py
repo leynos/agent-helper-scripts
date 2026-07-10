@@ -1,12 +1,24 @@
-"""Harvest and generate shared en-GB-oxendict ``typos`` configuration."""
+"""Harvest and generate shared en-GB-oxendict ``typos`` configuration.
+
+The module validates shared and repository-local dictionary data, refreshes an
+untracked cache from local or HTTP sources, renders deterministic ``typos``
+configuration, and harvests Oxford-form evidence from Git-tracked text.
+
+Examples
+--------
+Load the shared base and render its generated configuration::
+
+    base = load_dictionary(SHARED_DICTIONARY_PATH)
+    rendered = render_typos_config(base)
+"""
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 import json
-import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import tomllib
 from typing import Protocol
@@ -36,7 +48,13 @@ OXFORD_FORM = re.compile(
 
 @dataclass(frozen=True)
 class Dictionary:
-    """Curated words and exclusions used to generate a ``typos`` config."""
+    """Curated words and exclusions used to generate a ``typos`` config.
+
+    Attributes
+    ----------
+    stems, accepted, corrections, ignore_patterns, excluded_files
+        Normalized dictionary data used by merging, rendering, and harvesting.
+    """
 
     stems: tuple[str, ...] = ()
     accepted: tuple[str, ...] = ()
@@ -47,26 +65,56 @@ class Dictionary:
 
 @dataclass(frozen=True)
 class RefreshResult:
-    """Describe whether the untracked shared dictionary cache changed."""
+    """Describe whether the untracked shared dictionary cache changed.
+
+    Attributes
+    ----------
+    status
+        Stable refresh outcome such as ``refreshed`` or ``current``.
+    cache
+        Path to the validated untracked base cache.
+    """
 
     status: str
     cache: Path
 
 
 class Response(Protocol):
-    """Structural type for the small HTTP response surface used here."""
+    """Structural type for the HTTP response surface used by refreshes.
+
+    Implementations provide status and headers, return response bytes from
+    :meth:`read`, and support context-managed closure.
+    """
 
     status: int
     headers: Mapping[str, str]
 
     def read(self) -> bytes:
-        """Return the response body."""
+        """Return the response body.
+
+        Returns
+        -------
+        bytes
+            Complete response payload.
+        """
 
     def __enter__(self) -> "Response":
-        """Enter the response context."""
+        """Enter the response context.
+
+        Returns
+        -------
+        Response
+            Open response object.
+        """
 
     def __exit__(self, *args: object) -> None:
-        """Leave the response context."""
+        """Leave the response context.
+
+        Parameters
+        ----------
+        *args
+            Optional exception context supplied by the context manager.
+        """
 
 
 def _string_list(table: Mapping[str, object], key: str) -> tuple[str, ...]:
@@ -111,12 +159,44 @@ def _dictionary_from_text(text: str) -> Dictionary:
 
 
 def load_dictionary(path: Path) -> Dictionary:
-    """Load a validated shared dictionary from *path*."""
+    """Load a validated shared dictionary from a TOML file.
+
+    Parameters
+    ----------
+    path
+        Dictionary file to parse.
+
+    Returns
+    -------
+    Dictionary
+        Normalized validated dictionary data.
+
+    Raises
+    ------
+    ValueError, tomllib.TOMLDecodeError
+        If the schema or TOML content is invalid.
+    """
     return _dictionary_from_text(path.read_text(encoding="utf-8"))
 
 
 def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
-    """Merge a shared dictionary with a non-conflicting local overlay."""
+    """Merge a shared dictionary with a non-conflicting local overlay.
+
+    Parameters
+    ----------
+    base, local
+        Shared policy and repository-local additions.
+
+    Returns
+    -------
+    Dictionary
+        Deterministically merged policy.
+
+    Raises
+    ------
+    ValueError
+        If both inputs define different corrections for one word.
+    """
     corrections = dict(base.corrections)
     for word, correction in local.corrections:
         existing = corrections.get(word)
@@ -139,7 +219,23 @@ def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
 
 
 def generate_word_mappings(dictionary: Dictionary) -> dict[str, str]:
-    """Expand Oxford stems and explicit words into deterministic mappings."""
+    """Expand Oxford stems and explicit words into deterministic mappings.
+
+    Parameters
+    ----------
+    dictionary
+        Curated Oxford stems, accepted words, and explicit corrections.
+
+    Returns
+    -------
+    dict[str, str]
+        Sorted spelling-to-correction mappings.
+
+    Raises
+    ------
+    ValueError
+        If generated and explicit entries conflict.
+    """
     mappings = {word: word for word in dictionary.accepted}
 
     def add(word: str, correction: str) -> None:
@@ -174,10 +270,26 @@ def _render_array(name: str, values: tuple[str, ...]) -> list[str]:
 
 
 def render_typos_config(dictionary: Dictionary) -> str:
-    """Render a deterministic, parse-checked ``typos.toml`` document."""
+    """Render a deterministic, parse-checked ``typos.toml`` document.
+
+    Parameters
+    ----------
+    dictionary
+        Merged spelling policy to render.
+
+    Returns
+    -------
+    str
+        Valid TOML ending in one newline.
+
+    Raises
+    ------
+    ValueError, tomllib.TOMLDecodeError
+        If mappings conflict or rendered TOML is invalid.
+    """
     lines = [
         "# Generated from the shared en-GB-oxendict dictionary.",
-        "# Regenerate with scripts/typos_rollout.py; do not edit by hand.",
+        "# Regenerate with scripts/typos_rollout_cli.py generate; do not edit by hand.",
         "",
         "[files]",
         *_render_array("extend-exclude", dictionary.excluded_files),
@@ -210,7 +322,20 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 
 def write_config(path: Path, dictionary: Dictionary) -> None:
-    """Atomically write validated generated configuration to *path*."""
+    """Atomically write validated generated configuration.
+
+    Parameters
+    ----------
+    path
+        Destination ``typos.toml`` path.
+    dictionary
+        Merged spelling policy to render.
+
+    Returns
+    -------
+    None
+        The function writes the destination as its only result.
+    """
     _atomic_write(path, render_typos_config(dictionary).encode())
 
 
@@ -257,17 +382,22 @@ def _remote_is_not_newer(
 
 def _refresh_local(source: Path, cache: Path, metadata: Path) -> RefreshResult:
     """Refresh from a local authoritative copy when it is newer."""
-    if cache.exists() and source.stat().st_mtime_ns <= cache.stat().st_mtime_ns:
-        if not _valid_cache(cache):
-            raise ValueError(f"cached shared dictionary is invalid: {cache}")
+    source_stat = source.stat()
+    source_name = str(source.resolve())
+    saved = _read_metadata(metadata)
+    if (
+        _valid_cache(cache)
+        and saved.get("source") == source_name
+        and isinstance(saved.get("mtime_ns"), int)
+        and source_stat.st_mtime_ns <= saved["mtime_ns"]
+    ):
         return RefreshResult("current", cache)
     content = source.read_bytes()
     _dictionary_from_text(content.decode())
     _atomic_write(cache, content)
-    os.utime(cache, ns=(source.stat().st_atime_ns, source.stat().st_mtime_ns))
     _write_metadata(
         metadata,
-        {"source": str(source.resolve()), "mtime_ns": source.stat().st_mtime_ns},
+        {"source": source_name, "mtime_ns": source_stat.st_mtime_ns},
     )
     return RefreshResult("refreshed", cache)
 
@@ -280,7 +410,35 @@ def refresh_base(
     offline: bool = False,
     opener: Callable[..., Response] = urlopen,
 ) -> RefreshResult:
-    """Refresh an untracked base cache when the authoritative copy is newer."""
+    """Refresh an untracked base cache when its authority is newer.
+
+    Parameters
+    ----------
+    source
+        Local path or HTTP URL for the authoritative shared dictionary.
+    cache
+        Untracked local cache destination.
+    metadata
+        Sidecar path for source identity and HTTP validators.
+    offline
+        Reuse a valid cache without contacting the source.
+    opener
+        Injectable HTTP opener used for deterministic tests.
+
+    Returns
+    -------
+    RefreshResult
+        Refresh status and validated cache path.
+
+    Raises
+    ------
+    FileNotFoundError
+        If offline mode has no valid cache.
+    ValueError, tomllib.TOMLDecodeError
+        If downloaded or cached dictionary content is invalid.
+    OSError, URLError, HTTPError
+        If the source cannot be read and no valid stale cache exists.
+    """
     source_text = str(source)
     if offline:
         if not _valid_cache(cache):
@@ -327,12 +485,36 @@ def refresh_base(
 
 
 def harvest_oxford_forms(text: str) -> tuple[str, ...]:
-    """Return normalized `-ise` and `-ize` candidates found in *text*."""
+    """Return normalized ``-ise`` and ``-ize`` candidates in text.
+
+    Parameters
+    ----------
+    text
+        UTF-8 text line or document to inspect.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Sorted unique case-folded candidate forms.
+    """
     return tuple(sorted({match.group(0).casefold() for match in OXFORD_FORM.finditer(text)}))
 
 
 def is_harvest_excluded(relative: Path, dictionary: Dictionary) -> bool:
-    """Return whether shared dictionary policy excludes *relative*."""
+    """Return whether merged dictionary policy excludes a relative path.
+
+    Parameters
+    ----------
+    relative
+        Repository-relative path under consideration.
+    dictionary
+        Merged policy containing file exclusions.
+
+    Returns
+    -------
+    bool
+        ``True`` when an exclusion component or pattern matches.
+    """
     return any(
         excluded in relative.parts or relative.match(excluded)
         for excluded in dictionary.excluded_files
@@ -340,12 +522,36 @@ def is_harvest_excluded(relative: Path, dictionary: Dictionary) -> bool:
 
 
 def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
-    """Harvest Oxford-form evidence from Git-tracked UTF-8 text files."""
-    from plumbum import local
+    """Harvest Oxford-form evidence from Git-tracked UTF-8 text files.
 
+    Parameters
+    ----------
+    repository
+        Git worktree whose tracked files should be inspected.
+
+    Returns
+    -------
+    tuple[dict[str, object], ...]
+        JSON-serializable path, line, and candidate-form records.
+
+    Raises
+    ------
+    ValueError, tomllib.TOMLDecodeError
+        If shared or local dictionary policy is invalid.
+    """
     dictionary = load_dictionary(SHARED_DICTIONARY_PATH)
-    with local.cwd(repository):
-        tracked = local["git"]["ls-files", "-z"]()
+    local_overlay = repository / "typos.local.toml"
+    if local_overlay.exists():
+        dictionary = merge_dictionaries(
+            dictionary,
+            load_dictionary(local_overlay),
+        )
+    tracked = subprocess.run(
+        ["git", "-C", str(repository), "ls-files", "-z"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
     findings = []
     for relative in sorted(filter(None, tracked.split("\0"))):
         relative_path = Path(relative)

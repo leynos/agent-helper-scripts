@@ -88,7 +88,7 @@ def login(username: str, password: str) -> bool:
 
 ```python
 def login(username: str, password: str) -> bool:
-    # Sanitise control characters
+    # Sanitize control characters
     safe_username = username.replace("\n", "\\n").replace("\r", "\\r")
     logger.info("Login attempt for user: %s", safe_username)
     # Or use structured logging
@@ -119,7 +119,7 @@ document.getElementById('greeting').innerHTML =
 document.getElementById('greeting').textContent = 
     'Hello, ' + urlParams.get('name');
 
-// Or sanitise if HTML is needed
+// Or sanitize if HTML is needed
 import DOMPurify from 'dompurify';
 document.getElementById('content').innerHTML = 
     DOMPurify.sanitize(userContent);

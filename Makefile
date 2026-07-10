@@ -41,7 +41,8 @@ TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 
 all: ci
 
-ci: check-fmt lint typecheck test spelling
+ci: check-fmt lint typecheck test
+	+$(MAKE) spelling
 
 clean:
 	@echo "clean: nothing to clean"
