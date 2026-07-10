@@ -324,6 +324,7 @@ def test_harvest_finds_both_oxford_and_plain_british_forms(
     "relative_path",
     [
         Path("typos.toml"),
+        Path("nested/.terraform/providers/upstream/CHANGELOG.md"),
         Path("nested/target/generated.rs"),
         Path("data/typos-oxendict-base.toml"),
     ],

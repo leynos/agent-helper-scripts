@@ -6,6 +6,7 @@ extend-exclude = [
     ".git",
     ".hypothesis",
     ".pytest_cache",
+    ".terraform",
     ".tox",
     ".typos-oxendict-base.json",
     ".typos-oxendict-base.toml",
