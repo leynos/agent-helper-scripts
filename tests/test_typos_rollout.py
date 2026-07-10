@@ -418,6 +418,12 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["oxidised"] == "oxidized", "plain-British spelling was not corrected"
     assert mappings["dialogs"] == "dialogs", "UI terminology was not accepted"
     assert mappings["artifacts"] == "artifacts", "CI terminology was not accepted"
+    assert mappings["organizational"] == "organizational", (
+        "Oxford adjective was not accepted"
+    )
+    assert mappings["organisational"] == "organizational", (
+        "plain-British adjective was not corrected"
+    )
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
