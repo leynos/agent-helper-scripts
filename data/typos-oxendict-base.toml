@@ -181,6 +181,7 @@ exclude = [
   ".hypothesis",
   ".pytest_cache",
   ".tox",
+  ".terraform",
   ".typos-oxendict-base.json",
   ".typos-oxendict-base.toml",
   ".uv-cache",
