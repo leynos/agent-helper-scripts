@@ -64,7 +64,7 @@ typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
 spelling:
-	@uv run --script scripts/typos_rollout.py generate --repository . --source data/typos-oxendict-base.toml
+	@uv run --script scripts/typos_rollout_cli.py generate --repository . --source data/typos-oxendict-base.toml
 	@$(TYPOS) --config typos.toml --force-exclude .
 
 test:

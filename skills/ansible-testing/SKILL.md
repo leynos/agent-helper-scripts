@@ -503,7 +503,7 @@ enough that developers will actually run it. Optimize in this order:
    - Review the slowest tasks, then remove profiling callbacks from normal CI
      output if they become noisy.
 
-7. **Parallelise scenarios only on suitable runners**
+7. **Parallelize scenarios only on suitable runners**
    - Prefer Molecule's native worker mode over background shell jobs:
 
      ```bash

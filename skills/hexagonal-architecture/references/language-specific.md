@@ -355,7 +355,7 @@ pub trait Clock: Send + Sync {
 
 Rust typically uses generics or trait objects:
 
-**Generics (zero-cost, monomorphised):**
+**Generics (zero-cost, monomorphized):**
 
 ```rust
 pub struct PlaceOrderUseCase<R, P, C>

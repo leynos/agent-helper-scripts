@@ -259,7 +259,7 @@ def get_logs():
     return LogEntry.query.paginate(page=page, per_page=per_page)
 ```
 
-### CPU Monopolisation
+### CPU Monopolization
 
 **Vulnerable:**
 

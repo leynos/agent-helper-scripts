@@ -268,6 +268,24 @@ def test_harvest_finds_both_oxford_and_plain_british_forms(
     assert forms == ("organising", "organize")
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        Path("typos.toml"),
+        Path("nested/target/generated.rs"),
+        Path("data/typos-oxendict-base.toml"),
+    ],
+)
+def test_harvest_excludes_dictionary_managed_paths(
+    rollout: types.ModuleType,
+    relative_path: Path,
+) -> None:
+    """Harvesting omits generated and dependency-managed spelling evidence."""
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+
+    assert rollout.is_harvest_excluded(relative_path, dictionary)
+
+
 def test_write_config_is_atomic_and_matches_renderer(
     rollout: types.ModuleType,
     tmp_path: Path,
@@ -304,7 +322,7 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
 
     assert "ci: check-fmt lint typecheck test spelling" in makefile
     assert re.search(r"^TYPOS_VERSION\s*\?=\s*\S+", makefile, re.MULTILINE)
-    assert "scripts/typos_rollout.py generate" in makefile
+    assert "scripts/typos_rollout_cli.py generate" in makefile
     assert "typos@$(TYPOS_VERSION)" in makefile
 
 

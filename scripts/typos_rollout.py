@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run python
-# /// script
-# requires-python = ">=3.13"
-# dependencies = ["cyclopts>=4.3,<5", "plumbum>=1.9,<2"]
-# ///
 """Harvest and generate shared en-GB-oxendict ``typos`` configuration."""
 
 from collections.abc import Callable, Mapping
@@ -19,9 +14,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 SCHEMA_VERSION = 1
-DEFAULT_BASE_URL = (
-    "https://raw.githubusercontent.com/leynos/agent-helper-scripts/"
-    "refs/heads/main/data/typos-oxendict-base.toml"
+SHARED_DICTIONARY_PATH = (
+    Path(__file__).resolve().parents[1] / "data" / "typos-oxendict-base.toml"
 )
 SUFFIX_PAIRS = (
     ("ise", "ize"),
@@ -337,15 +331,27 @@ def harvest_oxford_forms(text: str) -> tuple[str, ...]:
     return tuple(sorted({match.group(0).casefold() for match in OXFORD_FORM.finditer(text)}))
 
 
+def is_harvest_excluded(relative: Path, dictionary: Dictionary) -> bool:
+    """Return whether shared dictionary policy excludes *relative*."""
+    return any(
+        excluded in relative.parts or relative.match(excluded)
+        for excluded in dictionary.excluded_files
+    )
+
+
 def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
     """Harvest Oxford-form evidence from Git-tracked UTF-8 text files."""
     from plumbum import local
 
+    dictionary = load_dictionary(SHARED_DICTIONARY_PATH)
     with local.cwd(repository):
         tracked = local["git"]["ls-files", "-z"]()
     findings = []
     for relative in sorted(filter(None, tracked.split("\0"))):
-        path = repository / relative
+        relative_path = Path(relative)
+        if is_harvest_excluded(relative_path, dictionary):
+            continue
+        path = repository / relative_path
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
@@ -356,44 +362,3 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
             if (forms := harvest_oxford_forms(line))
         )
     return tuple(findings)
-
-
-def cli() -> None:
-    """Run the environment-aware Cyclopts command-line interface."""
-    import cyclopts
-    from cyclopts import App
-
-    app = App(config=cyclopts.config.Env("TYPOS_ROLLOUT_", command=False))
-
-    @app.command
-    def generate(
-        repository: Path = Path.cwd(),
-        source: str = DEFAULT_BASE_URL,
-        offline: bool = False,
-    ) -> None:
-        """Refresh the shared base and generate a repository's typos.toml."""
-        cache = repository / ".typos-oxendict-base.toml"
-        result = refresh_base(
-            source,
-            cache,
-            metadata=repository / ".typos-oxendict-base.json",
-            offline=offline,
-        )
-        dictionary = load_dictionary(cache)
-        local_overlay = repository / "typos.local.toml"
-        if local_overlay.exists():
-            dictionary = merge_dictionaries(dictionary, load_dictionary(local_overlay))
-        write_config(repository / "typos.toml", dictionary)
-        print(f"{result.status}: {repository / 'typos.toml'}")
-
-    @app.command
-    def harvest(repository: Path = Path.cwd()) -> None:
-        """Print JSON Lines evidence for Oxford-form candidates."""
-        for finding in harvest_repository(repository):
-            print(json.dumps(finding, sort_keys=True))
-
-    app()
-
-
-if __name__ == "__main__":
-    cli()

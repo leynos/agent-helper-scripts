@@ -30,7 +30,7 @@ RUST_ENTRYPOINT_PHASE=home bash rust-entrypoint
 ## Shared spelling dictionary
 
 `data/typos-oxendict-base.toml` is the shared en-GB-oxendict dictionary for
-the `leynos` code estate. `scripts/typos_rollout.py` harvests Oxford `-ise` and
+the `leynos` code estate. `scripts/typos_rollout_cli.py` harvests Oxford `-ise` and
 `-ize` evidence, conditionally refreshes an untracked local copy of the shared
 base, and deterministically generates a repository's tracked `typos.toml`.
 Repository-specific product names, identifiers and quoted fixtures belong in a

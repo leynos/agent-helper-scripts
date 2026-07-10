@@ -241,7 +241,7 @@ The code should not introduce regressions.
 - Appropriate data structure choices
 - Memory allocation patterns (especially in Rust)
 - Resources released promptly (connections, handles, memory)
-- No bad neighbour patterns (unbounded memory, CPU monopolisation)
+- No bad neighbour patterns (unbounded memory, CPU monopolization)
 
 **See:** `guides/performance-concerns.md` for detailed patterns and examples.
 

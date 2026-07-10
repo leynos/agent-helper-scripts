@@ -289,7 +289,7 @@ there only when it is valid across repositories. Product names, quoted
 upstream terms and fixture-specific vocabulary belong in the consumer
 repository's tracked `typos.local.toml` overlay.
 
-The executable `scripts/typos_rollout.py` provides two commands. `harvest`
+The executable `scripts/typos_rollout_cli.py` provides two commands. `harvest`
 emits JSON Lines evidence for both plain-British `-ise` and Oxford `-ize`
 forms found in Git-tracked UTF-8 text. `generate` conditionally refreshes the
 untracked `.typos-oxendict-base.toml` cache, merges any local overlay, validates
@@ -304,6 +304,15 @@ the committed config from the local authoritative base and runs the version of
 `typos` pinned by `TYPOS_VERSION`. The full `make ci` sequence includes this
 gate. Tests assert byte-for-byte config drift, TOML validity, cache freshness,
 offline recovery and real-binary Oxford behaviour.
+
+The initial shared stem set was curated on 10 July 2026 from both correct
+Oxford forms and incorrect plain-British forms across the 96 non-empty,
+accessible repositories in the estate inventory. Generated spelling configs,
+local overlays, dependency locks and build output were excluded before
+curation. A suffix match alone is not evidence: `advertise`, `exercise`,
+`improvise`, `promise`, `resize` and Rust's `usize`, for example, must not be
+treated as Oxford `-ize` families. Future harvests must retain per-repository
+JSON Lines evidence until curation and record generic additions here.
 
 - `make ci`
   - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, and
