@@ -130,7 +130,7 @@ def _table(document: Mapping[str, object], key: str) -> Mapping[str, object]:
     value = document.get(key, {})
     if not isinstance(value, dict):
         raise ValueError(f"{key!r} must be a table")
-    return cast(Mapping[str, object], value)
+    return cast("Mapping[str, object]", value)
 
 
 def _dictionary_from_text(text: str) -> Dictionary:
@@ -149,7 +149,7 @@ def _dictionary_from_text(text: str) -> Dictionary:
         for key, value in corrections_table.items()
     ):
         raise ValueError("word corrections must map strings to strings")
-    corrections = cast(Mapping[str, str], corrections_table)
+    corrections = cast("Mapping[str, str]", corrections_table)
     return Dictionary(
         stems=_string_list(oxford, "stems"),
         accepted=_string_list(words, "accepted"),
