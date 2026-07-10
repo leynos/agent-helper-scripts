@@ -10,8 +10,8 @@ Status: COMPLETE
 ## Purpose / big picture
 
 The helper scripts in this repository still fetch several GitHub-hosted
-artifacts with raw `curl` and `wget`, including three `curl | bash` installers.
-After this change, every GitHub-hosted binary or installer artifact in the
+artefacts with raw `curl` and `wget`, including three `curl | bash` installers.
+After this change, every GitHub-hosted binary or installer artefact in the
 scoped scripts will be downloaded with `vendcurl`, while preserving the
 existing install destinations, archive extraction steps, checksum verification
 where the upstream installer already performed it, and any required `chmod`,
@@ -21,7 +21,7 @@ The observable success condition is:
 
 1. `rg` no longer finds GitHub-hosted `curl` or `wget` downloads in the scoped
    scripts.
-2. The scripts still contain explicit local post-processing for the artifacts
+2. The scripts still contain explicit local post-processing for the artefacts
    that used to be installed indirectly through upstream shell installers.
 3. The repository validation suite passes with logged evidence.
 
@@ -149,7 +149,7 @@ The discovery pass identified the following scoped GitHub download sites.
   checksums. That integrity step must survive the rewrite.
 - `vendcurl` already provides `--sha256`, so the cleanest replacement is to
   download the upstream checksum manifest with `vendcurl`, extract the expected
-  digest, and feed it back into the artifact download instead of re-implementing
+  digest, and feed it back into the artefact download instead of re-implementing
   checksum validation separately.
 
 ## Decision Log

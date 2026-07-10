@@ -285,7 +285,7 @@ Risks differ from Surprises: risks are anticipated; surprises are not.
 
 ## Progress
 
-Use a list with checkboxes to summarise granular steps. Every stopping point
+Use a list with checkboxes to summarize granular steps. Every stopping point
 must be documented here, even if it requires splitting a partially completed
 task into two ("done" vs. "remaining"). This section must always reflect the
 actual current state of the work.
@@ -351,7 +351,7 @@ reader can compare. This section must be updated as work proceeds.
 
 ## Validation and acceptance
 
-Describe how to start or exercize the system and what to observe. Phrase
+Describe how to start or exercise the system and what to observe. Phrase
 acceptance as behaviour, with specific inputs and outputs. If tests are
 involved, say "run <project's test command> and expect <N> passed; the new test
 <name> fails before the change and passes after".

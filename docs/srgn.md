@@ -130,7 +130,7 @@ srgn --rs 'fn' $'}\n\s*(#\[test\])' -- $'}\n\n$1'
 
 ### Python (`--py`)
 
-Scopes (no parameterised variants at present):
+Scopes (no parameterized variants at present):
 
 - `class`, `function`, `doc-strings`, `comments`, `strings`, `identifiers`, `module-names-in-imports`, `call`
 
@@ -142,7 +142,7 @@ Scopes (no parameterised variants at present):
 
 ### TypeScript (`--ts` / `--typescript`)
 
-Scopes (no parameterised variants):
+Scopes (no parameterized variants):
 
 - `comments`, `strings`, `imports` (module specifiers)
 - `function`, `async-function`, `sync-function`
@@ -160,13 +160,13 @@ Scopes (no parameterised variants):
 
 ### Rust (`--rs`)
 
-Rust offers both **plain** scopes and **parameterised** scopes of the form `name~<PATTERN>`, where `<PATTERN>` is a regex matched against the **item name** (not its path). Parameterised variants are marked **(param)** below.
+Rust offers both **plain** scopes and **parameterized** scopes of the form `name~<PATTERN>`, where `<PATTERN>` is a regex matched against the **item name** (not its path). Parameterized variants are marked **(param)** below.
 
 **General/textual:**
 
 - `comments`, `doc-comments`, `strings`, `uses`, `attribute`, `identifier`, `type-identifier`, `closure`, `unsafe`
 
-**Items (parameterisable where noted):**
+**Items (parameterizable where noted):**
 
 - `struct~<PATTERN>` **(param)**
 - `enum~<PATTERN>` **(param)**, `enum-variant`
@@ -179,7 +179,7 @@ Rust offers both **plain** scopes and **parameterised** scopes of the form `name
 
 > **Parameter semantics:** For `name~<PATTERN>`, `<PATTERN>` matches the **identifier name** only. Example: `--rs 'fn~emit_non_strict_warnings'` selects just that function, not calls to it.
 
-#### Locating a specific `impl` (non‑parameterised)
+#### Locating a specific `impl` (non‑parameterized)
 
 Because `impl` / `impl-type` / `impl-trait` **do not** take `~<PATTERN>`, combine the appropriate scope with a targeted regex on the header line.
 

@@ -2,7 +2,7 @@
 
 This module covers the hook's expected git-state decisions, environment
 parsing, subprocess error handling, make-target discovery, and compush
-follow-up behavior. The tests focus on observable inputs and outputs,
+follow-up behaviour. The tests focus on observable inputs and outputs,
 including successful checks, soft-failure paths that must stay silent,
 and blocking/error conditions that should surface through the hook
 contract.

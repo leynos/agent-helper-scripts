@@ -96,7 +96,7 @@ If tools are implemented as finite state machines:
 
 #### Localization (if applicable)
 
-- Inline strings that escaped the message catalog?
+- Inline strings that escaped the message catalogue?
 - Command names/shortcut descriptions localized?
 - UI layout tolerates string expansion?
 

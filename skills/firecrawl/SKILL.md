@@ -64,7 +64,7 @@ want everything under a domain up to a depth/limit.
 
 ## Credit costs — be frugal
 
-Every tool call consumes API credits. Minimise unnecessary calls.
+Every tool call consumes API credits. Minimize unnecessary calls.
 
 | Tool | Base cost |
 |---|---|

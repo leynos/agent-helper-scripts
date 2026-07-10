@@ -30,7 +30,7 @@ def get_user(username: str) -> User:
 ```
 
 **Review checklist:**
-- [ ] All SQL uses parameterised queries or prepared statements
+- [ ] All SQL uses parameterized queries or prepared statements
 - [ ] No string concatenation or f-strings building SQL
 - [ ] ORM queries don't use `raw()` or `extra()` with user input
 - [ ] Dynamic column/table names validated against allowlist
@@ -69,7 +69,7 @@ def convert_image(filename: str, format: str) -> None:
 - [ ] No `os.system()`, `shell=True`, or backticks with user input
 - [ ] `subprocess` uses list form, not string
 - [ ] Input validated against allowlist where possible
-- [ ] Filenames sanitised (no path traversal: `../`)
+- [ ] Filenames sanitized (no path traversal: `../`)
 
 ### Log Injection
 
@@ -88,7 +88,7 @@ def login(username: str, password: str) -> bool:
 
 ```python
 def login(username: str, password: str) -> bool:
-    # Sanitise control characters
+    # Sanitize control characters
     safe_username = username.replace("\n", "\\n").replace("\r", "\\r")
     logger.info("Login attempt for user: %s", safe_username)
     # Or use structured logging
@@ -96,7 +96,7 @@ def login(username: str, password: str) -> bool:
 ```
 
 **Review checklist:**
-- [ ] User input in logs sanitised for control characters
+- [ ] User input in logs sanitized for control characters
 - [ ] Structured logging preferred over string formatting
 - [ ] Sensitive data (passwords, tokens) never logged
 
@@ -119,7 +119,7 @@ document.getElementById('greeting').innerHTML =
 document.getElementById('greeting').textContent = 
     'Hello, ' + urlParams.get('name');
 
-// Or sanitise if HTML is needed
+// Or sanitize if HTML is needed
 import DOMPurify from 'dompurify';
 document.getElementById('content').innerHTML = 
     DOMPurify.sanitize(userContent);
@@ -328,7 +328,7 @@ def connect(url: str) -> Connection:
 ```
 
 **Review checklist:**
-- [ ] Connection strings sanitised before logging
+- [ ] Connection strings sanitized before logging
 - [ ] Error messages don't include request bodies with credentials
 - [ ] Stack traces in production don't expose secrets
 - [ ] API responses don't echo back sensitive fields
@@ -354,7 +354,7 @@ bfg --delete-files secret-file.txt
 
 ---
 
-## Authentication & Authorisation
+## Authentication & Authorization
 
 ### Broken Authentication
 
@@ -385,7 +385,7 @@ def reset_password(token: str, new_password: str) -> None:
     reset_request.delete()
 ```
 
-### Broken Authorisation (IDOR)
+### Broken Authorization (IDOR)
 
 **Vulnerable:**
 
@@ -411,11 +411,11 @@ def get_document(doc_id: int):
 ```
 
 **Review checklist:**
-- [ ] Every endpoint checks authorisation, not just authentication
+- [ ] Every endpoint checks authorization, not just authentication
 - [ ] Resource ownership verified before access
 - [ ] No reliance on obscurity (unpredictable IDs are not access control)
 - [ ] Admin functions protected by role check
-- [ ] Authorisation logic centralised, not scattered
+- [ ] Authorization logic centralized, not scattered
 
 ---
 
@@ -471,9 +471,9 @@ def verify_token(provided: str, actual: str) -> bool:
 
 ---
 
-## Deserialisation
+## Deserialization
 
-### Insecure Deserialisation
+### Insecure Deserialization
 
 **Vulnerable:**
 
@@ -499,7 +499,7 @@ def load_session(data: bytes) -> dict:
 - [ ] No `pickle.loads()` on untrusted data
 - [ ] No `yaml.load()` without `Loader=SafeLoader`
 - [ ] XML parsing disables external entities (XXE)
-- [ ] JSON preferred for serialisation of untrusted data
+- [ ] JSON preferred for serialization of untrusted data
 
 ---
 

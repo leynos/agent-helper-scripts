@@ -23,23 +23,26 @@ HOME_PHASE_HELPERS != awk '\
 ' bootstrap-common
 HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
 HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|install|realpath|ln)([[:space:]]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
-PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py tests/*.py))
+PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py scripts/*.py tests/*.py))
 PYTEST := uv run --group dev python -m pytest
+TYPOS_VERSION ?= 1.48.0
+TYPOS := uv tool run typos@$(TYPOS_VERSION)
 HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
 TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 
 # Test targets:
-# - test-hooks: post-turn hook behavior and git-state decisions.
+# - test-hooks: post-turn hook behaviour and git-state decisions.
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test-hooks test-entrypoints test ci
+.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-hooks test-entrypoints test ci
 
 all: ci
 
 ci: check-fmt lint typecheck test
+	+$(MAKE) spelling
 
 clean:
 	@echo "clean: nothing to clean"
@@ -60,6 +63,10 @@ lint: syntax-check shell-syntax-check check-home-phase-boundary
 
 typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
+
+spelling:
+	@uv run --script scripts/typos_rollout_cli.py generate --repository . --source data/typos-oxendict-base.toml
+	@$(TYPOS) --config typos.toml --force-exclude .
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

@@ -138,9 +138,9 @@ Flag these smells:
 - Is input validated at trust boundaries?
 - Are there injection vectors (SQL, shell, log, XSS, prompt)?
 - Are secrets handled appropriately?
-- Is deserialisation safe?
+- Is deserialization safe?
 - Are there TOCTOU race conditions?
-- Is authentication and authorisation enforced?
+- Is authentication and authorization enforced?
 
 **Reference:** `guides/security-issues.md`
 

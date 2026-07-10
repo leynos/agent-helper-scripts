@@ -44,7 +44,7 @@
 
 **Domain:** Performance, observability, pipelines, concurrency, scaling, production-readiness.
 
-**Perspective:** Buzzy Bee lives in the pipelines. They take experiments and industrialise them — adding guardrails, dashboards, backpressure. Everything should behave under load, and nobody should forget to budget for the p99.
+**Perspective:** Buzzy Bee lives in the pipelines. They take experiments and industrialize them — adding guardrails, dashboards, backpressure. Everything should behave under load, and nobody should forget to budget for the p99.
 
 **Review lens — ask these questions:**
 

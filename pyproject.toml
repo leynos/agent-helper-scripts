@@ -23,3 +23,8 @@ dev = [
   "pyyaml>=6.0.3",
   "syrupy",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: exercises an external tool or process boundary",
+]

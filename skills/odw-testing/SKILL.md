@@ -367,7 +367,7 @@ as an inline `node -e` script and reference them from the workflow's
 adapter-routing args — this is how ODW's own multi-adapter e2e test drives a
 converging duel deterministically.
 
-Assert on durable run artifacts under `runsRoot`, not on stdout alone:
+Assert on durable run artefacts under `runsRoot`, not on stdout alone:
 
 - `result.json` — the final return value (wrapped as `{ "value": … }`);
   assert its shape and the terminal summary.

@@ -292,10 +292,10 @@ agent_tools_subagents:
       - You may write to `/tmp`. Every gate run captures its full output
         to a log file under `/tmp` so the planning agent can inspect it
         later, and so this transcript stays short.
-      - Run gates strictly sequentially. The repository's build caches
-        (`uv`, `cargo`, `.pytest_cache`) serialise naturally; parallel
-        gate runs invalidate cache state, lengthen wall-clock time, and
-        blur the source of any single failure.
+      - Run gates strictly sequentially. Sequential execution prevents cache
+        contention; `uv`, `cargo`, and `.pytest_cache` do not serialize access
+        themselves. Parallel gate runs invalidate cache state, lengthen
+        wall-clock time, and blur the source of any single failure.
       - Honour the repository's own gate definitions in `AGENTS.md`. The
         Makefile targets are the source of truth; do not invent direct
         tool invocations when a `make` target exists.

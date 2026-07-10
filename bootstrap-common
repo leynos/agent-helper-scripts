@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Shared bootstrap helpers for the system and home rust-entrypoint phases.
-# This file is sourced by entrypoints; it centralises repository selection,
+# This file is sourced by entrypoints; it centralizes repository selection,
 # helper-list construction, sparse checkout handling, and small profile helpers
 # without deciding which authority boundary the caller is allowed to mutate.
 

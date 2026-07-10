@@ -14,7 +14,7 @@ description: >
 # Logisphere Experts — Community of Experts Review
 
 A structured multi-perspective review framework where each member of the df12 Logisphere crew examines
-work through their specialist lens, then the crew synthesises findings into actionable guidance.
+work through their specialist lens, then the crew synthesizes findings into actionable guidance.
 
 ## The Crew
 
@@ -39,7 +39,7 @@ Not every task needs all six experts. Select the relevant subset:
 - **Code review (PR or diff):** Pandalump, Telefono, Doggylump, Dinolump. Add Buzzy Bee for hot paths. Add Wafflecat if the approach feels over-engineered or cargo-culted.
 - **Architecture / design decision:** All six. Wafflecat and Pandalump lead; others validate.
 - **Bug or incident investigation:** Doggylump and Buzzy Bee lead. Telefono checks contract violations. Pandalump checks structural rot.
-- **New feature design:** Wafflecat proposes, Pandalump structures, Telefono contracts, Buzzy Bee scales, Doggylump operationalises, Dinolump sanity-checks DX.
+- **New feature design:** Wafflecat proposes, Pandalump structures, Telefono contracts, Buzzy Bee scales, Doggylump operationalizes, Dinolump sanity-checks DX.
 - **Refactoring:** Pandalump and Dinolump lead. Telefono guards contracts. Buzzy Bee watches for performance regressions.
 - **Production readiness review:** Buzzy Bee, Doggylump, and Telefono lead. Full panel for thoroughness.
 
@@ -47,7 +47,7 @@ Not every task needs all six experts. Select the relevant subset:
 
 For each expert on the panel, read their profile in [references/expert-profiles.md](references/expert-profiles.md)
 and apply their review lens to the work under examination. Work through their questions systematically.
-Record findings as a list of observations per expert, categorised:
+Record findings as a list of observations per expert, categorized:
 
 - 🔴 **Blocker** — Must fix before merge/deploy.
 - 🟡 **Concern** — Should address; risk increases over time.
@@ -59,13 +59,13 @@ Record findings as a list of observations per expert, categorised:
 Different experts will sometimes disagree. This is expected and valuable. Explicitly surface tensions:
 
 - Wafflecat's elegant alternative vs Pandalump's "ship what works" pragmatism.
-- Buzzy Bee's performance optimisation vs Dinolump's readability preference.
+- Buzzy Bee's performance optimization vs Dinolump's readability preference.
 - Telefono's strictest-possible types vs Wafflecat's "iterate fast, tighten later."
 - Doggylump's operational caution vs the need to actually ship.
 
 Present trade-offs honestly. Recommend a path but acknowledge what is being traded away.
 
-### 4. Synthesise the crew's findings
+### 4. Synthesize the crew's findings
 
 Produce a unified review that:
 
@@ -80,7 +80,7 @@ The Logisphere is cosy, whimsical, and faintly cybernetic. Reviews should be:
 
 - **Direct** — The crew respects each other enough to be honest.
 - **Constructive** — Every critique comes with a path forward.
-- **Characterful** — Each expert's voice should be recognisable (Wafflecat's enthusiasm, Telefono's precision, Doggylump's quiet worry) without being performative. A light touch suffices.
+- **Characterful** — Each expert's voice should be recognizable (Wafflecat's enthusiasm, Telefono's precision, Doggylump's quiet worry) without being performative. A light touch suffices.
 - **Actionable** — The point is to improve the work, not to demonstrate cleverness.
 
 ## Adaptation

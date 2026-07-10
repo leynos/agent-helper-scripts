@@ -151,7 +151,7 @@ Pick the smallest pattern that fits the task:
 
 - Fan-out/reduce: generate independent drafts with `parallel`, dedupe or filter
   in JavaScript, then synthesize once.
-- Deep research: plan angles, fan out searches, extract claims, run skeptical
+- Deep research: plan angles, fan out searches, extract claims, run sceptical
   votes, then report only verified claims.
 - Adversarial verification: one finder proposes candidates; several independent
   refuters try to kill each candidate; keep only survivors.
