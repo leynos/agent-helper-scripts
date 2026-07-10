@@ -406,6 +406,20 @@ def test_committed_config_matches_shared_dictionary(
     )
 
 
+def test_shared_dictionary_preserves_generic_technical_terms(
+    rollout: types.ModuleType,
+) -> None:
+    """Generic UI, CI, and Oxford terms remain valid across consumers."""
+    mappings = rollout.generate_word_mappings(
+        rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    )
+
+    assert mappings["oxidized"] == "oxidized", "Oxford spelling was not accepted"
+    assert mappings["oxidised"] == "oxidized", "plain-British spelling was not corrected"
+    assert mappings["dialogs"] == "dialogs", "UI terminology was not accepted"
+    assert mappings["artifacts"] == "artifacts", "CI terminology was not accepted"
+
+
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     """The CI entrypoint generates config and runs a pinned typos binary."""
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
