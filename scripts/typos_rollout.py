@@ -21,7 +21,7 @@ import re
 import subprocess
 import tempfile
 import tomllib
-from typing import Protocol
+from typing import Protocol, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -130,7 +130,7 @@ def _table(document: Mapping[str, object], key: str) -> Mapping[str, object]:
     value = document.get(key, {})
     if not isinstance(value, dict):
         raise ValueError(f"{key!r} must be a table")
-    return value
+    return cast("Mapping[str, object]", value)
 
 
 def _dictionary_from_text(text: str) -> Dictionary:
@@ -149,10 +149,11 @@ def _dictionary_from_text(text: str) -> Dictionary:
         for key, value in corrections_table.items()
     ):
         raise ValueError("word corrections must map strings to strings")
+    corrections = cast("Mapping[str, str]", corrections_table)
     return Dictionary(
         stems=_string_list(oxford, "stems"),
         accepted=_string_list(words, "accepted"),
-        corrections=tuple(sorted(corrections_table.items())),
+        corrections=tuple(sorted(corrections.items())),
         ignore_patterns=_string_list(patterns, "ignore"),
         excluded_files=_string_list(files, "exclude"),
     )
@@ -385,11 +386,12 @@ def _refresh_local(source: Path, cache: Path, metadata: Path) -> RefreshResult:
     source_stat = source.stat()
     source_name = str(source.resolve())
     saved = _read_metadata(metadata)
+    saved_mtime = saved.get("mtime_ns")
     if (
         _valid_cache(cache)
         and saved.get("source") == source_name
-        and isinstance(saved.get("mtime_ns"), int)
-        and source_stat.st_mtime_ns <= saved["mtime_ns"]
+        and isinstance(saved_mtime, int)
+        and source_stat.st_mtime_ns <= saved_mtime
     ):
         return RefreshResult("current", cache)
     content = source.read_bytes()
@@ -404,11 +406,13 @@ def _refresh_local(source: Path, cache: Path, metadata: Path) -> RefreshResult:
 
 def _conditional_headers(saved: Mapping[str, object]) -> dict[str, str]:
     """Build conditional HTTP headers from persisted validators."""
-    headers = {}
-    if isinstance(saved.get("etag"), str):
-        headers["If-None-Match"] = saved["etag"]
-    if isinstance(saved.get("last_modified"), str):
-        headers["If-Modified-Since"] = saved["last_modified"]
+    headers: dict[str, str] = {}
+    etag = saved.get("etag")
+    if isinstance(etag, str):
+        headers["If-None-Match"] = etag
+    last_modified = saved.get("last_modified")
+    if isinstance(last_modified, str):
+        headers["If-Modified-Since"] = last_modified
     return headers
 
 
@@ -595,7 +599,7 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
         capture_output=True,
         text=True,
     ).stdout
-    findings = []
+    findings: list[dict[str, object]] = []
     for relative in sorted(filter(None, tracked.split("\0"))):
         relative_path = Path(relative)
         if is_harvest_excluded(relative_path, dictionary):
@@ -605,9 +609,10 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
             lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
             continue
-        findings.extend(
-            {"path": relative, "line": number, "forms": list(forms)}
-            for number, line in enumerate(lines, start=1)
-            if (forms := harvest_oxford_forms(line))
-        )
+        for number, line in enumerate(lines, start=1):
+            forms = harvest_oxford_forms(line)
+            if forms:
+                findings.append(
+                    {"path": relative, "line": number, "forms": list(forms)}
+                )
     return tuple(findings)
