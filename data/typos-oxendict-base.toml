@@ -89,6 +89,7 @@ stems = [
   "operational",
   "optim",
   "ordinal",
+  "oxid",
   "organ",
   "palett",
   "parallel",
@@ -156,6 +157,10 @@ stems = [
 
 [words]
 accepted = [
+  "artifact",
+  "artifacts",
+  "dialog",
+  "dialogs",
   "oxendict",
   "yse",
 ]
