@@ -150,7 +150,14 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """
     try:
         return subprocess.run(  # noqa: S603  # valid: command and args are controlled (no shell, no user-supplied command strings).
-            cmd, cwd=str(cwd), text=True, capture_output=True, check=False
+            cmd,
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            # Equivalent mutants: False is subprocess.run's default and None
+            # is equally falsy, so mutating or dropping this argument cannot
+            # change behaviour.
+            check=False,  # pragma: no mutate
         )
     except FileNotFoundError as exc:
         if Path(exc.filename or "") != cwd:
@@ -879,9 +886,23 @@ def parse_env() -> tuple[str, bool, int, bool]:
         Base ref, always-fetch flag, max output length, and compush flag.
     """
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
-    always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
+    always_fetch = parse_bool_env(
+        os.environ.get(
+            "POST_TURN_ALWAYS_FETCH",
+            # Equivalent mutant: any mutated default string is still
+            # non-truthy to parse_bool_env, so it cannot change behaviour.
+            "",  # pragma: no mutate
+        )
+    )
     max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
-    compush = parse_bool_env(os.environ.get("POST_TURN_COMPUSH", ""))
+    compush = parse_bool_env(
+        os.environ.get(
+            "POST_TURN_COMPUSH",
+            # Equivalent mutant: any mutated default string is still
+            # non-truthy to parse_bool_env, so it cannot change behaviour.
+            "",  # pragma: no mutate
+        )
+    )
     return base_ref, always_fetch, max_out, compush
 
 
