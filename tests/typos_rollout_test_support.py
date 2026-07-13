@@ -14,6 +14,32 @@ LOCAL_DICTIONARY_PATH = REPOSITORY_ROOT / "typos.local.toml"
 COMMITTED_CONFIG_PATH = REPOSITORY_ROOT / "typos.toml"
 
 
+class ValidResponse:
+    """Provide configurable valid dictionary bytes at the HTTP boundary."""
+
+    status = 200
+
+    def __init__(
+        self,
+        *,
+        stem: str = "organ",
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        self._stem = stem
+        self.headers = {} if headers is None else headers
+
+    def read(self) -> bytes:
+        """Return valid shared dictionary bytes."""
+        return dictionary_text(stem=self._stem).encode()
+
+    def __enter__(self) -> "ValidResponse":
+        """Enter the fake response context."""
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        """Leave the fake response context."""
+
+
 @pytest.fixture(name="rollout", scope="module")
 def rollout_fixture() -> types.ModuleType:
     """Load the executable script as a module for focused unit tests."""

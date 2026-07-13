@@ -203,6 +203,56 @@ def test_write_config_is_atomic_and_matches_renderer(
     assert list(tmp_path.glob(".typos.toml.*")) == [], "atomic-write temporary file remains"
 
 
+@pytest.mark.parametrize("failure_stage", ["write", "close", "replace"])
+def test_atomic_write_cleans_temporary_file_after_failure(
+    rollout: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    failure_stage: str,
+) -> None:
+    """Write, close, and replacement failures all remove the temporary file."""
+    temporary = tmp_path / ".typos.toml.failure"
+    temporary.touch()
+
+    class FailingStream:
+        """Model a named temporary stream with one selected failure."""
+
+        name = str(temporary)
+
+        def __enter__(self) -> "FailingStream":
+            """Enter the fake stream context."""
+            return self
+
+        def write(self, content: bytes) -> None:
+            """Write bytes unless this case models a write failure."""
+            if failure_stage == "write":
+                raise OSError("write failure")
+            temporary.write_bytes(content)
+
+        def __exit__(self, *_args: object) -> None:
+            """Close unless this case models a close failure."""
+            if failure_stage == "close":
+                raise OSError("close failure")
+
+    monkeypatch.setattr(
+        rollout.tempfile,
+        "NamedTemporaryFile",
+        lambda **_kwargs: FailingStream(),
+    )
+    if failure_stage == "replace":
+
+        def fail_replace(_path: Path, _destination: Path) -> None:
+            """Model an atomic replacement failure."""
+            raise OSError("replace failure")
+
+        monkeypatch.setattr(rollout.Path, "replace", fail_replace)
+
+    with pytest.raises(OSError, match=f"{failure_stage} failure"):
+        rollout._atomic_write(tmp_path / "typos.toml", b"content")
+
+    assert not temporary.exists(), f"temporary file survived {failure_stage} failure"
+
+
 def test_committed_config_matches_shared_dictionary(
     rollout: types.ModuleType,
 ) -> None:
@@ -244,4 +294,10 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["underutilize"] == "underutilize", "Oxford spelling was not accepted"
     assert mappings["underutilise"] == "underutilize", (
         "plain-British spelling was not corrected"
+    )
+    assert mappings["recognizably"] == "recognizably", (
+        "Oxford adverb was not accepted"
+    )
+    assert mappings["recognisably"] == "recognizably", (
+        "plain-British adverb was not corrected"
     )

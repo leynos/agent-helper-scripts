@@ -23,13 +23,15 @@ import tempfile
 import tomllib
 from typing import Protocol, cast
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 SCHEMA_VERSION = 1
 SHARED_DICTIONARY_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "typos-oxendict-base.toml"
 )
 SUFFIX_PAIRS = (
+    ("isably", "izably"),
     ("ise", "ize"),
     ("ises", "izes"),
     ("ised", "ized"),
@@ -41,7 +43,7 @@ SUFFIX_PAIRS = (
     ("isations", "izations"),
 )
 OXFORD_FORM = re.compile(
-    r"\b[A-Za-z]+(?:isations|izations|isation|ization|isable|izable|"
+    r"\b[A-Za-z]+(?:isations|izations|isation|ization|isably|izably|isable|izable|"
     r"isers|izers|ising|izing|ised|ized|ises|izes|iser|izer|ise|ize)\b"
 )
 
@@ -77,6 +79,14 @@ class RefreshResult:
 
     status: str
     cache: Path
+
+
+class NetworkUnavailableError(OSError):
+    """Report that the remote dictionary authority could not be reached."""
+
+
+class InsecureSourceError(ValueError):
+    """Report a dictionary source or redirect that does not use HTTPS."""
 
 
 class Response(Protocol):
@@ -313,10 +323,15 @@ def render_typos_config(dictionary: Dictionary) -> str:
 def _atomic_write(path: Path, content: bytes) -> None:
     """Write *content* beside *path* and atomically replace the destination."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(delete=False, dir=path.parent, prefix=f".{path.name}.") as stream:
-        stream.write(content)
-        temporary = Path(stream.name)
+    stream = tempfile.NamedTemporaryFile(
+        delete=False,
+        dir=path.parent,
+        prefix=f".{path.name}.",
+    )
+    temporary = Path(stream.name)
     try:
+        with stream:
+            stream.write(content)
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -369,8 +384,9 @@ def _remote_is_not_newer(
 ) -> bool:
     """Return whether HTTP validators prove the response is not newer."""
     etag = headers.get("ETag")
-    if etag is not None and etag == saved.get("etag"):
-        return True
+    saved_etag = saved.get("etag")
+    if isinstance(etag, str) and isinstance(saved_etag, str):
+        return etag == saved_etag
     modified = headers.get("Last-Modified")
     saved_modified = saved.get("last_modified")
     if not isinstance(modified, str) or not isinstance(saved_modified, str):
@@ -423,7 +439,11 @@ def _write_remote_cache(
     response: Response,
 ) -> RefreshResult:
     """Validate and atomically persist a remote dictionary response."""
-    content = response.read()
+    try:
+        content = response.read()
+    except URLError as error:
+        message = f"shared dictionary authority is unavailable: {source}"
+        raise NetworkUnavailableError(message) from error
     _dictionary_from_text(content.decode())
     _atomic_write(cache, content)
     _write_metadata(
@@ -452,7 +472,10 @@ def _remote_response_result(
     return _write_remote_cache(source, cache, metadata, response)
 
 
-def _stale_cache_or_raise(cache: Path, error: OSError | URLError) -> RefreshResult:
+def _stale_cache_or_raise(
+    cache: Path,
+    error: NetworkUnavailableError,
+) -> RefreshResult:
     """Return a valid stale cache or propagate the download failure."""
     if _valid_cache(cache):
         return RefreshResult("stale-cache", cache)
@@ -463,27 +486,71 @@ def _http_error_result(cache: Path, error: HTTPError) -> RefreshResult:
     """Translate an HTTP failure into the available cache result."""
     if error.code == 304 and _valid_cache(cache):
         return RefreshResult("current", cache)
-    return _stale_cache_or_raise(cache, error)
+    raise error
+
+
+class _HttpsRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects that leave the HTTPS transport boundary."""
+
+    def redirect_request(
+        self,
+        request: Request,
+        file_pointer: object,
+        code: int,
+        message: str,
+        headers: object,
+        new_url: str,
+    ) -> Request | None:
+        """Follow only redirects whose resolved target remains HTTPS."""
+        if urlsplit(new_url).scheme != "https":
+            error_message = f"shared dictionary redirect must use HTTPS: {new_url}"
+            raise InsecureSourceError(error_message)
+        return super().redirect_request(
+            request,
+            file_pointer,
+            code,
+            message,
+            headers,
+            new_url,
+        )
+
+
+_HTTPS_OPENER = build_opener(_HttpsRedirectHandler())
+
+
+def _https_request(source: str, headers: Mapping[str, str]) -> Request:
+    """Build a request after constraining the shared source to HTTPS."""
+    if urlsplit(source).scheme != "https":
+        message = f"shared dictionary URL must use HTTPS: {source}"
+        raise InsecureSourceError(message)
+    return Request(source, headers=dict(headers))
 
 
 def _refresh_http(
     source: str,
     cache: Path,
     metadata: Path,
-    opener: Callable[..., Response],
+    opener: Callable[..., Response] | None,
 ) -> RefreshResult:
     """Refresh a cache from a remote source with validated stale fallback."""
     saved = _read_metadata(metadata)
     if saved.get("source") != source:
         saved = {}
-    request = Request(source, headers=_conditional_headers(saved))
+    request = _https_request(source, _conditional_headers(saved))
+    open_remote = _HTTPS_OPENER.open if opener is None else opener
     try:
-        with opener(request, timeout=30.0) as response:
-            return _remote_response_result(source, cache, metadata, saved, response)
+        response_context = open_remote(request, timeout=30.0)
     except HTTPError as error:
         return _http_error_result(cache, error)
-    except (OSError, URLError) as error:
-        return _stale_cache_or_raise(cache, error)
+    except URLError as error:
+        message = f"shared dictionary authority is unavailable: {source}"
+        unavailable = NetworkUnavailableError(message)
+        return _stale_cache_or_raise(cache, unavailable)
+    with response_context as response:
+        try:
+            return _remote_response_result(source, cache, metadata, saved, response)
+        except NetworkUnavailableError as error:
+            return _stale_cache_or_raise(cache, error)
 
 
 def refresh_base(
@@ -492,7 +559,7 @@ def refresh_base(
     *,
     metadata: Path,
     offline: bool = False,
-    opener: Callable[..., Response] = urlopen,
+    opener: Callable[..., Response] | None = None,
 ) -> RefreshResult:
     """Refresh an untracked base cache when its authority is newer.
 
@@ -507,7 +574,8 @@ def refresh_base(
     offline
         Reuse a valid cache without contacting the source.
     opener
-        Injectable HTTP opener used for deterministic tests.
+        Injectable HTTP opener used for deterministic tests. The HTTPS-only
+        opener is used by default.
 
     Returns
     -------
@@ -520,8 +588,12 @@ def refresh_base(
         If offline mode has no valid cache.
     ValueError, tomllib.TOMLDecodeError
         If downloaded or cached dictionary content is invalid.
-    OSError, URLError, HTTPError
-        If the source cannot be read and no valid stale cache exists.
+    NetworkUnavailableError
+        If the remote authority is unavailable and no valid stale cache exists.
+    InsecureSourceError
+        If a remote authority or redirect does not use HTTPS.
+    OSError, HTTPError
+        If local persistence fails or the authority returns an HTTP error.
     """
     source_text = str(source)
     if offline:
