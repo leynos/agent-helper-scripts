@@ -6,4 +6,7 @@ expectations can follow the plugin's automatic record, replay and verify
 lifecycle.
 """
 
+from typos_rollout_test_support import rollout_fixture
+
 pytest_plugins = ("cmd_mox.pytest_plugin",)
+__all__ = ("rollout_fixture",)
