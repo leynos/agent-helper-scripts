@@ -224,7 +224,7 @@ def test_http_refresh_uses_saved_etag(
     """Remote refreshes use conditional metadata on subsequent requests."""
     cache = tmp_path / ".typos-base.toml"
     metadata = tmp_path / ".typos-base.json"
-    requests = []
+    requests: list[object] = []
 
     class Response:
         """Minimal context-managed HTTP response for the refresh boundary."""
@@ -279,13 +279,15 @@ def test_http_refresh_drops_validators_for_a_different_source(
     """Conditional metadata is scoped to the source that supplied it."""
     cache = tmp_path / ".typos-base.toml"
     metadata = tmp_path / ".typos-base.json"
-    requests = []
+    requests: list[object] = []
 
     class Response:
         """Minimal context-managed response from the replacement source."""
 
         status = 200
-        headers: dict[str, str] = {}
+
+        def __init__(self) -> None:
+            self.headers: dict[str, str] = {}
 
         def read(self) -> bytes:
             """Return a valid replacement dictionary."""
@@ -330,6 +332,12 @@ def test_http_refresh_drops_validators_for_a_different_source(
         "replacement source inherited the previous source's modification time"
     )
     assert result.status == "refreshed", "replacement source did not refresh the cache"
+    assert rollout.load_dictionary(cache).stems == ("replacement",), (
+        "replacement dictionary was not persisted"
+    )
+    assert json.loads(metadata.read_text(encoding="utf-8"))["source"] == (
+        "https://example.test/replacement.toml"
+    ), "replacement source metadata was not persisted"
 
 
 def test_invalid_download_does_not_replace_valid_cache(
@@ -503,13 +511,69 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     assert "scripts/typos_rollout_cli.py generate" in makefile, (
         "spelling target does not generate configuration"
     )
-    assert "git diff --exit-code -- typos.toml" in makefile, (
-        "spelling target does not reject stale generated configuration"
-    )
     assert "typos@$(TYPOS_VERSION)" in makefile, "spelling target bypasses the version pin"
     assert "--config typos.toml --force-exclude ." in makefile, (
         "spelling target does not apply generated configuration and exclusions"
     )
+
+
+def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
+    """Create an indexed consumer fixture for behavioural Makefile checks."""
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    for path in ("Makefile", "typos.local.toml", "typos.toml"):
+        shutil.copy2(REPOSITORY_ROOT / path, repository / path)
+    shutil.copytree(REPOSITORY_ROOT / "data", repository / "data")
+    shutil.copytree(REPOSITORY_ROOT / "scripts", repository / "scripts")
+    subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
+    subprocess.run(["git", "add", "."], cwd=repository, check=True)
+    return repository
+
+
+def run_spelling_gate(repository: Path) -> subprocess.CompletedProcess[str]:
+    """Run generation and drift validation without invoking the real scanner."""
+    return subprocess.run(
+        ["make", "spelling", "TYPOS=true"],
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_spelling_gate_rejects_stale_generated_config(tmp_path: Path) -> None:
+    """The spelling target fails when indexed policy outpaces its config."""
+    repository = prepare_spelling_gate_repository(tmp_path)
+    local_policy = repository / "typos.local.toml"
+    local_policy.write_text(
+        local_policy.read_text(encoding="utf-8").replace(
+            '  "mold",\n',
+            '  "mold",\n  "reviewfixtureword",\n',
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "typos.local.toml"], cwd=repository, check=True)
+
+    result = run_spelling_gate(repository)
+
+    assert result.returncode != 0, "spelling gate accepted stale generated configuration"
+    assert '"reviewfixtureword" = "reviewfixtureword"' in result.stdout, (
+        "failure output did not show generated configuration drift"
+    )
+
+
+def test_spelling_gate_rejects_untracked_generated_config(tmp_path: Path) -> None:
+    """The spelling target fails when its generated config is not indexed."""
+    repository = prepare_spelling_gate_repository(tmp_path)
+    subprocess.run(
+        ["git", "rm", "--cached", "--quiet", "typos.toml"],
+        cwd=repository,
+        check=True,
+    )
+
+    result = run_spelling_gate(repository)
+
+    assert result.returncode != 0, "spelling gate accepted an untracked generated config"
 
 
 @pytest.mark.slow
