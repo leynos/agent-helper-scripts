@@ -272,6 +272,66 @@ def test_http_refresh_uses_saved_etag(
     assert second.status == "current", "unchanged HTTP response refreshed the cache"
 
 
+def test_http_refresh_drops_validators_for_a_different_source(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Conditional metadata is scoped to the source that supplied it."""
+    cache = tmp_path / ".typos-base.toml"
+    metadata = tmp_path / ".typos-base.json"
+    requests = []
+
+    class Response:
+        """Minimal context-managed response from the replacement source."""
+
+        status = 200
+        headers: dict[str, str] = {}
+
+        def read(self) -> bytes:
+            """Return a valid replacement dictionary."""
+            return dictionary_text(stem="replacement").encode()
+
+        def __enter__(self) -> "Response":
+            """Enter the fake response context."""
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            """Leave the fake response context."""
+
+    def opener(request: object, *, timeout: float) -> Response:
+        """Capture the request sent to the replacement source."""
+        del timeout
+        requests.append(request)
+        return Response()
+
+    cache.write_text(dictionary_text(stem="original"), encoding="utf-8")
+    metadata.write_text(
+        json.dumps(
+            {
+                "etag": '"original-v1"',
+                "last_modified": "Fri, 10 Jul 2026 08:00:00 GMT",
+                "source": "https://example.test/original.toml",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = rollout.refresh_base(
+        "https://example.test/replacement.toml",
+        cache,
+        metadata=metadata,
+        opener=opener,
+    )
+
+    assert requests[0].get_header("If-none-match") is None, (
+        "replacement source inherited the previous source's ETag"
+    )
+    assert requests[0].get_header("If-modified-since") is None, (
+        "replacement source inherited the previous source's modification time"
+    )
+    assert result.status == "refreshed", "replacement source did not refresh the cache"
+
+
 def test_invalid_download_does_not_replace_valid_cache(
     rollout: types.ModuleType,
     tmp_path: Path,
@@ -425,6 +485,10 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["organisational"] == "organizational", (
         "plain-British adjective was not corrected"
     )
+    assert mappings["italicized"] == "italicized", "Oxford spelling was not accepted"
+    assert mappings["italicised"] == "italicized", (
+        "plain-British spelling was not corrected"
+    )
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
@@ -438,6 +502,9 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     )
     assert "scripts/typos_rollout_cli.py generate" in makefile, (
         "spelling target does not generate configuration"
+    )
+    assert "git diff --exit-code -- typos.toml" in makefile, (
+        "spelling target does not reject stale generated configuration"
     )
     assert "typos@$(TYPOS_VERSION)" in makefile, "spelling target bypasses the version pin"
     assert "--config typos.toml --force-exclude ." in makefile, (

@@ -474,6 +474,8 @@ def _refresh_http(
 ) -> RefreshResult:
     """Refresh a cache from a remote source with validated stale fallback."""
     saved = _read_metadata(metadata)
+    if saved.get("source") != source:
+        saved = {}
     request = Request(source, headers=_conditional_headers(saved))
     try:
         with opener(request, timeout=30.0) as response:

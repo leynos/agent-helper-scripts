@@ -66,6 +66,7 @@ typecheck: syntax-check
 
 spelling:
 	@uv run --script scripts/typos_rollout_cli.py generate --repository . --source data/typos-oxendict-base.toml
+	@git diff --exit-code -- typos.toml
 	@$(TYPOS) --config typos.toml --force-exclude .
 
 test:
