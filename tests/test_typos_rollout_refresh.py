@@ -21,14 +21,15 @@ def test_refresh_base_copies_only_newer_local_source(
     metadata = tmp_path / ".typos-base.json"
     source.write_text(dictionary_text(stem="organ"), encoding="utf-8")
     os.utime(source, ns=(1_000_000_000, 1_000_000_000))
+    options = rollout.RefreshOptions(metadata=metadata)
 
-    first = rollout.refresh_base(source, cache, metadata=metadata)
+    first = rollout.refresh_base(source, cache, options)
     cache.write_text(dictionary_text(stem="local"), encoding="utf-8")
     os.utime(cache, ns=(2_000_000_000, 2_000_000_000))
-    unchanged = rollout.refresh_base(source, cache, metadata=metadata)
+    unchanged = rollout.refresh_base(source, cache, options)
     source.write_text(dictionary_text(stem="newer"), encoding="utf-8")
     os.utime(source, ns=(3_000_000_000, 3_000_000_000))
-    refreshed = rollout.refresh_base(source, cache, metadata=metadata)
+    refreshed = rollout.refresh_base(source, cache, options)
 
     assert first.status == "refreshed", "first local refresh did not populate the cache"
     assert unchanged.status == "current", "older local source replaced a newer cache"
@@ -51,9 +52,10 @@ def test_local_refresh_replaces_cache_from_different_source(
     second_source.write_text(dictionary_text(stem="second"), encoding="utf-8")
     os.utime(first_source, ns=(3_000_000_000, 3_000_000_000))
     os.utime(second_source, ns=(1_000_000_000, 1_000_000_000))
-    rollout.refresh_base(first_source, cache, metadata=metadata)
+    options = rollout.RefreshOptions(metadata=metadata)
+    rollout.refresh_base(first_source, cache, options)
 
-    result = rollout.refresh_base(second_source, cache, metadata=metadata)
+    result = rollout.refresh_base(second_source, cache, options)
 
     assert result.status == "refreshed", "different explicit source reused stale cache"
     assert rollout.load_dictionary(cache).stems == ("second",), (
@@ -73,19 +75,30 @@ def test_refresh_base_offline_requires_valid_cache(
         rollout.refresh_base(
             "https://example.invalid/base.toml",
             cache,
-            metadata=metadata,
-            offline=True,
+            rollout.RefreshOptions(metadata=metadata, offline=True),
         )
 
     cache.write_text(dictionary_text(), encoding="utf-8")
     result = rollout.refresh_base(
         "https://example.invalid/base.toml",
         cache,
-        metadata=metadata,
-        offline=True,
+        rollout.RefreshOptions(metadata=metadata, offline=True),
     )
 
     assert result.status == "offline-cache", "offline mode did not reuse the valid cache"
+
+
+def test_refresh_options_are_immutable(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Refresh policy cannot change after it is bound to an operation."""
+    options = rollout.RefreshOptions(metadata=tmp_path / ".typos-base.json")
+
+    with pytest.raises(AttributeError):
+        setattr(options, "offline", True)
+
+    assert options.offline is False, "failed mutation changed refresh policy"
 
 
 def test_http_refresh_uses_saved_etag(
@@ -126,14 +139,12 @@ def test_http_refresh_uses_saved_etag(
     first = rollout.refresh_base(
         "https://example.test/base.toml",
         cache,
-        metadata=metadata,
-        opener=opener,
+        rollout.RefreshOptions(metadata=metadata, opener=opener),
     )
     second = rollout.refresh_base(
         "https://example.test/base.toml",
         cache,
-        metadata=metadata,
-        opener=opener,
+        rollout.RefreshOptions(metadata=metadata, opener=opener),
     )
 
     assert requests[1].get_header("If-none-match") == '"estate-v1"', (
@@ -195,8 +206,7 @@ def test_http_refresh_drops_validators_for_a_different_source(
     result = rollout.refresh_base(
         "https://example.test/replacement.toml",
         cache,
-        metadata=metadata,
-        opener=opener,
+        rollout.RefreshOptions(metadata=metadata, opener=opener),
     )
 
     assert requests[0].get_header("If-none-match") is None, (
@@ -242,8 +252,10 @@ def test_changed_etag_is_authoritative_over_unchanged_date(
     result = rollout.refresh_base(
         source,
         cache,
-        metadata=metadata,
-        opener=lambda *_args, **_kwargs: response,
+        rollout.RefreshOptions(
+            metadata=metadata,
+            opener=lambda *_args, **_kwargs: response,
+        ),
     )
 
     assert result.status == "refreshed", "changed ETag did not refresh the cache"
@@ -282,8 +294,10 @@ def test_invalid_download_does_not_replace_valid_cache(
         rollout.refresh_base(
             "https://example.test/base.toml",
             cache,
-            metadata=tmp_path / ".typos-base.json",
-            opener=lambda *_args, **_kwargs: InvalidResponse(),
+            rollout.RefreshOptions(
+                metadata=tmp_path / ".typos-base.json",
+                opener=lambda *_args, **_kwargs: InvalidResponse(),
+            ),
         )
 
     assert cache.read_bytes() == original, "invalid download replaced the valid cache"

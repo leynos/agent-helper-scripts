@@ -302,6 +302,12 @@ network is unavailable, a valid existing cache remains usable with
 `--offline`; generation fails rather than silently inventing an empty base when
 no cache exists.
 
+Refresh callers bind the metadata path, offline policy and optional test opener
+in an immutable `RefreshOptions` value. The helper owns the private local and
+remote request records that coordinate freshness and persistence; consumers
+should compose the public options value rather than reuse those infrastructure
+details.
+
 Run `make spelling` after dictionary or generator changes. The target generates
 the committed config from the local authoritative base and runs the version of
 `typos` pinned by `TYPOS_VERSION`. The full `make ci` sequence includes this

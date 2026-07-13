@@ -32,8 +32,10 @@ def test_http_status_propagates_even_with_a_valid_cache(
         rollout.refresh_base(
             "https://example.test/missing.toml",
             cache,
-            metadata=tmp_path / ".typos-base.json",
-            opener=missing,
+            rollout.RefreshOptions(
+                metadata=tmp_path / ".typos-base.json",
+                opener=missing,
+            ),
         )
 
     assert raised.value is error, "HTTP status was replaced by a fallback result"
@@ -58,8 +60,10 @@ def test_persistence_error_propagates_even_with_a_valid_cache(
         rollout.refresh_base(
             "https://example.test/base.toml",
             cache,
-            metadata=tmp_path / ".typos-base.json",
-            opener=lambda *_args, **_kwargs: ValidResponse(stem="replacement"),
+            rollout.RefreshOptions(
+                metadata=tmp_path / ".typos-base.json",
+                opener=lambda *_args, **_kwargs: ValidResponse(stem="replacement"),
+            ),
         )
 
 
@@ -79,8 +83,7 @@ def test_connectivity_failure_uses_only_a_valid_stale_cache(
         rollout.refresh_base(
             "https://example.test/base.toml",
             cache,
-            metadata=metadata,
-            opener=unavailable,
+            rollout.RefreshOptions(metadata=metadata, opener=unavailable),
         )
     assert isinstance(raised.value.__context__, URLError), (
         "connectivity error did not retain the URL failure context"
@@ -90,8 +93,7 @@ def test_connectivity_failure_uses_only_a_valid_stale_cache(
     result = rollout.refresh_base(
         "https://example.test/base.toml",
         cache,
-        metadata=metadata,
-        opener=unavailable,
+        rollout.RefreshOptions(metadata=metadata, opener=unavailable),
     )
 
     assert result.status == "stale-cache", "valid stale cache was not reused offline"
@@ -111,8 +113,10 @@ def test_remote_source_requires_https(
         rollout.refresh_base(
             source,
             tmp_path / ".typos-base.toml",
-            metadata=tmp_path / ".typos-base.json",
-            opener=lambda *_args, **_kwargs: ValidResponse(),
+            rollout.RefreshOptions(
+                metadata=tmp_path / ".typos-base.json",
+                opener=lambda *_args, **_kwargs: ValidResponse(),
+            ),
         )
 
 
@@ -160,7 +164,7 @@ def test_default_refresh_uses_guarded_https_opener(
     result = rollout.refresh_base(
         "https://example.test/base.toml",
         tmp_path / ".typos-base.toml",
-        metadata=tmp_path / ".typos-base.json",
+        rollout.RefreshOptions(metadata=tmp_path / ".typos-base.json"),
     )
 
     assert result.status == "refreshed", "guarded production opener did not refresh"
