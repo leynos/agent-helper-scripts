@@ -929,6 +929,7 @@ extend-ignore-re = [
 "globalizers" = "globalizers"
 "globalizes" = "globalizes"
 "globalizing" = "globalizing"
+"handwritten" = "handwritten"
 "harmonisable" = "harmonizable"
 "harmonisably" = "harmonizably"
 "harmonisation" = "harmonization"

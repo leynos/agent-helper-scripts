@@ -1,12 +1,11 @@
 # ADR 003 — Shared Oxford spelling base
 
-**Status:** Accepted
-**Date:** 2026-07-10
+**Status:** Accepted **Date:** 2026-07-10
 
 ## Context
 
-Repositories in the `leynos` estate need consistent en-GB-oxendict spelling.
-The `typos` `en-gb` locale enforces British `-our` and `-yse` forms, but prefers
+Repositories in the `leynos` estate need consistent en-GB-oxendict spelling. The
+`typos` `en-gb` locale enforces British `-our` and `-yse` forms, but prefers
 plain-British `-ise` over Oxford `-ize`. Duplicating curated overrides in every
 repository would make corrections drift and would turn each newly observed
 Oxford stem into many unrelated edits.
@@ -23,12 +22,19 @@ Generate deterministic `typos.toml` files by merging that base with a tracked
 consumer `typos.local.toml` overlay. The renderer accepts Oxford inflections
 and corrects corresponding plain-British `-ise` forms.
 
+Store punctuation-separated corrections in a distinct shared phrase table.
+Because Typos splits a form such as `hand-written` into two valid word tokens,
+the spelling gate runs a small companion check over Git-tracked UTF-8 text.
+That check applies the merged ignore spans and file exclusions, then reports
+the exact source location and canonical replacement. Typos remains the general
+dictionary engine; the companion exists only for curated phrases that its
+tokenizer cannot represent.
+
 Consumers refresh the shared base into ignored `.typos-oxendict-base.toml`,
-with source identity and freshness validators in
-`.typos-oxendict-base.json`. Refreshes validate content before atomic
-replacement, preserve a valid cache when its authority is not newer, and allow
-explicit offline reuse. Generated configuration remains tracked so review and
-CI can detect drift.
+with source identity and freshness validators in `.typos-oxendict-base.json`.
+Refreshes validate content before atomic replacement, preserve a valid cache
+when its authority is not newer, and allow explicit offline reuse. Generated
+configuration remains tracked so review and CI can detect drift.
 
 ## Consequences
 
@@ -40,10 +46,14 @@ CI can detect drift.
 - Conditional refreshes avoid unnecessary downloads and retain offline use.
 - Deterministic rendering, TOML parsing, drift checks, and a real-binary smoke
   test make the generated boundary reviewable.
+- Exact phrase corrections remain shared and enforceable despite Typos token
+  boundaries.
 
 **Costs and trade-offs:**
 
 - Consumers carry a small generator and tracked generated configuration.
+- Consumers run one additional tracked-text pass for the small curated phrase
+  table.
 - A fresh consumer needs its shared source once before offline generation.
 - Curators must inspect harvested context because suffix matches alone include
   genuine `-ise` words and identifiers that are not Oxford stems.

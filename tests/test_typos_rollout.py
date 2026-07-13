@@ -320,6 +320,24 @@ def test_shared_dictionary_accepts_aso_formal_acronym(
     assert generated_words["ASO"] == "ASO", "generated config omitted the ASO acronym"
 
 
+def test_shared_dictionary_canonicalizes_handwritten(
+    rollout: types.ModuleType,
+) -> None:
+    """The closed compound is accepted and its hyphenated form is prohibited."""
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    mappings = rollout.generate_word_mappings(dictionary)
+
+    assert mappings["handwritten"] == "handwritten", (
+        "closed handwritten compound was not accepted"
+    )
+    assert "hand-written" not in mappings, (
+        "ineffective hyphenated word mapping was rendered for Typos"
+    )
+    assert dict(dictionary.phrase_corrections)["hand-written"] == "handwritten", (
+        "hyphenated form was not assigned to the phrase-policy checker"
+    )
+
+
 def test_shared_dictionary_protects_exact_rust_analyzer_name(
     rollout: types.ModuleType,
 ) -> None:

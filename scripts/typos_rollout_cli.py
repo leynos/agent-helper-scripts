@@ -7,14 +7,19 @@
 
 ``generate`` conditionally refreshes an untracked base cache over HTTP or from
 a local source, merges ``typos.local.toml``, and writes deterministic
-``typos.toml``. ``harvest`` reads Git-tracked UTF-8 text and emits JSON Lines
-evidence without changing repository files.
+``typos.toml``. ``check`` enforces exact phrase corrections that Typos cannot
+tokenize as one word. ``harvest`` reads Git-tracked UTF-8 text and emits JSON
+Lines evidence without changing repository files.
 
 Examples
 --------
 Generate configuration in the current repository::
 
     uv run --script scripts/typos_rollout_cli.py generate
+
+Check punctuation-separated phrase policy::
+
+    uv run --script scripts/typos_rollout_cli.py check
 
 Harvest a neighbouring repository::
 
@@ -102,6 +107,40 @@ def cli() -> None:
         """
         for finding in rollout.harvest_repository(repository):
             print(json.dumps(finding, sort_keys=True))
+
+    @app.command
+    def check(repository: Path = Path.cwd()) -> None:
+        """Reject prohibited exact phrases in tracked text.
+
+        Parameters
+        ----------
+        repository
+            Repository root containing the refreshed shared cache and optional
+            local spelling overlay.
+
+        Returns
+        -------
+        None
+            Prints actionable findings and exits with status two when any
+            prohibited phrase is present.
+        """
+        dictionary = rollout.load_dictionary(
+            repository / ".typos-oxendict-base.toml"
+        )
+        local_overlay = repository / "typos.local.toml"
+        if local_overlay.exists():
+            dictionary = rollout.merge_dictionaries(
+                dictionary,
+                rollout.load_dictionary(local_overlay),
+            )
+        findings = rollout.check_phrase_corrections(repository, dictionary)
+        for finding in findings:
+            print(
+                f"{finding.path}:{finding.line}:{finding.column}: "
+                f"{finding.phrase} -> {finding.correction}"
+            )
+        if findings:
+            raise SystemExit(2)
 
     app()
 

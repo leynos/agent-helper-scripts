@@ -16,8 +16,8 @@ The Rust bootstrap is split by authority boundary:
 This keeps non-cacheable system mutations separate from warm-cache-friendly
 `$HOME` mutations while preserving branchable, inspectable helper logic.
 
-The phase dispatcher is `rust-entrypoint`. It reads
-`RUST_ENTRYPOINT_PHASE` and runs one of these modes:
+The phase dispatcher is `rust-entrypoint`. It reads `RUST_ENTRYPOINT_PHASE` and
+runs one of these modes:
 
 - `system`
   - Runs `rust-entrypoint-system`.
@@ -127,9 +127,9 @@ whether `sudo` is required at their call sites.
 
 ```bash
 export HELPER_TOOLS_REPO_BRANCH=feature-branch
-curl -fsSL \
-  "https://raw.githubusercontent.com/leynos/agent-helper-scripts/refs/heads/feature-branch/rust-entrypoint" |
-  bash -euo pipefail
+raw_url="https://raw.githubusercontent.com/leynos/agent-helper-scripts"
+curl -fsSL "$raw_url/refs/heads/feature-branch/rust-entrypoint" \
+  | bash -euo pipefail
 ```
 
 ### Reuse a non-default checkout path
@@ -165,9 +165,9 @@ invocations with a managed checkout. That change was made so that:
 - helper sub-scripts share one checkout path instead of drifting into multiple
   independent clones.
 
-The phase split adds a second boundary: system helpers use a temporary checkout,
-while home helpers use the durable managed checkout. Keep that distinction
-visible when adding new bootstrap behaviour.
+The phase split adds a second boundary: system helpers use a temporary
+checkout, while home helpers use the durable managed checkout. Keep that
+distinction visible when adding new bootstrap behaviour.
 
 ## Script responsibilities
 
@@ -288,19 +288,22 @@ The architecture and trade-offs are recorded in
 
 The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
 generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
-there only when it is valid across repositories. Product names, quoted
-upstream terms and fixture-specific vocabulary belong in the consumer
-repository's tracked `typos.local.toml` overlay.
+there only when it is valid across repositories. Product names, quoted upstream
+terms and fixture-specific vocabulary belong in the consumer repository's
+tracked `typos.local.toml` overlay.
 
-The executable `scripts/typos_rollout_cli.py` provides two commands. `harvest`
-emits JSON Lines evidence for both plain-British `-ise` and Oxford `-ize`
-forms found in Git-tracked UTF-8 text. `generate` conditionally refreshes the
-untracked `.typos-oxendict-base.toml` cache, merges any local overlay, validates
-the result as TOML, and atomically writes deterministic `typos.toml` output.
-The companion `.typos-oxendict-base.json` stores HTTP validators. When the
-network is unavailable, a valid existing cache remains usable with
-`--offline`; generation fails rather than silently inventing an empty base when
-no cache exists.
+The executable `scripts/typos_rollout_cli.py` provides three commands.
+`harvest` emits JSON Lines evidence for both plain-British `-ise` and Oxford
+`-ize` forms found in Git-tracked UTF-8 text. `generate` conditionally
+refreshes the untracked `.typos-oxendict-base.toml` cache, merges any local
+overlay, validates the result as TOML, and atomically writes deterministic
+`typos.toml` output. `check` rejects curated exact phrase corrections that
+Typos cannot enforce because punctuation separates its word tokens. It masks
+the merged ignore patterns and skips the merged file exclusions before
+reporting a path, line, column and canonical replacement. The companion
+`.typos-oxendict-base.json` stores HTTP validators. When the network is
+unavailable, a valid existing cache remains usable with `--offline`; generation
+fails rather than silently inventing an empty base when no cache exists.
 
 Refresh callers bind the metadata path, offline policy and optional test opener
 in an immutable `RefreshOptions` value. The helper owns the private local and
@@ -309,10 +312,11 @@ should compose the public options value rather than reuse those infrastructure
 details.
 
 Run `make spelling` after dictionary or generator changes. The target generates
-the committed config from the local authoritative base and runs the version of
-`typos` pinned by `TYPOS_VERSION`. The full `make ci` sequence includes this
-gate. Tests assert byte-for-byte config drift, TOML validity, cache freshness,
-offline recovery and real-binary Oxford behaviour.
+the committed config from the local authoritative base, checks exact phrase
+policy, and runs the version of `typos` pinned by `TYPOS_VERSION`. The full
+`make ci` sequence includes this gate. Tests assert byte-for-byte config drift,
+TOML validity, cache freshness, offline recovery, exact phrase boundaries and
+real-binary Oxford behaviour.
 
 The initial shared stem set was curated on 10 July 2026 from both correct
 Oxford forms and incorrect plain-British forms across the 96 non-empty,

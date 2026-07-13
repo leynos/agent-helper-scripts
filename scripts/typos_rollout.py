@@ -46,6 +46,12 @@ OXFORD_FORM = re.compile(
     r"\b[A-Za-z]+(?:isations|izations|isation|ization|isably|izably|isable|izable|"
     r"isers|izers|ising|izing|ised|ized|ises|izes|iser|izer|ise|ize)\b"
 )
+PHRASE_POLICY_PATHS = frozenset(
+    {
+        Path("data/typos-oxendict-base.toml"),
+        Path("typos.local.toml"),
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -54,15 +60,36 @@ class Dictionary:
 
     Attributes
     ----------
-    stems, accepted, corrections, ignore_patterns, excluded_files
+    stems, accepted, corrections, phrase_corrections, ignore_patterns,
+    excluded_files
         Normalized dictionary data used by merging, rendering, and harvesting.
     """
 
     stems: tuple[str, ...] = ()
     accepted: tuple[str, ...] = ()
     corrections: tuple[tuple[str, str], ...] = ()
+    phrase_corrections: tuple[tuple[str, str], ...] = ()
     ignore_patterns: tuple[str, ...] = ()
     excluded_files: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PhraseFinding:
+    """Describe one prohibited phrase found in tracked text.
+
+    Attributes
+    ----------
+    path, line, column
+        Repository-relative location of the finding.
+    phrase, correction
+        Observed prohibited phrase and its canonical replacement.
+    """
+
+    path: Path
+    line: int
+    column: int
+    phrase: str
+    correction: str
 
 
 @dataclass(frozen=True)
@@ -193,6 +220,7 @@ def _dictionary_from_text(text: str) -> Dictionary:
         raise ValueError(f"unsupported dictionary schema {schema!r}")
     oxford = _table(document, "oxford")
     words = _table(document, "words")
+    phrases = _table(document, "phrases")
     patterns = _table(document, "patterns")
     files = _table(document, "files")
     corrections_table = _table(words, "corrections")
@@ -201,11 +229,19 @@ def _dictionary_from_text(text: str) -> Dictionary:
         for key, value in corrections_table.items()
     ):
         raise ValueError("word corrections must map strings to strings")
+    phrase_corrections_table = _table(phrases, "corrections")
+    if not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in phrase_corrections_table.items()
+    ):
+        raise ValueError("phrase corrections must map strings to strings")
     corrections = cast("Mapping[str, str]", corrections_table)
+    phrase_corrections = cast("Mapping[str, str]", phrase_corrections_table)
     return Dictionary(
         stems=_string_list(oxford, "stems"),
         accepted=_string_list(words, "accepted"),
         corrections=tuple(sorted(corrections.items())),
+        phrase_corrections=tuple(sorted(phrase_corrections.items())),
         ignore_patterns=_string_list(patterns, "ignore"),
         excluded_files=_string_list(files, "exclude"),
     )
@@ -258,10 +294,20 @@ def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
                 f"conflicting correction for {word!r}: {existing!r} != {correction!r}"
             )
         corrections[word] = correction
+    phrase_corrections = dict(base.phrase_corrections)
+    for phrase, correction in local.phrase_corrections:
+        existing = phrase_corrections.get(phrase)
+        if existing is not None and existing != correction:
+            raise ValueError(
+                f"conflicting phrase correction for {phrase!r}: "
+                f"{existing!r} != {correction!r}"
+            )
+        phrase_corrections[phrase] = correction
     return Dictionary(
         stems=tuple(sorted(set(base.stems) | set(local.stems))),
         accepted=tuple(sorted(set(base.accepted) | set(local.accepted))),
         corrections=tuple(sorted(corrections.items())),
+        phrase_corrections=tuple(sorted(phrase_corrections.items())),
         ignore_patterns=tuple(
             sorted(set(base.ignore_patterns) | set(local.ignore_patterns))
         ),
@@ -693,6 +739,84 @@ def is_harvest_excluded(relative: Path, dictionary: Dictionary) -> bool:
     )
 
 
+def _tracked_relative_paths(repository: Path) -> tuple[Path, ...]:
+    """Return the repository's Git-tracked paths in deterministic order."""
+    tracked = subprocess.run(
+        ["git", "-C", str(repository), "ls-files", "-z"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return tuple(Path(relative) for relative in sorted(filter(None, tracked.split("\0"))))
+
+
+def _mask_ignored_text(text: str, patterns: tuple[str, ...]) -> str:
+    """Blank ignored text while preserving line and column positions."""
+
+    def blank(match: re.Match[str]) -> str:
+        return "".join("\n" if character == "\n" else " " for character in match.group())
+
+    for pattern in patterns:
+        text = re.sub(pattern, blank, text)
+    return text
+
+
+def check_phrase_corrections(
+    repository: Path,
+    dictionary: Dictionary,
+) -> tuple[PhraseFinding, ...]:
+    """Find prohibited exact phrases in tracked UTF-8 text.
+
+    Typos tokenizes punctuation-separated compounds into individual words, so
+    it cannot enforce a correction such as ``hand-written`` to ``handwritten``.
+    This companion check applies only curated phrase corrections, after masking
+    the same ignored spans and excluded paths as the generated Typos policy.
+
+    Parameters
+    ----------
+    repository
+        Git worktree whose tracked text should be checked.
+    dictionary
+        Merged shared and repository-local spelling policy.
+
+    Returns
+    -------
+    tuple[PhraseFinding, ...]
+        Findings ordered by path, phrase, and source position.
+    """
+    findings: list[PhraseFinding] = []
+    for relative_path in _tracked_relative_paths(repository):
+        if (
+            relative_path in PHRASE_POLICY_PATHS
+            or is_harvest_excluded(relative_path, dictionary)
+        ):
+            continue
+        path = repository / relative_path
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        masked = _mask_ignored_text(text, dictionary.ignore_patterns)
+        for phrase, correction in dictionary.phrase_corrections:
+            matcher = re.compile(
+                rf"(?<![\w-]){re.escape(phrase)}(?![\w-])",
+                re.IGNORECASE,
+            )
+            for match in matcher.finditer(masked):
+                line = masked.count("\n", 0, match.start()) + 1
+                previous_newline = masked.rfind("\n", 0, match.start())
+                findings.append(
+                    PhraseFinding(
+                        path=relative_path,
+                        line=line,
+                        column=match.start() - previous_newline,
+                        phrase=text[match.start() : match.end()],
+                        correction=correction,
+                    )
+                )
+    return tuple(findings)
+
+
 def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
     """Harvest Oxford-form evidence from Git-tracked UTF-8 text files.
 
@@ -718,15 +842,8 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
             dictionary,
             load_dictionary(local_overlay),
         )
-    tracked = subprocess.run(
-        ["git", "-C", str(repository), "ls-files", "-z"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
     findings: list[dict[str, object]] = []
-    for relative in sorted(filter(None, tracked.split("\0"))):
-        relative_path = Path(relative)
+    for relative_path in _tracked_relative_paths(repository):
         if is_harvest_excluded(relative_path, dictionary):
             continue
         path = repository / relative_path
@@ -738,6 +855,10 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
             forms = harvest_oxford_forms(line)
             if forms:
                 findings.append(
-                    {"path": relative, "line": number, "forms": list(forms)}
+                    {
+                        "path": str(relative_path),
+                        "line": number,
+                        "forms": list(forms),
+                    }
                 )
     return tuple(findings)

@@ -29,6 +29,9 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     assert "scripts/typos_rollout_cli.py generate" in makefile, (
         "spelling target does not generate configuration"
     )
+    assert "scripts/typos_rollout_cli.py check" in makefile, (
+        "spelling target does not enforce exact phrase corrections"
+    )
     assert "typos@$(TYPOS_VERSION)" in makefile, "spelling target bypasses the version pin"
     assert "--config typos.toml --force-exclude ." in makefile, (
         "spelling target does not apply generated configuration and exclusions"
@@ -113,6 +116,54 @@ def test_spelling_gate_rejects_untracked_generated_config(tmp_path: Path) -> Non
     result = run_spelling_gate(repository)
 
     assert result.returncode != 0, "spelling gate accepted an untracked generated config"
+
+
+def test_phrase_checker_respects_boundaries_and_ignored_text(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Exact phrase policy checks prose without broad substring matches."""
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    (repository / "README.md").write_text(
+        "hand-written\n"
+        "Hand-written prose\n"
+        "handwritten\n"
+        "hand-writtenness\n"
+        "pre-hand-written\n"
+        "`hand-written`\n",
+        encoding="utf-8",
+    )
+    git = require_executable("git")
+    subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
+    subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
+    dictionary = rollout.Dictionary(
+        phrase_corrections=(("hand-written", "handwritten"),),
+        ignore_patterns=(r"`[^`\n]+`",),
+    )
+
+    findings = rollout.check_phrase_corrections(repository, dictionary)
+
+    assert [(finding.line, finding.phrase) for finding in findings] == [
+        (1, "hand-written"),
+        (2, "Hand-written"),
+    ], "phrase checker did not preserve exact compound boundaries"
+
+
+def test_spelling_gate_rejects_hyphenated_hand_written(tmp_path: Path) -> None:
+    """The complete spelling gate rejects the prohibited hyphenated compound."""
+    repository = prepare_spelling_gate_repository(tmp_path)
+    readme = repository / "README.md"
+    readme.write_text("Prefer hand-written notes.\n", encoding="utf-8")
+    git = require_executable("git")
+    subprocess.run([git, "add", "README.md"], cwd=repository, check=True, timeout=30)
+
+    result = run_spelling_gate(repository)
+
+    assert result.returncode != 0, "spelling gate accepted hand-written prose"
+    assert "README.md:1:8: hand-written -> handwritten" in result.stdout, (
+        "spelling gate did not report the canonical handwritten replacement"
+    )
 
 
 @pytest.mark.slow
