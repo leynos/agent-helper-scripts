@@ -142,9 +142,8 @@ class TestHasUncommittedChanges:
             ]
             dirty, err = hook.has_uncommitted_changes(REPO)
         assert dirty is None, f"expected dirty to be None on error but was {dirty!r}"
-        assert err is not None, "expected an error message from git ls-files failure"
-        assert "git ls-files failed" in err, (
-            f"expected ls-files failure in message but got {err!r}"
+        assert err == "git ls-files failed: fatal: oops", (
+            f"expected exact ls-files failure message but got {err!r}"
         )
 
 
@@ -176,8 +175,8 @@ class TestGetUpstreamRef:
             mock_run.return_value = _completed(128, stderr="no upstream")
             ref, err = hook.get_upstream_ref(REPO)
         assert ref is None, f"expected no upstream ref but got {ref!r}"
-        assert "no upstream" in (err or ""), (
-            f"expected no-upstream message but got {err!r}"
+        assert err == "no upstream", (
+            f"expected the exact stderr message but got {err!r}"
         )
 
     def test_empty_stdout(self) -> None:
@@ -253,8 +252,8 @@ class TestHasUnpushedCommits:
             mock_run.return_value = _completed(0, stdout="")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
         assert ahead is None, f"expected ahead to be None for empty output but was {ahead!r}"
-        assert "empty output" in (err or ""), (
-            f"expected empty output error but got {err!r}"
+        assert err == "git rev-list --count returned empty output", (
+            f"expected exact empty-output message but got {err!r}"
         )
 
     def test_non_integer_output(self) -> None:
@@ -585,6 +584,7 @@ class TestTruncate:
             ("abc", 10, "abc"),
             ("A" * 100, len(TRUNCATE_MARKER), "A" * len(TRUNCATE_MARKER)),
             ("A" * 100, 5, "AAAAA"),
+            ("A" * 100, 1, "A"),
             # remaining = 50 - 28 = 22 -> head 11, tail 11
             ("A" * 40 + "B" * 40, 50, "A" * 11 + TRUNCATE_MARKER + "B" * 11),
             # remaining = 51 - 28 = 23 -> head 11, tail 12
@@ -617,16 +617,16 @@ class TestParseMakeTargets:
                 "all: dep1 dep2",
                 "\trecipe: ignored",
                 " indented: ignored",
+                "",
                 "build install: common",
                 "%.o: %.c",
-                "pattern-%: base",
+                "tmpl-% cleanup: dep",
                 "check:: double-colon",
                 "no-colon-line",
-                "",
             ]
         )
         targets = hook.parse_make_targets(make_stdout)
-        assert targets == {"all", "build", "install", "check"}, (
+        assert targets == {"all", "build", "install", "cleanup", "check"}, (
             f"unexpected parsed targets: {targets!r}"
         )
 
@@ -710,8 +710,8 @@ class TestFormatReason:
     """Tests for format_reason()."""
 
     def test_error_only_state(self) -> None:
-        """An error with no changes renders the minimal report exactly."""
-        state = hook.HookState()
+        """An error with no base ref or changes renders placeholders exactly."""
+        state = hook.HookState(base_ref="")
         state.error = "boom"
         expected = "\n".join(
             [
@@ -719,9 +719,9 @@ class TestFormatReason:
                 "",
                 "Error: boom",
                 "",
-                "Diff base: origin/main (?)",
+                "Diff base: ? (?)",
                 "",
-                "Changed files vs origin/main: 0",
+                "Changed files vs ?: 0",
                 "",
                 "Fix the failures above. The checks will re-run at the end of"
                 " the next turn.",
@@ -751,6 +751,7 @@ class TestFormatReason:
                 "stderr": "lint error",
             },
             {"cmd": "make mystery", "exit_code": 1, "stdout": "", "stderr": ""},
+            {"exit_code": 3},
         ]
         expected = "\n".join(
             [
@@ -775,6 +776,11 @@ class TestFormatReason:
                 "```",
                 "",
                 "Command failed (exit 1): make mystery",
+                "```",
+                "(no output captured)",
+                "```",
+                "",
+                "Command failed (exit 3): ",
                 "```",
                 "(no output captured)",
                 "```",
