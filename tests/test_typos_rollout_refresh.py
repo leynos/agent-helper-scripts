@@ -8,7 +8,7 @@ import types
 
 import pytest
 
-from typos_rollout_test_support import dictionary_text
+from typos_rollout_test_support import ValidResponse, dictionary_text
 
 
 def test_refresh_base_copies_only_newer_local_source(
@@ -212,6 +212,44 @@ def test_http_refresh_drops_validators_for_a_different_source(
     assert json.loads(metadata.read_text(encoding="utf-8"))["source"] == (
         "https://example.test/replacement.toml"
     ), "replacement source metadata was not persisted"
+
+
+def test_changed_etag_is_authoritative_over_unchanged_date(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """A changed ETag refreshes even when Last-Modified is unchanged."""
+    cache = tmp_path / ".typos-base.toml"
+    metadata = tmp_path / ".typos-base.json"
+    source = "https://example.test/base.toml"
+    modified = "Fri, 10 Jul 2026 08:00:00 GMT"
+    cache.write_text(dictionary_text(stem="original"), encoding="utf-8")
+    metadata.write_text(
+        json.dumps(
+            {
+                "etag": '"estate-v1"',
+                "last_modified": modified,
+                "source": source,
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = ValidResponse(
+        stem="replacement",
+        headers={"ETag": '"estate-v2"', "Last-Modified": modified},
+    )
+
+    result = rollout.refresh_base(
+        source,
+        cache,
+        metadata=metadata,
+        opener=lambda *_args, **_kwargs: response,
+    )
+
+    assert result.status == "refreshed", "changed ETag did not refresh the cache"
+    assert rollout.load_dictionary(cache).stems == ("replacement",), (
+        "changed ETag response was discarded by the date validator"
+    )
 
 
 def test_invalid_download_does_not_replace_valid_cache(
