@@ -159,6 +159,7 @@ stems = [
 
 [words]
 accepted = [
+  "ASO",
   "artifact",
   "artifacts",
   "dialog",
