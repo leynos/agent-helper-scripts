@@ -44,6 +44,7 @@ extend-ignore-re = [
 
 [default.extend-words]
 "ANALYZER" = "ANALYZER"
+"ASO" = "ASO"
 "MOLD" = "MOLD"
 "absolutisable" = "absolutizable"
 "absolutisably" = "absolutizably"

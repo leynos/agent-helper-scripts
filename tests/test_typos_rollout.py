@@ -301,3 +301,18 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["recognisably"] == "recognizably", (
         "plain-British adverb was not corrected"
     )
+
+
+def test_shared_dictionary_accepts_aso_formal_acronym(
+    rollout: types.ModuleType,
+) -> None:
+    """The formal ASO acronym remains an exact accepted identity mapping."""
+    mappings = rollout.generate_word_mappings(
+        rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    )
+    generated_words = tomllib.loads(COMMITTED_CONFIG_PATH.read_text(encoding="utf-8"))[
+        "default"
+    ]["extend-words"]
+
+    assert mappings["ASO"] == "ASO", "shared policy did not accept the ASO acronym"
+    assert generated_words["ASO"] == "ASO", "generated config omitted the ASO acronym"
