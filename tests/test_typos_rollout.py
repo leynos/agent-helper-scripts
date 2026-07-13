@@ -1,6 +1,7 @@
 """Behavioural tests for the shared en-GB-oxendict rollout helper."""
 
 from pathlib import Path
+import re
 import subprocess
 import tomllib
 import types
@@ -316,3 +317,24 @@ def test_shared_dictionary_accepts_aso_formal_acronym(
 
     assert mappings["ASO"] == "ASO", "shared policy did not accept the ASO acronym"
     assert generated_words["ASO"] == "ASO", "generated config omitted the ASO acronym"
+
+
+def test_shared_dictionary_protects_exact_rust_analyzer_name(
+    rollout: types.ModuleType,
+) -> None:
+    """Only the hyphenated formal rust-analyzer tool name is ignored."""
+    pattern = r"\brust-analyzer\b"
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    generated = tomllib.loads(rollout.render_typos_config(dictionary))["default"]
+    generated_patterns = generated["extend-ignore-re"]
+    generated_words = generated["extend-words"]
+    matcher = re.compile(pattern)
+
+    assert pattern in dictionary.ignore_patterns, "shared policy omitted rust-analyzer"
+    assert pattern in generated_patterns, "generated config omitted rust-analyzer"
+    assert "analyzer" not in generated_words, "shared config accepted ordinary analyzer"
+    assert "analyser" not in generated_words, "shared config accepted ordinary analyser"
+    assert matcher.fullmatch("rust-analyzer"), "formal tool name was not matched"
+    assert not matcher.search("analyzer"), "ordinary analyzer prose was ignored"
+    assert not matcher.search("analyser"), "ordinary analyser prose was ignored"
+    assert not matcher.search("rust analyzer"), "unhyphenated prose was ignored"

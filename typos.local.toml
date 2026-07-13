@@ -19,7 +19,6 @@ accepted = [
 [patterns]
 ignore = [
   'RUST_ANALYZER(?:_PRECHECK)?',
-  '\brust-analyzer\b',
   '\bMOLD\b',
   '\bmold\b',
   '\bartifact_name\b',
