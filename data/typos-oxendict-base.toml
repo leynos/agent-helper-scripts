@@ -176,6 +176,7 @@ organisational = "organizational"
 ignore = [
   '`[^`\n]+`',
   '(?s)```.*?```',
+  '\brust-analyzer\b',
 ]
 
 [files]
