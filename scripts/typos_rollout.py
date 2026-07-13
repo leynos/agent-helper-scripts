@@ -81,6 +81,24 @@ class RefreshResult:
     cache: Path
 
 
+@dataclass(frozen=True, slots=True)
+class _LocalSourceState:
+    """Group local authority identity and freshness state."""
+
+    name: str
+    mtime_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class _RemoteRequestState:
+    """Group one remote authority with its cache and saved validators."""
+
+    source: str
+    cache: Path
+    metadata: Path
+    saved: Mapping[str, object]
+
+
 class NetworkUnavailableError(OSError):
     """Report that the remote dictionary authority could not be reached."""
 
@@ -125,6 +143,30 @@ class Response(Protocol):
         *args
             Optional exception context supplied by the context manager.
         """
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RefreshOptions:
+    """Configure one shared-dictionary refresh operation.
+
+    Attributes
+    ----------
+    metadata
+        Sidecar path containing source identity and freshness validators.
+    offline
+        Whether to reuse a valid cache without contacting the authority.
+    opener
+        Optional injectable HTTPS opener for deterministic tests.
+
+    Examples
+    --------
+    >>> RefreshOptions(metadata=Path(".typos-base.json")).offline
+    False
+    """
+
+    metadata: Path
+    offline: bool = False
+    opener: Callable[..., Response] | None = None
 
 
 def _string_list(table: Mapping[str, object], key: str) -> tuple[str, ...]:
@@ -397,25 +439,41 @@ def _remote_is_not_newer(
         return modified == saved_modified
 
 
-def _refresh_local(source: Path, cache: Path, metadata: Path) -> RefreshResult:
+def _local_cache_is_current(
+    cache: Path,
+    saved: Mapping[str, object],
+    source: _LocalSourceState,
+) -> bool:
+    """Return whether metadata proves a valid local-source cache is current."""
+    saved_mtime = saved.get("mtime_ns")
+    return (
+        _valid_cache(cache)
+        and saved.get("source") == source.name
+        and isinstance(saved_mtime, int)
+        and source.mtime_ns <= saved_mtime
+    )
+
+
+def _refresh_local(
+    source: Path,
+    cache: Path,
+    options: RefreshOptions,
+) -> RefreshResult:
     """Refresh from a local authoritative copy when it is newer."""
     source_stat = source.stat()
-    source_name = str(source.resolve())
-    saved = _read_metadata(metadata)
-    saved_mtime = saved.get("mtime_ns")
-    if (
-        _valid_cache(cache)
-        and saved.get("source") == source_name
-        and isinstance(saved_mtime, int)
-        and source_stat.st_mtime_ns <= saved_mtime
-    ):
+    source_state = _LocalSourceState(
+        name=str(source.resolve()),
+        mtime_ns=source_stat.st_mtime_ns,
+    )
+    saved = _read_metadata(options.metadata)
+    if _local_cache_is_current(cache, saved, source_state):
         return RefreshResult("current", cache)
     content = source.read_bytes()
     _dictionary_from_text(content.decode())
     _atomic_write(cache, content)
     _write_metadata(
-        metadata,
-        {"source": source_name, "mtime_ns": source_stat.st_mtime_ns},
+        options.metadata,
+        {"source": source_state.name, "mtime_ns": source_state.mtime_ns},
     )
     return RefreshResult("refreshed", cache)
 
@@ -433,43 +491,40 @@ def _conditional_headers(saved: Mapping[str, object]) -> dict[str, str]:
 
 
 def _write_remote_cache(
-    source: str,
-    cache: Path,
-    metadata: Path,
+    state: _RemoteRequestState,
     response: Response,
 ) -> RefreshResult:
     """Validate and atomically persist a remote dictionary response."""
     try:
         content = response.read()
     except URLError as error:
-        message = f"shared dictionary authority is unavailable: {source}"
+        message = f"shared dictionary authority is unavailable: {state.source}"
         raise NetworkUnavailableError(message) from error
     _dictionary_from_text(content.decode())
-    _atomic_write(cache, content)
+    _atomic_write(state.cache, content)
     _write_metadata(
-        metadata,
+        state.metadata,
         {
-            "source": source,
+            "source": state.source,
             "etag": response.headers.get("ETag"),
             "last_modified": response.headers.get("Last-Modified"),
         },
     )
-    return RefreshResult("refreshed", cache)
+    return RefreshResult("refreshed", state.cache)
 
 
 def _remote_response_result(
-    source: str,
-    cache: Path,
-    metadata: Path,
-    saved: Mapping[str, object],
+    state: _RemoteRequestState,
     response: Response,
 ) -> RefreshResult:
     """Return the cache result for a successful HTTP response."""
-    if response.status == 304 and _valid_cache(cache):
-        return RefreshResult("current", cache)
-    if _valid_cache(cache) and _remote_is_not_newer(saved, response.headers):
-        return RefreshResult("current", cache)
-    return _write_remote_cache(source, cache, metadata, response)
+    if response.status == 304 and _valid_cache(state.cache):
+        return RefreshResult("current", state.cache)
+    if _valid_cache(state.cache) and _remote_is_not_newer(
+        state.saved, response.headers
+    ):
+        return RefreshResult("current", state.cache)
+    return _write_remote_cache(state, response)
 
 
 def _stale_cache_or_raise(
@@ -495,13 +550,15 @@ class _HttpsRedirectHandler(HTTPRedirectHandler):
     def redirect_request(
         self,
         request: Request,
-        file_pointer: object,
-        code: int,
-        message: str,
-        headers: object,
-        new_url: str,
+        *redirect: object,
     ) -> Request | None:
-        """Follow only redirects whose resolved target remains HTTPS."""
+        """Follow only redirects whose resolved target remains HTTPS.
+
+        The variadic tail preserves the standard library's positional override
+        contract without making transport-library parameters part of this
+        helper's domain-facing interface.
+        """
+        file_pointer, code, message, headers, new_url = redirect
         if urlsplit(new_url).scheme != "https":
             error_message = f"shared dictionary redirect must use HTTPS: {new_url}"
             raise InsecureSourceError(error_message)
@@ -529,15 +586,14 @@ def _https_request(source: str, headers: Mapping[str, str]) -> Request:
 def _refresh_http(
     source: str,
     cache: Path,
-    metadata: Path,
-    opener: Callable[..., Response] | None,
+    options: RefreshOptions,
 ) -> RefreshResult:
     """Refresh a cache from a remote source with validated stale fallback."""
-    saved = _read_metadata(metadata)
+    saved = _read_metadata(options.metadata)
     if saved.get("source") != source:
         saved = {}
     request = _https_request(source, _conditional_headers(saved))
-    open_remote = _HTTPS_OPENER.open if opener is None else opener
+    open_remote = _HTTPS_OPENER.open if options.opener is None else options.opener
     try:
         response_context = open_remote(request, timeout=30.0)
     except HTTPError as error:
@@ -548,7 +604,10 @@ def _refresh_http(
         return _stale_cache_or_raise(cache, unavailable)
     with response_context as response:
         try:
-            return _remote_response_result(source, cache, metadata, saved, response)
+            return _remote_response_result(
+                _RemoteRequestState(source, cache, options.metadata, saved),
+                response,
+            )
         except NetworkUnavailableError as error:
             return _stale_cache_or_raise(cache, error)
 
@@ -556,10 +615,7 @@ def _refresh_http(
 def refresh_base(
     source: str | Path,
     cache: Path,
-    *,
-    metadata: Path,
-    offline: bool = False,
-    opener: Callable[..., Response] | None = None,
+    options: RefreshOptions,
 ) -> RefreshResult:
     """Refresh an untracked base cache when its authority is newer.
 
@@ -569,13 +625,8 @@ def refresh_base(
         Local path or HTTP URL for the authoritative shared dictionary.
     cache
         Untracked local cache destination.
-    metadata
-        Sidecar path for source identity and HTTP validators.
-    offline
-        Reuse a valid cache without contacting the source.
-    opener
-        Injectable HTTP opener used for deterministic tests. The HTTPS-only
-        opener is used by default.
+    options
+        Metadata destination, offline mode and optional injectable HTTP opener.
 
     Returns
     -------
@@ -596,13 +647,13 @@ def refresh_base(
         If local persistence fails or the authority returns an HTTP error.
     """
     source_text = str(source)
-    if offline:
+    if options.offline:
         if not _valid_cache(cache):
             raise FileNotFoundError(f"no cached shared dictionary at {cache}")
         return RefreshResult("offline-cache", cache)
     if isinstance(source, Path) or "://" not in source_text:
-        return _refresh_local(Path(source_text), cache, metadata)
-    return _refresh_http(source_text, cache, metadata, opener)
+        return _refresh_local(Path(source_text), cache, options)
+    return _refresh_http(source_text, cache, options)
 
 
 def harvest_oxford_forms(text: str) -> tuple[str, ...]:

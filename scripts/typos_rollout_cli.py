@@ -71,8 +71,10 @@ def cli() -> None:
         result = rollout.refresh_base(
             source,
             cache,
-            metadata=repository / ".typos-oxendict-base.json",
-            offline=offline,
+            rollout.RefreshOptions(
+                metadata=repository / ".typos-oxendict-base.json",
+                offline=offline,
+            ),
         )
         dictionary = rollout.load_dictionary(cache)
         local_overlay = repository / "typos.local.toml"
