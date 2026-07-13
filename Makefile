@@ -68,6 +68,7 @@ spelling:
 	@uv run --script scripts/typos_rollout_cli.py generate --repository . --source data/typos-oxendict-base.toml
 	@git ls-files --error-unmatch typos.toml >/dev/null
 	@git diff --exit-code -- typos.toml
+	@uv run --script scripts/typos_rollout_cli.py check --repository .
 	@$(TYPOS) --config typos.toml --force-exclude .
 
 test:

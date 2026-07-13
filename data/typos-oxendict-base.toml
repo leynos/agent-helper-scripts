@@ -160,10 +160,9 @@ stems = [
 [words]
 accepted = [
   "ASO",
-  "artifact",
-  "artifacts",
   "dialog",
   "dialogs",
+  "handwritten",
   "organizational",
   "oxendict",
   "yse",
@@ -171,6 +170,9 @@ accepted = [
 
 [words.corrections]
 organisational = "organizational"
+
+[phrases.corrections]
+"hand-written" = "handwritten"
 
 [patterns]
 ignore = [

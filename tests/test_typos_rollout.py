@@ -270,10 +270,10 @@ def test_committed_config_matches_shared_dictionary(
     )
 
 
-def test_shared_dictionary_preserves_generic_technical_terms(
+def test_shared_dictionary_preserves_generic_terms_without_american_artefacts(
     rollout: types.ModuleType,
 ) -> None:
-    """Generic UI, CI, and Oxford terms remain valid across consumers."""
+    """Generic UI and Oxford terms must not admit American artefact spellings."""
     mappings = rollout.generate_word_mappings(
         rollout.load_dictionary(SHARED_DICTIONARY_PATH)
     )
@@ -281,7 +281,8 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["oxidized"] == "oxidized", "Oxford spelling was not accepted"
     assert mappings["oxidised"] == "oxidized", "plain-British spelling was not corrected"
     assert mappings["dialogs"] == "dialogs", "UI terminology was not accepted"
-    assert mappings["artifacts"] == "artifacts", "CI terminology was not accepted"
+    assert "artifact" not in mappings, "American artefact spelling was accepted"
+    assert "artifacts" not in mappings, "American artefact plural was accepted"
     assert mappings["organizational"] == "organizational", (
         "Oxford adjective was not accepted"
     )
@@ -317,6 +318,24 @@ def test_shared_dictionary_accepts_aso_formal_acronym(
 
     assert mappings["ASO"] == "ASO", "shared policy did not accept the ASO acronym"
     assert generated_words["ASO"] == "ASO", "generated config omitted the ASO acronym"
+
+
+def test_shared_dictionary_canonicalizes_handwritten(
+    rollout: types.ModuleType,
+) -> None:
+    """The closed compound is accepted and its hyphenated form is prohibited."""
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    mappings = rollout.generate_word_mappings(dictionary)
+
+    assert mappings["handwritten"] == "handwritten", (
+        "closed handwritten compound was not accepted"
+    )
+    assert "hand-written" not in mappings, (
+        "ineffective hyphenated word mapping was rendered for Typos"
+    )
+    assert dict(dictionary.phrase_corrections)["hand-written"] == "handwritten", (
+        "hyphenated form was not assigned to the phrase-policy checker"
+    )
 
 
 def test_shared_dictionary_protects_exact_rust_analyzer_name(

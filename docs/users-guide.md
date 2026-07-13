@@ -55,7 +55,9 @@ Run `make spelling` in this checkout to generate and validate the estate-wide
 en-GB-oxendict configuration. The command uses the tracked shared base in
 `data/typos-oxendict-base.toml`, merges repository-only exceptions from
 `typos.local.toml`, writes generated `typos.toml`, and checks the repository
-with the pinned `typos` version.
+with the pinned `typos` version. It also rejects curated punctuation-separated
+phrases that `typos` cannot treat as one word, reporting the canonical
+replacement.
 
 Consumer repositories use the same generation model. Their generator fetches
 the shared base into ignored `.typos-oxendict-base.toml` and records freshness
@@ -66,14 +68,17 @@ The rollout CLI exposes the underlying operations:
 
 ```bash
 uv run --script scripts/typos_rollout_cli.py generate --repository .
+uv run --script scripts/typos_rollout_cli.py check --repository .
 uv run --script scripts/typos_rollout_cli.py harvest ../project
 ```
 
 `generate` accepts a local path or HTTP URL with `--source`, and `--offline`
-requires an existing valid cache. `harvest` emits JSON Lines evidence for
-Oxford `-ize` and plain-British `-ise` candidates in Git-tracked UTF-8 text.
-Generic spellings belong in the shared base; product names, quoted upstream
-terms, and deliberate fixtures belong in a consumer's `typos.local.toml`.
+requires an existing valid cache. `check` applies curated exact phrase
+corrections to tracked text while respecting the merged ignore and exclusion
+policy. `harvest` emits JSON Lines evidence for Oxford `-ize` and plain-British
+`-ise` candidates in Git-tracked UTF-8 text. Generic spellings belong in the
+shared base; product names, quoted upstream terms, and deliberate fixtures
+belong in a consumer's `typos.local.toml`.
 
 ## Common settings
 
@@ -87,8 +92,8 @@ Allowed values:
 - `home`
 - `both`
 
-Use this to select which bootstrap phase the `rust-entrypoint` wrapper runs.
-Use `both` for ordinary setup, `system` for a fresh system layer, and `home` for
+Use this to select which bootstrap phase the `rust-entrypoint` wrapper runs. Use
+`both` for ordinary setup, `system` for a fresh system layer, and `home` for
 warm `$HOME` cache creation or refresh.
 
 ### `UBUNTU_APT_MIRROR`
@@ -266,8 +271,8 @@ Use these variables to pin or override versions installed by the home phase:
 
 ### Kopia cargo cache
 
-Set `KOPIA_BUCKET` to enable Kopia-backed cargo cache restore and snapshot.
-The system phase installs the `kopia` package when this is set. The home phase
+Set `KOPIA_BUCKET` to enable Kopia-backed cargo cache restore and snapshot. The
+system phase installs the `kopia` package when this is set. The home phase
 connects to the repository, restores the cache, and snapshots it again after
 tool installation.
 
@@ -316,17 +321,17 @@ These variables customize that installation:
 `agents/subagents.yml` is the provider-neutral manifest of the managed
 sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`, and
 `scrutineer`). Each entry carries a shared `description` and `instructions`
-body plus per-provider blocks for Codex CLI, Claude Code, and goose.
-Downstream provisioning tooling (for example the dev-env-rocky `agent_tools`
-Ansible role) loads the manifest from a checkout of this repository and
-renders each enabled provider's native configuration file. The schema is
-documented in the manifest's header comment, and the deployment contracts
-are pinned by `tests/test_subagent_definitions.py`.
+body plus per-provider blocks for Codex CLI, Claude Code, and goose. Downstream
+provisioning tooling (for example the dev-env-rocky `agent_tools` Ansible role)
+loads the manifest from a checkout of this repository and renders each enabled
+provider's native configuration file. The schema is documented in the
+manifest's header comment, and the deployment contracts are pinned by
+`tests/test_subagent_definitions.py`.
 
 ## OpenTofu helper settings
 
-These variables apply when running `get-open-tofu-tooling` directly. That helper
-is not part of the default `rust-entrypoint` helper list.
+These variables apply when running `get-open-tofu-tooling` directly. That
+helper is not part of the default `rust-entrypoint` helper list.
 
 - `TFLINT_VERSION`
   - Default: `latest`
