@@ -497,6 +497,10 @@ def test_shared_dictionary_preserves_generic_technical_terms(
     assert mappings["italicised"] == "italicized", (
         "plain-British spelling was not corrected"
     )
+    assert mappings["underutilize"] == "underutilize", "Oxford spelling was not accepted"
+    assert mappings["underutilise"] == "underutilize", (
+        "plain-British spelling was not corrected"
+    )
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
