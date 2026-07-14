@@ -86,7 +86,7 @@ def cli() -> None:
         if local_overlay.exists():
             dictionary = rollout.merge_dictionaries(
                 dictionary,
-                rollout.load_dictionary(local_overlay),
+                rollout.load_dictionary(local_overlay, local_overlay=True),
             )
         rollout.write_config(repository / "typos.toml", dictionary)
         print(f"{result.status}: {repository / 'typos.toml'}")
@@ -124,14 +124,12 @@ def cli() -> None:
             Prints actionable findings and exits with status two when any
             prohibited phrase is present.
         """
-        dictionary = rollout.load_dictionary(
-            repository / ".typos-oxendict-base.toml"
-        )
+        dictionary = rollout.load_dictionary(repository / ".typos-oxendict-base.toml")
         local_overlay = repository / "typos.local.toml"
         if local_overlay.exists():
             dictionary = rollout.merge_dictionaries(
                 dictionary,
-                rollout.load_dictionary(local_overlay),
+                rollout.load_dictionary(local_overlay, local_overlay=True),
             )
         findings = rollout.check_phrase_corrections(repository, dictionary)
         for finding in findings:

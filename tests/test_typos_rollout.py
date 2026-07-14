@@ -5,7 +5,6 @@ import re
 import subprocess
 import tomllib
 import types
-import typing as typ
 
 import pytest
 from hypothesis import given
@@ -164,7 +163,9 @@ def test_harvest_repository_merges_local_exclusions(
         encoding="utf-8",
     )
     (repository / "typos.local.toml").write_text(
-        dictionary_text().replace('[files]\nexclude = [".git"]', '[files]\nexclude = ["fixture.md"]'),
+        dictionary_text().replace(
+            '[files]\nexclude = [".git"]', '[files]\nexclude = ["fixture.md"]'
+        ),
         encoding="utf-8",
     )
     git = require_executable("git")
@@ -261,7 +262,7 @@ def test_committed_config_matches_shared_dictionary(
     expected = rollout.render_typos_config(
         rollout.merge_dictionaries(
             rollout.load_dictionary(SHARED_DICTIONARY_PATH),
-            rollout.load_dictionary(LOCAL_DICTIONARY_PATH),
+            rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True),
         )
     )
 
