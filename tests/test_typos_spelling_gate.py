@@ -183,7 +183,7 @@ def test_generated_config_loads_in_pinned_typos(
         config,
         rollout.merge_dictionaries(
             rollout.load_dictionary(SHARED_DICTIONARY_PATH),
-            rollout.load_dictionary(LOCAL_DICTIONARY_PATH),
+            rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True),
         ),
     )
     sample = tmp_path / "sample.md"

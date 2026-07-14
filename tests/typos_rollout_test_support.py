@@ -57,7 +57,8 @@ def dictionary_text(*, stem: str = "organ", accepted: str = "oxendict") -> str:
         'schema = 1\n\n[oxford]\n'
         f'stems = ["{stem}"]\n\n'
         f'[words]\naccepted = ["{accepted}"]\n\n'
-        '[words.corrections]\n\n[patterns]\nignore = []\n\n'
+        '[words.corrections]\n\n[phrases.corrections]\n\n'
+        '[patterns]\nignore = []\n\n'
         '[files]\nexclude = [".git"]\n'
     )
 

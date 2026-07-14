@@ -27,6 +27,16 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 SCHEMA_VERSION = 1
+REQUIRED_AUTHORITY_FIELDS = (
+    ("oxford", "stems"),
+    ("words", "accepted"),
+    ("words", "corrections"),
+    ("phrases", "corrections"),
+    ("patterns", "ignore"),
+    ("files", "exclude"),
+)
+GENERIC_PROSE = ("ordinary prose", "unrelated_identifier")
+UNIVERSAL_FILE_GLOBS = frozenset({"*", "**", "**/*", "*.md", "**/*.md"})
 SHARED_DICTIONARY_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "typos-oxendict-base.toml"
 )
@@ -137,11 +147,10 @@ class InsecureSourceError(ValueError):
 class Response(Protocol):
     """Structural type for the HTTP response surface used by refreshes.
 
-    Implementations provide status and headers, return response bytes from
-    :meth:`read`, and support context-managed closure.
+    Implementations provide headers, return response bytes from :meth:`read`,
+    and support context-managed closure.
     """
 
-    status: int
     headers: Mapping[str, str]
 
     def read(self) -> bytes:
@@ -212,12 +221,74 @@ def _table(document: Mapping[str, object], key: str) -> Mapping[str, object]:
     return cast("Mapping[str, object]", value)
 
 
-def _dictionary_from_text(text: str) -> Dictionary:
+def _is_supported_schema(schema: object) -> bool:
+    """Return whether *schema* is the exact supported integer version."""
+    return (
+        isinstance(schema, int)
+        and not isinstance(schema, bool)
+        and schema == SCHEMA_VERSION
+    )
+
+
+def _validate_required_field(
+    document: Mapping[str, object],
+    table_name: str,
+    field_name: str,
+) -> None:
+    """Require one shared-authority table and field."""
+    if table_name not in document:
+        raise ValueError(f"missing required table {table_name!r}")
+    table = document[table_name]
+    if isinstance(table, dict) and field_name not in table:
+        raise ValueError(f"missing required field {table_name}.{field_name}")
+
+
+def _validate_document(document: Mapping[str, object], *, sparse: bool) -> None:
+    """Validate schema identity and required shared-authority fields."""
+    schema = document.get("schema")
+    if not _is_supported_schema(schema):
+        raise ValueError(f"unsupported dictionary schema {schema!r}")
+    if sparse:
+        return
+    for table_name, field_name in REQUIRED_AUTHORITY_FIELDS:
+        _validate_required_field(document, table_name, field_name)
+
+
+def _ignore_pattern_is_broad(pattern: str) -> bool:
+    """Return whether *pattern* can suppress empty or generic prose."""
+    compiled = re.compile(pattern)
+    return compiled.search("") is not None or any(
+        compiled.fullmatch(probe) for probe in GENERIC_PROSE
+    )
+
+
+def _validate_ignore_pattern(pattern: str) -> None:
+    """Reject one ignore pattern that can suppress generic text."""
+    if _ignore_pattern_is_broad(pattern):
+        raise ValueError(f"local ignore pattern is too broad: {pattern!r}")
+
+
+def _validate_file_exclusion(pattern: str) -> None:
+    """Reject one file glob that can suppress the whole documentation set."""
+    if pattern in UNIVERSAL_FILE_GLOBS:
+        raise ValueError(f"local file exclusion is too broad: {pattern!r}")
+
+
+def _validate_local_exceptions(
+    ignore_patterns: tuple[str, ...],
+    excluded_files: tuple[str, ...],
+) -> None:
+    """Reject local exceptions that can match generic prose or all Markdown."""
+    for pattern in ignore_patterns:
+        _validate_ignore_pattern(pattern)
+    for pattern in excluded_files:
+        _validate_file_exclusion(pattern)
+
+
+def _dictionary_from_text(text: str, *, sparse: bool = False) -> Dictionary:
     """Parse and validate shared dictionary text."""
     document = tomllib.loads(text)
-    schema = document.get("schema")
-    if schema != SCHEMA_VERSION:
-        raise ValueError(f"unsupported dictionary schema {schema!r}")
+    _validate_document(document, sparse=sparse)
     oxford = _table(document, "oxford")
     words = _table(document, "words")
     phrases = _table(document, "phrases")
@@ -247,13 +318,15 @@ def _dictionary_from_text(text: str) -> Dictionary:
     )
 
 
-def load_dictionary(path: Path) -> Dictionary:
+def load_dictionary(path: Path, *, local_overlay: bool = False) -> Dictionary:
     """Load a validated shared dictionary from a TOML file.
 
     Parameters
     ----------
     path
         Dictionary file to parse.
+    local_overlay
+        Permit omitted fields only for an explicitly local overlay.
 
     Returns
     -------
@@ -265,7 +338,7 @@ def load_dictionary(path: Path) -> Dictionary:
     ValueError, tomllib.TOMLDecodeError
         If the schema or TOML content is invalid.
     """
-    return _dictionary_from_text(path.read_text(encoding="utf-8"))
+    return _dictionary_from_text(path.read_text(encoding="utf-8"), sparse=local_overlay)
 
 
 def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
@@ -284,8 +357,9 @@ def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
     Raises
     ------
     ValueError
-        If both inputs define different corrections for one word.
+        If corrections conflict or local exceptions are too broad.
     """
+    _validate_local_exceptions(local.ignore_patterns, local.excluded_files)
     corrections = dict(base.corrections)
     for word, correction in local.corrections:
         existing = corrections.get(word)
@@ -564,8 +638,6 @@ def _remote_response_result(
     response: Response,
 ) -> RefreshResult:
     """Return the cache result for a successful HTTP response."""
-    if response.status == 304 and _valid_cache(state.cache):
-        return RefreshResult("current", state.cache)
     if _valid_cache(state.cache) and _remote_is_not_newer(
         state.saved, response.headers
     ):
@@ -644,7 +716,7 @@ def _refresh_http(
         response_context = open_remote(request, timeout=30.0)
     except HTTPError as error:
         return _http_error_result(cache, error)
-    except URLError as error:
+    except URLError:
         message = f"shared dictionary authority is unavailable: {source}"
         unavailable = NetworkUnavailableError(message)
         return _stale_cache_or_raise(cache, unavailable)
@@ -715,7 +787,9 @@ def harvest_oxford_forms(text: str) -> tuple[str, ...]:
     tuple[str, ...]
         Sorted unique case-folded candidate forms.
     """
-    return tuple(sorted({match.group(0).casefold() for match in OXFORD_FORM.finditer(text)}))
+    return tuple(
+        sorted({match.group(0).casefold() for match in OXFORD_FORM.finditer(text)})
+    )
 
 
 def is_harvest_excluded(relative: Path, dictionary: Dictionary) -> bool:
@@ -747,14 +821,18 @@ def _tracked_relative_paths(repository: Path) -> tuple[Path, ...]:
         capture_output=True,
         text=True,
     ).stdout
-    return tuple(Path(relative) for relative in sorted(filter(None, tracked.split("\0"))))
+    return tuple(
+        Path(relative) for relative in sorted(filter(None, tracked.split("\0")))
+    )
 
 
 def _mask_ignored_text(text: str, patterns: tuple[str, ...]) -> str:
     """Blank ignored text while preserving line and column positions."""
 
     def blank(match: re.Match[str]) -> str:
-        return "".join("\n" if character == "\n" else " " for character in match.group())
+        return "".join(
+            "\n" if character == "\n" else " " for character in match.group()
+        )
 
     for pattern in patterns:
         text = re.sub(pattern, blank, text)
@@ -840,7 +918,7 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
     if local_overlay.exists():
         dictionary = merge_dictionaries(
             dictionary,
-            load_dictionary(local_overlay),
+            load_dictionary(local_overlay, local_overlay=True),
         )
     findings: list[dict[str, object]] = []
     for relative_path in _tracked_relative_paths(repository):
