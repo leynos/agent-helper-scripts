@@ -21,8 +21,6 @@ extend-exclude = [
     "package-lock.json",
     "pnpm-lock.yaml",
     "target",
-    "tests/test_typos_rollout.py",
-    "tests/test_typos_spelling_gate.py",
     "typos.local.toml",
     "typos.toml",
     "uv.lock",

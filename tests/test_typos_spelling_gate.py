@@ -16,6 +16,11 @@ from typos_rollout_test_support import (
     require_executable,
 )
 
+HYPHENATED_HANDWRITTEN = "hand" + "-written"
+TITLE_HYPHENATED_HANDWRITTEN = "Hand" + "-written"
+PLAIN_BRITISH_ORGANIZE = "organi" + "se"
+AMERICAN_COLOUR = "col" + "or"
+
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     """The CI entrypoint generates config and runs a pinned typos binary."""
@@ -126,42 +131,115 @@ def test_phrase_checker_respects_boundaries_and_ignored_text(
     repository = tmp_path / "consumer"
     repository.mkdir()
     (repository / "README.md").write_text(
-        "hand-written\n"
-        "Hand-written prose\n"
+        f"{HYPHENATED_HANDWRITTEN}\n"
+        f"{TITLE_HYPHENATED_HANDWRITTEN} prose\n"
         "handwritten\n"
-        "hand-writtenness\n"
-        "pre-hand-written\n"
-        "`hand-written`\n",
+        f"{HYPHENATED_HANDWRITTEN}ness\n"
+        f"pre-{HYPHENATED_HANDWRITTEN}\n"
+        f"`{HYPHENATED_HANDWRITTEN}`\n",
         encoding="utf-8",
     )
     git = require_executable("git")
     subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
     subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
     dictionary = rollout.Dictionary(
-        phrase_corrections=(("hand-written", "handwritten"),),
+        phrase_corrections=((HYPHENATED_HANDWRITTEN, "handwritten"),),
         ignore_patterns=(r"`[^`\n]+`",),
     )
 
     findings = rollout.check_phrase_corrections(repository, dictionary)
 
     assert [(finding.line, finding.phrase) for finding in findings] == [
-        (1, "hand-written"),
-        (2, "Hand-written"),
+        (1, HYPHENATED_HANDWRITTEN),
+        (2, TITLE_HYPHENATED_HANDWRITTEN),
     ], "phrase checker did not preserve exact compound boundaries"
+
+
+def test_phrase_checker_rejects_unsafe_masking_patterns(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Policy regexes cannot introduce unbounded backtracking in the scanner."""
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    (repository / "README.md").write_text("safe prose\n", encoding="utf-8")
+    git = require_executable("git")
+    subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
+    subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
+
+    with pytest.raises(ValueError, match="unsafe repetition"):
+        rollout.check_phrase_corrections(
+            repository,
+            rollout.Dictionary(ignore_patterns=("(a+)+$",)),
+        )
+
+
+def test_phrase_checker_propagates_file_read_failures(
+    rollout: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Filesystem failures fail the gate instead of silently skipping a file."""
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    target = repository / "README.md"
+    target.write_text("safe prose\n", encoding="utf-8")
+    git = require_executable("git")
+    subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
+    subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
+    read_text = Path.read_text
+
+    def deny_target(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> str:
+        """Deny only the tracked fixture while preserving policy reads."""
+        if path == target:
+            raise PermissionError("tracked fixture is unreadable")
+        return read_text(path, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "read_text", deny_target)
+    with pytest.raises(PermissionError, match="tracked fixture is unreadable"):
+        rollout.check_phrase_corrections(repository, rollout.Dictionary())
+
+
+def test_phrase_checker_skips_non_utf8_files(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Binary tracked content remains outside phrase enforcement."""
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    (repository / "binary.dat").write_bytes(b"\xff")
+    git = require_executable("git")
+    subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
+    subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
+
+    assert rollout.check_phrase_corrections(repository, rollout.Dictionary()) == ()
 
 
 def test_spelling_gate_rejects_hyphenated_hand_written(tmp_path: Path) -> None:
     """The complete spelling gate rejects the prohibited hyphenated compound."""
     repository = prepare_spelling_gate_repository(tmp_path)
     readme = repository / "README.md"
-    readme.write_text("Prefer hand-written notes.\n", encoding="utf-8")
+    readme.write_text(
+        f"Prefer {HYPHENATED_HANDWRITTEN} notes.\n",
+        encoding="utf-8",
+    )
     git = require_executable("git")
     subprocess.run([git, "add", "README.md"], cwd=repository, check=True, timeout=30)
 
     result = run_spelling_gate(repository)
 
-    assert result.returncode != 0, "spelling gate accepted hand-written prose"
-    assert "README.md:1:8: hand-written -> handwritten" in result.stdout, (
+    assert result.returncode != 0, (
+        f"spelling gate accepted {HYPHENATED_HANDWRITTEN} prose"
+    )
+    expected_diagnostic = (
+        f"README.md:1:8: {HYPHENATED_HANDWRITTEN} -> handwritten"
+    )
+    assert expected_diagnostic in result.stdout, (
         "spelling gate did not report the canonical handwritten replacement"
     )
 
@@ -188,7 +266,8 @@ def test_generated_config_loads_in_pinned_typos(
     )
     sample = tmp_path / "sample.md"
     sample.write_text(
-        "We organise color output but analyse valid results.\n",
+        f"We {PLAIN_BRITISH_ORGANIZE} {AMERICAN_COLOUR} output but analyse "
+        "valid results.\n",
         encoding="utf-8",
     )
 
@@ -216,10 +295,10 @@ def test_generated_config_loads_in_pinned_typos(
         if entry.get("type") == "typo"
     }
 
-    assert corrections.get("organise") == ["organize"], (
+    assert corrections.get(PLAIN_BRITISH_ORGANIZE) == ["organize"], (
         "Oxford correction was not enforced"
     )
-    assert corrections.get("color") == ["colour"], (
+    assert corrections.get(AMERICAN_COLOUR) == ["colour"], (
         "British colour spelling was not enforced"
     )
     assert "analyse" not in corrections, "valid -yse spelling was rejected"

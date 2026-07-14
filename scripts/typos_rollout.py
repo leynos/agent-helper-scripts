@@ -13,7 +13,7 @@ Load the shared base and render its generated configuration::
 """
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
 import json
 from pathlib import Path
@@ -36,7 +36,9 @@ REQUIRED_AUTHORITY_FIELDS = (
     ("files", "exclude"),
 )
 GENERIC_PROSE = ("ordinary prose", "unrelated_identifier")
-UNIVERSAL_FILE_GLOBS = frozenset({"*", "**", "**/*", "*.md", "**/*.md"})
+UNIVERSAL_FILE_GLOBS = frozenset({"*", "**", "**/*", "*.md", "**.md", "**/*.md"})
+BACKREFERENCE = re.compile(r"\\(?:[1-9]|g<|k<)|\(\?P=")
+REPETITION = re.compile(r"\{\d+(?:,\d*)?\}")
 SHARED_DICTIONARY_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "typos-oxendict-base.toml"
 )
@@ -62,6 +64,147 @@ PHRASE_POLICY_PATHS = frozenset(
         Path("typos.local.toml"),
     }
 )
+
+
+@dataclass(slots=True)
+class _GroupState:
+    """Track ambiguity and adjacent quantified atoms within one regex group."""
+
+    has_repetition: bool = False
+    has_alternation: bool = False
+    atoms_since_repetition: int | None = None
+
+    def note_atom(self) -> None:
+        """Record one atom separating this group's direct repetitions."""
+        if self.atoms_since_repetition is not None:
+            self.atoms_since_repetition += 1
+
+    def note_repetition(self, *, repeats_ambiguous_group: bool) -> bool:
+        """Record a repetition and return whether it compounds ambiguity."""
+        is_unsafe = self.atoms_since_repetition == 1 or repeats_ambiguous_group
+        self.has_repetition = True
+        self.atoms_since_repetition = 0
+        return is_unsafe
+
+
+@dataclass(slots=True)
+class _RepetitionScanner:
+    """Recognize unsafe nested or adjacent repetition in one regex pattern."""
+
+    pattern: str
+    groups: list[_GroupState] = field(
+        default_factory=lambda: [_GroupState()],
+        init=False,
+    )
+    position: int = 0
+    is_in_character_class: bool = False
+    previous_group_is_ambiguous: bool = False
+
+    def has_unsafe_repetition(self) -> bool:
+        """Return whether scanning finds repetition that compounds ambiguity."""
+        while self.position < len(self.pattern):
+            if self._consume_current_character():
+                return True
+        return False
+
+    def _consume_current_character(self) -> bool:
+        """Consume one regex token and report an unsafe repetition suffix."""
+        character = self.pattern[self.position]
+        if self.is_in_character_class:
+            self._consume_character_class(character)
+            return False
+        match character:
+            case "\\":
+                self._consume_escape()
+            case "[":
+                self._open_character_class()
+            case "(":
+                self._open_group()
+            case ")" if len(self.groups) > 1:
+                self._close_group()
+            case "|":
+                self._consume_alternation()
+            case _:
+                return self._consume_atom_or_operator(character)
+        return False
+
+    def _consume_character_class(self, character: str) -> None:
+        """Advance through a character class without parsing its contents."""
+        if character == "\\":
+            self.position += 2
+            return
+        self.is_in_character_class = character != "]"
+        self.position += 1
+
+    def _consume_escape(self) -> None:
+        """Treat an escaped token as one atom and skip its escaped character."""
+        self.groups[-1].note_atom()
+        self.previous_group_is_ambiguous = False
+        self.position += 2
+
+    def _open_character_class(self) -> None:
+        """Record a character class as one atom and enter its contents."""
+        self.is_in_character_class = True
+        self.groups[-1].note_atom()
+        self.previous_group_is_ambiguous = False
+        self.position += 1
+
+    def _open_group(self) -> None:
+        """Begin tracking ambiguity within a nested group."""
+        self.groups.append(_GroupState())
+        self.previous_group_is_ambiguous = False
+        self.position += 1
+
+    def _close_group(self) -> None:
+        """Merge a completed group's ambiguity into its parent group."""
+        closed_group = self.groups.pop()
+        parent_group = self.groups[-1]
+        parent_group.note_atom()
+        parent_group.has_repetition |= closed_group.has_repetition
+        parent_group.has_alternation |= closed_group.has_alternation
+        self.previous_group_is_ambiguous = (
+            closed_group.has_repetition or closed_group.has_alternation
+        )
+        self.position += 1
+
+    def _consume_alternation(self) -> None:
+        """Mark the current group as ambiguous across its alternatives."""
+        self.groups[-1].has_alternation = True
+        self.groups[-1].atoms_since_repetition = None
+        self.previous_group_is_ambiguous = False
+        self.position += 1
+
+    def _consume_atom_or_operator(self, character: str) -> bool:
+        """Consume a plain atom or repetition-related regex operator."""
+        repetition = REPETITION.match(self.pattern, self.position)
+        if self._is_group_syntax(character) or self._is_repetition_modifier(character):
+            self._advance_one_character()
+            return False
+        if character not in "*+?" and repetition is None:
+            self.groups[-1].note_atom()
+            self._advance_one_character()
+            return False
+        is_unsafe = self.groups[-1].note_repetition(
+            repeats_ambiguous_group=self.previous_group_is_ambiguous,
+        )
+        self.previous_group_is_ambiguous = False
+        self.position = self.position + 1 if repetition is None else repetition.end()
+        return is_unsafe
+
+    def _is_group_syntax(self, character: str) -> bool:
+        """Return whether a question mark introduces special group syntax."""
+        previous_character = self.pattern[self.position - 1 : self.position]
+        return character == "?" and previous_character == "("
+
+    def _is_repetition_modifier(self, character: str) -> bool:
+        """Return whether a suffix modifies an existing repetition operator."""
+        previous_character = self.pattern[self.position - 1 : self.position]
+        return character in "+?" and previous_character in "*+?}"
+
+    def _advance_one_character(self) -> None:
+        """Advance past a token that breaks adjacency with a closed group."""
+        self.previous_group_is_ambiguous = False
+        self.position += 1
 
 
 @dataclass(frozen=True)
@@ -254,11 +397,36 @@ def _validate_document(document: Mapping[str, object], *, sparse: bool) -> None:
         _validate_required_field(document, table_name, field_name)
 
 
+def _has_unsafe_repetition(pattern: str) -> bool:
+    """Return whether repetition can amplify another ambiguous expression."""
+    return _RepetitionScanner(pattern).has_unsafe_repetition()
+
+
+def _compile_policy_pattern(pattern: str) -> re.Pattern[str]:
+    """Compile a policy regex after rejecting backtracking-prone forms."""
+    try:
+        compiled = re.compile(pattern)
+    except re.error as error:
+        message = f"ignore pattern is invalid: {pattern!r} ({error})"
+        raise ValueError(message) from error
+    if BACKREFERENCE.search(pattern) or _has_unsafe_repetition(pattern):
+        message = f"ignore pattern has unsafe repetition: {pattern!r}"
+        raise ValueError(message)
+    return compiled
+
+
+def _compile_ignore_patterns(
+    ignore_patterns: tuple[str, ...],
+) -> tuple[re.Pattern[str], ...]:
+    """Compile policy regexes with bounded matching complexity."""
+    return tuple(_compile_policy_pattern(pattern) for pattern in ignore_patterns)
+
+
 def _ignore_pattern_is_broad(pattern: str) -> bool:
     """Return whether *pattern* can suppress empty or generic prose."""
-    compiled = re.compile(pattern)
+    compiled = _compile_policy_pattern(pattern)
     return compiled.search("") is not None or any(
-        compiled.fullmatch(probe) for probe in GENERIC_PROSE
+        compiled.search(probe) for probe in GENERIC_PROSE
     )
 
 
@@ -270,7 +438,10 @@ def _validate_ignore_pattern(pattern: str) -> None:
 
 def _validate_file_exclusion(pattern: str) -> None:
     """Reject one file glob that can suppress the whole documentation set."""
-    if pattern in UNIVERSAL_FILE_GLOBS:
+    normalized = pattern.strip().casefold()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if normalized in UNIVERSAL_FILE_GLOBS:
         raise ValueError(f"local file exclusion is too broad: {pattern!r}")
 
 
@@ -308,12 +479,14 @@ def _dictionary_from_text(text: str, *, sparse: bool = False) -> Dictionary:
         raise ValueError("phrase corrections must map strings to strings")
     corrections = cast("Mapping[str, str]", corrections_table)
     phrase_corrections = cast("Mapping[str, str]", phrase_corrections_table)
+    ignore_patterns = _string_list(patterns, "ignore")
+    _compile_ignore_patterns(ignore_patterns)
     return Dictionary(
         stems=_string_list(oxford, "stems"),
         accepted=_string_list(words, "accepted"),
         corrections=tuple(sorted(corrections.items())),
         phrase_corrections=tuple(sorted(phrase_corrections.items())),
-        ignore_patterns=_string_list(patterns, "ignore"),
+        ignore_patterns=ignore_patterns,
         excluded_files=_string_list(files, "exclude"),
     )
 
@@ -648,16 +821,23 @@ def _remote_response_result(
 def _stale_cache_or_raise(
     cache: Path,
     error: NetworkUnavailableError,
+    *,
+    has_matching_source: bool,
 ) -> RefreshResult:
-    """Return a valid stale cache or propagate the download failure."""
-    if _valid_cache(cache):
+    """Return a source-scoped stale cache or propagate the download failure."""
+    if has_matching_source and _valid_cache(cache):
         return RefreshResult("stale-cache", cache)
     raise error
 
 
-def _http_error_result(cache: Path, error: HTTPError) -> RefreshResult:
-    """Translate an HTTP failure into the available cache result."""
-    if error.code == 304 and _valid_cache(cache):
+def _http_error_result(
+    cache: Path,
+    error: HTTPError,
+    *,
+    has_matching_source: bool,
+) -> RefreshResult:
+    """Translate an HTTP failure into a source-scoped cache result."""
+    if error.code == 304 and has_matching_source and _valid_cache(cache):
         return RefreshResult("current", cache)
     raise error
 
@@ -708,18 +888,27 @@ def _refresh_http(
 ) -> RefreshResult:
     """Refresh a cache from a remote source with validated stale fallback."""
     saved = _read_metadata(options.metadata)
-    if saved.get("source") != source:
+    has_matching_source = saved.get("source") == source
+    if not has_matching_source:
         saved = {}
     request = _https_request(source, _conditional_headers(saved))
     open_remote = _HTTPS_OPENER.open if options.opener is None else options.opener
     try:
         response_context = open_remote(request, timeout=30.0)
     except HTTPError as error:
-        return _http_error_result(cache, error)
+        return _http_error_result(
+            cache,
+            error,
+            has_matching_source=has_matching_source,
+        )
     except URLError:
         message = f"shared dictionary authority is unavailable: {source}"
         unavailable = NetworkUnavailableError(message)
-        return _stale_cache_or_raise(cache, unavailable)
+        return _stale_cache_or_raise(
+            cache,
+            unavailable,
+            has_matching_source=has_matching_source,
+        )
     with response_context as response:
         try:
             return _remote_response_result(
@@ -727,7 +916,11 @@ def _refresh_http(
                 response,
             )
         except NetworkUnavailableError as error:
-            return _stale_cache_or_raise(cache, error)
+            return _stale_cache_or_raise(
+                cache,
+                error,
+                has_matching_source=has_matching_source,
+            )
 
 
 def refresh_base(
@@ -826,16 +1019,20 @@ def _tracked_relative_paths(repository: Path) -> tuple[Path, ...]:
     )
 
 
-def _mask_ignored_text(text: str, patterns: tuple[str, ...]) -> str:
+def _mask_ignored_text(
+    text: str,
+    patterns: tuple[re.Pattern[str], ...],
+) -> str:
     """Blank ignored text while preserving line and column positions."""
 
     def blank(match: re.Match[str]) -> str:
+        """Replace non-newline match characters with spaces."""
         return "".join(
             "\n" if character == "\n" else " " for character in match.group()
         )
 
     for pattern in patterns:
-        text = re.sub(pattern, blank, text)
+        text = pattern.sub(blank, text)
     return text
 
 
@@ -863,6 +1060,18 @@ def check_phrase_corrections(
         Findings ordered by path, phrase, and source position.
     """
     findings: list[PhraseFinding] = []
+    ignore_patterns = _compile_ignore_patterns(dictionary.ignore_patterns)
+    phrase_matchers = tuple(
+        (
+            phrase,
+            correction,
+            re.compile(
+                rf"(?<![\w-]){re.escape(phrase)}(?![\w-])",
+                re.IGNORECASE,
+            ),
+        )
+        for phrase, correction in dictionary.phrase_corrections
+    )
     for relative_path in _tracked_relative_paths(repository):
         if (
             relative_path in PHRASE_POLICY_PATHS
@@ -872,14 +1081,10 @@ def check_phrase_corrections(
         path = repository / relative_path
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except UnicodeDecodeError:
             continue
-        masked = _mask_ignored_text(text, dictionary.ignore_patterns)
-        for phrase, correction in dictionary.phrase_corrections:
-            matcher = re.compile(
-                rf"(?<![\w-]){re.escape(phrase)}(?![\w-])",
-                re.IGNORECASE,
-            )
+        masked = _mask_ignored_text(text, ignore_patterns)
+        for phrase, correction, matcher in phrase_matchers:
             for match in matcher.finditer(masked):
                 line = masked.count("\n", 0, match.start()) + 1
                 previous_newline = masked.rfind("\n", 0, match.start())
@@ -927,7 +1132,7 @@ def harvest_repository(repository: Path) -> tuple[dict[str, object], ...]:
         path = repository / relative_path
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError):
+        except UnicodeDecodeError:
             continue
         for number, line in enumerate(lines, start=1):
             forms = harvest_oxford_forms(line)

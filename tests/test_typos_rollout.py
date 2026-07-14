@@ -18,6 +18,18 @@ from typos_rollout_test_support import (
     require_executable,
 )
 
+PLAIN_BRITISH_ORGANIZE = "organi" + "se"
+PLAIN_BRITISH_ORGANIZATIONS = "organi" + "sations"
+PLAIN_BRITISH_ORGANIZING = "organi" + "sing"
+PLAIN_BRITISH_OXIDIZED = "oxidi" + "sed"
+PLAIN_BRITISH_ORGANIZATIONAL = "organi" + "sational"
+PLAIN_BRITISH_ITALICIZED = "italici" + "sed"
+PLAIN_BRITISH_UNDERUTILIZE = "underutili" + "se"
+PLAIN_BRITISH_RECOGNIZABLY = "recogni" + "sably"
+AMERICAN_ARTEFACT = "arti" + "fact"
+AMERICAN_ARTEFACTS = AMERICAN_ARTEFACT + "s"
+HYPHENATED_HANDWRITTEN = "hand" + "-written"
+
 
 def test_load_dictionary_rejects_unknown_schema(
     rollout: types.ModuleType,
@@ -42,9 +54,13 @@ def test_oxford_stem_generates_correct_and_incorrect_forms(
     mappings = rollout.generate_word_mappings(rollout.load_dictionary(source))
 
     assert mappings["organize"] == "organize", "Oxford form was not accepted"
-    assert mappings["organise"] == "organize", "plain-British form was not corrected"
+    assert mappings[PLAIN_BRITISH_ORGANIZE] == "organize", (
+        "plain-British form was not corrected"
+    )
     assert mappings["organizations"] == "organizations", "Oxford plural was not accepted"
-    assert mappings["organisations"] == "organizations", "plain-British plural was not corrected"
+    assert mappings[PLAIN_BRITISH_ORGANIZATIONS] == "organizations", (
+        "plain-British plural was not corrected"
+    )
 
 
 @given(stem=st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=16))
@@ -86,7 +102,11 @@ def test_merge_rejects_conflicting_corrections(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="conflicting correction for 'teh'"):
+    conflict_word = "t" + "eh"
+    with pytest.raises(
+        ValueError,
+        match=rf"conflicting correction for '{conflict_word}'",
+    ):
         rollout.merge_dictionaries(
             rollout.load_dictionary(base_path),
             rollout.load_dictionary(local_path),
@@ -108,7 +128,7 @@ def test_rendered_config_is_deterministic_valid_toml(
 
     assert first == second, "renderer output changed between identical calls"
     assert parsed["default"]["locale"] == "en-gb", "generated locale is not en-gb"
-    assert parsed["default"]["extend-words"]["organise"] == "organize", (
+    assert parsed["default"]["extend-words"][PLAIN_BRITISH_ORGANIZE] == "organize", (
         "generated config omitted the Oxford correction"
     )
     assert first.endswith("\n"), "generated config lacks a trailing newline"
@@ -120,10 +140,13 @@ def test_harvest_finds_both_oxford_and_plain_british_forms(
 ) -> None:
     """Harvesting retains evidence for both sides of an Oxford mapping."""
     forms = rollout.harvest_oxford_forms(
-        "We organize releases after organising fixtures and analyse results."
+        f"We organize releases after {PLAIN_BRITISH_ORGANIZING} fixtures and "
+        "analyse results."
     )
 
-    assert forms == ("organising", "organize"), "harvest omitted or added Oxford candidates"
+    assert forms == (PLAIN_BRITISH_ORGANIZING, "organize"), (
+        "harvest omitted or added Oxford candidates"
+    )
 
 
 @pytest.mark.parametrize(
@@ -155,7 +178,7 @@ def test_harvest_repository_merges_local_exclusions(
     repository = tmp_path / "repository"
     repository.mkdir()
     (repository / "fixture.md").write_text(
-        "The fixture deliberately says organise.\n",
+        f"The fixture deliberately says {PLAIN_BRITISH_ORGANIZE}.\n",
         encoding="utf-8",
     )
     (repository / "kept.md").write_text(
@@ -185,6 +208,61 @@ def test_harvest_repository_merges_local_exclusions(
     assert {finding["path"] for finding in findings} == {"kept.md"}, (
         "harvest included a repository-local excluded fixture"
     )
+
+
+def test_harvest_repository_propagates_file_read_failures(
+    rollout: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Filesystem failures fail harvesting instead of hiding incomplete evidence."""
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    target = repository / "README.md"
+    target.write_text("We organize releases.\n", encoding="utf-8")
+    git = require_executable("git")
+    subprocess.run([git, "init", "-q", repository], check=True, timeout=30)
+    subprocess.run(
+        [git, "-C", repository, "add", "README.md"],
+        check=True,
+        timeout=30,
+    )
+    read_text = Path.read_text
+
+    def deny_target(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> str:
+        """Deny only the tracked fixture while preserving authority reads."""
+        if path == target:
+            raise PermissionError("tracked fixture is unreadable")
+        return read_text(path, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "read_text", deny_target)
+
+    with pytest.raises(PermissionError, match="tracked fixture is unreadable"):
+        rollout.harvest_repository(repository)
+
+
+def test_harvest_repository_skips_non_utf8_files(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """Binary tracked content remains outside Oxford-form harvesting."""
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "binary.dat").write_bytes(b"\xff")
+    git = require_executable("git")
+    subprocess.run([git, "init", "-q", repository], check=True, timeout=30)
+    subprocess.run(
+        [git, "-C", repository, "add", "binary.dat"],
+        check=True,
+        timeout=30,
+    )
+
+    assert rollout.harvest_repository(repository) == ()
 
 
 def test_write_config_is_atomic_and_matches_renderer(
@@ -280,28 +358,34 @@ def test_shared_dictionary_preserves_generic_terms_without_american_artefacts(
     )
 
     assert mappings["oxidized"] == "oxidized", "Oxford spelling was not accepted"
-    assert mappings["oxidised"] == "oxidized", "plain-British spelling was not corrected"
+    assert mappings[PLAIN_BRITISH_OXIDIZED] == "oxidized", (
+        "plain-British spelling was not corrected"
+    )
     assert mappings["dialogs"] == "dialogs", "UI terminology was not accepted"
-    assert "artifact" not in mappings, "American artefact spelling was accepted"
-    assert "artifacts" not in mappings, "American artefact plural was accepted"
+    assert AMERICAN_ARTEFACT not in mappings, (
+        "American artefact spelling was accepted"
+    )
+    assert AMERICAN_ARTEFACTS not in mappings, (
+        "American artefact plural was accepted"
+    )
     assert mappings["organizational"] == "organizational", (
         "Oxford adjective was not accepted"
     )
-    assert mappings["organisational"] == "organizational", (
+    assert mappings[PLAIN_BRITISH_ORGANIZATIONAL] == "organizational", (
         "plain-British adjective was not corrected"
     )
     assert mappings["italicized"] == "italicized", "Oxford spelling was not accepted"
-    assert mappings["italicised"] == "italicized", (
+    assert mappings[PLAIN_BRITISH_ITALICIZED] == "italicized", (
         "plain-British spelling was not corrected"
     )
     assert mappings["underutilize"] == "underutilize", "Oxford spelling was not accepted"
-    assert mappings["underutilise"] == "underutilize", (
+    assert mappings[PLAIN_BRITISH_UNDERUTILIZE] == "underutilize", (
         "plain-British spelling was not corrected"
     )
     assert mappings["recognizably"] == "recognizably", (
         "Oxford adverb was not accepted"
     )
-    assert mappings["recognisably"] == "recognizably", (
+    assert mappings[PLAIN_BRITISH_RECOGNIZABLY] == "recognizably", (
         "plain-British adverb was not corrected"
     )
 
@@ -331,10 +415,10 @@ def test_shared_dictionary_canonicalizes_handwritten(
     assert mappings["handwritten"] == "handwritten", (
         "closed handwritten compound was not accepted"
     )
-    assert "hand-written" not in mappings, (
+    assert HYPHENATED_HANDWRITTEN not in mappings, (
         "ineffective hyphenated word mapping was rendered for Typos"
     )
-    assert dict(dictionary.phrase_corrections)["hand-written"] == "handwritten", (
+    assert dict(dictionary.phrase_corrections)[HYPHENATED_HANDWRITTEN] == "handwritten", (
         "hyphenated form was not assigned to the phrase-policy checker"
     )
 

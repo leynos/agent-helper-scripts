@@ -1,6 +1,7 @@
 """Security and failure-boundary tests for remote dictionary refreshes."""
 
 from pathlib import Path
+import json
 import types
 from urllib.error import HTTPError, URLError
 
@@ -90,6 +91,10 @@ def test_connectivity_failure_uses_only_a_valid_stale_cache(
     )
 
     cache.write_text(dictionary_text(), encoding="utf-8")
+    metadata.write_text(
+        json.dumps({"source": "https://example.test/base.toml"}),
+        encoding="utf-8",
+    )
     result = rollout.refresh_base(
         "https://example.test/base.toml",
         cache,
@@ -97,6 +102,13 @@ def test_connectivity_failure_uses_only_a_valid_stale_cache(
     )
 
     assert result.status == "stale-cache", "valid stale cache was not reused offline"
+
+    with pytest.raises(rollout.NetworkUnavailableError):
+        rollout.refresh_base(
+            "https://example.test/replacement.toml",
+            cache,
+            rollout.RefreshOptions(metadata=metadata, opener=unavailable),
+        )
 
 
 @pytest.mark.parametrize(
