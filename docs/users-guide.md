@@ -64,6 +64,14 @@ the shared base into ignored `.typos-oxendict-base.toml` and records freshness
 metadata in `.typos-oxendict-base.json`. A valid cache supports offline runs;
 the tracked `typos.toml` remains deterministic and reviewable.
 
+Cache metadata is scoped to the exact authority that supplied it. A stale
+cache or HTTP `304 Not Modified` response is accepted only when the metadata
+names the requested source and the cached dictionary still validates. Switching
+local paths or HTTPS URLs therefore forces a refresh without reusing another
+authority's validators. Refresh decisions are available through standard
+Python logging with bounded operation, source-kind, error-class and decision
+fields; logs do not contain authority URLs or local paths.
+
 The rollout CLI exposes the underlying operations:
 
 ```bash
@@ -79,6 +87,13 @@ policy. `harvest` emits JSON Lines evidence for Oxford `-ize` and plain-British
 `-ise` candidates in Git-tracked UTF-8 text. Generic spellings belong in the
 shared base; product names, quoted upstream terms, and deliberate fixtures
 belong in a consumer's `typos.local.toml`.
+
+Ignore expressions are validated before scanning. Malformed expressions,
+backreferences, and nested or adjacent repetitions are rejected, including
+Python's `{,n}` upper-bound form; separated bounded repetitions remain valid.
+Phrase checking and harvesting skip tracked files that are not UTF-8. Other
+tracked-file read failures stop the operation and emit a bounded diagnostic,
+so an incomplete repository scan cannot appear successful.
 
 ## Common settings
 

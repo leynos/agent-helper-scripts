@@ -14,6 +14,7 @@ from typos_rollout_test_support import (
     COMMITTED_CONFIG_PATH,
     LOCAL_DICTIONARY_PATH,
     SHARED_DICTIONARY_PATH,
+    deny_path_reads,
     dictionary_text,
     require_executable,
 )
@@ -212,6 +213,7 @@ def test_harvest_repository_merges_local_exclusions(
 
 def test_harvest_repository_propagates_file_read_failures(
     rollout: types.ModuleType,
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -227,27 +229,27 @@ def test_harvest_repository_propagates_file_read_failures(
         check=True,
         timeout=30,
     )
-    read_text = Path.read_text
-
-    def deny_target(
-        path: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-        newline: str | None = None,
-    ) -> str:
-        """Deny only the tracked fixture while preserving authority reads."""
-        if path == target:
-            raise PermissionError("tracked fixture is unreadable")
-        return read_text(path, encoding=encoding, errors=errors, newline=newline)
-
-    monkeypatch.setattr(Path, "read_text", deny_target)
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        deny_path_reads(target, message="tracked fixture is unreadable"),
+    )
 
     with pytest.raises(PermissionError, match="tracked fixture is unreadable"):
         rollout.harvest_repository(repository)
 
+    failure = next(record for record in caplog.records if record.levelname == "ERROR")
+    assert getattr(failure, "operation", None) == "tracked-file-read"
+    assert getattr(failure, "source_kind", None) == "repository-file"
+    assert getattr(failure, "error_class", None) == "os-error"
+    assert str(target) not in failure.getMessage(), (
+        "tracked-file diagnostic exposed the repository path"
+    )
+
 
 def test_harvest_repository_skips_non_utf8_files(
     rollout: types.ModuleType,
+    caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
 ) -> None:
     """Binary tracked content remains outside Oxford-form harvesting."""
@@ -262,7 +264,18 @@ def test_harvest_repository_skips_non_utf8_files(
         timeout=30,
     )
 
-    assert rollout.harvest_repository(repository) == ()
+    with caplog.at_level("INFO", logger="typos_rollout_harvest"):
+        assert rollout.harvest_repository(repository) == ()
+    skipped = next(
+        record
+        for record in caplog.records
+        if getattr(record, "error_class", None) == "unicode-decode"
+    )
+    assert getattr(skipped, "operation", None) == "tracked-file-read"
+    assert getattr(skipped, "source_kind", None) == "repository-file"
+    assert str(repository / "binary.dat") not in skipped.getMessage(), (
+        "non-UTF-8 diagnostic exposed the repository path"
+    )
 
 
 def test_write_config_is_atomic_and_matches_renderer(

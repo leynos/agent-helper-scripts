@@ -305,18 +305,54 @@ reporting a path, line, column and canonical replacement. The companion
 unavailable, a valid existing cache remains usable with `--offline`; generation
 fails rather than silently inventing an empty base when no cache exists.
 
+Freshness metadata is source-scoped. Local modification times, HTTP validators,
+stale-cache fallback, and `304 Not Modified` reuse apply only when the saved
+source identity exactly matches the requested authority. A missing or different
+identity forces refresh or propagates the authority failure. Standard-library
+logging records these decisions with bounded `operation`, `source_kind`,
+`error_class` and `decision` fields. Never add an authority URL, repository
+path, response body or exception message to these records.
+
 Refresh callers bind the metadata path, offline policy and optional test opener
 in an immutable `RefreshOptions` value. The helper owns the private local and
 remote request records that coordinate freshness and persistence; consumers
 should compose the public options value rather than reuse those infrastructure
 details.
 
+The `typos_rollout.py` facade preserves the public CLI and import surface.
+Sibling modules own one policy boundary each:
+
+- `typos_rollout_policy.py` validates schemas, local exceptions, and bounded
+  regular expressions.
+- `typos_rollout_cache.py` owns cache records, validator metadata, and atomic
+  persistence.
+- `typos_rollout_http.py` coordinates source-scoped local and HTTPS refreshes.
+- `typos_rollout_render.py` expands Oxford stems and renders deterministic TOML.
+- `typos_rollout_check.py` enforces curated exact phrase corrections.
+- `typos_rollout_harvest.py` gathers contextual Oxford-form evidence.
+
+Keep each source module below 400 lines and route new behaviour to its owning
+boundary rather than expanding the facade. Regular expression validation
+rejects malformed patterns, backreferences, and compounded repetition. The
+scanner recognizes all Python brace forms, including `{n}`, `{n,}`, `{n,m}`
+and `{,n}`. It permits repetitions separated by unquantified atoms. Example
+regressions pin known hazards, while Hypothesis properties generate every brace
+shape and varied safe separators.
+
+Phrase checking and harvesting read only Git-tracked files. A
+`UnicodeDecodeError` identifies non-UTF-8 content and is skipped with a bounded
+informational record. Every `OSError`, including permission and disappearance
+failures, is logged without a path and propagated so the gate fails closed.
+Caplog tests assert structured record fields rather than rendered log text.
+
 Run `make spelling` after dictionary or generator changes. The target generates
 the committed config from the local authoritative base, checks exact phrase
 policy, and runs the version of `typos` pinned by `TYPOS_VERSION`. The full
 `make ci` sequence includes this gate. Tests assert byte-for-byte config drift,
 TOML validity, cache freshness, offline recovery, exact phrase boundaries and
-real-binary Oxford behaviour.
+real-binary Oxford behaviour. Property tests exercise the regular expression
+repetition grammar, and logging tests pin bounded diagnostics for source-scope
+decisions and tracked-file read failures.
 
 The initial shared stem set was curated on 10 July 2026 from both correct
 Oxford forms and incorrect plain-British forms across the 96 non-empty,

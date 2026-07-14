@@ -36,6 +36,25 @@ Refreshes validate content before atomic replacement, preserve a valid cache
 when its authority is not newer, and allow explicit offline reuse. Generated
 configuration remains tracked so review and CI can detect drift.
 
+Treat source identity as part of cache validity. Conditional validators, stale
+fallback, and HTTP `304 Not Modified` reuse require metadata for the exact
+requested local path or HTTPS URL. Refresh decisions use bounded structured
+logging fields and never expose source or repository paths.
+
+Split the implementation by policy boundary while retaining
+`typos_rollout.py` as the stable facade. Dedicated modules own regular
+expression policy, cache persistence, HTTP refresh, deterministic rendering,
+phrase checking, and harvesting. Every source module remains below 400 lines.
+
+Validate ignore expressions before repository scanning. Reject malformed
+expressions, backreferences, and compounded repetition, including Python's
+`{,n}` form, while accepting repetitions separated by ordinary atoms. Exercise
+the complete brace-quantifier grammar and safe separators with Hypothesis.
+
+Phrase checking and harvesting skip only non-UTF-8 tracked content. Other file
+read failures propagate after a bounded structured diagnostic, preventing a
+partial scan from being reported as successful.
+
 ## Consequences
 
 **Positives:**
@@ -48,12 +67,21 @@ configuration remains tracked so review and CI can detect drift.
   test make the generated boundary reviewable.
 - Exact phrase corrections remain shared and enforceable despite Typos token
   boundaries.
+- Source-scoped cache decisions prevent validators or stale content crossing
+  authority boundaries.
+- Bounded regex validation limits backtracking risk before repository scans.
+- Module ownership and generated property tests make the policy easier to
+  review without weakening the facade contract.
+- Structured diagnostics explain refresh and read decisions without disclosing
+  unbounded source or path values.
 
 **Costs and trade-offs:**
 
 - Consumers carry a small generator and tracked generated configuration.
 - Consumers run one additional tracked-text pass for the small curated phrase
   table.
+- Non-UTF-8 tracked files are intentionally omitted, while all other read
+  failures now fail the spelling operation.
 - A fresh consumer needs its shared source once before offline generation.
 - Curators must inspect harvested context because suffix matches alone include
   genuine `-ise` words and identifiers that are not Oxford stems.

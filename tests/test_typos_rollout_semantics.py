@@ -110,6 +110,8 @@ def test_merge_rejects_broad_local_exceptions(
         pytest.param("(a+)+$", "unsafe repetition", id="nested-repetition"),
         pytest.param("(a|aa)+$", "unsafe repetition", id="repeated-alternation"),
         pytest.param("a*a*$", "unsafe repetition", id="adjacent-repetitions"),
+        pytest.param("(a{,3})+$", "unsafe repetition", id="upper-bound-nested"),
+        pytest.param("a{,2}a{,3}$", "unsafe repetition", id="upper-bound-adjacent"),
     ],
 )
 def test_authority_rejects_unsafe_ignore_patterns(

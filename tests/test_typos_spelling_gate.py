@@ -13,6 +13,7 @@ from typos_rollout_test_support import (
     LOCAL_DICTIONARY_PATH,
     REPOSITORY_ROOT,
     SHARED_DICTIONARY_PATH,
+    deny_path_reads,
     require_executable,
 )
 
@@ -176,6 +177,7 @@ def test_phrase_checker_rejects_unsafe_masking_patterns(
 
 def test_phrase_checker_propagates_file_read_failures(
     rollout: types.ModuleType,
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -187,22 +189,21 @@ def test_phrase_checker_propagates_file_read_failures(
     git = require_executable("git")
     subprocess.run([git, "init", "--quiet"], cwd=repository, check=True, timeout=30)
     subprocess.run([git, "add", "."], cwd=repository, check=True, timeout=30)
-    read_text = Path.read_text
-
-    def deny_target(
-        path: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-        newline: str | None = None,
-    ) -> str:
-        """Deny only the tracked fixture while preserving policy reads."""
-        if path == target:
-            raise PermissionError("tracked fixture is unreadable")
-        return read_text(path, encoding=encoding, errors=errors, newline=newline)
-
-    monkeypatch.setattr(Path, "read_text", deny_target)
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        deny_path_reads(target, message="tracked fixture is unreadable"),
+    )
     with pytest.raises(PermissionError, match="tracked fixture is unreadable"):
         rollout.check_phrase_corrections(repository, rollout.Dictionary())
+
+    failure = next(record for record in caplog.records if record.levelname == "ERROR")
+    assert getattr(failure, "operation", None) == "tracked-file-read"
+    assert getattr(failure, "source_kind", None) == "repository-file"
+    assert getattr(failure, "error_class", None) == "os-error"
+    assert str(target) not in failure.getMessage(), (
+        "tracked-file diagnostic exposed the repository path"
+    )
 
 
 def test_phrase_checker_skips_non_utf8_files(
