@@ -1,8 +1,10 @@
 """Shared fixtures and constants for typos rollout tests."""
 
+from collections.abc import Callable, Iterator
 import importlib.util
 from pathlib import Path
 import shutil
+import sys
 import types
 
 import pytest
@@ -41,14 +43,19 @@ class ValidResponse:
 
 
 @pytest.fixture(name="rollout", scope="module")
-def rollout_fixture() -> types.ModuleType:
-    """Load the executable script as a module for focused unit tests."""
-    spec = importlib.util.spec_from_file_location("typos_rollout", SCRIPT_PATH)
-    assert spec is not None, "could not create a module specification"
-    assert spec.loader is not None, "module specification has no loader"
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def rollout_fixture() -> Iterator[types.ModuleType]:
+    """Load the facade and its sibling modules through the runtime path."""
+    script_directory = str(SCRIPT_PATH.parent)
+    sys.path.insert(0, script_directory)
+    try:
+        spec = importlib.util.spec_from_file_location("typos_rollout", SCRIPT_PATH)
+        assert spec is not None, "could not create a module specification"
+        assert spec.loader is not None, "module specification has no loader"
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        yield module
+    finally:
+        sys.path.remove(script_directory)
 
 
 def dictionary_text(*, stem: str = "organ", accepted: str = "oxendict") -> str:
@@ -68,3 +75,25 @@ def require_executable(name: str) -> str:
     executable = shutil.which(name)
     assert executable is not None, f"{name} is unavailable for subprocess test"
     return executable
+
+
+def deny_path_reads(
+    target: Path,
+    *,
+    message: str,
+) -> Callable[[Path, str | None, str | None, str | None], str]:
+    """Return a ``Path.read_text`` replacement that denies one target path."""
+    read_text = Path.read_text
+
+    def deny_target(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> str:
+        """Deny the target while preserving reads from all other paths."""
+        if path == target:
+            raise PermissionError(message)
+        return read_text(path, encoding=encoding, errors=errors, newline=newline)
+
+    return deny_target

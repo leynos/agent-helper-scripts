@@ -41,6 +41,7 @@ def test_refresh_base_copies_only_newer_local_source(
 
 def test_local_refresh_replaces_cache_from_different_source(
     rollout: types.ModuleType,
+    caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
 ) -> None:
     """An explicit local authority replaces a cache populated elsewhere."""
@@ -55,11 +56,23 @@ def test_local_refresh_replaces_cache_from_different_source(
     options = rollout.RefreshOptions(metadata=metadata)
     rollout.refresh_base(first_source, cache, options)
 
-    result = rollout.refresh_base(second_source, cache, options)
+    with caplog.at_level("DEBUG", logger="typos_rollout_http"):
+        result = rollout.refresh_base(second_source, cache, options)
 
     assert result.status == "refreshed", "different explicit source reused stale cache"
     assert rollout.load_dictionary(cache).stems == ("second",), (
         "cache did not switch to the explicit authoritative source"
+    )
+    source_mismatch = next(
+        record
+        for record in caplog.records
+        if getattr(record, "decision", None) == "source-mismatch"
+    )
+    assert getattr(source_mismatch, "operation", None) == "dictionary-refresh"
+    assert getattr(source_mismatch, "source_kind", None) == "local"
+    assert getattr(source_mismatch, "error_class", None) == "none"
+    assert str(second_source) not in source_mismatch.getMessage(), (
+        "structured refresh log exposed the local authority path"
     )
 
 
