@@ -15,6 +15,16 @@ accepted = [
 ]
 
 [words.corrections]
+polymerisable = "polymerizable"
+polymerisably = "polymerizably"
+polymerisation = "polymerization"
+polymerisations = "polymerizations"
+polymerise = "polymerize"
+polymerised = "polymerized"
+polymeriser = "polymerizer"
+polymerisers = "polymerizers"
+polymerises = "polymerizes"
+polymerising = "polymerizing"
 
 [patterns]
 ignore = [
