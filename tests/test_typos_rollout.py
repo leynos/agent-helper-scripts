@@ -363,6 +363,21 @@ def test_committed_config_matches_shared_dictionary(
     )
 
 
+def test_local_dictionary_preserves_polymer_corrections(
+    rollout: types.ModuleType,
+) -> None:
+    """The local overlay retains every explicit polymer correction."""
+    local = rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True)
+    expected = {
+        f"polymer{plain_british}": f"polymer{oxford}"
+        for plain_british, oxford in rollout.SUFFIX_PAIRS
+    }
+
+    assert expected.items() <= dict(local.corrections).items(), (
+        "local overlay omitted explicit polymer correction mappings"
+    )
+
+
 def test_shared_dictionary_preserves_generic_terms_without_american_artefacts(
     rollout: types.ModuleType,
 ) -> None:
