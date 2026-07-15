@@ -363,6 +363,10 @@ curation. A suffix match alone is not evidence: `advertise`, `exercise`,
 treated as Oxford `-ize` families. Future harvests must retain per-repository
 JSON Lines evidence until curation and record generic additions here.
 
+The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
+`polymerization` occurrences when the previously empty repository became the
+97th candidate.
+
 - `make ci`
   - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, `test`,
     and `spelling`.
