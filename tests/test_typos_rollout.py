@@ -27,6 +27,7 @@ PLAIN_BRITISH_ORGANIZATIONAL = "organi" + "sational"
 PLAIN_BRITISH_ITALICIZED = "italici" + "sed"
 PLAIN_BRITISH_UNDERUTILIZE = "underutili" + "se"
 PLAIN_BRITISH_RECOGNIZABLY = "recogni" + "sably"
+PLAIN_BRITISH_POLYMERIZATION: str = "polymeri" + "sation"
 AMERICAN_ARTEFACT = "arti" + "fact"
 AMERICAN_ARTEFACTS = AMERICAN_ARTEFACT + "s"
 HYPHENATED_HANDWRITTEN = "hand" + "-written"
@@ -400,6 +401,12 @@ def test_shared_dictionary_preserves_generic_terms_without_american_artefacts(
     )
     assert mappings[PLAIN_BRITISH_RECOGNIZABLY] == "recognizably", (
         "plain-British adverb was not corrected"
+    )
+    assert mappings["polymerization"] == "polymerization", (
+        "Oxford polymerization was not accepted"
+    )
+    assert mappings[PLAIN_BRITISH_POLYMERIZATION] == "polymerization", (
+        "plain-British polymer spelling was not corrected"
     )
 
 
