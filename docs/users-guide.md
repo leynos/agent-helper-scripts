@@ -249,7 +249,7 @@ Use these variables to pin or override versions installed by the home phase:
   - Default: `0.14.0`
   - Version of `sccache` when `SCCACHE_BUCKET` is set.
 - `WHITAKER_INSTALLER_VERSION`
-  - Default: `0.2.4`
+  - Default: `0.2.6`
   - Version of `whitaker-installer`.
 - `MDTABLEFIX_VERSION`
   - Default: `0.4.0`
