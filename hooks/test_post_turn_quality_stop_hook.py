@@ -14,6 +14,9 @@ mock subprocess-heavy interactions.
 
 Example:
     python3 -m pytest hooks/test_post_turn_quality_stop_hook.py -v
+
+The exact `call_args_list`/wiring assertions added to the existing git
+plumbing and compush tests below kill the survivors tracked in #36.
 """
 
 from __future__ import annotations
@@ -190,7 +193,11 @@ class TestGetUpstreamRef:
         )
 
     def test_error_fallback_message(self) -> None:
-        """Failure with silent stderr/stdout uses the fallback message."""
+        """Failure with silent stderr/stdout uses the fallback message.
+
+        Kills the ``get_upstream_ref`` fallback-message survivor tracked
+        in #36.
+        """
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(128)
             ref, err = hook.get_upstream_ref(REPO)
@@ -220,7 +227,11 @@ class TestHasUnpushedCommits:
         ], f"unexpected git commands: {mock_run.call_args_list!r}"
 
     def test_ahead_by_exactly_one(self) -> None:
-        """A rev-list count of exactly 1 is still ahead."""
+        """A rev-list count of exactly 1 is still ahead.
+
+        Kills the ``has_unpushed_commits`` ``> 1`` boundary survivor
+        tracked in #36.
+        """
         with patch.object(hook, "run") as mock_run:
             mock_run.return_value = _completed(0, stdout="1\n")
             ahead, err = hook.has_unpushed_commits(REPO, "origin/main")
@@ -520,7 +531,11 @@ class TestGetMakeTargets:
         )
 
     def test_real_command_captures_text_output(self, tmp_path: Path) -> None:
-        """run() captures decoded stdout/stderr and the real exit code."""
+        """run() captures decoded stdout/stderr and the real exit code.
+
+        Kills the ``run`` text/capture-output keyword survivors tracked
+        in #37.
+        """
         result = hook.run(["sh", "-c", "echo out; echo err >&2; exit 3"], tmp_path)
         assert result.returncode == 3, (
             f"expected returncode 3 but got {result.returncode!r}"
@@ -533,7 +548,11 @@ class TestGetMakeTargets:
         )
 
     def test_file_as_cwd_returns_error(self, tmp_path: Path) -> None:
-        """run() with a file as cwd returns the NotADirectoryError fallback."""
+        """run() with a file as cwd returns the NotADirectoryError fallback.
+
+        Kills the ``run`` ``NotADirectoryError``-branch field survivors
+        tracked in #37.
+        """
         file_cwd = tmp_path / "not-a-dir"
         file_cwd.write_text("plain file\n")
         cmd = ["git", "status"]
@@ -552,7 +571,11 @@ class TestGetMakeTargets:
         )
 
     def test_filename_less_file_not_found_uses_fallback(self) -> None:
-        """A FileNotFoundError without a filename maps to the cwd fallback."""
+        """A FileNotFoundError without a filename maps to the cwd fallback.
+
+        Kills the ``run`` filename-less ``FileNotFoundError`` survivor
+        tracked in #37.
+        """
         exc = FileNotFoundError(2, "No such file or directory")
         with patch.object(hook.subprocess, "run", side_effect=exc):
             result = hook.run(["git", "status"], Path("."))
@@ -573,7 +596,10 @@ TRUNCATE_MARKER = "\n... (output truncated) ...\n"
 
 
 class TestTruncate:
-    """Tests for truncate()."""
+    """Tests for truncate().
+
+    Kills the ``truncate`` no-tests-bucket survivors tracked in #40.
+    """
 
     @pytest.mark.parametrize(
         ("text", "max_chars", "expected"),
@@ -606,7 +632,11 @@ class TestTruncate:
 
 
 class TestParseMakeTargets:
-    """Tests for parse_make_targets()."""
+    """Tests for parse_make_targets().
+
+    Kills the ``parse_make_targets`` no-tests-bucket survivors tracked
+    in #40.
+    """
 
     def test_parses_representative_output(self) -> None:
         """Targets are extracted; comments, recipes, and patterns are not."""
@@ -632,7 +662,11 @@ class TestParseMakeTargets:
 
 
 class TestIsMissingMakefile:
-    """Tests for is_missing_makefile()."""
+    """Tests for is_missing_makefile().
+
+    Kills the ``is_missing_makefile`` no-tests-bucket survivors tracked
+    in #40.
+    """
 
     @pytest.mark.parametrize(
         ("output", "expected"),
@@ -658,7 +692,11 @@ class TestIsMissingMakefile:
 
 
 class TestDefaultCategories:
-    """Tests for default_categories()."""
+    """Tests for default_categories().
+
+    Kills the ``default_categories`` key/value mutant survivors tracked
+    in #38.
+    """
 
     def test_exact_mapping(self) -> None:
         """The default mapping names every category, disabled."""
@@ -670,7 +708,11 @@ class TestDefaultCategories:
 
 
 class TestDetectCategories:
-    """Tests for detect_categories()."""
+    """Tests for detect_categories().
+
+    Kills the ``detect_categories`` no-tests-bucket survivors tracked
+    in #40.
+    """
 
     @pytest.mark.parametrize(
         ("files", "expected"),
@@ -707,7 +749,10 @@ class TestDetectCategories:
 
 
 class TestFormatReason:
-    """Tests for format_reason()."""
+    """Tests for format_reason().
+
+    Kills the ``format_reason`` no-tests-bucket survivors tracked in #40.
+    """
 
     def test_error_only_state(self) -> None:
         """An error with no base ref or changes renders placeholders exactly."""
@@ -833,7 +878,11 @@ ENV_VARS = (
 
 
 class TestParseEnv:
-    """Tests for the full parse_env() tuple."""
+    """Tests for the full parse_env() tuple.
+
+    Kills the ``parse_env`` variable-name and default-value survivors
+    tracked in #38.
+    """
 
     def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """With no variables set, every default is returned exactly."""
@@ -855,7 +904,10 @@ class TestParseEnv:
 
 
 class TestParseMaxOutput:
-    """Tests for parse_max_output()."""
+    """Tests for parse_max_output().
+
+    Kills the ``parse_max_output`` default-value survivor tracked in #38.
+    """
 
     @pytest.mark.parametrize(
         ("value", "expected"),
