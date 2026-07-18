@@ -149,8 +149,11 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         Completed process with captured output.
     """
     try:
+        # Deliberately without check=True: non-zero return codes are
+        # surfaced through CompletedProcess.returncode, not exceptions.
+        # (Passing check=False explicitly only bred equivalent mutants.)
         return subprocess.run(  # noqa: S603  # valid: command and args are controlled (no shell, no user-supplied command strings).
-            cmd, cwd=str(cwd), text=True, capture_output=True, check=False
+            cmd, cwd=str(cwd), text=True, capture_output=True
         )
     except FileNotFoundError as exc:
         if Path(exc.filename or "") != cwd:
@@ -878,10 +881,20 @@ def parse_env() -> tuple[str, bool, int, bool]:
     tuple[str, bool, int, bool]
         Base ref, always-fetch flag, max output length, and compush flag.
     """
+    # Equivalent mutant: any mutated flag default is still non-truthy to
+    # parse_bool_env, so it cannot change behaviour.
+    flag_default = ""  # pragma: no mutate
+    # Equivalent mutant: a mutated (non-numeric) default falls back to
+    # parse_max_output's own 12000 default, so it cannot change behaviour.
+    max_output_default = "12000"  # pragma: no mutate
     base_ref = os.environ.get("POST_TURN_BASE_REF", "origin/main")
-    always_fetch = parse_bool_env(os.environ.get("POST_TURN_ALWAYS_FETCH", ""))
-    max_out = parse_max_output(os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", "12000"))
-    compush = parse_bool_env(os.environ.get("POST_TURN_COMPUSH", ""))
+    always_fetch = parse_bool_env(
+        os.environ.get("POST_TURN_ALWAYS_FETCH", flag_default)
+    )
+    max_out = parse_max_output(
+        os.environ.get("POST_TURN_MAX_OUTPUT_CHARS", max_output_default)
+    )
+    compush = parse_bool_env(os.environ.get("POST_TURN_COMPUSH", flag_default))
     return base_ref, always_fetch, max_out, compush
 
 
