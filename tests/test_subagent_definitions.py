@@ -27,27 +27,41 @@ CLAUDE_SUBAGENTS = ("wyvern", "scribe", "alchemist", "scrutineer")
 def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
     """Each managed subagent is enabled on Claude Code and pinned to sonnet.
 
-    The Codex provider selects the Spark model for these subagents, so the
-    Claude provider must track that choice with ``sonnet``; enabling the
+    Codex model selection is independent of the Claude provider; enabling the
     provider is what causes the agent definition to be rendered at all.
     """
     claude = load_provider(name, "claude")
 
     assert claude["enabled"] is True, f"{name} must be enabled on Claude Code"
     assert claude["model"] == "sonnet", (
-        f"{name} must use sonnet on Claude Code to match the Codex Spark choice"
+        f"{name} must use sonnet on Claude Code"
     )
 
 
-def test_scribe_codex_subagent_uses_spark_model() -> None:
-    """Scribe's manifest entry must request the Spark model on Codex."""
+def test_wyvern_codex_subagent_uses_luna_model() -> None:
+    """Wyvern's manifest entry must request Luna with high effort on Codex."""
+    codex = load_provider("wyvern", "codex")
+
+    assert codex["model"] == "gpt-5.6-luna", (
+        "Wyvern must use the Luna Codex model for reconnaissance work"
+    )
+    assert codex["reasoning_effort"] == "high", (
+        "Wyvern must use high reasoning effort"
+    )
+    assert codex["sandbox_mode"] == "read-only", (
+        "Wyvern must retain read-only access for reconnaissance work"
+    )
+
+
+def test_scribe_codex_subagent_uses_luna_model() -> None:
+    """Scribe's manifest entry must request Luna with high effort on Codex."""
     codex = load_provider("scribe", "codex")
 
-    assert codex["model"] == "gpt-5.3-codex-spark", (
-        "Scribe must use the Spark Codex model requested for documentation work"
+    assert codex["model"] == "gpt-5.6-luna", (
+        "Scribe must use the Luna Codex model for documentation work"
     )
-    assert codex["reasoning_effort"] == "medium", (
-        "Scribe must keep medium reasoning effort"
+    assert codex["reasoning_effort"] == "high", (
+        "Scribe must use high reasoning effort"
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Scribe must retain workspace-write access for documentation edits"
@@ -81,12 +95,12 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_alchemist_codex_subagent_uses_spark_model_and_context_pack() -> None:
-    """Alchemist's Codex entry must request Spark and the context pack MCP."""
+def test_alchemist_codex_subagent_uses_terra_model_and_context_pack() -> None:
+    """Alchemist's Codex entry must request Terra and the context pack MCP."""
     codex = load_provider("alchemist", "codex")
 
-    assert codex["model"] == "gpt-5.3-codex-spark", (
-        "Alchemist must use the Spark Codex model for falsification work"
+    assert codex["model"] == "gpt-5.6-terra", (
+        "Alchemist must use the Terra Codex model for falsification work"
     )
     assert codex["reasoning_effort"] == "medium", (
         "Alchemist must keep medium reasoning effort"
@@ -128,8 +142,11 @@ def test_scrutineer_codex_subagent_has_context_pack_mcp() -> None:
     """Scrutineer's Codex entry must wire the context_pack MCP server."""
     codex = load_provider("scrutineer", "codex")
 
-    assert codex["model"] == "gpt-5.3-codex-spark", (
-        "Scrutineer must use the Spark Codex model for gate runs"
+    assert codex["model"] == "gpt-5.6-luna", (
+        "Scrutineer must use the Luna Codex model for gate runs"
+    )
+    assert codex["reasoning_effort"] == "medium", (
+        "Scrutineer must use medium reasoning effort"
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Scrutineer needs workspace-write so gate caches can be written"
