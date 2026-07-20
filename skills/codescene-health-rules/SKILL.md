@@ -11,14 +11,16 @@ description: >
 
 # CodeScene Code Health Rules
 
-CodeScene evaluates 25+ code health factors and aggregates them into a 1–10 score.
-You control that behaviour via two mechanisms:
+CodeScene evaluates 25+ code health factors and aggregates them into a 1–10
+score. You control that behaviour via two mechanisms:
 
-1. **`.codescene/code-health-rules.json`** — repo-scoped (or global) overrides for
+1. **`.codescene/code-health-rules.json`** — repo-scoped (or global) overrides
+   for
    rule weights and low-level thresholds.
-2. **`@codescene` source directives** — per-function suppression as inline comments.
+2. **`@codescene` source directives** — per-function suppression as inline
+   comments.
 
----
+______________________________________________________________________
 
 ## Workflow
 
@@ -26,14 +28,21 @@ When the user asks to generate or modify `code-health-rules.json`:
 
 1. **Clarify scope** — which files/paths need different rules? (test vs src, a
    specific language, a legacy subdirectory?)
-2. **Clarify intent per rule** — disable entirely (`0.0`), down-weight (`0.1–0.9`),
+2. **Clarify intent per rule** — disable entirely (`0.0`), down-weight
+   (`0.1–0.9`),
    or tighten/loosen a raw threshold?
-3. **Emit only the overrides** — omit rules the user wants kept at defaults; this is
+3. **Start from CodeScene's template if available** — a documented JSON
+   template is
+   downloadable via the Hotspots section of the project configuration; remove
+   any rules that should stay at defaults.
+4. **Emit only the overrides** — omit rules the user wants kept at defaults;
+   this is
    how CodeScene itself recommends it and it reduces config drift.
-4. **Place the file at `.codescene/code-health-rules.json`** in the repo root and
+5. **Place the file at `.codescene/code-health-rules.json`** in the repo root
+   and
    commit it alongside application code.
 
----
+______________________________________________________________________
 
 ## JSON Schema
 
@@ -78,31 +87,45 @@ Multiple `rule_sets` are allowed in one file — each matching a different glob.
 
 ### Precedence
 
-```
+```text
 local .codescene/code-health-rules.json
   ↳ global rules repo (configured in Project > Hotspots)
       ↳ CodeScene built-in defaults
 ```
 
-A local repo file always wins. When updating global rules, trigger a full analysis
-before delta analyses pick up the changes.
+A local repo file always wins. Global rules come from one designated
+repository, set via the **"Repository with global code health rules"** field in
+the Hotspots tab of the project configuration. When updating global rules,
+trigger a full analysis before delta analyses pick up the changes.
 
----
+______________________________________________________________________
 
 ## Weight Semantics
 
-| `weight` | Effect |
-|----------|--------|
-| `1.0` | Default impact (no need to specify) |
-| `0.5` | Rule still fires; contributes at 50% of default severity |
-| `0.1` | Near-invisible; useful for "track but don't fail PR gates" |
-| `0.0` | Rule disabled: excluded from score, virtual review, and PR gates |
+| `weight` | Effect                                                           |
+| -------- | ---------------------------------------------------------------- |
+| `1.0`    | Default impact (no need to specify)                              |
+| `0.5`    | Rule still fires; contributes at 50% of default severity         |
+| `0.1`    | Near-invisible; useful for "track but don't fail PR gates"       |
+| `0.0`    | Rule disabled: excluded from score, virtual review, and PR gates |
+
+**Consequences of disabling a rule** (all three apply at `weight: 0.0`):
+
+- The rule leaves the code health calculation entirely, so the reported score
+  can
+  look *better* than the previously reported baseline.
+- The rule is not presented in the virtual code review.
+- The rule is not supervised by delta analysis or PR quality gates.
+
+For transparency, CodeScene shows a searchable summary of all overridden rules
+under the **Scope** section of each analysis, and overridden thresholds appear
+in the virtual code review of every impacted file.
 
 **Do not disable the critical rules** — see `references/rules-catalogue.md` for
-which rules are advisory vs critical. Disabling a critical rule means you lose early
-warning on the findings most correlated with defect density.
+which rules are advisory vs critical. Disabling a critical rule means you lose
+early warning on the findings most correlated with defect density.
 
----
+______________________________________________________________________
 
 ## Common Patterns
 
@@ -173,7 +196,7 @@ warning on the findings most correlated with defect density.
 }
 ```
 
----
+______________________________________________________________________
 
 ## In-Source `@codescene` Directives
 
@@ -192,20 +215,40 @@ void legacy_dispatch(Event* e) { … }
 
 **Rules for directives:**
 
-- Applies to the **function immediately following** the comment.
-- Works for **function-level smells only** — cannot suppress module-level issues
-  (Lines of Code, Low Cohesion, Brain Class, etc.).
-- The smell name must **exactly match** what the virtual code review shows. Note
+- A directive **always applies to the function/method immediately following**
+  it.
+- Works for **all function-level smells, and only those** — cannot suppress
+  module/file-level issues (Lines of Code, Low Cohesion, Brain Class, etc.).
+- The smell name must **exactly match** what the virtual code review shows.
+  Unknown
+  or misspelled names are **silently ignored** — no error, no suppression. Note
   that "Bumpy Road" appears as `"Bumpy Road Ahead"` in directive context.
-- CodeScene surfaces all active directives in the PR review summary. Nothing flies
-  under the radar.
-- Always include a rationale and a date so future maintainers can reassess.
+- Directives may sit inside a **larger multi-line comment** (e.g. a Java
+  `/** … */`
+  doc block); they need not be a standalone comment line.
+- The virtual code review includes a **non-blocking warning** about any
+  directives
+  in use, together with their impact, and CodeScene flags **new** directives in
+  its PR review summary. Nothing flies under the radar.
 
----
+**Best practices** (per CodeScene's own guidance):
+
+- **Be restrictive** — the clear majority of code health findings are real
+  problems
+  that should be refactored, not suppressed.
+- **Inspect new directives in review** — the PR review summary calls them out to
+  make this easy.
+- **Document the rationale on the directive line, with a date**, so future
+  maintainers can reassess whether it still applies:
+  `// @codescene(disable-all) Rewrite next week (2020-01-30)`
+
+______________________________________________________________________
 
 ## Reference Files
 
-- [`references/rules-catalogue.md`](references/rules-catalogue.md) — All named rules
+- [`references/rules-catalogue.md`](references/rules-catalogue.md) — All named
+  rules
   with category, criticality, and recommended handling
-- [`references/thresholds.md`](references/thresholds.md) — Known threshold keys with
+- [`references/thresholds.md`](references/thresholds.md) — Known threshold keys
+  with
   descriptions and typical override values
