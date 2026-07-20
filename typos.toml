@@ -707,6 +707,7 @@ extend-ignore-re = [
 "dramatizers" = "dramatizers"
 "dramatizes" = "dramatizes"
 "dramatizing" = "dramatizing"
+"edn" = "edn"
 "emphasisable" = "emphasizable"
 "emphasisably" = "emphasizably"
 "emphasisation" = "emphasization"
