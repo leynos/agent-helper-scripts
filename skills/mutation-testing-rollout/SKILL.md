@@ -114,10 +114,15 @@ a proposed next step. Then work the issues as draft PRs:
 - **Equivalent mutant** — suppress with justification:
   `#[cfg_attr(test, mutants::skip)]` (Rust, via the `mutants` crate) or
   `# pragma: no mutate` (Python). Keep skips rare and justified; prefer a
-  killing test wherever the mutation is observable. Beware: mutmut honours
-  the pragma only on single logical lines — trailing pragmas on
-  continuation lines of multi-line statements are ignored, so restructure
-  to a single line instead.
+  killing test wherever the mutation is observable. Beware two silent
+  no-op traps: mutmut honours the pragma only on single logical lines
+  (trailing pragmas on continuation lines of multi-line statements are
+  ignored — restructure to a single line), and cargo-mutants' skip
+  attribute does not cover plain `const` items or binary-expression
+  initializers (only functions, impls, and certain expression kinds) — a
+  skip placed there changes nothing and the mutant resurfaces next run.
+  Verify a suppression actually suppressed by re-running scoped
+  (`cargo mutants --file <f>` / `mutmut run <path>`).
 - **Dead code** — delete it; this is one of mutation testing's best
   yields.
 - **Untestable boundary** — document and move on.
@@ -132,16 +137,29 @@ turn a gate into a no-op — check what the gate actually ran.
 ## Operating the estate: run sweeps
 
 Periodically sweep all repositories' runs (`gh api
-repos/<owner>/<repo>/actions/workflows`, then the runs endpoint). Classify
-by duration: sub-minute runs are usually the skip path or an early
-failure; long runs are real. Remember success does not mean clean — read
-the job summary for survivor counts. For failures, read
+repos/<owner>/<repo>/actions/workflows`, then the runs endpoint). Do NOT
+classify by wall-clock duration — runner-queue wait routinely inflates a
+15-second no-op to an hour. The reliable signals are:
+`mutation_detect_has_changes` in the detect step's log (the mutmut
+workflow runs its gate *inside* the single mutants job, so a no-op still
+reports a green job), and the `mutants` job's conclusion (the cargo
+workflow skips it visibly). Remember success does not mean clean — a real
+run's survivors live in the job summary — and conversely a "failure" can
+mask a fully completed run (a teardown-step regression once failed
+otherwise-green runs estate-wide). For failures, read
 `gh run view <id> --log-failed`, identify the root cause, and file one
 issue per distinct cause (not per run); recurring identical quick failures
 are one issue listing occurrences. Deduplicate against existing issues
-first — comment on a persisting area rather than re-filing it. If the
-cause lies in the reusable workflow, file it on the shared-actions
-repository.
+first — comment on a persisting area rather than re-filing it (and when
+concurrent sweep agents race, reconcile their duplicate filings onto one
+canonical issue). If the cause lies in the reusable workflow, file it on
+the shared-actions repository.
+
+Be aware the change-detection gate suppresses scheduled coverage on quiet
+repositories: a repo can report weeks of green runs while executing zero
+mutants, leaving a broken baseline undetected. After merging a
+baseline fix, trigger a full `workflow_dispatch` to prove it end-to-end
+and produce a survivor dataset — do not wait for the schedule.
 
 ## Estate lessons (hard-won)
 
