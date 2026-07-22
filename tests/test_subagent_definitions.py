@@ -40,7 +40,10 @@ def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
 
 @pytest.mark.parametrize(
     ("name", "sandbox_mode"),
-    (("wyvern", "read-only"), ("scribe", "workspace-write")),
+    [
+        ("wyvern", "read-only"),
+        ("scribe", "workspace-write"),
+    ],
 )
 def test_codex_subagent_uses_luna_model(
     name: str,
