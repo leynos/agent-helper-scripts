@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import tomllib
 from random import Random
 from pathlib import Path
 
@@ -573,7 +574,7 @@ def test_install_sub_agents_preserves_user_config_before_legacy_block(
     tmp_path: Path,
     snapshot,
 ) -> None:
-    """install-sub-agents removes only the legacy block from Codex config."""
+    """install-sub-agents preserves user config and writes Codex profiles."""
     copy_entrypoint_files(tmp_path, "bootstrap-adapters", "bootstrap-common", "install-sub-agents")
     home = tmp_path / "home"
     codex_dir = home / ".codex"
@@ -640,6 +641,12 @@ approval_policy = "never"
         "install-sub-agents should print a non-sensitive update message: "
         f"stdout was {result.stdout!r}"
     )
+    wyvern_config = tomllib.loads((codex_dir / "agents/wyvern.toml").read_text())
+    assert wyvern_config["model"] == "gpt-5.6-luna"
+    assert wyvern_config["model_reasoning_effort"] == "high"
+    scribe_config = tomllib.loads((codex_dir / "agents/scribe.toml").read_text())
+    assert scribe_config["model"] == "gpt-5.6-luna"
+    assert scribe_config["model_reasoning_effort"] == "high"
 
 
 def test_install_sub_agents_rejects_unclosed_legacy_config_block(
