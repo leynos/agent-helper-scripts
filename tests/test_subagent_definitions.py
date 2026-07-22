@@ -38,33 +38,25 @@ def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
     )
 
 
-def test_wyvern_codex_subagent_uses_luna_model() -> None:
-    """Wyvern's manifest entry must request Luna with high effort on Codex."""
-    codex = load_provider("wyvern", "codex")
+@pytest.mark.parametrize(
+    ("name", "sandbox_mode"),
+    (("wyvern", "read-only"), ("scribe", "workspace-write")),
+)
+def test_codex_subagent_uses_luna_model(
+    name: str,
+    sandbox_mode: str,
+) -> None:
+    """Wyvern and Scribe must request Luna with high effort on Codex."""
+    codex = load_provider(name, "codex")
 
     assert codex["model"] == "gpt-5.6-luna", (
-        "Wyvern must use the Luna Codex model for reconnaissance work"
+        f"{name} must use the Luna Codex model"
     )
     assert codex["reasoning_effort"] == "high", (
-        "Wyvern must use high reasoning effort"
+        f"{name} must use high reasoning effort"
     )
-    assert codex["sandbox_mode"] == "read-only", (
-        "Wyvern must retain read-only access for reconnaissance work"
-    )
-
-
-def test_scribe_codex_subagent_uses_luna_model() -> None:
-    """Scribe's manifest entry must request Luna with high effort on Codex."""
-    codex = load_provider("scribe", "codex")
-
-    assert codex["model"] == "gpt-5.6-luna", (
-        "Scribe must use the Luna Codex model for documentation work"
-    )
-    assert codex["reasoning_effort"] == "high", (
-        "Scribe must use high reasoning effort"
-    )
-    assert codex["sandbox_mode"] == "workspace-write", (
-        "Scribe must retain workspace-write access for documentation edits"
+    assert codex["sandbox_mode"] == sandbox_mode, (
+        f"{name} must retain {sandbox_mode} access"
     )
 
 
