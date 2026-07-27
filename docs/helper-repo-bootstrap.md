@@ -84,8 +84,8 @@ durable checkout.
 
 ## Override Mechanism
 
-Callers can export the environment variables before invoking
-`rust-entrypoint`. For example:
+Callers can export the environment variables before invoking `rust-entrypoint`.
+For example:
 
 ```bash
 export HELPER_TOOLS_REPO_BRANCH=remove-curl-bash-dependence

@@ -13,14 +13,14 @@ description: >
 
 # ODW Authoring
 
-Use this skill to write reliable ODW workflow scripts: plain JavaScript files in
-Claude Code's workflow dialect, executed by the `odw` CLI outside the host
+Use this skill to write reliable ODW workflow scripts: plain JavaScript files
+in Claude Code's workflow dialect, executed by the `odw` CLI outside the host
 agent's context.
 
 ODW is useful when a task benefits from isolated agent subprocesses,
 parallelism, adversarial checks, or a long-running plan whose intermediate
-output should stay out of the host context. Do the task directly when one normal
-agent turn is enough.
+output should stay out of the host context. Do the task directly when one
+normal agent turn is enough.
 
 ## Authoring Flow
 
@@ -113,14 +113,14 @@ Use `validate(source)` when a workflow generates workflow source and needs a
 compile check before running or saving it. This is an ODW extension; do not
 expect the same script to run unchanged in Claude Code if it depends on
 `validate()`. Do not invent a host-side `odw validate` command; ordinary
-workflow files are checked by launching a bounded `odw run <script.js|name>
---wait` smoke run when the user asks to execute them.
+workflow files are checked by launching a bounded
+`odw run <script.js|name> --wait` smoke run when the user asks to execute them.
 
 ## Schemas
 
 Use schemas whenever downstream JavaScript needs structured data. Keep schemas
-literal and simple. Supported keywords include `type`, `properties`,
-`required`, `additionalProperties`, `items`, `minItems`, and `enum`.
+literal and simple. Supported keywords include `type`, `properties`, `required`,
+`additionalProperties`, `items`, `minItems`, and `enum`.
 
 ```js
 const FINDINGS = {
@@ -164,25 +164,25 @@ Pick the smallest pattern that fits the task:
 - Tournament: create distinct competitors, then judge pairwise in rounds until
   one remains.
 - Multi-adapter loop: use `adapter` per call, for example one CLI implements
-  and another reviews. Only use shared on-disk handoff with `workspaceMode:
-  "inplace"` and a throwaway `--source` directory unless the user explicitly
-  wants real-tree edits.
+  and another reviews. Only use shared on-disk handoff with
+  `workspaceMode: "inplace"` and a throwaway `--source` directory unless the
+  user explicitly wants real-tree edits.
 
 ## Workspace Mode
 
 Assume `workspaceMode: "copy"` unless proven otherwise. In copy mode each
 `agent()` call runs in its own throwaway copy of `--source`; files, branches,
-worktrees, build artefacts, and other local state created by one agent are not a
-handoff channel to later agents.
+worktrees, build artefacts, and other local state created by one agent are not
+a handoff channel to later agents.
 
-Use `workspaceMode: "inplace"` only when later agents must observe filesystem or
-git state created by earlier agents. This is required for shared-directory
-implement/review loops, multi-provider workflows that pass code through disk, and
-roadmap-build workflows that intentionally create git worktrees, commit, merge,
-or push.
+Use `workspaceMode: "inplace"` only when later agents must observe filesystem
+or git state created by earlier agents. This is required for shared-directory
+implement/review loops, multi-provider workflows that pass code through disk,
+and roadmap-build workflows that intentionally create git worktrees, commit,
+merge, or push.
 
-When a workflow needs real git worktrees, make the workflow own that lifecycle in
-its prompts and run it in `inplace` mode. Do not rely on
+When a workflow needs real git worktrees, make the workflow own that lifecycle
+in its prompts and run it in `inplace` mode. Do not rely on
 `agent(..., { isolation: "worktree" })` for this; ODW treats that option as a
 request for isolated copy workspaces, not a persistent git-worktree lifecycle.
 
@@ -193,12 +193,12 @@ push.
 
 For multi-provider workflows, keep provider differences explicit:
 
-- Use `adapter` per call for role assignment, such as `claude` for implementation
-  and `codex` for review.
+- Use `adapter` per call for role assignment, such as `claude` for
+  implementation and `codex` for review.
 - Configure command permissions per adapter in `odw.config.json`; do not assume
   each CLI can edit files, run commands, or use the same model flag.
-- Use schemas for cross-provider handoffs so one provider's prose does not become
-  another provider's parser contract.
+- Use schemas for cross-provider handoffs so one provider's prose does not
+  become another provider's parser contract.
 - Serialize shared git operations with a JavaScript lock or single integration
   phase; let providers work concurrently only in independent worktrees or
   independent read-only checks.

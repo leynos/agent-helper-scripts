@@ -62,19 +62,19 @@ Runs are stored under:
 
 Default `runsRoot` is `~/.odw/runs` unless config changes it. Each run has:
 
-| File | Meaning |
-| --- | --- |
-| `meta.json` | immutable run description: script, args, source, config path, workflow name, adapter, origin |
-| `status.json` | mutable state and counters: `pending`, `running`, `paused`, `done`, `failed`, or `stopped` |
-| `events.jsonl` | append-only event stream for phases, log lines, agent starts, finishes, and failures |
-| `result.json` | final successful return value, wrapped as `{ "value": ... }` |
-| `error.json` | failure message and stack |
-| `control.json` | pause, resume, or stop request written by the CLI/API |
-| `worker.log` | detached worker stdout/stderr |
+| File           | Meaning                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| `meta.json`    | immutable run description: script, args, source, config path, workflow name, adapter, origin |
+| `status.json`  | mutable state and counters: `pending`, `running`, `paused`, `done`, `failed`, or `stopped`   |
+| `events.jsonl` | append-only event stream for phases, log lines, agent starts, finishes, and failures         |
+| `result.json`  | final successful return value, wrapped as `{ "value": ... }`                                 |
+| `error.json`   | failure message and stack                                                                    |
+| `control.json` | pause, resume, or stop request written by the CLI/API                                        |
+| `worker.log`   | detached worker stdout/stderr                                                                |
 
-Read JSON files with tooling that tolerates live writes. `events.jsonl` can have
-a torn final line while a worker is appending; skip an invalid final line and
-retry.
+Read JSON files with tooling that tolerates live writes. `events.jsonl` can
+have a torn final line while a worker is appending; skip an invalid final line
+and retry.
 
 ## State Reading
 
@@ -105,9 +105,9 @@ asks for raw artefacts, or you need to distinguish workflow errors from worker
 process errors.
 
 Terminal states are `done`, `failed`, and `stopped`. A run in a terminal state
-will not change again. A `running` or `paused` run with a dead worker can appear
-as stale in the dashboard view; inspect `worker.log`, `status.json`, and recent
-event timestamps.
+will not change again. A `running` or `paused` run with a dead worker can
+appear as stale in the dashboard view; inspect `worker.log`, `status.json`, and
+recent event timestamps.
 
 ## Controls
 
@@ -232,8 +232,8 @@ tree. Symptoms of using copy mode for a stateful workflow include:
   commit that an earlier agent reported creating.
 - A workflow returns patches or summaries, but the real `--source` tree did not
   change.
-- A path returned by one agent points under a temporary ODW workspace and is gone
-  by the next phase.
+- A path returned by one agent points under a temporary ODW workspace and is
+  gone by the next phase.
 - Multi-provider implement/review loops repeatedly appear to review stale or
   missing files.
 
@@ -251,7 +251,8 @@ For workflows that need persistent git worktrees, do not treat
 `agent(..., { isolation: "worktree" })` as proof that ODW created real git
 worktrees. In ODW that option requests isolated copy workspaces. Real git
 worktrees must be created and managed by the workflow or by the invoked agents,
-and the run must use `workspaceMode: "inplace"` if later agents need those paths.
+and the run must use `workspaceMode: "inplace"` if later agents need those
+paths.
 
 When diagnosing or preparing a rerun:
 

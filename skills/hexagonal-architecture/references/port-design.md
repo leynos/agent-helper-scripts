@@ -4,7 +4,8 @@
 
 ### Repository Pattern
 
-Repositories abstract persistence. They speak domain language and return domain types.
+Repositories abstract persistence. They speak domain language and return domain
+types.
 
 **Minimal interface:**
 
@@ -66,7 +67,8 @@ class OrderRepository(ABC):
 
 ### Gateway Pattern
 
-Gateways abstract external service calls. Model the domain's view of the external capability, not the external API's structure.
+Gateways abstract external service calls. Model the domain's view of the
+external capability, not the external API's structure.
 
 ```python
 class PaymentGateway(ABC):
@@ -231,12 +233,14 @@ class GetOrderQuery:
 ## Port Granularity Guidelines
 
 **Split ports when:**
+
 - Operations have different consistency requirements
 - Operations have different failure modes
 - Operations are used by different application services
 - Interface exceeds 5-7 methods
 
 **Keep unified when:**
+
 - Operations always occur together
 - Splitting would require coordination between ports
 - Domain concept is inherently cohesive

@@ -11,8 +11,8 @@ Install the package and enable the pytest plugin:
 pip install cmd-mox
 ```
 
-On Windows the wheel also pulls in `pywin32`, which provides the `win32pipe`
-and `win32file` modules that power CmdMox's named-pipe IPC transport.
+On Windows the wheel also pulls in `pywin32`, which provides the `win32pipe` and
+`win32file` modules that power CmdMox's named-pipe IPC transport.
 
 In `conftest.py`:
 
@@ -78,8 +78,8 @@ skip_if_unsupported()
 code-path gating only, `cmd_mox.is_supported_platform()` returns a boolean
 instead. Advanced tests can override the detected platform by setting the
 `CMD_MOX_PLATFORM_OVERRIDE` environment variable, which is primarily useful for
-simulating alternative environments inside CI pipelines (for example to exercise
-Windows-specific shims from a Linux runner).
+simulating alternative environments inside CI pipelines (for example to
+exercise Windows-specific shims from a Linux runner).
 
 The cmd-mox test suite also uses the `pytest.mark.requires_unix_sockets` marker
 for scenarios that need to bind a Unix domain socket. Marking these tests keeps
@@ -236,8 +236,8 @@ def test_spy(cmd_mox):
     assert spy.call_count == 1
 ```
 
-A spy expectation can also use `times_called(count)`—an alias of
-`times(count)`—to require a specific call count during verification.
+A spy expectation can also use `times_called(count)`—an alias of `times(count)`
+—to require a specific call count during verification.
 
 A spy can also forward to the real command while recording everything:
 
@@ -279,10 +279,10 @@ restricted to spy doubles.
 the context-manager API:
 
 - `verify_on_exit` (default `True`) automatically calls `verify()` when a replay
-  phase ends inside a `with CmdMox()` block. Disable it when manual verification
-  management is required. Verification still runs if the body raises; when both
-  verification and the body fail, the verification error is suppressed so the
-  original exception surfaces.
+  phase ends inside a `with CmdMox()` block. Disable it when manual
+  verification management is required. Verification still runs if the body
+  raises; when both verification and the body fail, the verification error is
+  suppressed so the original exception surfaces.
 - `max_journal_entries` bounds the number of stored invocations (oldest entries
   are evicted FIFO when the bound is reached). The journal is exposed via
   `cmd_mox.journal`, a `collections.deque[Invocation]` recorded during replay.
@@ -348,8 +348,9 @@ few common ones are:
 - `in_order()` – enforce strict ordering with other expectations.
 - `any_order()` – allow the expectation to be satisfied in any position.
 - `passthrough()` – for spies, run the real command while recording it.
-- `assert_called()`, `assert_not_called()`, `assert_called_with(*args,
-  stdin=None, env=None)` – spy-only helpers for post-verification assertions.
+- `assert_called()`, `assert_not_called()`,
+  `assert_called_with(*args, stdin=None, env=None)` – spy-only helpers for
+  post-verification assertions.
 
 Refer to the [design document](./python-native-command-mocking-design.md) for
 the full table of methods and examples.

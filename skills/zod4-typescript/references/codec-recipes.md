@@ -1,20 +1,21 @@
 # Codec recipes
 
-Codecs encapsulate bidirectional transformations. Unlike `.transform()` (decode only),
-codecs support `.encode()` for round-tripping data across serialization boundaries.
+Codecs encapsulate bidirectional transformations. Unlike `.transform()` (decode
+only), codecs support `.encode()` for round-tripping data across serialization
+boundaries.
 
-Introduced in Zod 4.1. Available on classic `zod` schemas via `.decode()` / `.encode()`
-methods. On `zod/mini` schemas, use `z.decode(schema, value)` and
+Introduced in Zod 4.1. Available on classic `zod` schemas via `.decode()` /
+`.encode()` methods. On `zod/mini` schemas, use `z.decode(schema, value)` and
 `z.encode(schema, value)` top-level functions.
 
 ## Core rules
 
-1. `.transform()` is incompatible with `.encode()` — mixing them throws at runtime.
-2. `.default()` short-circuits on decode (returns default for `undefined`), rejects
-   `undefined` on encode.
+1. `.transform()` is incompatible with `.encode()` — mixing them throws at
+   runtime.
+2. `.default()` short-circuits on decode (returns default for `undefined`),
+   rejects `undefined` on encode.
 3. `.catch()` applies on decode only.
 4. Codecs compose via `.pipe()` — the pipe reverses direction during encode.
-
 
 ## ISO datetime → Date
 
@@ -134,7 +135,8 @@ const numToBigInt = z.codec(z.int(), z.bigint(), {
 
 ## Composing codecs with `.pipe()`
 
-Codecs and schemas compose via `.pipe()`. During `.encode()`, the pipe runs in reverse.
+Codecs and schemas compose via `.pipe()`. During `.encode()`, the pipe runs in
+reverse.
 
 ```ts
 // Base64url string → bytes → UTF-8 string → JSON → typed object
@@ -154,7 +156,6 @@ const pipeline = base64urlToBytes.pipe(bytesToUtf8).pipe(jsonCodec(UserSchema));
 pipeline.decode("eyJuYW1lIjoiQWxpY2UiLCJhZ2UiOjMwfQ");
 // → { name: "Alice", age: 30 }
 ```
-
 
 ## stringbool as codec
 

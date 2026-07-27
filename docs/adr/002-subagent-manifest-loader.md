@@ -1,7 +1,6 @@
 # ADR 002 — Subagent manifest and loader
 
-**Status:** Accepted
-**Date:** 2026-07-06
+**Status:** Accepted **Date:** 2026-07-06
 
 ## Context
 
@@ -13,9 +12,9 @@ instruction prose must remain consistent across all of them.
 
 Without a shared source of truth, each provider's rendering can drift
 independently. Hard-coding expected values inside tests creates the same
-problem: a model choice or directive can be weakened in the manifest and no test
-will catch the regression. Over time, this silent drift degrades the provisioned
-agents in ways that are difficult to attribute to a specific change.
+problem: a model choice or directive can be weakened in the manifest and no
+test will catch the regression. Over time, this silent drift degrades the
+provisioned agents in ways that are difficult to attribute to a specific change.
 
 ## Decision
 
@@ -30,8 +29,8 @@ validation. The loader's public surface (`load_subagent_entries`,
 `load_subagent_entry`, `load_provider`) raises typed errors (`OSError`,
 `yaml.YAMLError`, `TypeError`, `LookupError`) at every structural boundary so
 that a malformed manifest fails loudly. Deployment-contract regression tests
-(`tests/test_subagent_definitions.py`) source their assertions directly from the
-loader so any weakening of a model choice, sandbox mode, tool grant, or
+(`tests/test_subagent_definitions.py`) source their assertions directly from
+the loader so any weakening of a model choice, sandbox mode, tool grant, or
 directive surfaces as a test failure. A second suite
 (`tests/test_subagent_manifest.py`) exercises the loader's typed-error contract
 directly.

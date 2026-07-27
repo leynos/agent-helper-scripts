@@ -9,7 +9,8 @@ aliases:
 
 # Code Review Skill
 
-Conduct thorough, actionable code reviews that catch real problems without drowning in noise.
+Conduct thorough, actionable code reviews that catch real problems without
+drowning in noise.
 
 ## When to Use
 
@@ -27,24 +28,26 @@ Good code review serves three purposes:
 3. **Transfer knowledge** — to enable the reviewer to learn the change and
    the author to learn alternatives
 
-A review that only finds style nits has failed. A review that only finds bugs but ignores maintainability has also failed. Balance matters.
+A review that only finds style nits has failed. A review that only finds bugs
+but ignores maintainability has also failed. Balance matters.
 
 ## Context Gathering
 
-Never review blind. The diff alone lacks the information needed to judge whether code is correct, appropriate, or consistent.
+Never review blind. The diff alone lacks the information needed to judge
+whether code is correct, appropriate, or consistent.
 
 ### Required Context
 
-| Source | Purpose |
-|--------|---------|
-| PR description / commit messages | Understand intent |
-| `AGENTS.md` | Coding style rules |
-| `.rules/*` | Additional project conventions |
-| `docs/*-design.md` | Architectural intent |
-| `docs/roadmap.md` | Current priorities |
-| `docs/documentation-style-guide.md` | Doc conventions |
-| Neighbouring files | Established patterns |
-| `.github/workflows/*` | CI expectations |
+| Source                              | Purpose                        |
+| ----------------------------------- | ------------------------------ |
+| PR description / commit messages    | Understand intent              |
+| `AGENTS.md`                         | Coding style rules             |
+| `.rules/*`                          | Additional project conventions |
+| `docs/*-design.md`                  | Architectural intent           |
+| `docs/roadmap.md`                   | Current priorities             |
+| `docs/documentation-style-guide.md` | Doc conventions                |
+| Neighbouring files                  | Established patterns           |
+| `.github/workflows/*`               | CI expectations                |
 
 ### Detecting Project Type
 
@@ -177,16 +180,16 @@ The code should be maintainable.
 
 **Code Smells to Flag:**
 
-| Smell | Symptom |
-|-------|---------|
-| Repeated code | Copy-paste with minor variations |
-| Complex conditionals | Nested if/else, boolean expressions with >3 terms |
-| Bumpy road | Function alternates between high and low abstraction |
-| High similarity | Two functions that differ only in one parameter |
-| Magic literals | Unexplained numbers or strings |
-| Long parameter lists | Functions taking >4 arguments |
-| Feature envy | Method uses another object's data more than its own |
-| Primitive obsession | Using strings/ints where a type would clarify intent |
+| Smell                | Symptom                                              |
+| -------------------- | ---------------------------------------------------- |
+| Repeated code        | Copy-paste with minor variations                     |
+| Complex conditionals | Nested if/else, boolean expressions with >3 terms    |
+| Bumpy road           | Function alternates between high and low abstraction |
+| High similarity      | Two functions that differ only in one parameter      |
+| Magic literals       | Unexplained numbers or strings                       |
+| Long parameter lists | Functions taking >4 arguments                        |
+| Feature envy         | Method uses another object's data more than its own  |
+| Primitive obsession  | Using strings/ints where a type would clarify intent |
 
 **Positive Patterns to Encourage:**
 
@@ -274,7 +277,7 @@ Issues that block merge. Security flaws, correctness bugs, data loss risks.
 // Better approach
 ```
 
----
+______________________________________________________________________
 
 ## Suggestions
 
@@ -286,7 +289,7 @@ Improvements that strengthen the code but are not blocking.
 
 <Explanation and alternative>
 
----
+______________________________________________________________________
 
 ## Observations
 
@@ -295,7 +298,7 @@ Questions, minor notes, patterns worth discussing.
 - Observation one
 - Observation two
 
----
+______________________________________________________________________
 
 ## Checklist
 
@@ -306,6 +309,7 @@ Questions, minor notes, patterns worth discussing.
 - [ ] Test coverage appropriate
 - [ ] No security concerns
 - [ ] No performance regressions
+
 ```
 
 ## Best Practices

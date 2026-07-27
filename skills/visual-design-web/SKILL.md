@@ -17,20 +17,19 @@ description: >
 
 # Visual design for the web
 
-A skill for visual communication strategy, art direction, and design
-critique on the web.
+A skill for visual communication strategy, art direction, and design critique
+on the web.
 
 This skill treats graphic design as a communication discipline, not a
-decorative layer. Its job: help people do something, not merely make
-screens look expensive.
+decorative layer. Its job: help people do something, not merely make screens
+look expensive.
 
 ## Governing rule
 
-Every page needs a thesis. Within five seconds, the visitor should grasp
-what this is, whether it concerns them, what matters most, and what to do
-next. That principle — grounded in first-impression research, visual
-hierarchy, scan behaviour, and information scent — overrides aesthetic
-preference at every turn.
+Every page needs a thesis. Within five seconds, the visitor should grasp what
+this is, whether it concerns them, what matters most, and what to do next. That
+principle — grounded in first-impression research, visual hierarchy, scan
+behaviour, and information scent — overrides aesthetic preference at every turn.
 
 ## What this skill produces
 
@@ -44,57 +43,55 @@ preference at every turn.
 - Testing plans
 - Critique notes on existing designs
 
-This skill does not produce HTML, CSS, or component code. If the user
-needs implementation after direction-setting, suggest the frontend-design
-skill.
+This skill does not produce HTML, CSS, or component code. If the user needs
+implementation after direction-setting, suggest the frontend-design skill.
 
 ## Reference files — read before producing output
 
-The skill uses progressive disclosure. The SKILL.md you are reading now
-is the operational spine. Deeper material lives in reference files. Read
-the relevant references before generating output.
+The skill uses progressive disclosure. The SKILL.md you are reading now is the
+operational spine. Deeper material lives in reference files. Read the relevant
+references before generating output.
 
-| Reference | When to read | Path |
-|---|---|---|
-| **Design-school lenses** | Generating concept territories or choosing a communicative stance | `references/design-schools.md` |
-| **Accessibility facts** | Any output that touches colour, type, targets, motion, images, or structure | `references/accessibility-facts.md` |
-| **Page-type branches** | Working on a specific page archetype (marketing, editorial, service, dashboard, portfolio) | `references/page-type-branches.md` |
+| Reference                 | When to read                                                                                         | Path                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Design-school lenses**  | Generating concept territories or choosing a communicative stance                                    | `references/design-schools.md`        |
+| **Accessibility facts**   | Any output that touches colour, type, targets, motion, images, or structure                          | `references/accessibility-facts.md`   |
+| **Page-type branches**    | Working on a specific page archetype (marketing, editorial, service, dashboard, portfolio)           | `references/page-type-branches.md`    |
 | **Exercises and devices** | Running a specific exercise (page thesis card, 5-second prompt, hierarchy ladder, stress pass, etc.) | `references/exercises-and-devices.md` |
-| **Maxims and heresies** | Critiquing an existing design or reviewing a proposed direction | `references/maxims-and-heresies.md` |
+| **Maxims and heresies**   | Critiquing an existing design or reviewing a proposed direction                                      | `references/maxims-and-heresies.md`   |
 
----
+______________________________________________________________________
 
 ## Workflow
 
-Follow these phases in order. Skip phases only when the user explicitly
-narrows the request (e.g. "just critique this screenshot" skips to
-phase 6).
+Follow these phases in order. Skip phases only when the user explicitly narrows
+the request (e.g. "just critique this screenshot" skips to phase 6).
 
 ### Phase 1 — Gather inputs
 
 Before designing anything, establish:
 
 1. **User need** — who is this for, what do they need, why? Use the
-   GOV.UK framing: "As a ___, I need to ___, so that ___."
+   GOV.UK framing: "As a _**, I need to**_, so that ___."
 2. **Business or mission need** — what does the organisation need this
    page to accomplish?
 3. **Page job** — one sentence: what is this page's job?
 4. **Page archetype** — landing, article, product, service task,
    dashboard, gallery, campaign, archive, support, or other.
 5. **Audience types** — likely exclusions, context of use, emotional
-   temperature (rushed, anxious, browsing, comparing, learning,
-   deciding, recovering from error).
+   temperature (rushed, anxious, browsing, comparing, learning, deciding,
+   recovering from error).
 6. **Content reality** — what text, proof, data, states, forms, and
    assets exist now? What is still vapour?
 7. **Brand direction** — adjectives, anti-adjectives, cultural
    references, visual taboos.
 8. **Constraints** — accessibility requirements, legal, performance
-   budget, CMS limitations, multilingual needs, device skew. Large
-   visual assets and sparse first screens are design decisions with user
-   costs, not free glamour.
+   budget, CMS limitations, multilingual needs, device skew. Large visual
+   assets and sparse first screens are design decisions with user costs, not
+   free glamour.
 
-If the user provides incomplete inputs, ask for the gaps. Prioritise user
-need and page job — without these, everything downstream is guesswork.
+If the user provides incomplete inputs, ask for the gaps. Prioritise user need
+and page job — without these, everything downstream is guesswork.
 
 ### Phase 2 — Build the page thesis
 
@@ -108,8 +105,8 @@ Distil the inputs into:
 - **Secondary action**: the fallback or alternative.
 - **Proof structure**: what evidence supports the thesis?
 
-Treat headings, labels, link text, instructions, and error language as
-design material — not copy that gets glued on after the moodboard.
+Treat headings, labels, link text, instructions, and error language as design
+material — not copy that gets glued on after the moodboard.
 
 ### Phase 3 — Generate concept territories
 
@@ -128,8 +125,8 @@ Produce 3–5 distinct art directions. For each, specify:
    which break deliberately (with justification).
 8. **Risk note** — what could go wrong with this direction?
 
-Aim for one dependable direction, one stretching, one slightly feral.
-Resist the drift toward the safest corporate oatmeal.
+Aim for one dependable direction, one stretching, one slightly feral. Resist
+the drift toward the safest corporate oatmeal.
 
 ### Phase 4 — Plan hierarchy and scan path
 
@@ -138,8 +135,8 @@ For the chosen (or shortlisted) direction:
 - Map the first-screen reading order.
 - Plan the first-scroll narrative: what changes after the hero region?
 - Check that headings and layout support real scanning behaviour
-  (F-pattern, layer-cake). → Read `references/accessibility-facts.md`
-  for scan-behaviour notes.
+  (F-pattern, layer-cake). → Read `references/accessibility-facts.md` for
+  scan-behaviour notes.
 - Confirm primary navigation remains discoverable. Hidden primary
   navigation is not welcome.
 - Identify trust cues, scent trails, and the strongest-scent element
@@ -163,8 +160,8 @@ Turn the chosen direction into rules for:
 - **Target size** — minimums for touch and pointer.
 - **Motion** — what it teaches; reduced-motion fallback.
 
-Then branch into the appropriate page-type flow. →
-Read `references/page-type-branches.md`.
+Then branch into the appropriate page-type flow. → Read
+`references/page-type-branches.md`.
 
 ### Phase 6 — Critique and review
 
@@ -178,9 +175,8 @@ Whether reviewing a new direction or an existing design, apply:
 4. The **stress pass** — grayscale, 200% zoom, keyboard-only, reduced
    motion. → Read `references/exercises-and-devices.md`.
 5. The **accessibility risk register** — meaningful headings, alt text,
-   focus visibility, non-text contrast, target size, motion, literal
-   language in high-stakes areas. →
-   Read `references/accessibility-facts.md`.
+   focus visibility, non-text contrast, target size, motion, literal language
+   in high-stakes areas. → Read `references/accessibility-facts.md`.
 6. The **convention-break audit** — which conventions broke, and does
    the benefit outweigh the cost?
 7. The **aesthetic-usability warning** — pretty can flatter a broken
@@ -202,7 +198,7 @@ Recommend specific evidence-gathering methods:
 
 Then iterate. Revisit phases 3–6 as evidence arrives.
 
----
+______________________________________________________________________
 
 ## Boundary with other skills
 
@@ -213,13 +209,13 @@ Then iterate. Revisit phases 3–6 as evidence arrives.
 
 ## Locale
 
-Follow the user's language conventions. For df12 work, use British
-English with Oxford spelling (organize, analyse, colour, centre).
+Follow the user's language conventions. For df12 work, use British English with
+Oxford spelling (organize, analyse, colour, centre).
 
 ## Source canon
 
-These references anchor the skill's positions. Cite them when the user
-asks "says who?":
+These references anchor the skill's positions. Cite them when the user asks
+"says who?":
 
 - W3C WCAG 2.2, Quick Reference, and Understanding documents
 - WAI practical guidance (writing, designing, images, layout)

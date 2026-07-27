@@ -548,8 +548,8 @@ The hook collects:
 
 All metrics include `program` and `project` labels.
 
-To integrate with a real metrics library like `prometheus_client`, implement
-the `MetricsCollector` protocol:
+To integrate with a real metrics library like `prometheus_client`, implement the
+`MetricsCollector` protocol:
 
 ```python
 from prometheus_client import Counter, Histogram

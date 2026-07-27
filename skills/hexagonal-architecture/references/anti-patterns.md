@@ -97,7 +97,8 @@ def create_user():
 
 ### Direct Infrastructure Calls from Domain
 
-**Symptom:** Domain services make HTTP calls, database queries, or filesystem operations directly.
+**Symptom:** Domain services make HTTP calls, database queries, or filesystem
+operations directly.
 
 ```python
 # BAD: HTTP call in domain service
@@ -325,7 +326,8 @@ When you find a direct infrastructure call in the domain:
 When similar infrastructure code appears in multiple adapters:
 
 1. Identify the shared concern (connection management, serialization, etc.)
-2. Extract to shared infrastructure utility (not a port—utilities are adapter-internal)
+2. Extract to shared infrastructure utility (not a port—utilities are
+   adapter-internal)
 3. Each adapter remains responsible for its own port implementation
 
 ### Split Oversized Port

@@ -11,14 +11,15 @@ description: >
 
 # CodeScene Code Health Rules
 
-CodeScene evaluates 25+ code health factors and aggregates them into a 1–10 score.
-You control that behaviour via two mechanisms:
+CodeScene evaluates 25+ code health factors and aggregates them into a 1–10
+score. You control that behaviour via two mechanisms:
 
-1. **`.codescene/code-health-rules.json`** — repo-scoped (or global) overrides for
-   rule weights and low-level thresholds.
-2. **`@codescene` source directives** — per-function suppression as inline comments.
+1. **`.codescene/code-health-rules.json`** — repo-scoped (or global) overrides
+   for rule weights and low-level thresholds.
+2. **`@codescene` source directives** — per-function suppression as inline
+   comments.
 
----
+______________________________________________________________________
 
 ## Workflow
 
@@ -26,14 +27,14 @@ When the user asks to generate or modify `code-health-rules.json`:
 
 1. **Clarify scope** — which files/paths need different rules? (test vs src, a
    specific language, a legacy subdirectory?)
-2. **Clarify intent per rule** — disable entirely (`0.0`), down-weight (`0.1–0.9`),
-   or tighten/loosen a raw threshold?
-3. **Emit only the overrides** — omit rules the user wants kept at defaults; this is
-   how CodeScene itself recommends it and it reduces config drift.
-4. **Place the file at `.codescene/code-health-rules.json`** in the repo root and
-   commit it alongside application code.
+2. **Clarify intent per rule** — disable entirely (`0.0`), down-weight
+   (`0.1–0.9`), or tighten/loosen a raw threshold?
+3. **Emit only the overrides** — omit rules the user wants kept at defaults;
+   this is how CodeScene itself recommends it and it reduces config drift.
+4. **Place the file at `.codescene/code-health-rules.json`** in the repo root
+   and commit it alongside application code.
 
----
+______________________________________________________________________
 
 ## JSON Schema
 
@@ -84,25 +85,25 @@ local .codescene/code-health-rules.json
       ↳ CodeScene built-in defaults
 ```
 
-A local repo file always wins. When updating global rules, trigger a full analysis
-before delta analyses pick up the changes.
+A local repo file always wins. When updating global rules, trigger a full
+analysis before delta analyses pick up the changes.
 
----
+______________________________________________________________________
 
 ## Weight Semantics
 
-| `weight` | Effect |
-|----------|--------|
-| `1.0` | Default impact (no need to specify) |
-| `0.5` | Rule still fires; contributes at 50% of default severity |
-| `0.1` | Near-invisible; useful for "track but don't fail PR gates" |
-| `0.0` | Rule disabled: excluded from score, virtual review, and PR gates |
+| `weight` | Effect                                                           |
+| -------- | ---------------------------------------------------------------- |
+| `1.0`    | Default impact (no need to specify)                              |
+| `0.5`    | Rule still fires; contributes at 50% of default severity         |
+| `0.1`    | Near-invisible; useful for "track but don't fail PR gates"       |
+| `0.0`    | Rule disabled: excluded from score, virtual review, and PR gates |
 
 **Do not disable the critical rules** — see `references/rules-catalogue.md` for
-which rules are advisory vs critical. Disabling a critical rule means you lose early
-warning on the findings most correlated with defect density.
+which rules are advisory vs critical. Disabling a critical rule means you lose
+early warning on the findings most correlated with defect density.
 
----
+______________________________________________________________________
 
 ## Common Patterns
 
@@ -173,7 +174,7 @@ warning on the findings most correlated with defect density.
 }
 ```
 
----
+______________________________________________________________________
 
 ## In-Source `@codescene` Directives
 
@@ -197,15 +198,15 @@ void legacy_dispatch(Event* e) { … }
   (Lines of Code, Low Cohesion, Brain Class, etc.).
 - The smell name must **exactly match** what the virtual code review shows. Note
   that "Bumpy Road" appears as `"Bumpy Road Ahead"` in directive context.
-- CodeScene surfaces all active directives in the PR review summary. Nothing flies
-  under the radar.
+- CodeScene surfaces all active directives in the PR review summary. Nothing
+  flies under the radar.
 - Always include a rationale and a date so future maintainers can reassess.
 
----
+______________________________________________________________________
 
 ## Reference Files
 
-- [`references/rules-catalogue.md`](references/rules-catalogue.md) — All named rules
-  with category, criticality, and recommended handling
-- [`references/thresholds.md`](references/thresholds.md) — Known threshold keys with
-  descriptions and typical override values
+- [`references/rules-catalogue.md`](references/rules-catalogue.md) — All named
+  rules with category, criticality, and recommended handling
+- [`references/thresholds.md`](references/thresholds.md) — Known threshold keys
+  with descriptions and typical override values

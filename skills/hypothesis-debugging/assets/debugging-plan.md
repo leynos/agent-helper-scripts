@@ -11,7 +11,8 @@ agent.
 
 ## Problem Statement
 
-{One-paragraph description of the observed behaviour, expected behaviour, and impact.}
+{One-paragraph description of the observed behaviour, expected behaviour, and
+impact.}
 
 ## Context Summary
 
@@ -32,7 +33,7 @@ agent.
 
 {List any context that could not be obtained and may affect hypothesis quality.}
 
----
+______________________________________________________________________
 
 ## Hypotheses
 
@@ -56,7 +57,7 @@ agent.
 **Confidence on falsification**: {How decisively does a negative result rule
 this out?}
 
----
+______________________________________________________________________
 
 ### H2: {Hypothesis Title}
 
@@ -77,17 +78,17 @@ this out?}
 **Confidence on falsification**: {How decisively does a negative result rule
 this out?}
 
----
+______________________________________________________________________
 
 {Repeat for H3–H5 as warranted. Omit if fewer hypotheses are justified.}
 
----
+______________________________________________________________________
 
 ## Recommended Execution Order
 
 1. **{Hn}** — {Rationale: cheapest/fastest/most decisive}
 2. **{Hm}** — {Rationale}
-3. ...
+3. …
 
 ## Termination Criteria
 

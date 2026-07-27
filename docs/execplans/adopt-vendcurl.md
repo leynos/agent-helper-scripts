@@ -1,9 +1,8 @@
 # Replace GitHub curl and wget downloads with vendcurl
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -149,8 +148,8 @@ The discovery pass identified the following scoped GitHub download sites.
   checksums. That integrity step must survive the rewrite.
 - `vendcurl` already provides `--sha256`, so the cleanest replacement is to
   download the upstream checksum manifest with `vendcurl`, extract the expected
-  digest, and feed it back into the artefact download instead of re-implementing
-  checksum validation separately.
+  digest, and feed it back into the artefact download instead of
+  re-implementing checksum validation separately.
 
 ## Decision Log
 

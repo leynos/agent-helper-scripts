@@ -19,7 +19,8 @@
 
 ## Domain Layer Tests
 
-Domain tests verify business rules with zero infrastructure. If a test needs a database, network, or filesystem, the architecture has leaked.
+Domain tests verify business rules with zero infrastructure. If a test needs a
+database, network, or filesystem, the architecture has leaked.
 
 ### Entity Tests
 
@@ -86,7 +87,8 @@ class TestPricingService:
 
 ## Application Layer Tests
 
-Application service tests verify orchestration. Mock all ports—these tests should not hit real infrastructure.
+Application service tests verify orchestration. Mock all ports—these tests
+should not hit real infrastructure.
 
 ### Use Case Tests with Mocked Ports
 
@@ -147,11 +149,13 @@ class TestPlaceOrderUseCase:
 ### Fakes vs Mocks
 
 **Use mocks when:**
+
 - Verifying interactions (was this method called with these arguments?)
 - Port behaviour is straightforward
 - Test focuses on orchestration logic
 
 **Use fakes when:**
+
 - Port has complex state
 - Multiple interactions build on each other
 - Realistic behaviour improves test clarity
@@ -175,7 +179,8 @@ class InMemoryOrderRepository(OrderRepository):
 
 ## Adapter Layer Tests
 
-Adapter tests verify that adapters correctly implement port contracts against real infrastructure.
+Adapter tests verify that adapters correctly implement port contracts against
+real infrastructure.
 
 ### Repository Adapter Tests
 

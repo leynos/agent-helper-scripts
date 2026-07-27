@@ -334,8 +334,8 @@ Sibling modules own one policy boundary each:
 Keep each source module below 400 lines and route new behaviour to its owning
 boundary rather than expanding the facade. Regular expression validation
 rejects malformed patterns, backreferences, and compounded repetition. The
-scanner recognizes all Python brace forms, including `{n}`, `{n,}`, `{n,m}`
-and `{,n}`. It permits repetitions separated by unquantified atoms. Example
+scanner recognizes all Python brace forms, including `{n}`, `{n,}`, `{n,m}` and
+`{,n}`. It permits repetitions separated by unquantified atoms. Example
 regressions pin known hazards, while Hypothesis properties generate every brace
 shape and varied safe separators.
 
@@ -440,15 +440,15 @@ dependency of any bootstrap script; only the manifest test helper imports it.
 
 ## Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the *shape* of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the *shape* of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a

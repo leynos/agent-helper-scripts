@@ -61,7 +61,8 @@ For each hypothesis, specify:
 
 1. **Prediction**: If this hypothesis is correct, what observable outcome
    follows?
-2. **Falsification test**: What action would produce a contradicting observation?
+2. **Falsification test**: What action would produce a contradicting
+   observation?
 3. **Expected negative result**: What outcome would disprove the hypothesis?
 4. **Tooling required**: Commands, scripts, or instrumentation needed
 5. **Confidence impact**: How decisively would a negative result rule this out?

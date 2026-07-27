@@ -162,8 +162,8 @@ Validation is not optional:
   explicitly scopes a known unresolved defect.
 - If Red-Green-Refactor is genuinely unavailable, document why in `Constraints`
   or `Decision Log`, then use the nearest observable substitute such as a
-  reproducer script, golden fixture, compile-fail test, approval test, or manual
-  runtime check.
+  reproducer script, golden fixture, compile-fail test, approval test, or
+  manual runtime check.
 - Where behaviour-driven development (BDD) is used, include the feature
   specification in the ExecPlan. Name the feature file path, quote or embed the
   relevant `Feature`, `Scenario`, `Given`, `When`, and `Then` statements, and

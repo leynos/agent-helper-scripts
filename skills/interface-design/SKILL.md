@@ -406,9 +406,8 @@ size, weight, and letter-spacing.
 
 A metric card doesn't have to look like a plan card, and a plan card doesn't
 have to look like a settings card. Design each card's internal structure for
-its specific content —
-but keep the surface treatment consistent: same border weight, shadow depth,
-corner radius, padding scale.
+its specific content — but keep the surface treatment consistent: same border
+weight, shadow depth, corner radius, padding scale.
 
 ## Controls
 
@@ -437,8 +436,9 @@ broken.
 
 Screens need grounding. A data table floating in space feels like a component
 demo, not a product. Include navigation showing current location in the app,
-location indicators, and user context. When building sidebars, consider the same
-background as main content with border separation rather than different colours.
+location indicators, and user context. When building sidebars, consider the
+same background as main content with border separation rather than different
+colours.
 
 ## Dark Mode
 

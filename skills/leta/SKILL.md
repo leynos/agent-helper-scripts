@@ -5,50 +5,63 @@ description: "Fast semantic code navigation via LSP. Load FIRST before ANY code 
 
 # Leta - LSP Enabled Tools for Agents
 
-Leta provides fast semantic code navigation using Language Server Protocol. Unlike text-based search tools, Leta understands code structure and can find symbol definitions, references, implementations, and more.
+Leta provides fast semantic code navigation using Language Server Protocol.
+Unlike text-based search tools, Leta understands code structure and can find
+symbol definitions, references, implementations, and more.
 
 ## ⚠️ STOP AND THINK - Default to leta
 
-After loading this skill, **leta should be your DEFAULT tool for code exploration**, not ripgrep-like tools or file reading.
+After loading this skill, **leta should be your DEFAULT tool for code
+exploration**, not ripgrep-like tools or file reading.
 
 **Before you act, check this list:**
 
-| If you're about to... | STOP! Instead use... |
-|----------------------|---------------------|
-| Use `read-file` to view a function/class you know the name of | `leta show <symbol_name>` |
-| Use `read-file` with specific start and end line ranges to view a specific function | `leta show <symbol_name>` |
-| Use `read-file` to "browse" or "understand" a file | `leta grep ".*" "path/to/file" -k function,method` to list functions, or `leta show <symbol>` |
-| Use ripgrep-like tools to find where a function is defined | `leta grep "<function_name>" -k function,method` |
-| Use ripgrep-like tools to find usages/references of a symbol | `leta refs <symbol_name>` |
-| Use ripgrep-like tools to see where a function is imported/wired up | `leta refs <symbol_name>` |
-| Use ripgrep-like tools to find code related to a concept (e.g. "billing") | `leta grep "<concept>" -k function,method` |
-| Use `list-directory` to explore project structure | `leta files` |
-| Manually search for interface implementations | `leta implementations <interface>` |
-| Grep for function calls to trace code flow | `leta calls --to/--from <function>` |
-| Read a function's implementation to understand what it depends on | `leta calls --from <function>` first for overview |
-| Read multiple files to understand how functions connect | `leta calls --from <function>` to see the call graph |
+| If you're about to…                                                                 | STOP! Instead use…                                                                            |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Use `read-file` to view a function/class you know the name of                       | `leta show <symbol_name>`                                                                     |
+| Use `read-file` with specific start and end line ranges to view a specific function | `leta show <symbol_name>`                                                                     |
+| Use `read-file` to "browse" or "understand" a file                                  | `leta grep ".*" "path/to/file" -k function,method` to list functions, or `leta show <symbol>` |
+| Use ripgrep-like tools to find where a function is defined                          | `leta grep "<function_name>" -k function,method`                                              |
+| Use ripgrep-like tools to find usages/references of a symbol                        | `leta refs <symbol_name>`                                                                     |
+| Use ripgrep-like tools to see where a function is imported/wired up                 | `leta refs <symbol_name>`                                                                     |
+| Use ripgrep-like tools to find code related to a concept (e.g. "billing")           | `leta grep "<concept>" -k function,method`                                                    |
+| Use `list-directory` to explore project structure                                   | `leta files`                                                                                  |
+| Manually search for interface implementations                                       | `leta implementations <interface>`                                                            |
+| Grep for function calls to trace code flow                                          | `leta calls --to/--from <function>`                                                           |
+| Read a function's implementation to understand what it depends on                   | `leta calls --from <function>` first for overview                                             |
+| Read multiple files to understand how functions connect                             | `leta calls --from <function>` to see the call graph                                          |
 
-**The Golden Rule:** If you know the symbol name, **always** use leta. Only use ripgrep when searching for things that aren't symbols (string literals, comments, config values).
+**The Golden Rule:** If you know the symbol name, **always** use leta. Only use
+ripgrep when searching for things that aren't symbols (string literals,
+comments, config values).
 
 **DON'T fall back to old habits.** If you know a symbol name, use leta.
 
 ### ⚠️ Anti-pattern: "Browsing" Files
 
-**Don't** read a whole file just "to understand it" or "see the context." This is a common mistake.
+**Don't** read a whole file just "to understand it" or "see the context." This
+is a common mistake.
 
-If you're tempted to do this, ask yourself: *What symbol am I actually looking for?* Then use:
+If you're tempted to do this, ask yourself: *What symbol am I actually looking
+for?* Then use:
+
 - `leta show <symbol>` if you know the symbol name
-- `leta grep ".*" path/to/file -k function,method` to see what functions exist in a file
+- `leta grep ".*" path/to/file -k function,method` to see what functions exist
+  in a file
 - `leta refs <symbol>` to find where something is used
 
 ### ⚠️ Anti-pattern: "I want to see where this is imported/wired up"
 
-When you think "I want to see where this function is imported" or "how is this view wired into URL routes" - that's just finding references! Don't use ripgrep to search for the function name. Use:
+When you think "I want to see where this function is imported" or "how is this
+view wired into URL routes" - that's just finding references! Don't use ripgrep
+to search for the function name. Use:
+
 - `leta refs <function_name>` - shows imports, URL configs, everywhere it's used
 
 ## When to Use leta vs ripgrep-like tools
 
 **Use leta for:**
+
 - Finding where a function/class/method is DEFINED
 - Finding all USAGES of a symbol
 - Understanding call hierarchies (what calls what)
@@ -58,16 +71,20 @@ When you think "I want to see where this function is imported" or "how is this v
 - Viewing a symbol's implementation when you know its name
 
 **Use ripgrep-like tools for:**
-- Searching for **literal strings in comments, docs, or config files** (not code)
+
+- Searching for **literal strings in comments, docs, or config files** (not
+  code)
 - Multi-word phrase search in non-code content
 - Searching for library/external symbols not defined in your code
 - Pattern matching in string literals or configuration
 - Searching in file types leta doesn't understand (markdown, yaml, etc.)
 
 **Don't use ripgrep-like tools for:**
+
 - Finding where a function/class is defined → use `leta grep`
 - Finding where a symbol is used → use `leta refs`
-- Finding code related to a concept (e.g. "billing", "auth") → use `leta grep "<concept>" -k function,method`
+- Finding code related to a concept (e.g. "billing", "auth") → use
+  `leta grep "<concept>" -k function,method`
 
 ## Quick Start
 
@@ -81,7 +98,9 @@ leta workspace add /path/to/project
 
 ### `leta show` - View Symbol Definition ⭐ USE THIS INSTEAD OF READ-FILE
 
-**This is the killer feature you should use constantly.** Print the full body of a function, class, or method. ALWAYS use this instead of `read-file` when you know the symbol name.
+**This is the killer feature you should use constantly.** Print the full body
+of a function, class, or method. ALWAYS use this instead of `read-file` when
+you know the symbol name.
 
 ```bash
 # Show a function
@@ -98,6 +117,7 @@ leta show COUNTRY_CODES --head 50
 ```
 
 **Symbol formats:**
+
 - `SymbolName` - Find by name
 - `Parent.Symbol` - Qualified name (Class.method)
 - `path:Symbol` - Filter by file path
@@ -105,13 +125,16 @@ leta show COUNTRY_CODES --head 50
 
 ### `leta grep` - Find Symbol Definitions
 
-Search for symbols matching a regex pattern. Only searches symbol NAMES, not file contents. Use this instead of ripgrep-like tools when looking for where something is defined.
+Search for symbols matching a regex pattern. Only searches symbol NAMES, not
+file contents. Use this instead of ripgrep-like tools when looking for where
+something is defined.
 
 ```bash
 leta grep PATTERN [PATH_REGEX] [OPTIONS]
 ```
 
-The optional PATH_REGEX argument filters files by matching a regex against the relative file path.
+The optional PATH_REGEX argument filters files by matching a regex against the
+relative file path.
 
 ```bash
 # Find all functions/methods starting with "test"
@@ -137,15 +160,24 @@ leta grep "^[A-Z]" '\.go$' -k function -C
 ```
 
 **Options:**
-- `-k, --kind TEXT` - Filter by kind: class, function, method, variable, constant, interface, struct, enum, property, field, constructor, module, namespace, package, typeparameter
+
+- `-k, --kind TEXT` - Filter by kind: class, function, method, variable,
+  constant, interface, struct, enum, property, field, constructor, module,
+  namespace, package, typeparameter
 - `-d, --docs` - Include documentation/docstrings
 - `-x, --exclude TEXT` - Exclude files matching regex (repeatable)
-- `-C, --case-sensitive` - Case-sensitive matching. Note that `leta grep` is case-insensitive by default
+- `-C, --case-sensitive` - Case-sensitive matching. Note that `leta grep` is
+  case-insensitive by default
 - `--head N` - Maximum results to return (default: 200)
 
 ### `leta files` - Project Overview
 
-Show source file tree with line counts. Good starting point for exploring a project. **Always prefer `leta files` over `list-directory`-like tools** since it prints not just the filenames, but a full tree of files (excluding `.git`, `__pycache__`, etc.), and their sizes and line counts. If you believe this command will output too many tokens, you can pipe it through `| head -n1000` for example.
+Show source file tree with line counts. Good starting point for exploring a
+project. **Always prefer `leta files` over `list-directory`-like tools** since
+it prints not just the filenames, but a full tree of files (excluding `.git`,
+`__pycache__`, etc.), and their sizes and line counts. If you believe this
+command will output too many tokens, you can pipe it through `| head -n1000`
+for example.
 
 ```bash
 # Overview of entire project
@@ -163,7 +195,10 @@ leta files -f '\.py$'
 
 ### `leta refs` - Find All References ⭐ USE THIS INSTEAD OF RIPGREP FOR USAGES
 
-**This is the correct way to find where a symbol is used.** Don't use ripgrep to search for a function name - use `leta refs` instead. It understands code structure and won't give you false positives from comments or similarly named symbols.
+**This is the correct way to find where a symbol is used.** Don't use ripgrep
+to search for a function name - use `leta refs` instead. It understands code
+structure and won't give you false positives from comments or similarly named
+symbols.
 
 ```bash
 # Find all usages of a function
@@ -178,7 +213,9 @@ leta refs UserRepository
 
 ### `leta calls` - Call Hierarchy ⭐ USE THIS TO UNDERSTAND FUNCTION DEPENDENCIES
 
-**Before reading a function's implementation, use `calls` to get the architectural overview.** This shows you what a function depends on or what depends on it - much faster than reading code to figure out the call graph.
+**Before reading a function's implementation, use `calls` to get the
+architectural overview.** This shows you what a function depends on or what
+depends on it - much faster than reading code to figure out the call graph.
 
 ```bash
 # What does main() call? (understand dependencies before reading code)
@@ -195,10 +232,13 @@ leta calls --from process_request --include-non-workspace
 ```
 
 **When to use `calls`:**
-- You found a function and want to understand what it does at a high level → `--from`
+
+- You found a function and want to understand what it does at a high level →
+  `--from`
 - You want to know where/how a function is used → `--to`
 - You're tracing data flow through a system → combine `--from` and `--to`
-- You want to understand the architecture before diving into implementation details
+- You want to understand the architecture before diving into implementation
+  details
 
 ### `leta implementations` - Find Implementations
 
@@ -305,12 +345,18 @@ leta show FileStorage
 
 1. **Start with `leta files`** to understand project structure before diving in.
 
-2. **Use `-d` flag** with grep to see documentation - helps understand what symbols do.
+2. **Use `-d` flag** with grep to see documentation - helps understand what
+   symbols do.
 
-3. **Combine with ripgrep-like tools** - use leta for "where is X defined/used?" and ripgrep-like tools for "where does string Y appear?"
+3. **Combine with ripgrep-like tools** - use leta for "where is X
+   defined/used?" and ripgrep-like tools for "where does string Y appear?"
 
-4. **Symbol formats are flexible** - if `SymbolName` is ambiguous, qualify it with `path:Symbol` or `Parent.Symbol`.
+4. **Symbol formats are flexible** - if `SymbolName` is ambiguous, qualify it
+   with `path:Symbol` or `Parent.Symbol`.
 
-5. **Check workspace first** - if commands fail, ensure you've run `leta workspace add`.
+5. **Check workspace first** - if commands fail, ensure you've run
+   `leta workspace add`.
 
-6. **Don't redirect stderr** (e.g., `2>/dev/null`) - when a symbol is ambiguous, leta outputs disambiguation options to stderr showing how to qualify the symbol name. You need to see this to know how to fix the command.
+6. **Don't redirect stderr** (e.g., `2>/dev/null`) - when a symbol is
+   ambiguous, leta outputs disambiguation options to stderr showing how to
+   qualify the symbol name. You need to see this to know how to fix the command.

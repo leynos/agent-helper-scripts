@@ -36,6 +36,7 @@ declare module 'legacy-lib' {
 ```
 
 **Acceptable suppression cases:**
+
 - FFI boundaries with C/Rust libraries lacking type definitions
 - Dynamic metaprogramming (proxies, decorators)
 - Test mocks requiring deliberate type escape hatches
@@ -44,7 +45,8 @@ declare module 'legacy-lib' {
 
 **Error:** `Avoid using array index as key.`
 
-**Why it matters:** React uses keys for reconciliation. Index keys cause incorrect component reuse when arrays reorder.
+**Why it matters:** React uses keys for reconciliation. Index keys cause
+incorrect component reuse when arrays reorder.
 
 **Proper solutions:**
 
@@ -132,7 +134,8 @@ if (value == null)
 
 **Error:** `Async executor function in Promise constructor`
 
-**Why it matters:** Errors in async executors won't reject the promise—they'll be unhandled.
+**Why it matters:** Errors in async executors won't reject the promise—they'll
+be unhandled.
 
 ```typescript
 // BAD
@@ -183,7 +186,8 @@ document.getElementById('root')?.addEventListener('click', handler);
 
 **Error:** `Avoid default exports`
 
-**Why it matters:** Named exports improve refactoring, IDE support, and tree-shaking.
+**Why it matters:** Named exports improve refactoring, IDE support, and
+tree-shaking.
 
 ```typescript
 // BAD
@@ -244,7 +248,8 @@ const msg = `Hello ${name}!`;
 
 **Error:** `Prefer for...of instead of forEach`
 
-**Why it matters:** `forEach` can't be broken out of, doesn't work with async/await properly, and has performance overhead.
+**Why it matters:** `forEach` can't be broken out of, doesn't work with
+async/await properly, and has performance overhead.
 
 ```typescript
 // BAD
@@ -326,7 +331,8 @@ import type { Config } from './config';  // Use 'import type'
 
 **Error:** `Missing dependency in useEffect/useCallback/useMemo`
 
-This is one of the most commonly suppressed rules. **Don't suppress it blindly.**
+This is one of the most commonly suppressed rules. **Don't suppress it
+blindly.**
 
 ```typescript
 // BAD: Missing dependency
@@ -356,7 +362,8 @@ useEffect(() => {
 }, [userId]);
 ```
 
-**Acceptable suppression:** When you genuinely need stale closure behaviour (rare, document thoroughly).
+**Acceptable suppression:** When you genuinely need stale closure behaviour
+(rare, document thoroughly).
 
 ## A11y Category
 
@@ -373,7 +380,8 @@ useEffect(() => {
 <button type="button" onClick={handleClick}>Cancel</button>
 ```
 
-Browsers default to `type="submit"`, which can cause unintended form submissions.
+Browsers default to `type="submit"`, which can cause unintended form
+submissions.
 
 ### noSvgWithoutTitle
 

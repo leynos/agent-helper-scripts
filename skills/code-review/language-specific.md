@@ -1,8 +1,9 @@
 # Language-Specific Review Checklists
 
-Supplement to the main review criteria. Apply the relevant section based on project type.
+Supplement to the main review criteria. Apply the relevant section based on
+project type.
 
----
+______________________________________________________________________
 
 ## Rust
 
@@ -20,7 +21,8 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] Error types implement `std::error::Error`
 - [ ] `thiserror` or similar for custom error types
 - [ ] `anyhow` only in application code, not library code
-- [ ] No `.unwrap()` outside of tests (use `.expect()` with context or propagate)
+- [ ] No `.unwrap()` outside of tests (use `.expect()` with context or
+      propagate)
 - [ ] `panic!` only for programmer errors, not runtime conditions
 
 ### Unsafe Code
@@ -52,7 +54,7 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] `&str` preferred over `String` for parameters
 - [ ] `collect::<Result<Vec<_>, _>>()` for fallible iteration
 
----
+______________________________________________________________________
 
 ## Python
 
@@ -87,7 +89,8 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] `zip()` for parallel iteration
 - [ ] `pathlib.Path` instead of `os.path`
 - [ ] f-strings for formatting (not `%` or `.format()`)
-- [ ] `dataclass` or `NamedTuple` instead of plain tuples/dicts for structured data
+- [ ] `dataclass` or `NamedTuple` instead of plain tuples/dicts for structured
+      data
 - [ ] `functools.cached_property` for expensive computed properties
 
 ### Imports
@@ -104,7 +107,7 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] Mocks scoped narrowly (don't mock what you don't own)
 - [ ] No `time.sleep()` in tests (use freezegun or similar)
 
----
+______________________________________________________________________
 
 ## TypeScript
 
@@ -155,7 +158,7 @@ Supplement to the main review criteria. Apply the relevant section based on proj
 - [ ] Mocks typed correctly
 - [ ] No snapshot tests for logic (only UI when justified)
 
----
+______________________________________________________________________
 
 ## Common Across Languages
 

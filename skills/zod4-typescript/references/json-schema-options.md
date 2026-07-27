@@ -8,14 +8,14 @@ z.toJSONSchema(schema, options?)
 
 ### Options
 
-| Option               | Type                                     | Description                                              |
-|----------------------|------------------------------------------|----------------------------------------------------------|
-| `name`               | `string`                                 | Root schema title                                         |
-| `$refStrategy`       | `"root"` \| `"relative"` \| `"none"`    | How to generate `$ref` pointers for reused schemas       |
-| `effectStrategy`     | `"input"` \| `"output"` \| `"any"`      | Which side of transforms/pipes to represent               |
-| `definitions`        | `Record<string, ZodTypeAny>`             | Named schemas to emit as `$defs`                         |
-| `errorMessages`      | `boolean`                                | Embed Zod error messages as `errorMessage`               |
-| `markdownDescription`| `boolean`                                | Emit `markdownDescription` alongside `description`       |
+| Option                | Type                                 | Description                                        |
+| --------------------- | ------------------------------------ | -------------------------------------------------- |
+| `name`                | `string`                             | Root schema title                                  |
+| `$refStrategy`        | `"root"` \| `"relative"` \| `"none"` | How to generate `$ref` pointers for reused schemas |
+| `effectStrategy`      | `"input"` \| `"output"` \| `"any"`   | Which side of transforms/pipes to represent        |
+| `definitions`         | `Record<string, ZodTypeAny>`         | Named schemas to emit as `$defs`                   |
+| `errorMessages`       | `boolean`                            | Embed Zod error messages as `errorMessage`         |
+| `markdownDescription` | `boolean`                            | Emit `markdownDescription` alongside `description` |
 
 ### Metadata propagation
 
@@ -66,33 +66,33 @@ Controls how transforms and pipes appear in the generated schema:
 
 Zod 4 maps schemas to JSON Schema as follows (non-exhaustive):
 
-| Zod schema               | JSON Schema                              |
-|--------------------------|------------------------------------------|
-| `z.string()`             | `{ type: "string" }`                     |
-| `z.email()`              | `{ type: "string", format: "email" }`    |
-| `z.int()`                | `{ type: "integer", ... }`               |
-| `z.number()`             | `{ type: "number" }`                     |
-| `z.boolean()`            | `{ type: "boolean" }`                    |
-| `z.null()`               | `{ type: "null" }`                       |
-| `z.array()`              | `{ type: "array", items: ... }`          |
-| `z.object()`             | `{ type: "object", ... }`                |
-| `z.union()`              | `{ anyOf: [...] }`                       |
-| `z.xor()`                | `{ oneOf: [...] }`                       |
-| `z.discriminatedUnion()` | `{ anyOf: [...] }` with discriminator    |
-| `z.literal()`            | `{ const: ... }` or `{ enum: [...] }`    |
-| `z.optional()`           | removes from `required`                  |
-| `z.nullable()`           | adds `null` to type                      |
+| Zod schema               | JSON Schema                           |
+| ------------------------ | ------------------------------------- |
+| `z.string()`             | `{ type: "string" }`                  |
+| `z.email()`              | `{ type: "string", format: "email" }` |
+| `z.int()`                | `{ type: "integer", ... }`            |
+| `z.number()`             | `{ type: "number" }`                  |
+| `z.boolean()`            | `{ type: "boolean" }`                 |
+| `z.null()`               | `{ type: "null" }`                    |
+| `z.array()`              | `{ type: "array", items: ... }`       |
+| `z.object()`             | `{ type: "object", ... }`             |
+| `z.union()`              | `{ anyOf: [...] }`                    |
+| `z.xor()`                | `{ oneOf: [...] }`                    |
+| `z.discriminatedUnion()` | `{ anyOf: [...] }` with discriminator |
+| `z.literal()`            | `{ const: ... }` or `{ enum: [...] }` |
+| `z.optional()`           | removes from `required`               |
+| `z.nullable()`           | adds `null` to type                   |
 
 ### `additionalProperties`
 
 By default, `z.object()` produces `additionalProperties: false`.
-`z.looseObject()` produces `additionalProperties: true`.
-`z.strictObject()` produces `additionalProperties: false`.
-
+`z.looseObject()` produces `additionalProperties: true`. `z.strictObject()`
+produces `additionalProperties: false`.
 
 ## JSON Schema → Zod (`z.fromJSONSchema()`)
 
-**Experimental** (4.3+). May change in minor releases. No guarantee of round-trip fidelity.
+**Experimental** (4.3+). May change in minor releases. No guarantee of
+round-trip fidelity.
 
 ```ts
 const zodSchema = z.fromJSONSchema(jsonSchema, options?);
@@ -107,24 +107,24 @@ const zodSchema = z.fromJSONSchema(jsonSchema, options?);
 
 ### Options
 
-| Option     | Type          | Description                    |
-|------------|---------------|--------------------------------|
-| `errorMap` | `ZodErrorMap`  | Custom error map for the schema |
+| Option     | Type          | Description                     |
+| ---------- | ------------- | ------------------------------- |
+| `errorMap` | `ZodErrorMap` | Custom error map for the schema |
 
 ### Limitations
 
-- No 1:1 round-trip soundness: `schema → toJSONSchema → fromJSONSchema` may not produce
-  an equivalent schema, because some Zod features (refinements, transforms, codecs) have
-  no JSON Schema representation, and vice versa.
+- No 1:1 round-trip soundness: `schema → toJSONSchema → fromJSONSchema` may not
+  produce an equivalent schema, because some Zod features (refinements,
+  transforms, codecs) have no JSON Schema representation, and vice versa.
 - Complex JSON Schema features like `$dynamicRef`, `if/then/else`, and certain
   `patternProperties` combinations may not convert faithfully.
-- The returned schema is loosely typed (`ZodTypeAny`) — you lose the compile-time type
-  information that hand-authored Zod schemas provide.
+- The returned schema is loosely typed (`ZodTypeAny`) — you lose the
+  compile-time type information that hand-authored Zod schemas provide.
 
 ### Practical use case
 
-Useful for consuming external JSON Schema definitions (e.g. from a schema registry or
-OpenAPI spec) and applying Zod's runtime validation:
+Useful for consuming external JSON Schema definitions (e.g. from a schema
+registry or OpenAPI spec) and applying Zod's runtime validation:
 
 ```ts
 const externalSchema = await fetch("/api/schema/user").then(r => r.json());

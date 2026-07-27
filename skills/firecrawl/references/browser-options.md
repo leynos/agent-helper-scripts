@@ -7,14 +7,15 @@ Complete parameter reference for `firecrawl_browser_create`,
 ## When to use the browser sandbox
 
 Use the browser sandbox instead of scrape with actions when you need:
+
 - **Persistent sessions** that survive across multiple tool calls
 - **Multi-step workflows** where each step depends on the previous result
 - **Authentication flows** that require maintaining cookies/state
 - **Full Playwright or CDP access** for complex automation
 - **Live inspection** of what the browser is doing (via live view URL)
 
-For simple "click a button then scrape" workflows, `firecrawl_scrape`
-with `actions` is simpler and cheaper.
+For simple "click a button then scrape" workflows, `firecrawl_scrape` with
+`actions` is simpler and cheaper.
 
 ## Session lifecycle
 
@@ -30,14 +31,15 @@ with `actions` is simpler and cheaper.
 }
 ```
 
-| Parameter | Type | Range | Description |
-|---|---|---|---|
-| `ttl` | integer | 30–3600 | Total session lifetime in seconds |
+| Parameter     | Type    | Range   | Description                                           |
+| ------------- | ------- | ------- | ----------------------------------------------------- |
+| `ttl`         | integer | 30–3600 | Total session lifetime in seconds                     |
 | `activityTtl` | integer | 10–3600 | Idle timeout in seconds (resets on each execute call) |
 
 Both parameters are optional. If omitted, the server applies defaults.
 
 **Response:**
+
 ```json
 {
   "id": "session-uuid",
@@ -48,8 +50,8 @@ Both parameters are optional. If omitted, the server applies defaults.
 ```
 
 The `cdpUrl` is a Chrome DevTools Protocol WebSocket endpoint for direct
-Playwright/Puppeteer connection. The `liveViewUrl` shows a real-time stream
-of the browser. The `interactiveLiveViewUrl` allows direct mouse/keyboard
+Playwright/Puppeteer connection. The `liveViewUrl` shows a real-time stream of
+the browser. The `interactiveLiveViewUrl` allows direct mouse/keyboard
 interaction.
 
 ### 2. Execute code
@@ -65,13 +67,14 @@ interaction.
 }
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `sessionId` | string | *required* — session ID from create |
-| `code` | string | *required* — code to execute |
-| `language` | string | `"bash"` (default), `"python"`, or `"node"` |
+| Parameter   | Type   | Description                                 |
+| ----------- | ------ | ------------------------------------------- |
+| `sessionId` | string | *required* — session ID from create         |
+| `code`      | string | *required* — code to execute                |
+| `language`  | string | `"bash"` (default), `"python"`, or `"node"` |
 
 **Response:**
+
 ```json
 {
   "result": "...",
@@ -105,9 +108,9 @@ Always delete sessions when finished. Do not rely solely on TTL expiry.
 }
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `status` | string | Optional: `"active"` or `"destroyed"` |
+| Parameter | Type   | Description                           |
+| --------- | ------ | ------------------------------------- |
+| `status`  | string | Optional: `"active"` or `"destroyed"` |
 
 Use this to check for orphaned sessions or verify cleanup.
 
@@ -115,23 +118,23 @@ Use this to check for orphaned sessions or verify cleanup.
 
 ### Bash with agent-browser commands
 
-The `agent-browser` CLI is pre-installed in the sandbox with 40+ commands.
-It provides a high-level interface ideal for LLM-driven automation.
+The `agent-browser` CLI is pre-installed in the sandbox with 40+ commands. It
+provides a high-level interface ideal for LLM-driven automation.
 
-| Command | Description |
-|---|---|
-| `agent-browser open <url>` | Navigate to a URL |
-| `agent-browser snapshot` | Get the accessibility tree with clickable element refs |
-| `agent-browser click @e5` | Click an element by ref (from snapshot) |
-| `agent-browser type @e3 "text"` | Type into an element by ref |
-| `agent-browser screenshot [path]` | Take a screenshot |
-| `agent-browser scroll down` | Scroll the page down |
-| `agent-browser scroll up` | Scroll the page up |
-| `agent-browser wait 2000` | Wait for 2 seconds |
+| Command                           | Description                                            |
+| --------------------------------- | ------------------------------------------------------ |
+| `agent-browser open <url>`        | Navigate to a URL                                      |
+| `agent-browser snapshot`          | Get the accessibility tree with clickable element refs |
+| `agent-browser click @e5`         | Click an element by ref (from snapshot)                |
+| `agent-browser type @e3 "text"`   | Type into an element by ref                            |
+| `agent-browser screenshot [path]` | Take a screenshot                                      |
+| `agent-browser scroll down`       | Scroll the page down                                   |
+| `agent-browser scroll up`         | Scroll the page up                                     |
+| `agent-browser wait 2000`         | Wait for 2 seconds                                     |
 
-The `snapshot` → `click`/`type` loop is the primary interaction pattern.
-Take a snapshot to discover interactive elements (each gets a ref like
-`@e5`), then address those elements by ref.
+The `snapshot` → `click`/`type` loop is the primary interaction pattern. Take a
+snapshot to discover interactive elements (each gets a ref like `@e5`), then
+address those elements by ref.
 
 ### Python with Playwright
 
@@ -184,5 +187,5 @@ console.log(title);
 10. Delete session
 ```
 
-Each execute call is a separate tool invocation. State persists across
-calls within the same session.
+Each execute call is a separate tool invocation. State persists across calls
+within the same session.

@@ -12,38 +12,42 @@ Biome provides a migration command:
 npx biome migrate eslint --write
 ```
 
-This reads `.eslintrc.*` and updates `biome.json`. **Review the output carefully**—not all rules map directly.
+This reads `.eslintrc.*` and updates `biome.json`. **Review the output
+carefully**—not all rules map directly.
 
 ### Rule Name Differences
 
 Biome uses its own rule names. Common mappings:
 
-| ESLint | Biome |
-|--------|-------|
-| `no-unused-vars` | `correctness/noUnusedVariables` |
-| `no-console` | `suspicious/noConsoleLog` |
-| `eqeqeq` | `suspicious/noDoubleEquals` |
-| `prefer-const` | `style/useConst` |
-| `prefer-template` | `style/useTemplate` |
-| `no-var` | `style/noVar` |
-| `@typescript-eslint/no-explicit-any` | `suspicious/noExplicitAny` |
-| `@typescript-eslint/consistent-type-imports` | `style/useImportType` |
-| `react-hooks/exhaustive-deps` | `correctness/useExhaustiveDependencies` |
-| `react/jsx-key` | `correctness/useJsxKeyInIterable` |
+| ESLint                                       | Biome                                   |
+| -------------------------------------------- | --------------------------------------- |
+| `no-unused-vars`                             | `correctness/noUnusedVariables`         |
+| `no-console`                                 | `suspicious/noConsoleLog`               |
+| `eqeqeq`                                     | `suspicious/noDoubleEquals`             |
+| `prefer-const`                               | `style/useConst`                        |
+| `prefer-template`                            | `style/useTemplate`                     |
+| `no-var`                                     | `style/noVar`                           |
+| `@typescript-eslint/no-explicit-any`         | `suspicious/noExplicitAny`              |
+| `@typescript-eslint/consistent-type-imports` | `style/useImportType`                   |
+| `react-hooks/exhaustive-deps`                | `correctness/useExhaustiveDependencies` |
+| `react/jsx-key`                              | `correctness/useJsxKeyInIterable`       |
 
 ### Rules Without Direct Equivalents
 
-Some ESLint rules have no Biome equivalent (yet). Check the Biome documentation or issue tracker.
+Some ESLint rules have no Biome equivalent (yet). Check the Biome documentation
+or issue tracker.
 
 **Common gaps:**
-- Complex `import/order` configurations (Biome's import sorting is less configurable)
+
+- Complex `import/order` configurations (Biome's import sorting is less
+  configurable)
 - Some `@typescript-eslint` rules around type-aware linting
 - Plugin-specific rules (e.g., `eslint-plugin-jest`)
 
 ### Behavioural Differences
 
-**Unused variables:**
-ESLint's `no-unused-vars` has complex ignore patterns. Biome's `noUnusedVariables` uses underscore prefix convention:
+**Unused variables:** ESLint's `no-unused-vars` has complex ignore patterns.
+Biome's `noUnusedVariables` uses underscore prefix convention:
 
 ```typescript
 // ESLint: often configured to allow unused args
@@ -53,27 +57,28 @@ function handler(req, res, _next) {}
 function handler(_req, res, _next) {}
 ```
 
-**Type imports:**
-Biome's `useImportType` is stricter than `@typescript-eslint/consistent-type-imports`. It will flag more cases.
+**Type imports:** Biome's `useImportType` is stricter than
+`@typescript-eslint/consistent-type-imports`. It will flag more cases.
 
-**React hooks:**
-Biome's `useExhaustiveDependencies` may flag different patterns than `react-hooks/exhaustive-deps`. Test thoroughly.
+**React hooks:** Biome's `useExhaustiveDependencies` may flag different
+patterns than `react-hooks/exhaustive-deps`. Test thoroughly.
 
 ### ESLint Plugins
 
 Biome doesn't support ESLint plugins. Built-in coverage:
 
-| Plugin | Biome Coverage |
-|--------|----------------|
-| `@typescript-eslint` | Partial—many rules built-in |
-| `eslint-plugin-react` | Good—most JSX rules covered |
-| `eslint-plugin-react-hooks` | Yes—`useExhaustiveDependencies` |
-| `eslint-plugin-import` | Partial—basic import rules |
-| `eslint-plugin-jsx-a11y` | Yes—`a11y` category |
-| `eslint-plugin-jest` | No |
-| `eslint-plugin-testing-library` | No |
+| Plugin                          | Biome Coverage                  |
+| ------------------------------- | ------------------------------- |
+| `@typescript-eslint`            | Partial—many rules built-in     |
+| `eslint-plugin-react`           | Good—most JSX rules covered     |
+| `eslint-plugin-react-hooks`     | Yes—`useExhaustiveDependencies` |
+| `eslint-plugin-import`          | Partial—basic import rules      |
+| `eslint-plugin-jsx-a11y`        | Yes—`a11y` category             |
+| `eslint-plugin-jest`            | No                              |
+| `eslint-plugin-testing-library` | No                              |
 
-For unsupported plugins, consider running ESLint alongside Biome for those specific rules.
+For unsupported plugins, consider running ESLint alongside Biome for those
+specific rules.
 
 ### Coexistence Pattern
 
@@ -116,23 +121,25 @@ This reads `.prettierrc` and updates `biome.json` formatter settings.
 
 ### Configuration Mapping
 
-| Prettier | Biome | Notes |
-|----------|-------|-------|
-| `printWidth` | `lineWidth` | Default 80 |
-| `tabWidth` | `indentWidth` | Default 2 |
-| `useTabs` | `indentStyle: "tab"` | Default "space" |
-| `semi` | `javascript.formatter.semicolons` | "always" or "asNeeded" |
-| `singleQuote` | `javascript.formatter.quoteStyle` | "single" or "double" |
-| `trailingComma` | `javascript.formatter.trailingCommas` | "all", "es5", "none" |
-| `bracketSpacing` | `javascript.formatter.bracketSpacing` | Boolean |
-| `arrowParens` | `javascript.formatter.arrowParentheses` | "always" or "asNeeded" |
-| `endOfLine` | `formatter.lineEnding` | "lf", "crlf", "cr" |
+| Prettier         | Biome                                   | Notes                  |
+| ---------------- | --------------------------------------- | ---------------------- |
+| `printWidth`     | `lineWidth`                             | Default 80             |
+| `tabWidth`       | `indentWidth`                           | Default 2              |
+| `useTabs`        | `indentStyle: "tab"`                    | Default "space"        |
+| `semi`           | `javascript.formatter.semicolons`       | "always" or "asNeeded" |
+| `singleQuote`    | `javascript.formatter.quoteStyle`       | "single" or "double"   |
+| `trailingComma`  | `javascript.formatter.trailingCommas`   | "all", "es5", "none"   |
+| `bracketSpacing` | `javascript.formatter.bracketSpacing`   | Boolean                |
+| `arrowParens`    | `javascript.formatter.arrowParentheses` | "always" or "asNeeded" |
+| `endOfLine`      | `formatter.lineEnding`                  | "lf", "crlf", "cr"     |
 
 ### Formatting Differences
 
-Biome's formatter produces **different output** from Prettier. Expect diffs. Key differences:
+Biome's formatter produces **different output** from Prettier. Expect diffs.
+Key differences:
 
 **Object formatting:**
+
 ```typescript
 // Prettier
 const obj = { a: 1, b: 2 };
@@ -141,17 +148,18 @@ const obj = { a: 1, b: 2 };
 const obj = { a: 1, b: 2 };
 ```
 
-**JSX formatting:**
-Biome makes different line-breaking decisions for JSX attributes.
+**JSX formatting:** Biome makes different line-breaking decisions for JSX
+attributes.
 
-**Import sorting:**
-Biome's import organizer groups differently than Prettier's plugins.
+**Import sorting:** Biome's import organizer groups differently than Prettier's
+plugins.
 
 ### Handling the Diff Storm
 
 When switching formatters, you'll get massive diffs. Strategies:
 
 **Option 1: Big Bang**
+
 ```bash
 npx biome format --write .
 git add -A
@@ -159,13 +167,14 @@ git commit -m "chore: migrate to Biome formatting"
 ```
 
 **Option 2: Directory at a Time**
+
 ```bash
 npx biome format --write src/components/
 git add -A && git commit -m "chore: biome format components"
 ```
 
-**Option 3: Use git blame ignore**
-Add the formatting commit to `.git-blame-ignore-revs`:
+**Option 3: Use git blame ignore** Add the formatting commit to
+`.git-blame-ignore-revs`:
 
 ```bash
 # .git-blame-ignore-revs
@@ -174,6 +183,7 @@ abc123def456...
 ```
 
 Configure git:
+
 ```bash
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
@@ -197,7 +207,8 @@ For these, keep Prettier alongside Biome:
 
 ### Editor Integration Conflicts
 
-If you have both Prettier and Biome extensions installed, they'll fight over formatting.
+If you have both Prettier and Biome extensions installed, they'll fight over
+formatting.
 
 **VS Code**: Disable Prettier for JS/TS files:
 

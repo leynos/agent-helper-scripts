@@ -40,7 +40,7 @@ Local-first testing for Ansible collections, roles, and modules.
   systemd-capable tests; `registry.access.redhat.com/ubi9/ubi` for stateless
   tests. Prefer UBI9 over CentOS 7 / Fedora images from the docs.
 
----
+______________________________________________________________________
 
 ## Phase 0 — Context discovery
 
@@ -70,12 +70,12 @@ Before writing any files, determine:
      `~/ansible_collections/<namespace>/<collection_name>`.
    - If not, set it up with a symlink or move before running `ansible-test`.
 
----
+______________________________________________________________________
 
 ## Phase 1 — Collection layout
 
-A correct collection layout is a prerequisite for `ansible-test`. Scaffold
-or verify this structure before doing anything else:
+A correct collection layout is a prerequisite for `ansible-test`. Scaffold or
+verify this structure before doing anything else:
 
 ```text
 ansible_collections/
@@ -133,7 +133,7 @@ license:
 EOF
 ```
 
----
+______________________________________________________________________
 
 ## Phase 2 — Python environment
 
@@ -169,7 +169,7 @@ Export the Podman preference before running `ansible-test`:
 export ANSIBLE_TEST_PREFER_PODMAN=1
 ```
 
----
+______________________________________________________________________
 
 ## Phase 3 — Molecule setup (roles)
 
@@ -362,8 +362,8 @@ molecule lint
 
 When multiple agents may test different branches or repositories on the same
 VM, make Podman resource names unique per run. Unsuffixed Molecule platform
-names become Podman container names, so two branches with `name: ubi9-init`
-can collide, reuse the wrong container, or destroy each other's test instance.
+names become Podman container names, so two branches with `name: ubi9-init` can
+collide, reuse the wrong container, or destroy each other's test instance.
 
 Use the pattern from `dev-env-rocky`: generate a short
 `MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID
@@ -429,8 +429,8 @@ Rules for new scenarios:
 
 ### 3g. Molecule performance guidance
 
-Molecule should be the default end-to-end test harness, but keep it fast
-enough that developers will actually run it. Optimize in this order:
+Molecule should be the default end-to-end test harness, but keep it fast enough
+that developers will actually run it. Optimize in this order:
 
 1. **Use Podman with pre-built, Python-enabled images**
    - Keep `pre_build_image: true` for pulled or locally built images that
@@ -535,7 +535,7 @@ time molecule destroy
 time molecule test
 ```
 
----
+______________________________________________________________________
 
 ## Phase 4 — ansible-test: sanity
 
@@ -556,14 +556,14 @@ ansible-test sanity --list-tests
 
 Common failures and fixes:
 
-| Test | Typical cause | Fix |
-| --- | --- | --- |
-| `validate-modules` | Missing `DOCUMENTATION`, `EXAMPLES`, or `RETURN` | Add the YAML documentation block |
-| `pep8` | PEP 8 violations | `autopep8 --in-place` or fix manually |
-| `pylint` | Linting errors | Fix or add `# pylint: disable=...` with justification |
-| `ignore` | New test added to ignore list incorrectly | Remove from `tests/sanity/ignore-*.txt` |
+| Test               | Typical cause                                    | Fix                                                   |
+| ------------------ | ------------------------------------------------ | ----------------------------------------------------- |
+| `validate-modules` | Missing `DOCUMENTATION`, `EXAMPLES`, or `RETURN` | Add the YAML documentation block                      |
+| `pep8`             | PEP 8 violations                                 | `autopep8 --in-place` or fix manually                 |
+| `pylint`           | Linting errors                                   | Fix or add `# pylint: disable=...` with justification |
+| `ignore`           | New test added to ignore list incorrectly        | Remove from `tests/sanity/ignore-*.txt`               |
 
----
+______________________________________________________________________
 
 ## Phase 5 — ansible-test: unit tests
 
@@ -663,7 +663,7 @@ ansible-test units --python 3.12 --local --coverage
 ansible-test coverage report
 ```
 
----
+______________________________________________________________________
 
 ## Phase 6 — ansible-test: integration tests
 
@@ -785,7 +785,7 @@ ansible-test integration \
   --target "controller:python=venv/3.12"
 ```
 
----
+______________________________________________________________________
 
 ## Phase 7 — CI/CD integration (GitHub Actions reference)
 
@@ -856,58 +856,56 @@ jobs:
           ANSIBLE_TEST_PREFER_PODMAN: "1"
 ```
 
----
+______________________________________________________________________
 
 ## Quick-reference command table
 
-| Goal | Command |
-| --- | --- |
-| Full Molecule cycle | `molecule test` |
-| E2E role/workflow test | `molecule test` with `driver.name: podman` |
-| Apply role only | `molecule converge` |
-| Run assertions only | `molecule verify` |
-| Time slow Molecule step | `time molecule converge` |
-| All Molecule scenarios on dedicated runner | `molecule test --all --workers cpus-1` |
-| Shell into container | `molecule login` |
-| Lint YAML + Ansible | `molecule lint` |
-| Sanity (local) | `ansible-test sanity --python 3.12 --local` |
-| Sanity (specific) | `ansible-test sanity --python 3.12 --local --test validate-modules` |
-| Unit tests (local) | `ansible-test units --python 3.12 --local` |
-| Unit tests (specific) | `ansible-test units --python 3.12 --local plugins/modules/my_module.py` |
-| Integration (local) | `ansible-test integration --controller "origin:python=venv/3.12" --target "controller:python=venv/3.12" <target>` |
-| Integration (Podman target) | `ansible-test integration --controller "origin:python=venv/3.12" --target "docker:registry.access.redhat.com/ubi9/ubi,python=3.12" <target>` |
-| Integration (SSH target) | `ansible-test integration --controller "origin:python=venv/3.12" --target "ssh:user@host,python=3.12" <target>` |
-| Coverage report | `ansible-test coverage report` |
-| List integration targets | `ansible-test integration --list-targets` |
+| Goal                                       | Command                                                                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full Molecule cycle                        | `molecule test`                                                                                                                              |
+| E2E role/workflow test                     | `molecule test` with `driver.name: podman`                                                                                                   |
+| Apply role only                            | `molecule converge`                                                                                                                          |
+| Run assertions only                        | `molecule verify`                                                                                                                            |
+| Time slow Molecule step                    | `time molecule converge`                                                                                                                     |
+| All Molecule scenarios on dedicated runner | `molecule test --all --workers cpus-1`                                                                                                       |
+| Shell into container                       | `molecule login`                                                                                                                             |
+| Lint YAML + Ansible                        | `molecule lint`                                                                                                                              |
+| Sanity (local)                             | `ansible-test sanity --python 3.12 --local`                                                                                                  |
+| Sanity (specific)                          | `ansible-test sanity --python 3.12 --local --test validate-modules`                                                                          |
+| Unit tests (local)                         | `ansible-test units --python 3.12 --local`                                                                                                   |
+| Unit tests (specific)                      | `ansible-test units --python 3.12 --local plugins/modules/my_module.py`                                                                      |
+| Integration (local)                        | `ansible-test integration --controller "origin:python=venv/3.12" --target "controller:python=venv/3.12" <target>`                            |
+| Integration (Podman target)                | `ansible-test integration --controller "origin:python=venv/3.12" --target "docker:registry.access.redhat.com/ubi9/ubi,python=3.12" <target>` |
+| Integration (SSH target)                   | `ansible-test integration --controller "origin:python=venv/3.12" --target "ssh:user@host,python=3.12" <target>`                              |
+| Coverage report                            | `ansible-test coverage report`                                                                                                               |
+| List integration targets                   | `ansible-test integration --list-targets`                                                                                                    |
 
----
+______________________________________________________________________
 
 ## Common pitfalls
 
-**`ansible-test` cannot find the collection**
-The collection must be at `~/ansible_collections/<ns>/<col>` and `ansible-test`
-must be run from within that directory. A symlink from your checkout to that
-path is fine.
+**`ansible-test` cannot find the collection** The collection must be at
+`~/ansible_collections/<ns>/<col>` and `ansible-test` must be run from within
+that directory. A symlink from your checkout to that path is fine.
 
-**Podman containers fail to start systemd**
-Ensure `container_manage_cgroup` SELinux boolean is set and that the
-`molecule.yml` mounts `/sys/fs/cgroup` and sets `systemd: always`. Use
-`ubi9/ubi-init`, not `ubi9/ubi`, for systemd-dependent roles.
+**Podman containers fail to start systemd** Ensure `container_manage_cgroup`
+SELinux boolean is set and that the `molecule.yml` mounts `/sys/fs/cgroup` and
+sets `systemd: always`. Use `ubi9/ubi-init`, not `ubi9/ubi`, for
+systemd-dependent roles.
 
-**`pipelining` errors with Podman**
-Set `pipelining: false` under `provisioner.config_options.connection` in
-`molecule.yml`.
+**`pipelining` errors with Podman** Set `pipelining: false` under
+`provisioner.config_options.connection` in `molecule.yml`.
 
-**`python3` not found inside UBI container**
-Add a `pre_tasks` block in `converge.yml` that runs
+**`python3` not found inside UBI container** Add a `pre_tasks` block in
+`converge.yml` that runs
 `ansible.builtin.raw: rpm -q python3 || dnf install -y python3` before
 gathering facts.
 
-**`ansible-test integration` says `--docker` image not found**
-Do not use the legacy `--docker` flag. Use the composite `--target
-"docker:<image>,python=<version>"` form and ensure
+**`ansible-test integration` says `--docker` image not found** Do not use the
+legacy `--docker` flag. Use the composite
+`--target "docker:<image>,python=<version>"` form and ensure
 `ANSIBLE_TEST_PREFER_PODMAN=1` is exported.
 
-**Module documentation fails `validate-modules`**
-Every module needs `DOCUMENTATION`, `EXAMPLES`, and `RETURN` as module-level
-string variables, formatted as YAML inside triple-quoted strings.
+**Module documentation fails `validate-modules`** Every module needs
+`DOCUMENTATION`, `EXAMPLES`, and `RETURN` as module-level string variables,
+formatted as YAML inside triple-quoted strings.

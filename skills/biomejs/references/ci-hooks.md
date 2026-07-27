@@ -209,8 +209,10 @@ npx biome check --staged --no-errors-on-unmatched
 ```
 
 **Critical flags:**
+
 - `--staged`: Only check files staged for commit
-- `--no-errors-on-unmatched`: Don't fail if no files match (e.g., docs-only commits)
+- `--no-errors-on-unmatched`: Don't fail if no files match (e.g., docs-only
+  commits)
 
 ### Using Lefthook
 
@@ -250,6 +252,7 @@ npm install --save-dev lint-staged
 ```
 
 Hook:
+
 ```bash
 # .husky/pre-commit
 npx lint-staged
@@ -265,7 +268,8 @@ npx biome check --staged --write --no-errors-on-unmatched
 git add -u  # Re-stage fixed files
 ```
 
-**Caution:** This modifies files. Some teams prefer failing and requiring manual fixes.
+**Caution:** This modifies files. Some teams prefer failing and requiring
+manual fixes.
 
 ### Pre-Push Hook
 
@@ -290,7 +294,8 @@ Document when this is acceptable in your contributing guide.
 
 ### Parallel Execution
 
-Biome is already parallel internally. For CI, parallelize at the job level rather than calling Biome multiple times.
+Biome is already parallel internally. For CI, parallelize at the job level
+rather than calling Biome multiple times.
 
 ### Incremental Checking
 
@@ -302,6 +307,7 @@ biome check --changed --since=origin/main
 ```
 
 In CI:
+
 ```yaml
       - run: biome check --changed --since=origin/${{ github.base_ref }}
 ```
@@ -309,6 +315,7 @@ In CI:
 ### Binary Size Considerations
 
 Biome's binary is ~50MB. In CI:
+
 - The official action caches the binary
 - For Docker builds, consider multi-stage builds
 - For monorepos, install once at root
@@ -438,13 +445,15 @@ biome check --files-ignore-unknown=true --no-errors-on-unmatched --verbose .
 ```
 
 Check:
+
 - `files.include` in `biome.json`
 - VCS ignore settings
 - File extensions
 
 ### Hook Running on Wrong Files
 
-Ensure `--staged` is used in pre-commit hooks. Without it, Biome checks all files.
+Ensure `--staged` is used in pre-commit hooks. Without it, Biome checks all
+files.
 
 ### CI Passes but Local Fails
 

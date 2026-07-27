@@ -1,6 +1,7 @@
 # Strict Rules Reference
 
-Rules beyond "recommended" for teams wanting tighter code quality. Organized by goal.
+Rules beyond "recommended" for teams wanting tighter code quality. Organized by
+goal.
 
 ## Type Safety Hardening
 
@@ -79,11 +80,11 @@ Prevent sprawling functions and deep nesting:
 
 ### Cognitive Complexity Thresholds
 
-| Threshold | Use Case |
-|-----------|----------|
-| 10 | Strict—small utility functions |
-| 15 | Standard—most business logic |
-| 25 | Relaxed—state machines, parsers |
+| Threshold | Use Case                        |
+| --------- | ------------------------------- |
+| 10        | Strict—small utility functions  |
+| 15        | Standard—most business logic    |
+| 25        | Relaxed—state machines, parsers |
 
 Start strict (10-15), loosen for specific files via overrides.
 
@@ -119,6 +120,7 @@ Enforce uniform code style beyond formatting:
 ### Key Rules Explained
 
 **noNamespaceImport**: Forbids `import * as foo`:
+
 ```typescript
 // ERROR
 import * as utils from './utils';
@@ -127,7 +129,9 @@ import * as utils from './utils';
 import { parseDate, formatDate } from './utils';
 ```
 
-**useExportType / useImportType**: Enforces `type` keyword for type-only imports:
+**useExportType / useImportType**: Enforces `type` keyword for type-only
+imports:
+
 ```typescript
 // ERROR
 import { User } from './types';
@@ -137,6 +141,7 @@ import type { User } from './types';
 ```
 
 **useNodejsImportProtocol**: Requires `node:` prefix for Node.js built-ins:
+
 ```typescript
 // ERROR
 import { readFile } from 'fs';
@@ -337,6 +342,7 @@ Combine the above for a comprehensive strict setup:
 Don't enable all strict rules at once. Phased approach:
 
 ### Phase 1: Foundation (Week 1)
+
 ```json
 {
   "rules": {
@@ -350,9 +356,12 @@ Don't enable all strict rules at once. Phased approach:
 ```
 
 ### Phase 2: Type Safety (Week 2-3)
-Add `noExplicitAny: "warn"`, `useImportType: "error"`, `noNonNullAssertion: "warn"`
+
+Add `noExplicitAny: "warn"`, `useImportType: "error"`,
+`noNonNullAssertion: "warn"`
 
 ### Phase 3: Strictness (Week 4+)
+
 Upgrade warnings to errors, add complexity limits.
 
 ### Tracking Progress

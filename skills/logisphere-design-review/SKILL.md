@@ -13,20 +13,20 @@ description: >
 
 # Logisphere Design Review — Pre-Implementation Expert Panel
 
-Stress-test a design before anyone writes code. The Logisphere crew examines proposals through six
-specialist lenses, surfaces hidden assumptions, runs a pre-mortem, and produces actionable
-guidance on whether and how to proceed.
+Stress-test a design before anyone writes code. The Logisphere crew examines
+proposals through six specialist lenses, surfaces hidden assumptions, runs a
+pre-mortem, and produces actionable guidance on whether and how to proceed.
 
 ## The Panel
 
-| Expert | Emoji | Design-phase focus | Core question |
-|--------|-------|--------------------|---------------|
-| Pandalump | 🐼 | Structural integrity | "Will these boundaries survive contact with reality?" |
-| Wafflecat | 🐈🧇 | Alternative futures | "What else lives in this design space?" |
-| Buzzy Bee | 🐝 | Scaling & cost | "Where does this hit the wall, and at what scale?" |
-| Telefono | ☎️ | Contracts & interfaces | "Can this API evolve without breaking the world?" |
-| Doggylump | 🐶 | Failure modes & ops | "Assume it's 03:00 and this has failed — what went wrong?" |
-| Dinolump | 🦕 | Long-term viability | "Does this design match the team that has to build and run it?" |
+| Expert    | Emoji | Design-phase focus     | Core question                                                   |
+| --------- | ----- | ---------------------- | --------------------------------------------------------------- |
+| Pandalump | 🐼    | Structural integrity   | "Will these boundaries survive contact with reality?"           |
+| Wafflecat | 🐈🧇  | Alternative futures    | "What else lives in this design space?"                         |
+| Buzzy Bee | 🐝    | Scaling & cost         | "Where does this hit the wall, and at what scale?"              |
+| Telefono  | ☎️    | Contracts & interfaces | "Can this API evolve without breaking the world?"               |
+| Doggylump | 🐶    | Failure modes & ops    | "Assume it's 03:00 and this has failed — what went wrong?"      |
+| Dinolump  | 🦕    | Long-term viability    | "Does this design match the team that has to build and run it?" |
 
 For detailed review questions per expert, read
 [references/expert-profiles.md](references/expert-profiles.md).
@@ -38,49 +38,64 @@ For detailed review questions per expert, read
 Before convening the panel, establish the basics:
 
 - **What** is being built and **why** (the problem, not the solution).
-- **What decisions** the design document is actually making (vs deferring or assuming).
-- **What constraints** are fixed (team size, timeline, existing infrastructure, compliance).
+- **What decisions** the design document is actually making (vs deferring or
+  assuming).
+- **What constraints** are fixed (team size, timeline, existing infrastructure,
+  compliance).
 - **What success looks like** — measurable criteria, not vibes.
 
-If the proposal is vague on any of these, surface that immediately. A design review without a clear
-problem statement is architecture theatre.
+If the proposal is vague on any of these, surface that immediately. A design
+review without a clear problem statement is architecture theatre.
 
 ### 2. Identify the design's core bets
 
-Every design is a set of bets — assumptions about load, user behaviour, team capability, technology
-stability, and business direction. Extract these explicitly:
+Every design is a set of bets — assumptions about load, user behaviour, team
+capability, technology stability, and business direction. Extract these
+explicitly:
 
 - "This design bets that write volume will stay below X."
 - "This design bets that the team can operate Kafka in production."
-- "This design bets that the API contract won't need breaking changes for 18 months."
+- "This design bets that the API contract won't need breaking changes for 18
+  months."
 
-Framing assumptions as bets clarifies what the design is risking and where it needs hedging.
+Framing assumptions as bets clarifies what the design is risking and where it
+needs hedging.
 
 ### 3. Select the panel
 
 Match experts to the design's domain:
 
-- **System architecture (services, data flow, decomposition):** Full panel. Pandalump and Wafflecat lead.
-- **API / contract design:** Telefono leads. Pandalump validates structure. Buzzy Bee checks scaling. Dinolump checks DX.
-- **Data model / storage design:** Telefono and Buzzy Bee lead. Pandalump checks boundaries. Doggylump checks migration and durability.
-- **Infrastructure / deployment design:** Buzzy Bee and Doggylump lead. Dinolump checks operational toil.
-- **RFC or ADR (general decision record):** Full panel, weighted toward the decision's domain.
+- **System architecture (services, data flow, decomposition):** Full panel.
+  Pandalump and Wafflecat lead.
+- **API / contract design:** Telefono leads. Pandalump validates structure.
+  Buzzy Bee checks scaling. Dinolump checks DX.
+- **Data model / storage design:** Telefono and Buzzy Bee lead. Pandalump
+  checks boundaries. Doggylump checks migration and durability.
+- **Infrastructure / deployment design:** Buzzy Bee and Doggylump lead.
+  Dinolump checks operational toil.
+- **RFC or ADR (general decision record):** Full panel, weighted toward the
+  decision's domain.
 
 ### 4. Stress-test through each lens
 
-For each selected expert, read their profile in [references/expert-profiles.md](references/expert-profiles.md)
-and work through their questions against the proposal. Record findings as:
+For each selected expert, read their profile in
+[references/expert-profiles.md](references/expert-profiles.md) and work through
+their questions against the proposal. Record findings as:
 
-- 🔴 **Design flaw** — Structural issue; proceeding without addressing this invites serious problems.
-- 🟡 **Unresolved risk** — Not necessarily fatal, but the design needs a mitigation strategy or explicit acceptance.
+- 🔴 **Design flaw** — Structural issue; proceeding without addressing this
+  invites serious problems.
+- 🟡 **Unresolved risk** — Not necessarily fatal, but the design needs a
+  mitigation strategy or explicit acceptance.
 - 🟢 **Improvement** — Would strengthen the design; not blocking.
-- 💡 **Open question** — Cannot be answered from the document; needs investigation or decision.
+- 💡 **Open question** — Cannot be answered from the document; needs
+  investigation or decision.
 
 ### 5. Pre-mortem (Doggylump leads)
 
 With findings in hand, run a structured pre-mortem:
 
-> *It's six months from now. This system has caused a significant incident. Working backwards:*
+> *It's six months from now. This system has caused a significant incident.
+> Working backwards:*
 >
 > 1. What's the most likely failure that triggered the incident?
 > 2. What was the blast radius?
@@ -88,18 +103,21 @@ With findings in hand, run a structured pre-mortem:
 > 4. Which of the design's core bets turned out to be wrong?
 > 5. What would have prevented it — and can that prevention be designed in now?
 
-The pre-mortem should produce 2–3 concrete scenarios, each with a recommended mitigation.
+The pre-mortem should produce 2–3 concrete scenarios, each with a recommended
+mitigation.
 
 ### 6. Alternatives checkpoint (Wafflecat leads)
 
-Before concluding, Wafflecat presents the strongest alternative to the proposed design — even if the
-proposal is good. This isn't contrarianism; it's calibration. The alternative should be:
+Before concluding, Wafflecat presents the strongest alternative to the proposed
+design — even if the proposal is good. This isn't contrarianism; it's
+calibration. The alternative should be:
 
 - Genuinely viable (not a straw man).
 - Meaningfully different in at least one structural dimension.
 - Accompanied by a clear statement of what it trades away and what it gains.
 
-If no credible alternative exists, say so explicitly — that's a strong signal the design is on solid ground.
+If no credible alternative exists, say so explicitly — that's a strong signal
+the design is on solid ground.
 
 ### 7. Synthesize into a design verdict
 
@@ -107,35 +125,44 @@ Produce a unified assessment:
 
 1. **Verdict** — one of:
    - ✅ **Proceed** — Design is sound; findings are minor.
-   - ⚠️ **Proceed with conditions** — Design is viable but specific issues must be addressed first.
-   - 🔄 **Revise** — Significant concerns; design needs rework before implementation.
+   - ⚠️ **Proceed with conditions** — Design is viable but specific issues must
+     be addressed first.
+   - 🔄 **Revise** — Significant concerns; design needs rework before
+     implementation.
    - ❌ **Reconsider** — Fundamental issues; revisit the approach.
 
-2. **Core bets summary** — The design's key assumptions, with confidence assessment for each.
+2. **Core bets summary** — The design's key assumptions, with confidence
+   assessment for each.
 
-3. **Findings by severity** (🔴 → 🟡 → 🟢 → 💡), attributed to the expert who raised them.
+3. **Findings by severity** (🔴 → 🟡 → 🟢 → 💡), attributed to the expert who
+   raised them.
 
-4. **Pre-mortem scenarios** — The 2–3 most likely failure paths and recommended mitigations.
+4. **Pre-mortem scenarios** — The 2–3 most likely failure paths and recommended
+   mitigations.
 
-5. **Strongest alternative** — Wafflecat's alternative and the trade-off analysis.
+5. **Strongest alternative** — Wafflecat's alternative and the trade-off
+   analysis.
 
-6. **Recommended next steps** — Ordered by priority, with clear owners where possible.
+6. **Recommended next steps** — Ordered by priority, with clear owners where
+   possible.
 
 ## Tone
 
-Same as the Logisphere itself: direct, constructive, characterful, and actionable.
+Same as the Logisphere itself: direct, constructive, characterful, and
+actionable.
 
-Design reviews have higher stakes than code reviews — a structural mistake caught here saves weeks
-of implementation. The crew should be thorough without being paralysing. The goal is a decision,
-not an infinite regress of analysis.
+Design reviews have higher stakes than code reviews — a structural mistake
+caught here saves weeks of implementation. The crew should be thorough without
+being paralysing. The goal is a decision, not an infinite regress of analysis.
 
-Doggylump's quiet worry is particularly valuable here: pre-mortems work best when someone genuinely
-cares about the humans who'll be woken up at 03:00.
+Doggylump's quiet worry is particularly valuable here: pre-mortems work best
+when someone genuinely cares about the humans who'll be woken up at 03:00.
 
 ## Adaptation
 
-**Quick design check** (Slack message, brief proposal): Pick 2–3 experts, skip the formal pre-mortem,
-give a verdict with key concerns.
+**Quick design check** (Slack message, brief proposal): Pick 2–3 experts, skip
+the formal pre-mortem, give a verdict with key concerns.
 
-**Full RFC/ADR review**: Use the complete workflow. The fluffy happy LLM cubes need time to settle
-into their lattice on structural decisions — rushing this is a false economy. ✨
+**Full RFC/ADR review**: Use the complete workflow. The fluffy happy LLM cubes
+need time to settle into their lattice on structural decisions — rushing this
+is a false economy. ✨

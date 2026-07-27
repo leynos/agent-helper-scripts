@@ -1,10 +1,12 @@
 # Code Review Prompt
 
-You are conducting a thorough code review of the current branch against its base branch.
+You are conducting a thorough code review of the current branch against its
+base branch.
 
 ## Phase 1: Context Gathering
 
-Before examining any code, gather the context needed to judge it. Read each file that exists:
+Before examining any code, gather the context needed to judge it. Read each
+file that exists:
 
 ### Branch State
 
@@ -44,26 +46,28 @@ If no PR is open, read commit messages to understand intent.
 
 ### Project Standards
 
-| File/Directory | Contains |
-|----------------|----------|
-| `AGENTS.md` | Coding style guide |
-| `.rules/` | Additional rules (read all files) |
-| `docs/documentation-style-guide.md` | Documentation conventions |
+| File/Directory                      | Contains                          |
+| ----------------------------------- | --------------------------------- |
+| `AGENTS.md`                         | Coding style guide                |
+| `.rules/`                           | Additional rules (read all files) |
+| `docs/documentation-style-guide.md` | Documentation conventions         |
 
 ### Design Context
 
-| File | Contains |
-|------|----------|
+| File               | Contains                              |
+| ------------------ | ------------------------------------- |
 | `docs/*-design.md` | Architectural decisions and rationale |
-| `docs/roadmap.md` | Current priorities and planned work |
+| `docs/roadmap.md`  | Current priorities and planned work   |
 
 ### Project Type
 
 Detect from manifest files:
 
 - `Cargo.toml` → Rust (check for `clippy.toml`, `.cargo/config.toml`)
-- `pyproject.toml` → Python (check for `ruff.toml`, `mypy.ini`, `.python-version`)
-- `package.json` → TypeScript/JavaScript (check for `tsconfig.json`, `.eslintrc.*`)
+- `pyproject.toml` → Python (check for `ruff.toml`, `mypy.ini`,
+  `.python-version`)
+- `package.json` → TypeScript/JavaScript (check for `tsconfig.json`,
+  `.eslintrc.*`)
 
 ### CI Expectations
 
@@ -159,11 +163,12 @@ Flag these smells:
 
 Structure your review as follows:
 
----
+______________________________________________________________________
 
 ## Summary
 
-<One paragraph: overall assessment, most significant finding first. State whether you recommend approval, changes requested, or needs discussion.>
+<One paragraph: overall assessment, most significant finding first. State
+whether you recommend approval, changes requested, or needs discussion.>
 
 ## Critical Issues
 
@@ -185,7 +190,7 @@ Structure your review as follows:
 <Suggested fix or approach>
 ```
 
----
+______________________________________________________________________
 
 ## Suggestions
 
@@ -197,7 +202,7 @@ Structure your review as follows:
 
 <Explanation and alternative approach>
 
----
+______________________________________________________________________
 
 ## Observations
 
@@ -206,7 +211,7 @@ Structure your review as follows:
 - <Observation>
 - <Observation>
 
----
+______________________________________________________________________
 
 ## Checklist
 
@@ -219,7 +224,7 @@ Structure your review as follows:
 - [ ] No security concerns identified
 - [ ] No performance regressions expected
 
----
+______________________________________________________________________
 
 ## Guidance
 

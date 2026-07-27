@@ -41,10 +41,10 @@ script is, and tests must respect the same transform:
 - No other top-level `import`/`export` is allowed anywhere outside strings and
   comments.
 - The body is wrapped in an `AsyncFunction` whose parameters are the injected
-  globals, in this exact order: `agent`, `parallel`, `pipeline`, `phase`,
-  `log`, `args`, `budget`, `workflow`, plus ODW's `validate` when the body
-  does not bind that name itself. Top-level `await` and `return` are legal
-  because of this wrap.
+  globals, in this exact order: `agent`, `parallel`, `pipeline`, `phase`, `log`,
+  `args`, `budget`, `workflow`, plus ODW's `validate` when the body does not
+  bind that name itself. Top-level `await` and `return` are legal because of
+  this wrap.
 - `Date.now()`, `Math.random()`, and arg-less `new Date()` run under ODW but
   are banned in Claude Code's Workflow tool; ODW's `scanDualCompat` reports
   them as warnings. Treat them as test failures in dual-target workflows.
@@ -64,25 +64,24 @@ Primitive semantics that stubs must reproduce faithfully:
 
 ## Test Layers
 
-Pick the smallest layer that answers the question; compose layers in one
-suite.
+Pick the smallest layer that answers the question; compose layers in one suite.
 
-| Layer | Verifies | Cost |
-| --- | --- | --- |
-| 0. Parse gate | source compiles as a workflow | milliseconds |
-| 1. Helper surface | pure helpers and schema constants | milliseconds |
-| 2. Fixture repos | git/filesystem evidence collectors | fast |
-| 3. Source invariants | wiring that only exists in prompts/flow | milliseconds |
-| 4. Simulation | control loop with scripted primitives | fast |
-| 5. Mock-adapter e2e | whole run through the real `odw` runtime | seconds |
-| 6. Live smoke | real adapters, bounded scope | expensive; only on request |
+| Layer                | Verifies                                 | Cost                       |
+| -------------------- | ---------------------------------------- | -------------------------- |
+| 0. Parse gate        | source compiles as a workflow            | milliseconds               |
+| 1. Helper surface    | pure helpers and schema constants        | milliseconds               |
+| 2. Fixture repos     | git/filesystem evidence collectors       | fast                       |
+| 3. Source invariants | wiring that only exists in prompts/flow  | milliseconds               |
+| 4. Simulation        | control loop with scripted primitives    | fast                       |
+| 5. Mock-adapter e2e  | whole run through the real `odw` runtime | seconds                    |
+| 6. Live smoke        | real adapters, bounded scope             | expensive; only on request |
 
 ## Layer 0: Parse Gate
 
-Wire a deterministic compile check into the repository gates (`make
-typecheck`/`lint`) so a workflow that no longer parses fails CI before any
-agent spends a token. Mirror the loader's transform (run this from a
-`workflow-parse` make target over every workflow file):
+Wire a deterministic compile check into the repository gates (`make typecheck`/
+`lint`) so a workflow that no longer parses fails CI before any agent spends a
+token. Mirror the loader's transform (run this from a `workflow-parse` make
+target over every workflow file):
 
 ```bash
 node -e "const fs=require('fs');
@@ -110,8 +109,8 @@ workflow itself — adopt it when authoring (see `odw-authoring`):
 - Mark the boundary with a stable marker comment, for example
   `// --- Worker-pool control loop`.
 
-Tests then slice the helper region, compile it with injected stubs, and
-return the helpers worth testing:
+Tests then slice the helper region, compile it with injected stubs, and return
+the helpers worth testing:
 
 ```js
 import assert from 'node:assert/strict'
@@ -147,13 +146,13 @@ return { MY_SCHEMA, classifyFailure, selectNextTask, shouldAssess }
 Notes on this pattern:
 
 - Because the test compiles the slice with its **own** parameter list, the
-  loader's parameter order does not apply here; it only matters when
-  executing the whole body (Layer 4).
+  loader's parameter order does not apply here; it only matters when executing
+  the whole body (Layer 4).
 - Guard the marker with `assert.notEqual(markerIndex, -1, …)` so a refactor
   that drops it fails loudly instead of silently compiling the whole file.
 - Passing `{}` as `args` exercises every configuration default. Add a second
-  factory call with overrides when defaults are load-bearing (adapter
-  routing, parallelism caps, feature flags).
+  factory call with overrides when defaults are load-bearing (adapter routing,
+  parallelism caps, feature flags).
 - Helpers using `process.getBuiltinModule('node:fs')` etc. work unchanged
   under `node --test` (Node 22+); no mocking needed.
 - The slice must not execute side effects at top level. If the helper region
@@ -186,18 +185,18 @@ test('assessment schema exposes only the ADR classifications', async () => {
 })
 ```
 
-Assert three things: the enum matches the documented contract (an ADR or
-design doc where one exists), `additionalProperties` is `false` wherever the
-consumer iterates keys, and `required` lists exactly what downstream
-JavaScript dereferences without optional chaining. When a downstream branch
-reads `result.foo`, a test must fail if `foo` leaves `required`.
+Assert three things: the enum matches the documented contract (an ADR or design
+doc where one exists), `additionalProperties` is `false` wherever the consumer
+iterates keys, and `required` lists exactly what downstream JavaScript
+dereferences without optional chaining. When a downstream branch reads
+`result.foo`, a test must fail if `foo` leaves `required`.
 
 Also check mock-satisfiability: ODW's schema-satisfying mock agent (Layer 5)
 generates `enum[0]`, `false` for booleans, `1`/`0.5` for numbers, and
 `max(minItems, 2)` array entries. A schema whose only "healthy" value is not
-the mock default (e.g. a workflow that loops until `ok === true` while the
-mock always returns `false`) will hang or exhaust rounds in e2e tests —
-either bound the loop or script a bespoke adapter for that call.
+the mock default (e.g. a workflow that loops until `ok === true` while the mock
+always returns `false`) will hang or exhaust rounds in e2e tests — either bound
+the loop or script a bespoke adapter for that call.
 
 ## Layer 3: Git and Filesystem Fixtures
 
@@ -231,9 +230,8 @@ Rules:
 - Pin author/committer identity through `env` so CI hosts without a git
   identity still pass.
 - Build the exact states the helper distinguishes: committed-only, staged,
-  dirty/untracked, and the empty branch (no commits after base). The empty
-  case is where `git log base..HEAD` and `diff base...HEAD` parsers usually
-  break.
+  dirty/untracked, and the empty branch (no commits after base). The empty case
+  is where `git log base..HEAD` and `diff base...HEAD` parsers usually break.
 - Assert structured output (`assert.deepEqual` on parsed entries), plus the
   error-accumulator path: point the helper at a missing directory or a bogus
   base SHA and assert it reports collection errors instead of throwing.
@@ -260,10 +258,10 @@ test('implementations gate auth before integration', async () => {
 ```
 
 Use these sparingly and only for load-bearing sequences. Anchor on structural
-tokens (function names, status literals, option keys), never on prose
-wording — prompt copy-editing must not break the suite. If a regex needs
-`[\s\S]*?` more than twice, the invariant probably deserves a Layer 4/5 test
-or a helper extraction instead.
+tokens (function names, status literals, option keys), never on prose wording —
+prompt copy-editing must not break the suite. If a regex needs `[\s\S]*?` more
+than twice, the invariant probably deserves a Layer 4/5 test or a helper
+extraction instead.
 
 ## Layer 5: Control-Loop Simulation
 
@@ -310,10 +308,10 @@ async function runWorkflow({ args, script }) {
 }
 ```
 
-The `script` function is the test's steering wheel. Key it on `opts.label`
-or `opts.adapter` (stable identifiers), not on prompt substrings, and make
-it schema-aware: when `opts.schema` is present, return an object that
-satisfies it. Scenarios worth scripting:
+The `script` function is the test's steering wheel. Key it on `opts.label` or
+`opts.adapter` (stable identifiers), not on prompt substrings, and make it
+schema-aware: when `opts.schema` is present, return an object that satisfies
+it. Scenarios worth scripting:
 
 - the happy path (assert the terminal result shape and processed set);
 - one stage returning a failing verdict (assert the fix/retry loop runs and
@@ -325,19 +323,19 @@ satisfies it. Scenarios worth scripting:
 
 Beware workflows whose helpers shell out (`git fetch origin`, auth-status
 CLIs): simulation executes those for real. Point `args` at a fixture repo
-(Layer 3) with a local `origin` remote, or make the command paths injectable
-via `args`. If the top of the body does `process.chdir`, run the simulation
-in a subprocess or pass a safe `projectRoot`.
+(Layer 3) with a local `origin` remote, or make the command paths injectable via
+`args`. If the top of the body does `process.chdir`, run the simulation in a
+subprocess or pass a safe `projectRoot`.
 
 ## Layer 6: End-to-End with Mock Adapters
 
-The highest-fidelity test short of spending tokens: run the real `odw`
-runtime with adapters that are deterministic local scripts. ODW ships the
-canonical fixture — `tests/fixtures/mock-agent.mjs` in the ODW source
-(upstream: `github.com/xz1220/open-dynamic-workflows`) — which reads the
-prompt from stdin, extracts the JSON Schema the bridge appends after the
-`JSON Schema:` marker, and prints a minimal valid instance. Any
-schema-driven workflow runs end to end against it with no model calls.
+The highest-fidelity test short of spending tokens: run the real `odw` runtime
+with adapters that are deterministic local scripts. ODW ships the canonical
+fixture — `tests/fixtures/mock-agent.mjs` in the ODW source (upstream:
+`github.com/xz1220/open-dynamic-workflows`) — which reads the prompt from
+stdin, extracts the JSON Schema the bridge appends after the `JSON Schema:`
+marker, and prints a minimal valid instance. Any schema-driven workflow runs
+end to end against it with no model calls.
 
 Hermetic test config (write into a `mkdtemp` root):
 
@@ -361,11 +359,11 @@ odw run workflow.js --config <tmp>/odw.config.json --source <tmp>/fixture \
   --wait --timeout 300 --args '{"maxTasks":1}'
 ```
 
-For role-specific behaviour (an implementer that improves per round, a
-reviewer that fails round 1 and passes round 2), define one adapter per role
-as an inline `node -e` script and reference them from the workflow's
-adapter-routing args — this is how ODW's own multi-adapter e2e test drives a
-converging duel deterministically.
+For role-specific behaviour (an implementer that improves per round, a reviewer
+that fails round 1 and passes round 2), define one adapter per role as an inline
+`node -e` script and reference them from the workflow's adapter-routing args —
+this is how ODW's own multi-adapter e2e test drives a converging duel
+deterministically.
 
 Assert on durable run artefacts under `runsRoot`, not on stdout alone:
 
@@ -377,17 +375,16 @@ Assert on durable run artefacts under `runsRoot`, not on stdout alone:
 - `error.json` — must be absent on success; on failure tests, assert the
   message routes correctly.
 
-Every adapter named by the workflow's routing configuration must exist in
-the test config, or the run fails on dispatch — that failure is itself a
-useful test that routing args and config stay in sync.
+Every adapter named by the workflow's routing configuration must exist in the
+test config, or the run fails on dispatch — that failure is itself a useful
+test that routing args and config stay in sync.
 
 ## Live Smoke Runs
 
 Only when the user asks, and always bounded:
 
 - use the workflow's own scope limits (`dryRun`, a single `taskId`,
-  `maxTasks: 1`) so planning/review paths run without implementation or
-  merges;
+  `maxTasks: 1`) so planning/review paths run without implementation or merges;
 - point `--source` at a throwaway clone, never the canonical checkout,
   unless real-tree edits are the explicit goal;
 - set `--timeout` with `--wait`, and supervise with `odw status`/`odw logs`
@@ -411,19 +408,19 @@ Only when the user asks, and always bounded:
 ## Anti-Patterns
 
 - **Prompt-wording assertions.** Testing that a prompt contains a sentence
-  couples the suite to copy-editing. Test the data the prompt is built from,
-  or a structural regex on function/option names.
+  couples the suite to copy-editing. Test the data the prompt is built from, or
+  a structural regex on function/option names.
 - **Whole-body eval in a unit test.** Executing the full script to reach one
   helper runs the control loop, shells out, and can chdir. Slice above the
   marker instead.
 - **Stubs with the wrong failure semantics.** A `parallel` stub that rejects
-  on the first error, or an `agent` stub that returns `null` on failure
-  instead of throwing, validates code paths the real runtime never takes.
+  on the first error, or an `agent` stub that returns `null` on failure instead
+  of throwing, validates code paths the real runtime never takes.
 - **Order-dependent assertions on concurrent work.** Completion order is
   scheduler-dependent; sort or set-compare results.
 - **Unbounded e2e loops against the mock agent.** The mock returns fixed
-  defaults (`false`, `enum[0]`), so a loop-until-true workflow never
-  converges; bound rounds via args or script a bespoke adapter.
+  defaults (`false`, `enum[0]`), so a loop-until-true workflow never converges;
+  bound rounds via args or script a bespoke adapter.
 - **Testing against real adapters in CI.** Non-deterministic, slow, billed,
   and capable of mutating repositories. Reserve real adapters for explicit,
   supervised smoke runs.

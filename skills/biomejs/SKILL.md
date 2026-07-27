@@ -7,16 +7,16 @@ description: Configure and use Biome (biomejs) for TypeScript linting and format
 
 ## Routing Guide
 
-| Task | Section |
-|------|---------|
-| Install or update Biome | [Version Discovery](#version-discovery) |
-| Initial setup | [Quick Start](#quick-start) |
-| Configure rules | [Configuration Patterns](#configuration-patterns) |
-| Include/exclude files | [File Targeting](#file-targeting-rough-edges) |
-| Fix specific lint errors | See `references/lint-solutions.md` |
-| Stricter rules beyond recommended | See `references/strict-rules.md` |
-| Migrate from ESLint/Prettier | See `references/migration.md` |
-| CI and git hooks | See `references/ci-hooks.md` |
+| Task                              | Section                                           |
+| --------------------------------- | ------------------------------------------------- |
+| Install or update Biome           | [Version Discovery](#version-discovery)           |
+| Initial setup                     | [Quick Start](#quick-start)                       |
+| Configure rules                   | [Configuration Patterns](#configuration-patterns) |
+| Include/exclude files             | [File Targeting](#file-targeting-rough-edges)     |
+| Fix specific lint errors          | See `references/lint-solutions.md`                |
+| Stricter rules beyond recommended | See `references/strict-rules.md`                  |
+| Migrate from ESLint/Prettier      | See `references/migration.md`                     |
+| CI and git hooks                  | See `references/ci-hooks.md`                      |
 
 ## Version Discovery
 
@@ -165,7 +165,8 @@ Top-level `files` applies to **all tools** (linter, formatter, organizeImports):
 }
 ```
 
-**Gotcha:** Patterns are relative to `biome.json` location. Use `**/` prefix for recursive matching.
+**Gotcha:** Patterns are relative to `biome.json` location. Use `**/` prefix
+for recursive matching.
 
 ### Tool-Specific Include/Exclude
 
@@ -225,7 +226,8 @@ Apply different rules to specific file patterns:
 }
 ```
 
-**Critical ordering:** Overrides apply in array order. Later overrides win for the same file.
+**Critical ordering:** Overrides apply in array order. Later overrides win for
+the same file.
 
 ### VCS Integration
 
@@ -274,13 +276,13 @@ npx biome check --files-ignore-unknown=true --no-errors-on-unmatched .
 
 ### Useful Flags
 
-| Flag | Purpose |
-|------|---------|
-| `--write` | Apply fixes |
-| `--unsafe` | Apply unsafe fixes (review carefully) |
-| `--staged` | Only check git-staged files |
-| `--changed` | Only check files changed since default branch |
-| `--reporter=json` | Machine-readable output |
+| Flag                       | Purpose                                        |
+| -------------------------- | ---------------------------------------------- |
+| `--write`                  | Apply fixes                                    |
+| `--unsafe`                 | Apply unsafe fixes (review carefully)          |
+| `--staged`                 | Only check git-staged files                    |
+| `--changed`                | Only check files changed since default branch  |
+| `--reporter=json`          | Machine-readable output                        |
 | `--diagnostic-level=error` | Exit non-zero only on errors (ignore warnings) |
 
 ## Suppression Comments
@@ -295,7 +297,8 @@ const response: any = await legacyApi.fetch();
 const element = document.getElementById("root")!;
 ```
 
-**Always include a reason after the colon.** Biome enforces this—reasonless suppressions fail.
+**Always include a reason after the colon.** Biome enforces this—reasonless
+suppressions fail.
 
 **Avoid these lazy patterns:**
 
@@ -324,7 +327,8 @@ const element = document.getElementById("root")!;
 
 ## TypeScript Integration
 
-Biome does **not** use `tsconfig.json` for path resolution by default. For monorepos or path aliases:
+Biome does **not** use `tsconfig.json` for path resolution by default. For
+monorepos or path aliases:
 
 ```json
 {

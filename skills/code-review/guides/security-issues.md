@@ -1,12 +1,15 @@
 # Security Issues Guide
 
-Common vulnerabilities to catch during code review, with examples and mitigations.
+Common vulnerabilities to catch during code review, with examples and
+mitigations.
 
----
+______________________________________________________________________
 
 ## Injection Attacks
 
-Injection occurs when untrusted input is incorporated into a command or query without proper sanitization, allowing an attacker to alter the intended behaviour.
+Injection occurs when untrusted input is incorporated into a command or query
+without proper sanitization, allowing an attacker to alter the intended
+behaviour.
 
 ### SQL Injection
 
@@ -30,6 +33,7 @@ def get_user(username: str) -> User:
 ```
 
 **Review checklist:**
+
 - [ ] All SQL uses parameterized queries or prepared statements
 - [ ] No string concatenation or f-strings building SQL
 - [ ] ORM queries don't use `raw()` or `extra()` with user input
@@ -66,6 +70,7 @@ def convert_image(filename: str, format: str) -> None:
 ```
 
 **Review checklist:**
+
 - [ ] No `os.system()`, `shell=True`, or backticks with user input
 - [ ] `subprocess` uses list form, not string
 - [ ] Input validated against allowlist where possible
@@ -96,6 +101,7 @@ def login(username: str, password: str) -> bool:
 ```
 
 **Review checklist:**
+
 - [ ] User input in logs sanitized for control characters
 - [ ] Structured logging preferred over string formatting
 - [ ] Sensitive data (passwords, tokens) never logged
@@ -137,7 +143,9 @@ return render_template('page.html', content=user_input)
 ```
 
 **Review checklist:**
-- [ ] User input never inserted via `innerHTML`, `v-html`, `dangerouslySetInnerHTML`
+
+- [ ] User input never inserted via `innerHTML`, `v-html`,
+      `dangerouslySetInnerHTML`
 - [ ] Template auto-escaping not disabled without sanitization
 - [ ] `Markup()`, `| safe`, `{% autoescape false %}` audited
 - [ ] CSP headers configured to mitigate impact
@@ -180,19 +188,21 @@ def summarise_document(user_document: str) -> str:
 ```
 
 **Review checklist:**
+
 - [ ] User content clearly delimited (XML tags, markdown fences)
 - [ ] System prompts instruct model to ignore in-document instructions
 - [ ] Output validated for expected format/content
 - [ ] Sensitive operations require confirmation outside LLM flow
 - [ ] User content never used to construct tool calls without validation
 
----
+______________________________________________________________________
 
 ## Race Conditions
 
 ### TOCTOU (Time-of-Check to Time-of-Use)
 
-A window exists between checking a condition and acting on it, during which the condition can change.
+A window exists between checking a condition and acting on it, during which the
+condition can change.
 
 **Vulnerable:**
 
@@ -260,13 +270,14 @@ def write_user_file(username: str, content: str) -> None:
 ```
 
 **Review checklist:**
+
 - [ ] File operations use atomic primitives (`O_EXCL`, `O_NOFOLLOW`)
 - [ ] Path validation uses `realpath()` after resolving symlinks
 - [ ] No gap between permission check and action
 - [ ] Database operations use transactions with appropriate isolation
 - [ ] Optimistic locking for concurrent updates
 
----
+______________________________________________________________________
 
 ## Secret Exposure
 
@@ -293,6 +304,7 @@ API_KEY = get_secret("prod/api-key")
 ```
 
 **Review checklist:**
+
 - [ ] No secrets in code (grep for `password`, `secret`, `key`, `token`)
 - [ ] No secrets in committed config files
 - [ ] `.env` files in `.gitignore`
@@ -328,6 +340,7 @@ def connect(url: str) -> Connection:
 ```
 
 **Review checklist:**
+
 - [ ] Connection strings sanitized before logging
 - [ ] Error messages don't include request bodies with credentials
 - [ ] Stack traces in production don't expose secrets
@@ -338,6 +351,7 @@ def connect(url: str) -> Connection:
 Even if removed from current code, secrets remain in git history.
 
 **Remediation:**
+
 ```bash
 # Remove file from all history (requires force push)
 git filter-branch --force --index-filter \
@@ -349,10 +363,11 @@ bfg --delete-files secret-file.txt
 ```
 
 **Prevention:**
+
 - [ ] Pre-commit hooks scan for secrets (e.g., `detect-secrets`, `gitleaks`)
 - [ ] CI fails if secrets detected
 
----
+______________________________________________________________________
 
 ## Authentication & Authorization
 
@@ -411,13 +426,14 @@ def get_document(doc_id: int):
 ```
 
 **Review checklist:**
+
 - [ ] Every endpoint checks authorization, not just authentication
 - [ ] Resource ownership verified before access
 - [ ] No reliance on obscurity (unpredictable IDs are not access control)
 - [ ] Admin functions protected by role check
 - [ ] Authorization logic centralized, not scattered
 
----
+______________________________________________________________________
 
 ## Cryptographic Issues
 
@@ -445,6 +461,7 @@ def verify_password(password: str, hashed: bytes) -> bool:
 ```
 
 **Review checklist:**
+
 - [ ] Password hashing uses bcrypt, scrypt, or argon2
 - [ ] No MD5 or SHA1 for security purposes
 - [ ] Encryption uses AES-GCM or ChaCha20-Poly1305
@@ -469,7 +486,7 @@ def verify_token(provided: str, actual: str) -> bool:
     return hmac.compare_digest(provided, actual)  # Constant-time comparison
 ```
 
----
+______________________________________________________________________
 
 ## Deserialization
 
@@ -496,12 +513,13 @@ def load_session(data: bytes) -> dict:
 ```
 
 **Review checklist:**
+
 - [ ] No `pickle.loads()` on untrusted data
 - [ ] No `yaml.load()` without `Loader=SafeLoader`
 - [ ] XML parsing disables external entities (XXE)
 - [ ] JSON preferred for serialization of untrusted data
 
----
+______________________________________________________________________
 
 ## Path Traversal
 
@@ -530,6 +548,7 @@ def serve_file(filename: str) -> bytes:
 ```
 
 **Review checklist:**
+
 - [ ] User input never directly used in file paths
 - [ ] `realpath()` resolves symlinks before validation
 - [ ] Path prefix check includes trailing separator

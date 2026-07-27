@@ -1,8 +1,9 @@
 # Performance Concerns Guide
 
-Patterns that cause performance degradation, resource exhaustion, or system instability. Catch these during code review before they reach production.
+Patterns that cause performance degradation, resource exhaustion, or system
+instability. Catch these during code review before they reach production.
 
----
+______________________________________________________________________
 
 ## Algorithmic Complexity
 
@@ -42,14 +43,14 @@ def remove_duplicates(items: list[str]) -> list[str]:
 
 **Common O(n²) patterns to flag:**
 
-| Pattern | Problem |
-|---------|---------|
-| `if x in list` inside loop | Use set for membership |
-| `list.index(x)` inside loop | Use dict for lookup |
-| Nested loops over same collection | Often avoidable |
-| String concatenation in loop | Use `''.join()` or list |
-| `list.insert(0, x)` in loop | Use `collections.deque` |
-| Repeated list slicing | Slice once, iterate |
+| Pattern                           | Problem                 |
+| --------------------------------- | ----------------------- |
+| `if x in list` inside loop        | Use set for membership  |
+| `list.index(x)` inside loop       | Use dict for lookup     |
+| Nested loops over same collection | Often avoidable         |
+| String concatenation in loop      | Use `''.join()` or list |
+| `list.insert(0, x)` in loop       | Use `collections.deque` |
+| Repeated list slicing             | Slice once, iterate     |
 
 **String concatenation trap:**
 
@@ -91,6 +92,7 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
 ```
 
 **Review checklist:**
+
 - [ ] No `in` checks against lists inside loops
 - [ ] No `list.index()` inside loops
 - [ ] No string concatenation with `+=` in loops
@@ -98,7 +100,7 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
 - [ ] Regex compiled outside loops (`re.compile`)
 - [ ] Sorting not repeated unnecessarily
 
----
+______________________________________________________________________
 
 ## Resource Leaks
 
@@ -202,6 +204,7 @@ def expensive_lookup(key: str) -> Result:
 ```
 
 **Review checklist:**
+
 - [ ] Files opened with `with` statement
 - [ ] Database connections returned to pool
 - [ ] Caches have size limits
@@ -209,11 +212,12 @@ def expensive_lookup(key: str) -> Result:
 - [ ] Circular references use `weakref`
 - [ ] Temporary files cleaned up (`tempfile` module)
 
----
+______________________________________________________________________
 
 ## Bad Neighbour Problems
 
-Code that affects other processes, services, or users sharing the same resources.
+Code that affects other processes, services, or users sharing the same
+resources.
 
 ### Unbounded Memory Consumption
 
@@ -320,6 +324,7 @@ app.get('/api/hash', async (req, res) => {
 ```
 
 **Review checklist:**
+
 - [ ] Large data processed in streams/chunks
 - [ ] Query results paginated
 - [ ] Regex patterns reviewed for catastrophic backtracking
@@ -327,7 +332,7 @@ app.get('/api/hash', async (req, res) => {
 - [ ] Timeouts on all external calls
 - [ ] Rate limiting on expensive endpoints
 
----
+______________________________________________________________________
 
 ## Database Performance
 
@@ -395,6 +400,7 @@ def get_user_emails() -> list[str]:
 ```
 
 **Review checklist:**
+
 - [ ] Eager loading for known access patterns
 - [ ] Queries use only needed columns
 - [ ] Filters on indexed columns
@@ -402,7 +408,7 @@ def get_user_emails() -> list[str]:
 - [ ] Batch operations instead of row-by-row
 - [ ] Connection pooling configured
 
----
+______________________________________________________________________
 
 ## Network Performance
 
@@ -463,13 +469,14 @@ def fetch_data(url: str) -> dict:
 ```
 
 **Review checklist:**
+
 - [ ] All HTTP requests have timeouts
 - [ ] Parallel requests where possible
 - [ ] Retry logic with exponential backoff
 - [ ] Circuit breakers for failing dependencies
 - [ ] Response size limits
 
----
+______________________________________________________________________
 
 ## Memory Efficiency
 
@@ -521,13 +528,14 @@ def analyze_logs(log_files: list[str]) -> Report:
 ```
 
 **Review checklist:**
+
 - [ ] Generators for large sequences
 - [ ] Streaming for large files
 - [ ] Data discarded after processing
 - [ ] `__slots__` for memory-constrained classes
 - [ ] NumPy views instead of copies where safe
 
----
+______________________________________________________________________
 
 ## Concurrency Issues
 
@@ -581,13 +589,14 @@ def handle_request(request):
 ```
 
 **Review checklist:**
+
 - [ ] Locks held for minimal duration
 - [ ] No I/O while holding locks
 - [ ] Thread pools sized appropriately
 - [ ] No recursive task submission to bounded pools
 - [ ] Async I/O for I/O-bound workloads
 
----
+______________________________________________________________________
 
 ## Startup & Initialization
 
@@ -627,12 +636,13 @@ def rarely_used_function():
 ```
 
 **Review checklist:**
+
 - [ ] Heavy imports deferred until needed
 - [ ] Large data loaded lazily
 - [ ] Startup path profiled
 - [ ] Health checks don't trigger expensive initialization
 
----
+______________________________________________________________________
 
 ## Profiling Commands
 

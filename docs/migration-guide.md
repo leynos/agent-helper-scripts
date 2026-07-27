@@ -15,8 +15,8 @@ with warm-cache-friendly home-directory work.
 
 ## New model
 
-The new model keeps `rust-entrypoint` as the public entrypoint, but it dispatches
-to phase-specific scripts according to `RUST_ENTRYPOINT_PHASE`.
+The new model keeps `rust-entrypoint` as the public entrypoint, but it
+dispatches to phase-specific scripts according to `RUST_ENTRYPOINT_PHASE`.
 
 - `system`
   - Runs privileged machine-layer work.
@@ -30,8 +30,9 @@ to phase-specific scripts according to `RUST_ENTRYPOINT_PHASE`.
   - Manages the helper checkout.
   - Writes shell profile snippets, skills, hooks, and agent configuration.
 
-The system phase is intended for fresh or reset system layers. The home phase is
-intended for durable user-home setup, including warm-cache creation and refresh.
+The system phase is intended for fresh or reset system layers. The home phase
+is intended for durable user-home setup, including warm-cache creation and
+refresh.
 
 ## Backward compatibility
 
@@ -52,8 +53,8 @@ RUST_ENTRYPOINT_PHASE=both bash rust-entrypoint
 
 ## Transition examples
 
-Run only the system phase when building or refreshing a CI image layer that does
-not preserve `$HOME`:
+Run only the system phase when building or refreshing a CI image layer that
+does not preserve `$HOME`:
 
 ```bash
 RUST_ENTRYPOINT_PHASE=system bash rust-entrypoint

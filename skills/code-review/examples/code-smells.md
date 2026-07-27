@@ -1,6 +1,7 @@
 # Code Smell Examples
 
-Concrete examples of patterns to flag during review, with suggested improvements.
+Concrete examples of patterns to flag during review, with suggested
+improvements.
 
 ## Repeated Code
 
@@ -44,7 +45,7 @@ def update_user(user_id: int, data: dict) -> User:
     # ... update logic
 ```
 
----
+______________________________________________________________________
 
 ## Complex Conditionals
 
@@ -80,7 +81,7 @@ def can_publish(article: Article, user: User) -> bool:
     return is_admin or (is_editor and is_own_article)
 ```
 
----
+______________________________________________________________________
 
 ## Bumpy Road
 
@@ -127,7 +128,7 @@ def process_order(order: Order) -> Receipt:
     return generate_receipt(order)
 ```
 
----
+______________________________________________________________________
 
 ## High Similarity
 
@@ -179,7 +180,7 @@ def send_invoice_email(user: User, invoice: Invoice) -> None:
     send_email(user, EmailSpec("invoice", f"Invoice #{invoice.id}", {"invoice": invoice}))
 ```
 
----
+______________________________________________________________________
 
 ## Magic Literals
 
@@ -224,7 +225,7 @@ def calculate_shipping(weight_kg: float, distance_km: float) -> float:
     return min(cost, MAX_SHIPPING_COST)
 ```
 
----
+______________________________________________________________________
 
 ## Feature Envy
 
@@ -263,7 +264,7 @@ def format_shipping_label(order: Order) -> str:
     return order.shipping_address.format()
 ```
 
----
+______________________________________________________________________
 
 ## Long Parameter Lists
 
@@ -317,7 +318,7 @@ def create_report(config: ReportConfig) -> Report:
     ...
 ```
 
----
+______________________________________________________________________
 
 ## Primitive Obsession
 

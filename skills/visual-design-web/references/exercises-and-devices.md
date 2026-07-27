@@ -1,9 +1,9 @@
 # Exercises and devices
 
-Reusable exercises, structured prompts, and evaluation tools. Use these
-during concepting, hierarchy planning, review, and testing.
+Reusable exercises, structured prompts, and evaluation tools. Use these during
+concepting, hierarchy planning, review, and testing.
 
----
+______________________________________________________________________
 
 ## Contents
 
@@ -21,12 +21,12 @@ during concepting, hierarchy planning, review, and testing.
 12. Preference test prompt
 13. Tree test prompt
 
----
+______________________________________________________________________
 
 ## 1. Page thesis card
 
-A forcing function for clarity. Complete this card before any visual
-work begins.
+A forcing function for clarity. Complete this card before any visual work
+begins.
 
 ```
 PAGE THESIS CARD
@@ -60,16 +60,16 @@ Proof structure (what evidence supports the thesis?):
 ___________________________________________________
 ```
 
-**Usage:** Complete for every page or screen being designed. If the
-"this page helps" sentence cannot be written concisely, the page is
-trying to do too many things. Split or prioritise.
+**Usage:** Complete for every page or screen being designed. If the "this page
+helps" sentence cannot be written concisely, the page is trying to do too many
+things. Split or prioritise.
 
----
+______________________________________________________________________
 
 ## 2. Five-second understanding prompt
 
-Show the design (or a wireframe, or even a text description of the
-layout) for five seconds, then remove it. Ask:
+Show the design (or a wireframe, or even a text description of the layout) for
+five seconds, then remove it. Ask:
 
 1. What is this page about?
 2. Who is it for?
@@ -77,6 +77,7 @@ layout) for five seconds, then remove it. Ask:
 4. What would you do first?
 
 **Evaluation criteria:**
+
 - If the answers align with the page thesis card, the hierarchy is
   working.
 - If users can name the topic but not the action, the CTA is too quiet.
@@ -84,15 +85,16 @@ layout) for five seconds, then remove it. Ask:
   needs rebalancing.
 - If users cannot identify the topic at all, the thesis is buried.
 
----
+______________________________________________________________________
 
 ## 3. Concept territory generator
 
 For a given brief, generate three directions:
 
 ### Direction A — Dependable
-The safest appropriate direction. Uses established patterns for this
-page type. Minimizes risk. May lack distinctiveness.
+
+The safest appropriate direction. Uses established patterns for this page type.
+Minimizes risk. May lack distinctiveness.
 
 - Communicative stance:
 - Design-school lens:
@@ -103,6 +105,7 @@ page type. Minimizes risk. May lack distinctiveness.
 - Risk note:
 
 ### Direction B — Stretch
+
 Pushes the visual language further. Takes a clear aesthetic position.
 Introduces one or two unexpected elements while keeping core wayfinding
 conventional.
@@ -117,9 +120,9 @@ conventional.
 - Risk note:
 
 ### Direction C — Feral
-The provocative option. Borrows from a tradition the brief might not
-obviously suggest. Maximises memorability. May require user testing to
-validate.
+
+The provocative option. Borrows from a tradition the brief might not obviously
+suggest. Maximises memorability. May require user testing to validate.
 
 - Communicative stance:
 - Design-school lens:
@@ -130,17 +133,16 @@ validate.
 - Conventions broken (with justification):
 - Risk note:
 
-**Usage:** Present all three. The final direction is often a hybrid,
-borrowing the stance of one and the restraint of another. The purpose of
-the feral option is to expand the solution space, not to be chosen
-intact.
+**Usage:** Present all three. The final direction is often a hybrid, borrowing
+the stance of one and the restraint of another. The purpose of the feral option
+is to expand the solution space, not to be chosen intact.
 
----
+______________________________________________________________________
 
 ## 4. Design-school remix exercise
 
-Take the same page thesis. Apply three different design-school lenses
-(from `references/design-schools.md`). For each, answer:
+Take the same page thesis. Apply three different design-school lenses (from
+`references/design-schools.md`). For each, answer:
 
 1. What visual language would this lens produce?
 2. What message shifts compared to the other renderings?
@@ -149,11 +151,10 @@ Take the same page thesis. Apply three different design-school lenses
 5. Which web conventions feel natural to break under this lens?
 6. Which conventions become even more essential to keep?
 
-**Usage:** Prevents premature convergence. Useful when the team has
-locked onto one direction too early, or when the "obvious" choice feels
-stale.
+**Usage:** Prevents premature convergence. Useful when the team has locked onto
+one direction too early, or when the "obvious" choice feels stale.
 
----
+______________________________________________________________________
 
 ## 5. Hierarchy ladder
 
@@ -177,17 +178,18 @@ n     ____________________    Quietest        Yes / No / Adjust
 ```
 
 **Evaluation criteria:**
+
 - Does the loudest element match the page thesis?
 - Is the primary action in the top three?
 - Are any decorative elements louder than functional ones?
 - Are there elements at equal volume that should be differentiated?
 
----
+______________________________________________________________________
 
 ## 6. First-scroll narrative
 
-Describe what happens as the user scrolls from the top of the page to
-the first full viewport below the fold.
+Describe what happens as the user scrolls from the top of the page to the first
+full viewport below the fold.
 
 ```
 FIRST-SCROLL NARRATIVE
@@ -210,12 +212,12 @@ The question: Does the first screen give enough reason to scroll?
 Answer: ________________________________________________
 ```
 
-**Usage:** Catches the "cinematic hero slab" problem — a gorgeous first
-screen that communicates nothing and gives no reason to continue. Also
-catches the opposite problem: a first screen so dense that the user
-does not know where to start.
+**Usage:** Catches the "cinematic hero slab" problem — a gorgeous first screen
+that communicates nothing and gives no reason to continue. Also catches the
+opposite problem: a first screen so dense that the user does not know where to
+start.
 
----
+______________________________________________________________________
 
 ## 7. Image-purpose decision tree
 
@@ -250,7 +252,7 @@ For each image in the design, answer these questions in order:
    → If the visual presentation is not essential: use real text instead.
 ```
 
----
+______________________________________________________________________
 
 ## 8. Motion justification test
 
@@ -285,12 +287,12 @@ Is the reduced-motion experience still complete and dignified?
 Answer: ________________________________________
 ```
 
----
+______________________________________________________________________
 
 ## 9. Convention-break justification
 
-When the design breaks a web convention (non-standard navigation, novel
-scroll behaviour, unusual form patterns, unfamiliar interaction models):
+When the design breaks a web convention (non-standard navigation, novel scroll
+behaviour, unusual form patterns, unfamiliar interaction models):
 
 ```
 CONVENTION-BREAK JUSTIFICATION
@@ -316,12 +318,12 @@ Answer: ________________________________________________
 Decision: BREAK / KEEP / BREAK WITH MITIGATION
 ```
 
----
+______________________________________________________________________
 
 ## 10. Stress pass
 
-A structured review that tests the design under constrained conditions.
-Run all four checks on every design before finalising.
+A structured review that tests the design under constrained conditions. Run all
+four checks on every design before finalising.
 
 ### 10a. Greyscale pass
 
@@ -346,8 +348,8 @@ View the design at 200% browser zoom.
 
 ### 10c. Keyboard pass
 
-Navigate the entire page using only keyboard (Tab, Shift+Tab, Enter,
-Space, Arrow keys, Escape).
+Navigate the entire page using only keyboard (Tab, Shift+Tab, Enter, Space,
+Arrow keys, Escape).
 
 - Is a focus indicator visible on every interactive element?
 - Does the focus order follow a logical reading sequence?
@@ -358,8 +360,8 @@ Space, Arrow keys, Escape).
 
 ### 10d. Reduced-motion pass
 
-Enable `prefers-reduced-motion: reduce` in the operating system or
-browser settings.
+Enable `prefers-reduced-motion: reduce` in the operating system or browser
+settings.
 
 - Do all non-essential animations stop or reduce?
 - Does the page still communicate its thesis without animation?
@@ -368,7 +370,7 @@ browser settings.
 - Is the reduced-motion experience complete and dignified, not a
   stripped-down afterthought?
 
----
+______________________________________________________________________
 
 ## 11. First-click test prompt
 
@@ -377,41 +379,39 @@ For a specific task:
 "You want to [task]. Looking at this page, where would you click first?"
 
 **Evaluation criteria:**
+
 - If the majority click on the correct element, the scent is strong.
 - If clicks scatter, the hierarchy or labelling needs work.
 - If users click on a wrong element that looks right, the visual
   affordance is misleading.
 
----
+______________________________________________________________________
 
 ## 12. Preference test prompt
 
-Show two or three concept territories side by side (or in sequence).
-Ask:
+Show two or three concept territories side by side (or in sequence). Ask:
 
 1. Which version feels more trustworthy?
 2. Which version feels easier to use?
 3. Which version would you be more likely to return to?
 4. What do you notice first in each?
 
-**Warning:** Preference tests measure attraction, not usability. A
-preferred design may still be harder to use. Combine with first-click
-or 5-second tests for a fuller picture. Beware the aesthetic-usability
-effect.
+**Warning:** Preference tests measure attraction, not usability. A preferred
+design may still be harder to use. Combine with first-click or 5-second tests
+for a fuller picture. Beware the aesthetic-usability effect.
 
----
+______________________________________________________________________
 
 ## 13. Tree test prompt
 
 For information architecture and navigation validation:
 
-"You want to [task]. Using only this menu structure (no page content
-visible), which path would you follow?"
+"You want to [task]. Using only this menu structure (no page content visible),
+which path would you follow?"
 
-**What it tests:** Whether the navigation labels and structure match the
-user's mental model. Does not test visual design — tests the underlying
-findability.
+**What it tests:** Whether the navigation labels and structure match the user's
+mental model. Does not test visual design — tests the underlying findability.
 
-**When to use:** Before visual design begins (to validate IA) or when
-users report difficulty finding content despite clear visual hierarchy
-(the problem may be structural, not visual).
+**When to use:** Before visual design begins (to validate IA) or when users
+report difficulty finding content despite clear visual hierarchy (the problem
+may be structural, not visual).

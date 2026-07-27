@@ -41,10 +41,10 @@ fallback, and HTTP `304 Not Modified` reuse require metadata for the exact
 requested local path or HTTPS URL. Refresh decisions use bounded structured
 logging fields and never expose source or repository paths.
 
-Split the implementation by policy boundary while retaining
-`typos_rollout.py` as the stable facade. Dedicated modules own regular
-expression policy, cache persistence, HTTP refresh, deterministic rendering,
-phrase checking, and harvesting. Every source module remains below 400 lines.
+Split the implementation by policy boundary while retaining `typos_rollout.py`
+as the stable facade. Dedicated modules own regular expression policy, cache
+persistence, HTTP refresh, deterministic rendering, phrase checking, and
+harvesting. Every source module remains below 400 lines.
 
 Validate ignore expressions before repository scanning. Reject malformed
 expressions, backreferences, and compounded repetition, including Python's

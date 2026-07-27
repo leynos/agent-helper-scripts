@@ -37,7 +37,7 @@ TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-hooks test-entrypoints test ci
+.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-hooks test-entrypoints test ci
 
 all: ci
 
@@ -49,6 +49,9 @@ clean:
 
 check-fmt:
 	@echo "check-fmt: no formatter configured"
+
+fmt:
+	@mdformat-all
 
 syntax-check:
 	@python3 -m py_compile $(PYTHON_SCRIPTS)

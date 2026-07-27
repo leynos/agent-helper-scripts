@@ -1,7 +1,6 @@
 # ADR 001 — System / home phase split
 
-**Status:** Accepted
-**Date:** 2026-04-26
+**Status:** Accepted **Date:** 2026-04-26
 
 ## Context
 
@@ -13,8 +12,8 @@ wiring, and Kopia restore/snapshot work.
 
 This made it impossible to cache the privilege-requiring layer separately from
 the user-specific layer. It also created a risk of credential leakage when
-tracing was enabled because credential-sensitive user operations and
-privileged package mutations shared one execution path.
+tracing was enabled because credential-sensitive user operations and privileged
+package mutations shared one execution path.
 
 ## Decision
 

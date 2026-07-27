@@ -14,7 +14,9 @@ class OrderRepository(Protocol):
     def save(self, order: Order) -> None: ...
 ```
 
-Protocols enable structural typing—any class with matching methods satisfies the protocol without explicit inheritance. Useful when you don't control the implementing class.
+Protocols enable structural typing—any class with matching methods satisfies
+the protocol without explicit inheritance. Useful when you don't control the
+implementing class.
 
 **ABC (nominal typing):**
 
@@ -31,9 +33,11 @@ class OrderRepository(ABC):
         ...
 ```
 
-ABCs require explicit inheritance. Prefer when you want compile-time enforcement and clearer intent.
+ABCs require explicit inheritance. Prefer when you want compile-time
+enforcement and clearer intent.
 
-**Recommendation:** Use ABC for ports you define and control. Use Protocol when adapting third-party code or when structural typing aids testing.
+**Recommendation:** Use ABC for ports you define and control. Use Protocol when
+adapting third-party code or when structural typing aids testing.
 
 ### Dependency Injection
 
@@ -232,7 +236,8 @@ export class Money {
 
 ### Port Definitions
 
-Go interfaces are implicitly satisfied—no explicit `implements` declaration needed.
+Go interfaces are implicitly satisfied—no explicit `implements` declaration
+needed.
 
 ```go
 // domain/ports/repository.go

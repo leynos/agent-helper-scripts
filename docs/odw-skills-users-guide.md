@@ -1,7 +1,7 @@
 # ODW Skills User's Guide
 
-This guide explains how to ask an agent to use the Open Dynamic Workflows
-(ODW) skills in this repository.
+This guide explains how to ask an agent to use the Open Dynamic Workflows (ODW)
+skills in this repository.
 
 Use the two skills for different parts of the ODW lifecycle:
 
@@ -118,9 +118,9 @@ Include the details that affect orchestration:
 - Bounds such as number of agents, max rounds, budget, or timeout.
 - The desired result shape, such as Markdown report, JSON object, patches, or
   findings.
-- Whether agents need to share files or git state. Ask for `workspaceMode:
-  "inplace"` only when later agents must see files, branches, worktrees, commits,
-  or build artefacts created by earlier agents.
+- Whether agents need to share files or git state. Ask for
+  `workspaceMode: "inplace"` only when later agents must see files, branches,
+  worktrees, commits, or build artefacts created by earlier agents.
 
 Example:
 
@@ -150,8 +150,8 @@ work only in independent worktrees. Use schemas for all cross-provider returns.
 ```
 
 Avoid `inplace` for ordinary review or research workflows. In copy mode each
-agent gets an isolated workspace, which is safer when no later agent needs to see
-that agent's filesystem changes.
+agent gets an isolated workspace, which is safer when no later agent needs to
+see that agent's filesystem changes.
 
 ## Using `$odw-supervision`
 
@@ -210,8 +210,8 @@ The agent should separate:
 - Workspace or config mismatches.
 - Runaway loops, dispatch caps, or stop requests.
 
-For `inplace` or multi-provider runs, ask the agent to inspect both ODW state and
-the real repository state:
+For `inplace` or multi-provider runs, ask the agent to inspect both ODW state
+and the real repository state:
 
 ```text
 Use $odw-supervision to diagnose run abc123. This was intended to be an
@@ -224,8 +224,8 @@ workspaceMode mismatch.
 
 When a workflow passes files, branches, or worktree paths between agents, a run
 launched in copy mode is usually a configuration error. When a workflow runs in
-`inplace`, assume it may have left real repository side effects and inspect them
-before rerunning or cleaning up.
+`inplace`, assume it may have left real repository side effects and inspect
+them before rerunning or cleaning up.
 
 ### Controls
 
