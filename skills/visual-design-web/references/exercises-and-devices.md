@@ -62,7 +62,7 @@ ___________________________________________________
 
 **Usage:** Complete for every page or screen being designed. If the "this page
 helps" sentence cannot be written concisely, the page is trying to do too many
-things. Split or prioritise.
+things. Split or prioritize.
 
 ______________________________________________________________________
 
@@ -122,7 +122,7 @@ conventional.
 ### Direction C — Feral
 
 The provocative option. Borrows from a tradition the brief might not obviously
-suggest. Maximises memorability. May require user testing to validate.
+suggest. Maximizes memorability. May require user testing to validate.
 
 - Communicative stance:
 - Design-school lens:
@@ -323,7 +323,7 @@ ______________________________________________________________________
 ## 10. Stress pass
 
 A structured review that tests the design under constrained conditions. Run all
-four checks on every design before finalising.
+four checks on every design before finalizing.
 
 ### 10a. Greyscale pass
 

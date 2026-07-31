@@ -67,7 +67,7 @@ elements where appearance is determined by the user agent and not modified by
 the author.
 
 **Design implication:** Ghost buttons (text-only, no border) can fail if the
-text contrast relies on being recognised as a button through shape alone.
+text contrast relies on being recognized as a button through shape alone.
 Ensure at least the border or fill meets 3:1.
 
 ______________________________________________________________________
@@ -185,7 +185,7 @@ ______________________________________________________________________
 | **Informative**    | Short, accurate description of the information the image conveys.           | A photograph of a building showing its architectural features.  |
 | **Decorative**     | Empty alt (`alt=""`). The image adds atmosphere but carries no information. | A gradient wash behind a heading.                               |
 | **Functional**     | Alt describes the function, not the image.                                  | A magnifying glass icon on a search button → `alt="Search"`.    |
-| **Complex**        | Short alt plus a longer text description nearby or linked.                  | A chart → short alt summarising the finding, plus a data table. |
+| **Complex**        | Short alt plus a longer text description nearby or linked.                  | A chart → short alt summarizing the finding, plus a data table. |
 | **Images of text** | Avoid. If unavoidable, the alt must contain the full text.                  | A logo rendered as an image → `alt="Acme Corp"`.                |
 
 **GOV.UK distinction:**

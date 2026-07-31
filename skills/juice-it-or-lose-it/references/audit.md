@@ -2,7 +2,7 @@
 
 Use this when reviewing an existing build rather than designing from scratch.
 It is structured as a set of yes/no questions per category, plus follow-up
-notes for each. Score the build, identify the gaps, prioritise the cheapest
+notes for each. Score the build, identify the gaps, prioritize the cheapest
 wins.
 
 The intent is that running through this checklist on a build takes 30–60
@@ -34,7 +34,7 @@ meaningfully improve game feel.
 - [ ] Do projectiles, balls, or pickups scale up briefly on collision, then
       ease back?
 - [ ] Do batched objects (a row of spawning enemies, a grid of UI elements)
-      appear with a small randomised stagger?
+      appear with a small randomized stagger?
 - [ ] Do collectibles, important UI elements, or pickups have an idle pulse
       drawing the eye?
 - [ ] Are there any anticipation poses or wind-ups before significant actions?
@@ -185,5 +185,5 @@ Cost: low / medium / high (effort to implement)
       → Larger task; defer until art pipeline supports it.
 ```
 
-Sort by severity desc, then cost asc, and present the top ten as a prioritised
+Sort by severity desc, then cost asc, and present the top ten as a prioritized
 work plan.

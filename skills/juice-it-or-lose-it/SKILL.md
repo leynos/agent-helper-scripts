@@ -135,7 +135,7 @@ The skill draws on:
   incremental polish steps applied to a stub shoot-em-up.
 - **Steve Swink**, *Game Feel: A Game Designer's Guide to Virtual Sensation*
   (2008). Academic foundation; defines feel as "real-time control of virtual
-  objects in a simulated space, with interactions emphasised by polish."
+  objects in a simulated space, with interactions emphasized by polish."
 - **Mark Brown**, *Game Feel* (Game Maker's Toolkit, 2014). Concise
   consolidation of the above with practical examples.
 - **Mike Salyh**, *6 Mistakes That'll Drain the 'Juice' Out Of Your Game* (Game
