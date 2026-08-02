@@ -184,12 +184,13 @@ gh stack merge 7             # merge stack number 7 (pure remote operation)
 gh stack merge --yes --squash
 ```
 
-Merging is **all-or-nothing** for the selected range: PRs merge bottom-up,
-and if any cannot merge, none do (pre-checked; a mid-merge failure leaves
-already-merged PRs landed and the rest open — fix and retry). Each selected
-PR must be open and not a draft. With a merge queue, the stack is enqueued
-together (method flags are ignored; the queue may split a large stack across
-consecutive merge groups).
+Before merging, GitHub checks the entire selected range and starts only if
+every PR is eligible. Execution is sequential and **not atomic**: PRs merge
+bottom-up, so a mid-merge failure leaves earlier PRs merged and the rest open.
+Fix the failure and retry the remaining PRs. Each selected PR must be open and
+not a draft. With a merge queue, the stack is enqueued together (method flags
+are ignored; the queue may split a large stack across consecutive merge
+groups).
 
 ## Interop with other tools (`gh stack link`)
 
