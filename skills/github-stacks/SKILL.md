@@ -57,7 +57,7 @@ Uses existing `gh` authentication (`gh auth login` if needed).
 | Reorder, rename, fold, drop, insert branches | `gh stack modify` (interactive TUI) |
 | Merge some or all of the stack | `gh stack merge` |
 | Link pre-existing PRs/branches into a stack | `gh stack link` (no local tracking) |
-| Move between layers | `up` / `down` / `top` / `bottom` / `trunk` / `switch` |
+| Move between layers | `gh stack up`, `gh stack down`, `gh stack top`, `gh stack bottom`, `gh stack trunk`, `gh stack switch` |
 | Check out someone else's stack | `gh stack checkout <stack-or-pr-number>` |
 | Dissolve a stack | `gh stack unstack` (`--local` to keep it on GitHub) |
 | Full flags, exit codes, env vars | `references/cli-reference.md` |
@@ -120,7 +120,8 @@ gh stack top                 # return to where you were
 
 `gh stack sync` in one command: fetch → reconcile the remote stack →
 fast-forward trunk → cascading rebase (only if trunk moved) → push → sync PR
-state → link the stack → prune prompt. It never opens PRs (that is
+state → link the stack → prune prompt (interactive terminals only). It never
+opens PRs (that is
 `submit`'s job). Safe in automation: a clean remote-ahead update (PRs added
 on GitHub on top of the local stack) is pulled down without prompting; a
 genuine divergence aborts the sync in non-interactive terminals without

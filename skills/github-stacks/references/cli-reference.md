@@ -116,7 +116,8 @@ updates pulled automatically; true divergence prompts, or aborts
 non-interactively) → fast-forward trunk → cascading rebase (only if trunk
 moved; conflicts restore all branches and defer to `gh stack rebase`) → push
 (`--force-with-lease` if rebased) → sync PR state → link the stack on GitHub
-(2+ PRs; never opens PRs) → prune prompt.
+(2+ PRs; never opens PRs) → prune prompt (interactive terminals only;
+`--prune` prunes automatically without prompting).
 
 Divergence options (interactive): use remote as source of truth (requires
 clean working tree); delete the stack object on GitHub (recreate with
@@ -147,8 +148,9 @@ line numbers.
 ### `gh stack push [flags]`
 
 Push active branches (excluding merged/queued) in one `git push` with
-per-branch `--force-with-lease`. Not atomic: passing leases update even if
-another branch is rejected — fix and re-run. Does not touch PRs.
+per-branch `--force-with-lease`. Not atomic: branches whose leases pass can
+still update when another branch is rejected — fix and re-run. Does not touch
+PRs.
 
 | Flag | Description |
 | ---- | ----------- |
@@ -235,8 +237,8 @@ furthest.
 - **Rebase stack** button (merge box): server-side cascading rebase +
   force-push. Server-side commits are **not signed** — repositories
   requiring signed commits must rebase locally.
-- **Unstack**: removes open, draft, and closed PRs from the stack; merged
-  and queued PRs remain.
+- **Unstack**: removes eligible open, draft, and closed PRs from the stack;
+  merged, merging, and queued PRs remain.
 
 ## Further reading
 
