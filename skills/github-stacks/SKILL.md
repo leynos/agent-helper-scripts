@@ -12,7 +12,6 @@ description: >
   into a stack of PRs. Covers the full lifecycle: init, add, submit, sync,
   rebase, modify, merge, and conflict recovery.
 ---
-
 # GitHub Stacked Pull Requests (`gh stack`)
 
 Stacked pull requests split a large change into a chain of small, dependent
@@ -22,8 +21,8 @@ links the PRs into a first-class stack object with a stack map in the merge
 box.
 
 **Status**: public preview — behaviour is subject to change. Requires GitHub
-CLI (`gh`) 2.0+ and stacked PRs enabled for the repository (exit code 9 means
-they are not).
+CLI (`gh`) 2.90.0+, Git 2.20+, and stacked PRs enabled for the repository
+(exit code 9 means they are not).
 
 ## Hard constraints
 
@@ -82,7 +81,7 @@ gh stack add frontend
 gh stack submit
 ```
 
-`gh stack init` enables `git rerere` automatically so conflict resolutions
+`gh stack init` enables `git rerere` automatically, so conflict resolutions
 are remembered across rebases. Passing multiple branch names to `init` adopts
 existing branches and creates missing ones — this is also the recovery path
 after unstacking.
@@ -130,8 +129,8 @@ pushing anything.
 After a bottom PR merges: `gh stack sync --prune` fast-forwards trunk,
 rebases the remainder, and deletes local branches for merged PRs.
 
-If sync detects a rebase conflict it restores all branches untouched and
-tells you to run `gh stack rebase` interactively.
+If sync detects a rebase conflict, it restores all branches untouched and
+instructs the operator to run `gh stack rebase` interactively.
 
 **Diverged stacks** (neither local nor remote is a clean prefix of the
 other): interactive sync offers three options — adopt the remote as source
@@ -184,13 +183,11 @@ gh stack merge 7             # merge stack number 7 (pure remote operation)
 gh stack merge --yes --squash
 ```
 
-Before merging, GitHub checks the entire selected range and starts only if
-every PR is eligible. Execution is sequential and **not atomic**: PRs merge
-bottom-up, so a mid-merge failure leaves earlier PRs merged and the rest open.
-Fix the failure and retry the remaining PRs. Each selected PR must be open and
-not a draft. With a merge queue, the stack is enqueued together (method flags
-are ignored; the queue may split a large stack across consecutive merge
-groups).
+Without a merge queue, GitHub merges the selected range as one
+**all-or-nothing** operation: if any selected PR is unmergeable, none merge.
+Each selected PR must be open and not a draft. With a merge queue, the selected
+PRs are added together and method flags are ignored; they may land in separate
+merge groups.
 
 ## Interop with other tools (`gh stack link`)
 

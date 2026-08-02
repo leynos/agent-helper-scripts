@@ -4,8 +4,8 @@ Condensed from the GitHub Docs reference (public preview, retrieved
 2026-07-31):
 <https://docs.github.com/en/pull-requests/reference/stacked-prs-cli-commands>
 
-Install: `gh extension install github/gh-stack` (requires `gh` 2.0+; uses
-`gh` authentication).
+Install: `gh extension install github/gh-stack` (requires `gh` 2.90.0+ and Git
+2.20+; uses `gh` authentication).
 
 ## Stack management
 
@@ -170,13 +170,13 @@ an existing stack appends the remaining arguments to that stack's top.
 
 ### `gh stack merge [<stack-number> | <pr-number>] [flags]`
 
-Merge every PR up to and including the chosen one, bottom-up, as a single
-all-or-nothing operation. No argument uses the active stack; a stack number
-merges remotely; a PR number merges up to that PR. Each PR must be open and
-not a draft; branch protection is evaluated at merge time and cannot be
-bypassed. With a merge queue, the selection is enqueued together (method
-flags ignored; a large stack may split across consecutive merge groups —
-groups may exceed their maximum size by up to 50% to keep a stack together).
+Merge every PR up to and including the chosen one, bottom-up. No argument uses
+the active stack; a stack number merges remotely; a PR number merges up to that
+PR. Each PR must be open and not a draft; branch protection is evaluated at
+merge time and cannot be bypassed. Without a merge queue, GitHub merges the
+selected range as one all-or-nothing operation: if any selected PR is
+unmergeable, none merge. With a merge queue, the selected PRs are added
+together and method flags are ignored; they may land in separate merge groups.
 
 | Flag | Description |
 | ---- | ----------- |
