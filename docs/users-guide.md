@@ -95,6 +95,21 @@ Phrase checking and harvesting skip tracked files that are not UTF-8. Other
 tracked-file read failures stop the operation and emit a bounded diagnostic, so
 an incomplete repository scan cannot appear successful.
 
+## Stacked pull requests
+
+The `github-stacks` skill covers GitHub's native stacked pull requests through
+the `gh stack` extension. Install it with
+`gh extension install github/gh-stack`; it requires GitHub CLI 2.90.0 or later,
+Git 2.20 or later, and stacked pull requests enabled for the repository. The
+core workflow is `gh stack init`, `gh stack add`, `gh stack submit`, then
+`gh stack sync` as the stack changes.
+
+For automation, use non-interactive flags such as `--auto` and `--yes` because
+some commands require a TTY, inspect state with `gh stack view --json`, and use
+`gh stack push` instead of force-pushing stack branches manually. See the
+[detailed skill](../skills/github-stacks/SKILL.md) and
+[CLI reference](../skills/github-stacks/references/cli-reference.md).
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`
