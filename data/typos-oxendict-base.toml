@@ -177,7 +177,6 @@ organisational = "organizational"
 
 [patterns]
 ignore = [
-  '`[^`\n]+`',
   '(?s)```.*?```',
   '\brust-analyzer\b',
 ]

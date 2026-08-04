@@ -72,6 +72,8 @@ class Dictionary:
         Punctuation-separated phrase corrections checked outside Typos.
     ignore_patterns
         Bounded regular expressions used to mask upstream text.
+    removed_patterns
+        Shared ignore patterns withdrawn by a local overlay.
     excluded_files
         Repository-relative components and globs omitted from spelling scans.
     """
@@ -81,6 +83,7 @@ class Dictionary:
     corrections: tuple[tuple[str, str], ...] = ()
     phrase_corrections: tuple[tuple[str, str], ...] = ()
     ignore_patterns: tuple[str, ...] = ()
+    removed_patterns: tuple[str, ...] = ()
     excluded_files: tuple[str, ...] = ()
 
 
@@ -146,6 +149,7 @@ def _dictionary_from_text(text: str, *, sparse: bool = False) -> Dictionary:
         corrections=tuple(sorted(corrections.items())),
         phrase_corrections=tuple(sorted(phrase_corrections.items())),
         ignore_patterns=ignore_patterns,
+        removed_patterns=_string_list(patterns, "remove"),
         excluded_files=_string_list(files, "exclude"),
     )
 
@@ -193,6 +197,21 @@ def _merge_correction_items(
     return tuple(sorted(merged.items()))
 
 
+def _merge_ignore_patterns(base: Dictionary, local: Dictionary) -> tuple[str, ...]:
+    """Merge ignore patterns, then apply explicit local withdrawals."""
+    removed = set(local.removed_patterns)
+    contradictory = removed & set(local.ignore_patterns)
+    if contradictory:
+        message = (
+            "local overlay both ignores and removes patterns: "
+            f"{', '.join(sorted(contradictory))}"
+        )
+        raise ValueError(message)
+    return tuple(
+        sorted((set(base.ignore_patterns) | set(local.ignore_patterns)) - removed)
+    )
+
+
 def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
     """Merge a shared dictionary with a non-conflicting local overlay.
 
@@ -230,8 +249,9 @@ def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
             local.phrase_corrections,
             label="phrase correction",
         ),
-        ignore_patterns=tuple(
-            sorted(set(base.ignore_patterns) | set(local.ignore_patterns))
+        ignore_patterns=_merge_ignore_patterns(base, local),
+        removed_patterns=tuple(
+            sorted(set(base.removed_patterns) | set(local.removed_patterns))
         ),
         excluded_files=tuple(
             sorted(set(base.excluded_files) | set(local.excluded_files))

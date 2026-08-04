@@ -477,3 +477,19 @@ def test_shared_dictionary_protects_exact_rust_analyzer_name(
     assert not matcher.search("analyzer"), "ordinary analyzer prose was ignored"
     assert not matcher.search("analyser"), "ordinary analyser prose was ignored"
     assert not matcher.search("rust analyzer"), "unhyphenated prose was ignored"
+
+
+def test_shared_dictionary_checks_inline_code_but_ignores_fenced_code(
+    rollout: types.ModuleType,
+) -> None:
+    """The shared policy masks code blocks without masking inline identifiers."""
+    inline_pattern = r"`[^`\n]+`"
+    fenced_pattern = r"(?s)```.*?```"
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    generated = tomllib.loads(rollout.render_typos_config(dictionary))["default"]
+    generated_patterns = generated["extend-ignore-re"]
+
+    assert inline_pattern not in dictionary.ignore_patterns
+    assert inline_pattern not in generated_patterns
+    assert fenced_pattern in dictionary.ignore_patterns
+    assert fenced_pattern in generated_patterns

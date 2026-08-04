@@ -266,9 +266,11 @@ def test_generated_config_loads_in_pinned_typos(
         ),
     )
     sample = tmp_path / "sample.md"
+    misspelled_article = "t" + "eh"
+    misspelled_receive = "rec" + "ieve"
     sample.write_text(
         f"We {PLAIN_BRITISH_ORGANIZE} {AMERICAN_COLOUR} output but analyse "
-        "valid results.\n",
+        f"valid results. `{misspelled_article} {misspelled_receive}`\n",
         encoding="utf-8",
     )
 
@@ -303,3 +305,5 @@ def test_generated_config_loads_in_pinned_typos(
         "British colour spelling was not enforced"
     )
     assert "analyse" not in corrections, "valid -yse spelling was rejected"
+    assert misspelled_article in corrections, "inline-code typo was not reported"
+    assert misspelled_receive in corrections, "inline-code typo was not reported"
