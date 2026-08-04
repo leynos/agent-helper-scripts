@@ -2,6 +2,8 @@
 description: Rebase the current branch onto origin/main, resolve conflicts carefully, validate, and commit.
 ---
 
+# Rebase the current branch
+
 Please rebase this branch onto `origin/main`.
 
 Each time you encounter a conflict, examine the situation carefully with the

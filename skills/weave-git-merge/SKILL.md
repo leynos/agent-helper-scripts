@@ -40,9 +40,22 @@ command -v weave-driver
 weave-driver --version
 ```
 
-Expect `git check-attr` to report `merge: weave`. Inspect all applicable
-attribute sources with `git check-attr -a -- path` when another rule may
-override it.
+Expect `git check-attr` to report `merge: weave`. `git check-attr -a -- path`
+reports only effective attribute values, not which source supplied them.
+Inspect `.git/info/attributes`, applicable `.gitattributes` files, and the
+configured global attributes file directly (or the default
+`$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes` when no file
+is configured). Locate an explicitly configured file with
+`git config --path --get core.attributesFile`.
+
+Use this compact matrix when bypassing Weave after preserving the current
+attribute state:
+
+| Setup scope | Rule location | Make `merge` unspecified | Verify, then retry |
+| --- | --- | --- | --- |
+| Global | Configured global attributes file (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`. | `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments under the same `-c`. |
+| Tracked | Repository `.gitattributes` | Preserve `.git/info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
+| Clone-local | `.git/info/attributes` | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
 
 ## Preview before changing Git state
 
@@ -172,7 +185,7 @@ If Weave returned `0` with structurally broken output, abort the operation and
 rerun the whole operation with the built-in merge machinery. For a global
 setup, first verify that ignoring the user attributes file makes `merge`
 unspecified for a representative affected path, then use the same override for
-the rebase or merge:
+the rebase, merge, or cherry-pick:
 
 ```bash
 git rebase --abort
@@ -180,24 +193,21 @@ git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py
 # path/to/file.py: merge: unspecified
 git -c core.attributesFile=/dev/null rebase origin/main
 
-# The equivalent merge form is:
-git -c core.attributesFile=/dev/null merge other-branch
+# For an in-progress merge, abort and retry with the same original arguments:
+git merge --abort
+git -c core.attributesFile=/dev/null merge <same-original-arguments>
+
+# For an in-progress cherry-pick, abort and retry with the same original arguments:
+git cherry-pick --abort
+git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>
 ```
 
 This override disables only the user attributes file for those commands.
 Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
 it preserves unrelated repository merge rules. It is suitable when
 `weave setup --global` supplied the `merge=weave` rule and no higher-precedence
-source selects Weave.
-
-The bypass lever differs by setup scope. `weave setup` writes tracked
-`.gitattributes`; `weave setup --local` writes `.git/info/attributes`. For
-those scopes, temporarily remove the applicable Weave rule or override it with
-`!merge` in a later or higher-precedence attribute rule, preserve the previous
-contents, and restore them after the operation. Verify the exact command scope
-with `git check-attr merge -- path` before rerunning Git. The required outcome
-is `merge: unspecified`; `/dev/null` alone cannot override tracked or
-clone-local rules.
+source selects Weave. For tracked or clone-local setup, use the corresponding
+matrix row above; `/dev/null` alone cannot override those rules.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and

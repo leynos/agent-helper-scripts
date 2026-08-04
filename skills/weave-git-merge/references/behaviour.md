@@ -24,7 +24,8 @@ and conflicted results. It then returns `0` for clean, `1` for unresolved, or
 `2` for operational failure and binary input.
 
 The driver records lifetime statistics on a best-effort basis. Statistics and
-optional CRDT recording never decide merge success.
+optional conflict-free replicated data type (CRDT) recording never decide
+merge success.
 
 ## Resolution pipeline
 
