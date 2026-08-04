@@ -1,6 +1,6 @@
 ---
 name: weave-git-merge
-description: Use and troubleshoot Weave as an entity-aware Git merge driver during merges, rebases, cherry-picks, and conflict resolution. Use when configuring Weave, previewing a merge, checking whether Git will invoke it, interpreting Weave conflict markers or exit behaviour, recovering from driver failures, or explaining what Weave actually resolves versus when it falls back to line-level merging.
+description: Use and troubleshoot Weave as an entity-aware Git merge driver during merges, rebases, cherry-picks, and conflict resolution. Use when configuring Weave, previewing a merge, checking whether Git will invoke it, interpreting Weave conflict markers or exit behaviour, detecting structurally corrupt clean results, bypassing Weave safely, recovering from driver failures, or explaining what Weave actually resolves versus when it falls back to line-level merging.
 ---
 
 # Use Weave with Git
@@ -78,6 +78,32 @@ git show :2:path/to/file.ts  # stage 2
 git show :3:path/to/file.ts  # stage 3
 ```
 
+Check structural integrity before trusting either a reported conflict or a
+clean driver exit. Use the language's cheapest parser or compiler on the
+working file before `git add` or `git rebase --continue`. For Python:
+
+```bash
+python -m py_compile path/to/file.py
+```
+
+If the merged file is unexpectedly large, duplicated, truncated, or contains
+garbled markers, parse each available stage as well. These commands inspect
+the blobs without changing the working file:
+
+```bash
+set -o pipefail
+git show :1:path/to/file.py | python -c \
+  'import ast, sys; ast.parse(sys.stdin.read())'
+git show :2:path/to/file.py | python -c \
+  'import ast, sys; ast.parse(sys.stdin.read())'
+git show :3:path/to/file.py | python -c \
+  'import ast, sys; ast.parse(sys.stdin.read())'
+```
+
+Run only the stage commands for stages that exist. A parsing stage 3 does not
+make a non-parsing stage 2 safe: during a multi-commit rebase, stage 2 can
+already contain an earlier silently corrupted replay.
+
 During rebase, do not attach branch names to stages 2 and 3 from memory;
 identify them from their content and the rebase operation.
 
@@ -91,8 +117,27 @@ text separately, and performs cleanup and structural validation. A clean exit
 means no recorded conflict remains; it is not proof that the result has the
 intended semantics.
 
-Resolve remaining markers, run the repository's normal formatting, tests,
-lint, and type checks, then `git add` the path and continue the Git operation.
+Resolve remaining markers, perform the structural check, run the repository's
+normal formatting, tests, lint, and type checks, then `git add` the path and
+continue the Git operation.
+
+## Guard a multi-commit rebase
+
+A cleanly returned but corrupted early replay becomes an input to later
+replays. In a later conflict it may appear as stage 2, so reconstruction damage
+can compound before an end-of-rebase test ever runs.
+
+For a branch that relocates or reorders imports, or contains "repair after
+rebase" commits, either bypass Weave for the whole operation or run a cheap
+syntax or import check after every replayed commit. Git's `--exec` option makes
+that check stop the rebase at the first bad intermediate result, for example:
+
+```bash
+git rebase --exec 'python -m compileall -q -f path/to/package' origin/main
+```
+
+Replace the example with the repository's cheapest suitable structural gate.
+Do not rely solely on the full test suite after the final commit.
 
 ## Interpret driver outcomes
 
@@ -122,6 +167,37 @@ If Weave was selected but never ran, check attribute precedence, the exact
 config scope, executable discovery, and quoting of a driver path containing
 spaces. If the driver returned `2`, use its stderr to distinguish missing
 inputs, binary detection, and write failure.
+
+If Weave returned `0` with structurally broken output, abort the operation and
+rerun the whole operation with the built-in merge machinery. For a global
+setup, first verify that ignoring the user attributes file makes `merge`
+unspecified for a representative affected path, then use the same override for
+the rebase or merge:
+
+```bash
+git rebase --abort
+git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py
+# path/to/file.py: merge: unspecified
+git -c core.attributesFile=/dev/null rebase origin/main
+
+# The equivalent merge form is:
+git -c core.attributesFile=/dev/null merge other-branch
+```
+
+This override disables only the user attributes file for those commands.
+Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
+it preserves unrelated repository merge rules. It is suitable when
+`weave setup --global` supplied the `merge=weave` rule and no higher-precedence
+source selects Weave.
+
+The bypass lever differs by setup scope. `weave setup` writes tracked
+`.gitattributes`; `weave setup --local` writes `.git/info/attributes`. For
+those scopes, temporarily remove the applicable Weave rule or override it with
+`!merge` in a later or higher-precedence attribute rule, preserve the previous
+contents, and restore them after the operation. Verify the exact command scope
+with `git check-attr merge -- path` before rerunning Git. The required outcome
+is `merge: unspecified`; `/dev/null` alone cannot override tracked or
+clone-local rules.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and

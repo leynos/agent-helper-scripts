@@ -66,6 +66,12 @@ Common clean cases include:
 These are implementation strategies, not semantic proofs. Always compile or
 test the result.
 
+Do not generalize the import-addition case to import relocation. With
+`weave-driver 0.3.6`, relocating symbols between modules while another branch
+reorders the same top-level import block has produced duplicated, truncated,
+non-parsing Python despite a clean exit. That combination is unsafe for
+semantic reconstruction and belongs on the line-level-fallback path.
+
 ## What remains conflicted
 
 Expect an entity-scoped or file-scoped conflict for:
@@ -98,6 +104,12 @@ Git cannot be executed, the final fallback is Diffy.
 The driver rejects NUL-containing input before reaching the core fallback.
 This produces exit `2`, allowing Git or the operator to handle the binary path
 instead of accepting a text merge.
+
+Validation is intended to send an unsafe clean reconstruction through the
+line-level fallback. A successful driver exit is not proof that this happened:
+version 0.3.6 has been observed returning `0` for non-parsing reconstruction in
+the import-relocation case above. Parse or compile intermediate results before
+allowing a multi-commit rebase to continue.
 
 ## Supported setup patterns
 

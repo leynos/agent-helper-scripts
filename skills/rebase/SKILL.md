@@ -21,3 +21,7 @@ Note that not all projects have a `typecheck` target. If this is the case, do
 not be alarmed. There is no need to report this.
 
 Following the rebase, validate and commit any outstanding changes.
+
+If a conflict resolution looks garbled or a resolved file fails to parse, use
+the [weave-git-merge recovery and built-in-merge fallback](../weave-git-merge/SKILL.md#recover-safely)
+before continuing the rebase.
