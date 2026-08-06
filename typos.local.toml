@@ -28,6 +28,10 @@ polymerising = "polymerizing"
 
 [patterns]
 ignore = [
+  '`EXPLAIN ANALYZE`',
+  '`colorScheme`',
+  '`colors`',
+  '`hand-written`',
   'RUST_ANALYZER(?:_PRECHECK)?',
   '\bMOLD\b',
   '\bmold\b',

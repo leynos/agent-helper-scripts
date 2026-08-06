@@ -37,7 +37,10 @@ extend-ignore-re = [
     "\\bcolor:",
     "\\bmold\\b",
     "\\brust-analyzer\\b",
-    "`[^`\\n]+`",
+    "`EXPLAIN ANALYZE`",
+    "`colorScheme`",
+    "`colors`",
+    "`hand-written`",
 ]
 
 [default.extend-words]

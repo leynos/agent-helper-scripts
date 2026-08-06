@@ -165,6 +165,54 @@ def test_sparse_overlay_validates_regex_and_accepts_separated_repetitions(
         rollout.load_dictionary(overlay, local_overlay=True)
 
 
+def test_local_overlay_withdraws_a_shared_ignore_pattern(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """A local removal narrows shared masking without losing other patterns."""
+    broad_inline_pattern = r"`[^`\n]+`"
+    overlay = tmp_path / "typos.local.toml"
+    overlay.write_text(
+        "schema = 1\n\n[patterns]\n"
+        f"remove = [{json.dumps(broad_inline_pattern)}]\n",
+        encoding="utf-8",
+    )
+    base = rollout.Dictionary(
+        ignore_patterns=(broad_inline_pattern, r"(?s)```.*?```"),
+    )
+    local = rollout.load_dictionary(overlay, local_overlay=True)
+
+    merged = rollout.merge_dictionaries(base, local)
+
+    assert merged.ignore_patterns == (r"(?s)```.*?```",)
+    assert merged.removed_patterns == (broad_inline_pattern,)
+
+
+def test_local_overlay_may_remove_an_absent_shared_pattern(
+    rollout: types.ModuleType,
+) -> None:
+    """An upstream policy improvement does not break an existing withdrawal."""
+    local = rollout.Dictionary(removed_patterns=(r"`[^`\n]+`",))
+
+    merged = rollout.merge_dictionaries(rollout.Dictionary(), local)
+
+    assert merged.ignore_patterns == ()
+
+
+def test_local_overlay_cannot_add_and_remove_the_same_pattern(
+    rollout: types.ModuleType,
+) -> None:
+    """Contradictory pattern instructions fail with a useful diagnostic."""
+    pattern = r"`formal_api_name`"
+    local = rollout.Dictionary(
+        ignore_patterns=(pattern,),
+        removed_patterns=(pattern,),
+    )
+
+    with pytest.raises(ValueError, match="both ignores and removes patterns"):
+        rollout.merge_dictionaries(rollout.Dictionary(), local)
+
+
 def test_merge_accepts_existing_local_exceptions(
     rollout: types.ModuleType,
 ) -> None:

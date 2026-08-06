@@ -292,6 +292,12 @@ there only when it is valid across repositories. Product names, quoted upstream
 terms and fixture-specific vocabulary belong in the consumer repository's
 tracked `typos.local.toml` overlay.
 
+Local pattern additions merge with the shared ignore list. A local
+`[patterns] remove` list then withdraws exact shared entries, allowing a
+consumer to narrow an overly broad authority pattern without forking the
+generator. A pattern cannot appear in both the local `ignore` and `remove`
+lists; removals that no longer exist upstream remain valid no-ops.
+
 The executable `scripts/typos_rollout_cli.py` provides three commands.
 `harvest` emits JSON Lines evidence for both plain-British `-ise` and Oxford
 `-ize` forms found in Git-tracked UTF-8 text. `generate` conditionally

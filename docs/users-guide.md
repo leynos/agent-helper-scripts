@@ -88,6 +88,14 @@ policy. `harvest` emits JSON Lines evidence for Oxford `-ize` and plain-British
 shared base; product names, quoted upstream terms, and deliberate fixtures
 belong in a consumer's `typos.local.toml`.
 
+Inline code is checked by default so misspelled identifiers, flags, module
+paths and file names remain visible. Add exact identifier patterns to the
+local `[patterns] ignore` list when an upstream name is intentionally spelled
+differently. A local `[patterns] remove` list can withdraw an exact shared
+ignore pattern when a repository needs stricter checking; removing a pattern
+that the shared base no longer contains is a harmless no-op. Configuration
+generation rejects an identical pattern in both local lists.
+
 Ignore expressions are validated before scanning. Malformed expressions,
 backreferences, and nested or adjacent repetitions are rejected, including
 Python's `{,n}` upper-bound form; separated bounded repetitions remain valid.
