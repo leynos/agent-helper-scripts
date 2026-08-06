@@ -111,6 +111,31 @@ def test_skill_requires_structural_checks_before_continue() -> None:
     )
 
 
+def test_skill_declares_bash_as_the_shell_for_every_example() -> None:
+    """Bash-only syntax is covered by an explicit shell requirement."""
+    _, skill = _skill_frontmatter()
+
+    assert "Every shell example below requires Bash." in skill, (
+        "the skill must state that its shell examples require Bash"
+    )
+    requirement, _, remainder = skill.partition(
+        "Every shell example below requires Bash."
+    )
+    assert "```" not in requirement, (
+        "the Bash requirement must precede every command block it governs"
+    )
+    assert "`set -o pipefail` is a Bash builtin option" in remainder, (
+        "the requirement must call out the Bash-only stage-validation option"
+    )
+
+    fences = [line for line in skill.splitlines() if line.startswith("```")]
+    opening_fences = fences[::2]
+    assert opening_fences, "the skill must contain fenced command blocks"
+    assert all(fence == "```bash" for fence in opening_fences), (
+        f"every command fence must be labelled bash, found {sorted(set(opening_fences))}"
+    )
+
+
 def test_skill_preserves_all_three_stage_inspection_commands() -> None:
     """The workflow keeps non-mutating inspection for every index stage."""
     _, skill = _skill_frontmatter()

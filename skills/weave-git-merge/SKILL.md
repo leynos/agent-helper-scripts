@@ -12,6 +12,11 @@ or `git rebase`. Git selects it through attributes and invokes
 Read [behaviour.md](references/behaviour.md) before diagnosing a surprising
 result or deciding whether an unresolved file is safe to edit.
 
+Every shell example below requires Bash. This matters for the stage-validation
+commands in particular: `set -o pipefail` is a Bash builtin option with no
+POSIX `sh` equivalent, so running those commands under `sh` silently drops the
+guard and lets a failing `git show` pass as success.
+
 ## Configure it
 
 Choose one scope deliberately:
