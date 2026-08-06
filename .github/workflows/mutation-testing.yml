@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC workflow-source resolution
-    uses: leynos/shared-actions/.github/workflows/mutation-mutmut.yml@4d696e72fff6db49f34302ccf119ba978f1032c9
+    uses: leynos/shared-actions/.github/workflows/mutation-mutmut.yml@8add2d99854a5b77548eae98cca59202e68fefc8
     with:
       # Mutable Python source lives in hooks/, not the src/ default.
       paths: "hooks/"
