@@ -27,3 +27,12 @@ Following the rebase, validate and commit any outstanding changes.
 If a conflict resolution looks garbled or a resolved file fails to parse, use
 the [weave-git-merge recovery and built-in-merge fallback](../weave-git-merge/SKILL.md#recover-safely)
 before continuing the rebase.
+
+When recovering non-destructively by saving work as a patch, generate it with
+`git diff --no-ext-diff`, adding `--binary` when binary files are involved. A
+configured `diff.external` or `GIT_EXTERNAL_DIFF` replaces `git diff` output
+with that tool's own format, and `git apply` then rejects the file with
+`error: No valid patches in input`. Confirm a saved patch starts with
+`diff --git` before applying it. `git show`, `git log -p`, `git format-patch`,
+and `git stash show -p` already suppress external diff drivers, so prefer
+`git stash show -p` when the work to recover is a stash.

@@ -51,7 +51,10 @@ Inspect `.git/info/attributes`, applicable `.gitattributes` files, and the
 configured global attributes file directly (or the default
 `$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes` when no file
 is configured). Locate an explicitly configured file with
-`git config --path --get core.attributesFile`.
+`git config --path --get core.attributesFile`. That command prints nothing and
+exits non-zero when the setting is absent, which means the default path applies,
+not that no global rule exists; read the default path before concluding that
+Weave was selected somewhere else.
 
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:

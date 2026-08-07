@@ -175,6 +175,9 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
     assert "`git config --path --get core.attributesFile`" in skill, (
         "the workflow must show how to locate the global attributes file"
     )
+    assert "prints nothing and\nexits non-zero when the setting is absent" in skill, (
+        "an unset core.attributesFile must not read as an absent global rule"
+    )
     assert "| Global | Configured global attributes file" in skill, (
         "the scope matrix must cover the global attributes file"
     )
@@ -209,6 +212,27 @@ def test_rebase_skill_routes_garbled_results_to_weave_recovery() -> None:
     assert "before continuing the rebase" in rebase_skill, (
         "recovery must happen before the rebase is allowed to continue"
     )
+
+
+def test_rebase_skill_keeps_patch_recovery_clear_of_external_diff_drivers() -> None:
+    """Patch-based recovery names the flag that restores a usable diff."""
+    rebase_skill = _read(REBASE_SKILL_PATH)
+
+    assert "git diff --no-ext-diff" in rebase_skill, (
+        "patch generation must suppress an external diff driver"
+    )
+    assert "`diff.external` or `GIT_EXTERNAL_DIFF`" in rebase_skill, (
+        "the guidance must name both ways an external diff driver is configured"
+    )
+    assert "error: No valid patches in input" in rebase_skill, (
+        "the symptom must be searchable from the error git apply prints"
+    )
+    assert "Confirm a saved patch starts with\n`diff --git`" in rebase_skill, (
+        "the reader must be told how to check a patch before applying it"
+    )
+    assert "prefer\n`git stash show -p` when the work to recover is a stash" in (
+        rebase_skill
+    ), "stash recovery must point at the command that is already safe"
 
 
 def test_behaviour_reference_records_the_known_import_risk() -> None:
