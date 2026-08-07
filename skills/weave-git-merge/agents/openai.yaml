@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weave Git Merge"
+  short_description: "Use and troubleshoot Weave merge drivers"
+  default_prompt: "Use $weave-git-merge to configure, inspect, or troubleshoot a Git merge or rebase with Weave."
