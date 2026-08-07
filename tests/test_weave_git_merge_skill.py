@@ -1,9 +1,11 @@
-"""Contract and behavioural tests for the Weave Git merge skill."""
+"""Contract tests for the Weave Git merge skill's documentation.
+
+Behavioural coverage of the procedures these documents describe lives in
+`test_weave_git_merge_procedures.py`.
+"""
 
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -15,10 +17,6 @@ SKILL_PATH = SKILL_ROOT / "SKILL.md"
 BEHAVIOUR_PATH = SKILL_ROOT / "references" / "behaviour.md"
 AGENT_METADATA_PATH = SKILL_ROOT / "agents" / "openai.yaml"
 REBASE_SKILL_PATH = REPO_ROOT / "skills" / "rebase" / "SKILL.md"
-GIT = shutil.which("git")
-
-if GIT is None:  # pragma: no cover - Git is a repository test prerequisite.
-    raise RuntimeError("git is required to run the Weave skill tests")
 
 
 def _read(path: Path) -> str:
@@ -48,22 +46,6 @@ def _skill_frontmatter() -> tuple[dict[str, object], str]:
         "delimiter"
     )
     return _mapping(parts[1]), body
-
-
-def _git(
-    repository: Path,
-    *args: str,
-    check: bool = True,
-) -> subprocess.CompletedProcess[str]:
-    """Run Git in a temporary repository with captured output."""
-    return subprocess.run(  # noqa: S603 - absolute executable and controlled arguments.
-        [GIT, *args],
-        cwd=repository,
-        text=True,
-        capture_output=True,
-        check=check,
-        timeout=30,
-    )
 
 
 def test_skill_discovery_metadata_describes_corruption_recovery() -> None:
@@ -245,65 +227,3 @@ def test_behaviour_reference_records_the_known_import_risk() -> None:
     assert "belongs on the line-level-fallback path" in behaviour, (
         "the reference must state where import relocation should be handled"
     )
-
-
-def test_global_attribute_bypass_recovers_a_rebase(tmp_path: Path) -> None:
-    """The documented override retries a rebase with Git's built-in merge."""
-    repository = tmp_path / "repository"
-    repository.mkdir()
-    source = repository / "example.py"
-    attributes = tmp_path / "global-attributes"
-
-    _git(repository, "init", "--quiet", "--initial-branch=main")
-    _git(repository, "config", "user.name", "Weave Skill Test")
-    _git(repository, "config", "user.email", "weave-skill@example.invalid")
-    source.write_text("base one\nbase two\nbase three\n", encoding="utf-8")
-    _git(repository, "add", "example.py")
-    _git(repository, "commit", "--quiet", "-m", "base")
-
-    _git(repository, "switch", "--quiet", "--create", "topic")
-    source.write_text("base one\nbase two\ntopic three\n", encoding="utf-8")
-    _git(repository, "commit", "--quiet", "--all", "-m", "topic change")
-
-    _git(repository, "switch", "--quiet", "main")
-    source.write_text("main one\nbase two\nbase three\n", encoding="utf-8")
-    _git(repository, "commit", "--quiet", "--all", "-m", "main change")
-    _git(repository, "switch", "--quiet", "topic")
-
-    attributes.write_text("*.py merge=weave\n", encoding="utf-8")
-    _git(repository, "config", "core.attributesFile", str(attributes))
-    _git(repository, "config", "merge.weave.name", "failing test driver")
-    _git(repository, "config", "merge.weave.driver", "false")
-
-    selected = _git(repository, "check-attr", "merge", "--", "example.py")
-    assert selected.stdout.rstrip().endswith("merge: weave"), (
-        "the global attributes file must select the Weave driver"
-    )
-
-    failed_rebase = _git(repository, "rebase", "main", check=False)
-    assert failed_rebase.returncode != 0, "custom merge driver should stop rebase"
-    _git(repository, "rebase", "--abort")
-
-    bypassed = _git(
-        repository,
-        "-c",
-        "core.attributesFile=/dev/null",
-        "check-attr",
-        "merge",
-        "--",
-        "example.py",
-    )
-    assert bypassed.stdout.rstrip().endswith("merge: unspecified"), (
-        "ignoring the global attributes file must deselect the Weave driver"
-    )
-
-    _git(
-        repository,
-        "-c",
-        "core.attributesFile=/dev/null",
-        "rebase",
-        "main",
-    )
-    assert source.read_text(encoding="utf-8") == (
-        "main one\nbase two\ntopic three\n"
-    ), "the built-in merge must combine both non-overlapping changes"
