@@ -118,6 +118,27 @@ some commands require a TTY, inspect state with `gh stack view --json`, and use
 [detailed skill](../skills/github-stacks/SKILL.md) and
 [CLI reference](../skills/github-stacks/references/cli-reference.md).
 
+## Entity-aware Git merges
+
+The `weave-git-merge` skill covers Weave as a per-file, entity-aware Git merge
+driver that Git invokes through `.gitattributes` during merges, rebases and
+cherry-picks. It ships with the other skills through `install-skills`, which
+installs the skill only and does not run `weave setup`; Weave itself must be
+configured separately.
+
+Weave can exit `0` while having produced structurally broken output, so the
+skill's workflow requires a per-file structural parse check before `git add`
+or `git rebase --continue`, guards multi-commit rebases with
+`git rebase --exec`, and documents rerunning the whole operation with Git's
+built-in merge machinery. That rerun uses
+`git -c core.attributesFile=/dev/null`, which bypasses Weave only where the
+configured global attributes file is what selects the driver; tracked
+`.gitattributes` and `.git/info/attributes` rules stay in force, and the
+detailed skill gives the scoped bypass for those sources. The
+`rebase` skill routes garbled or non-parsing resolutions here. See the
+[detailed skill](../skills/weave-git-merge/SKILL.md) and
+[behaviour reference](../skills/weave-git-merge/references/behaviour.md).
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`

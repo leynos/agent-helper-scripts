@@ -444,6 +444,78 @@ PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
 `[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
 dependency of any bootstrap script; only the manifest test helper imports it.
 
+## Weave Git merge-driver boundary
+
+The `weave-git-merge` skill documents Weave, an entity-aware Git merge driver
+that Git invokes per selected path during merges, rebases, and cherry-picks.
+The user-facing summary lives in the "Entity-aware Git merges" section of
+[docs/users-guide.md](users-guide.md); this section covers what maintainers
+must preserve when changing the skill or its tests.
+
+Weave is an optional local developer tool, not a repository-wide dependency
+this project adopts; this branch only ships a skill that documents it, so
+adopting Weave repository-wide would need its own ADR.
+
+### Setup scopes
+
+`weave setup` writes three mutually exclusive scopes:
+
+- default — tracked `.gitattributes`, shared with the whole team;
+- `--local` — untracked `.git/info/attributes`, this clone only;
+- `--global` — global Git config plus a global attributes file. When
+  `core.attributesFile` is unset, Git falls back to
+  `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`.
+
+### Driver contract
+
+Setup records `weave-driver %O %A %B %L %P` and Git runs it once per selected
+path. Exit `0` means Weave wrote a clean result to `%A`; exit `1` means Weave
+wrote a partially merged result with conflict markers to `%A` and Git leaves
+the path unmerged; exit `2` is an invocation, input, or output failure and is
+not a semantic conflict.
+
+### Validation is mandatory, not optional
+
+A clean exit is not proof of a correct result: Weave can exit `0` having
+produced structurally broken output (see
+[behaviour.md](../skills/weave-git-merge/references/behaviour.md)). A cheap
+structural gate — a parser or compiler for the affected language — must run
+before `git add` or `git rebase --continue`. Multi-commit rebases need a
+`git rebase --exec` guard as well, because an early silently corrupted replay
+can become an input to a later one before any end-of-rebase test runs.
+
+### Bypass recovery
+
+`git -c core.attributesFile=/dev/null` bypasses only the global-scope rule.
+Tracked and clone-local rules still apply and need a later, path-specific
+`path/to/file.ext !merge` line added to `.git/info/attributes` instead. See
+the scope matrix in [SKILL.md](../skills/weave-git-merge/SKILL.md) for the
+full set of bypass and verification commands per scope.
+
+### Why this matters here
+
+Two test modules hold this boundary in place, and both must stay in step with
+the skill:
+
+- `tests/test_weave_git_merge_skill.py` asserts the documented wording, so a
+  command or heading cannot be reworded out of the skill unnoticed.
+- `tests/test_weave_git_merge_procedures.py` executes the procedures against
+  real repositories, standing a cmd-mox double named `stub-merge-driver` in
+  for the driver, wired in by the shim's absolute path under
+  `EnvironmentManager.shim_dir` so resolution never consults `PATH`: a driver exiting `0` over unparsable output, the three index
+  stages of an unmerged path, the `git rebase --exec` guard stopping a
+  multi-commit rebase, and every bypass in the scope matrix across rebase,
+  merge, and cherry-pick. The double stands in for any driver with a given
+  exit status, so the suite needs no Weave installation and asserts nothing
+  about Weave's own merge quality. Its spy call counts are what prove Git
+  invoked the driver before a bypass and stopped invoking it after.
+
+When extending that module, note two traps at this boundary. A cmd-mox shim
+reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and
+Git deadlock. Git also hands the driver repository-relative temporary paths,
+while handlers run in the pytest process, so `%A` must be resolved against the
+repository before writing.
+
 ## Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
