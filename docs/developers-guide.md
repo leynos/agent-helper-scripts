@@ -500,12 +500,20 @@ the skill:
 - `tests/test_weave_git_merge_skill.py` asserts the documented wording, so a
   command or heading cannot be reworded out of the skill unnoticed.
 - `tests/test_weave_git_merge_procedures.py` executes the procedures against
-  real repositories using stub merge drivers: a driver exiting `0` over
-  unparsable output, the three index stages of an unmerged path, the
-  `git rebase --exec` guard stopping a multi-commit rebase, and every bypass
-  in the scope matrix across rebase, merge, and cherry-pick. The stubs stand
-  in for any driver with a given exit status, so the suite needs no Weave
-  installation and asserts nothing about Weave's own merge quality.
+  real repositories, standing a cmd-mox double named `stub-merge-driver` in
+  for the driver: a driver exiting `0` over unparsable output, the three index
+  stages of an unmerged path, the `git rebase --exec` guard stopping a
+  multi-commit rebase, and every bypass in the scope matrix across rebase,
+  merge, and cherry-pick. The double stands in for any driver with a given
+  exit status, so the suite needs no Weave installation and asserts nothing
+  about Weave's own merge quality. Its spy call counts are what prove Git
+  invoked the driver before a bypass and stopped invoking it after.
+
+When extending that module, note two traps at this boundary. A cmd-mox shim
+reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and
+Git deadlock. Git also hands the driver repository-relative temporary paths,
+while handlers run in the pytest process, so `%A` must be resolved against the
+repository before writing.
 
 ## Workflow pins and Dependabot
 

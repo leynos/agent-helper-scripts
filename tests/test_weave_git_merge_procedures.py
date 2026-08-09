@@ -1,11 +1,22 @@
 """Behavioural tests for the procedures the Weave skill documents.
 
-These exercise Git's merge-driver boundary with stub drivers so the skill's
+These exercise Git's merge-driver boundary with cmd-mox doubles so the skill's
 detection, inspection, guard, and bypass recipes are executable rather than
-merely asserted as prose. Nothing here tests Weave: no test invokes
-`weave-driver`, and no assertion depends on Weave's merge quality. The stubs
-stand in for any driver that exits with a given status, which is the only part
-of the contract the documented procedures rely on.
+merely asserted as prose. Nothing here tests Weave: the double is named
+`stub-merge-driver`, never `weave-driver`, so a shim that failed to intercept
+could not reach a real Weave installation, and no assertion depends on Weave's
+merge quality. The doubles stand in for any driver with a given exit status,
+which is the only part of the contract the documented procedures rely on.
+
+Two details of this boundary are easy to get wrong:
+
+- A cmd-mox shim reads its standard input, so every Git call passes
+  `stdin=DEVNULL`. Inheriting pytest's stdin wedges the shim, and the Git
+  process waiting on it.
+- Git passes the driver *repository-relative* temporary paths, while a handler
+  runs in the pytest process. Handlers therefore resolve `%A` against the
+  repository; otherwise they silently write outside it and Git records
+  whatever it had already placed in `%A`.
 
 Every repository is isolated from ambient Git state. `GIT_CONFIG_GLOBAL` and
 `GIT_CONFIG_SYSTEM` are neutralized, and `core.attributesFile` is pinned to a
@@ -18,7 +29,6 @@ test contributing anything.
 from __future__ import annotations
 
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -26,14 +36,21 @@ import typing as typ
 from pathlib import Path
 
 import pytest
+from cmd_mox import CmdMox, skip_if_unsupported
 
 if typ.TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
+
+    from cmd_mox.ipc import Invocation
 
 GIT = shutil.which("git")
 
 if GIT is None:  # pragma: no cover - Git is a repository test prerequisite.
     raise RuntimeError("git is required to run the Weave procedure tests")
+
+# Deliberately not `weave-driver`: an unintercepted shim must not be able to
+# reach a real Weave installation on the developer's PATH.
+DRIVER_NAME = "stub-merge-driver"
 
 BASE_SOURCE = '''\
 def alpha() -> str:
@@ -49,59 +66,23 @@ def gamma() -> str:
 '''
 
 _ALPHA_BASE = 'def alpha() -> str:\n    return "base"'
+_BETA_BASE = 'def beta() -> str:\n    return "base"'
 _GAMMA_BASE = 'def gamma() -> str:\n    return "base"'
 _ALPHA_MAIN = 'def alpha() -> str:\n    return "main"'
+_BETA_FEATURE = 'def beta() -> str:\n    return "feature"'
 _GAMMA_TOPIC = 'def gamma() -> str:\n    return "topic"'
 
 MAIN_SOURCE = BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_MAIN)
 TOPIC_SOURCE = BASE_SOURCE.replace(_GAMMA_BASE, _GAMMA_TOPIC)
 MERGED_SOURCE = MAIN_SOURCE.replace(_GAMMA_BASE, _GAMMA_TOPIC)
+FEATURE_FIRST_SOURCE = BASE_SOURCE.replace(_BETA_BASE, _BETA_FEATURE)
+FEATURE_SECOND_SOURCE = FEATURE_FIRST_SOURCE.replace(_GAMMA_BASE, _GAMMA_TOPIC)
 
-# Writes syntactically invalid Python to %A and reports a clean merge. This is
-# the shape of failure the skill exists to catch: Git records the result without
-# complaint because the driver said it was fine.
-CORRUPT_CLEAN_DRIVER = '''\
-import sys
-
-_ancestor, current, _other, _marker_size, _pathname = sys.argv[1:6]
-with open(current, "w", encoding="utf-8") as handle:
-    handle.write("def alpha() -> str:\\n    return \\"main\\"\\n\\ndef gamma( -> str:\\n")
-sys.exit(0)
-'''
-
-# Writes a partially merged result and reports a conflict, leaving the path
-# unmerged so the three index stages remain readable.
-CONFLICTING_DRIVER = '''\
-import sys
-
-_ancestor, current, _other, _marker_size, _pathname = sys.argv[1:6]
-with open(current, "w", encoding="utf-8") as handle:
-    handle.write("<<<<<<< ours\\nours\\n=======\\ntheirs\\n>>>>>>> theirs\\n")
-sys.exit(1)
-'''
-
-def _recording_driver_body(log: Path) -> str:
-    """Build a stub that records each invocation, then reports a conflict."""
-    return (
-        "import sys\n\n"
-        "_ancestor, _current, _other, _marker_size, pathname = sys.argv[1:6]\n"
-        f"with open({str(log)!r}, 'a', encoding='utf-8') as handle:\n"
-        "    handle.write(pathname + '\\n')\n"
-        "sys.exit(1)\n"
-    )
-
+CORRUPT_OUTPUT = 'def alpha() -> str:\n    return "main"\n\ndef gamma( -> str:\n'
+CONFLICTED_OUTPUT = "<<<<<<< ours\nours\n=======\ntheirs\n>>>>>>> theirs\n"
 
 SCOPES = ("global", "tracked", "clone-local")
 OPERATIONS = ("rebase", "merge", "cherry-pick")
-
-
-# Neutralizes the developer's own Git configuration. The attributes file is
-# pinned separately, per repository, because its default path is not read from
-# configuration and so survives these variables.
-ISOLATED_ENV = os.environ | {
-    "GIT_CONFIG_GLOBAL": os.devnull,
-    "GIT_CONFIG_SYSTEM": os.devnull,
-}
 
 
 def _git(
@@ -109,7 +90,11 @@ def _git(
     *args: str,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    """Run Git in a temporary repository, isolated from ambient Git state."""
+    """Run Git in a temporary repository, isolated from ambient Git state.
+
+    The environment is rebuilt per call so a cmd-mox shim directory added to
+    `PATH` during replay is visible to Git.
+    """
     return subprocess.run(  # noqa: S603 - absolute executable and controlled arguments.
         [GIT, *args],
         cwd=repository,
@@ -117,30 +102,45 @@ def _git(
         capture_output=True,
         check=check,
         timeout=60,
-        env=ISOLATED_ENV,
+        stdin=subprocess.DEVNULL,
+        env=os.environ
+        | {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull},
     )
 
 
-def _write_driver(directory: Path, name: str, body: str) -> str:
-    """Write a stub merge driver and return the command Git should run."""
-    script = directory / name
-    script.write_text(body, encoding="utf-8")
-    interpreter = shlex.quote(sys.executable)
-    return f"{interpreter} {shlex.quote(str(script))} %O %A %B %L %P"
+def _writing_handler(
+    repository: Path, content: str, exit_code: int
+) -> Callable[[Invocation], tuple[str, str, int]]:
+    """Build a driver handler that writes `%A` and reports `exit_code`."""
+
+    def handler(invocation: Invocation) -> tuple[str, str, int]:
+        _ancestor, current, _other, _marker_size, _pathname = invocation.args
+        # `%A` arrives repository-relative and this handler runs in the pytest
+        # process, so it must be resolved before writing.
+        (repository / current).write_text(content, encoding="utf-8")
+        return ("", "", exit_code)
+
+    return handler
 
 
-def _select_driver(
-    repository: Path, command: str, scope: str, attributes: Path
-) -> None:
-    """Point `merge=weave` at a stub driver through one attribute scope."""
+def _conflict_handler() -> Callable[[Invocation], tuple[str, str, int]]:
+    """Build a driver handler that only reports an unresolved conflict."""
+
+    def handler(_invocation: Invocation) -> tuple[str, str, int]:
+        return ("", "", 1)
+
+    return handler
+
+
+def _select_driver(repository: Path, scope: str, attributes: Path) -> None:
+    """Point `merge=weave` at the stub driver through one attribute scope."""
     _git(repository, "config", "merge.weave.name", "stub driver")
-    _git(repository, "config", "merge.weave.driver", command)
+    _git(repository, "config", "merge.weave.driver", f"{DRIVER_NAME} %O %A %B %L %P")
     rule = "*.py merge=weave\n"
     if scope == "global":
         attributes.write_text(rule, encoding="utf-8")
     elif scope == "clone-local":
-        info = repository / ".git" / "info" / "attributes"
-        info.write_text(rule, encoding="utf-8")
+        (repository / ".git" / "info" / "attributes").write_text(rule, encoding="utf-8")
     else:  # tracked
         (repository / ".gitattributes").write_text(rule, encoding="utf-8")
         _git(repository, "add", ".gitattributes")
@@ -163,11 +163,12 @@ def _bypass_prefix(repository: Path, scope: str, path: str) -> list[str]:
 
 @pytest.fixture
 def diverged(tmp_path: Path) -> Iterator[tuple[Path, Path, Path]]:
-    """Build a repository whose branches need a three-way merge of one file.
+    """Build a repository ready to diverge, with no merge driver selected.
 
     The empty pinned attributes file is what keeps the scope assertions honest:
     without it Git falls back to the developer's own global attributes file.
     """
+    skip_if_unsupported()
     repository = tmp_path / "repository"
     repository.mkdir()
     source = repository / "example.py"
@@ -178,8 +179,8 @@ def diverged(tmp_path: Path) -> Iterator[tuple[Path, Path, Path]]:
     _git(repository, "config", "user.name", "Weave Skill Test")
     _git(repository, "config", "user.email", "weave-skill@example.invalid")
     _git(repository, "config", "core.attributesFile", str(attributes))
-    assert _git(repository, "check-attr", "merge", "--", "example.py").stdout.rstrip(
-    ).endswith("merge: unspecified"), (
+    unselected = _git(repository, "check-attr", "merge", "--", "example.py")
+    assert unselected.stdout.rstrip().endswith("merge: unspecified"), (
         "the fixture must start with no merge driver selected from any source"
     )
     source.write_text(BASE_SOURCE, encoding="utf-8")
@@ -188,7 +189,7 @@ def diverged(tmp_path: Path) -> Iterator[tuple[Path, Path, Path]]:
 
 
 def _diverge(repository: Path, source: Path) -> None:
-    """Commit the base, then one conflicting change on each branch."""
+    """Commit the base, then one change on each of `main` and `topic`."""
     _git(repository, "commit", "--quiet", "-m", "base")
     _git(repository, "switch", "--quiet", "--create", "topic")
     source.write_text(TOPIC_SOURCE, encoding="utf-8")
@@ -196,6 +197,33 @@ def _diverge(repository: Path, source: Path) -> None:
     _git(repository, "switch", "--quiet", "main")
     source.write_text(MAIN_SOURCE, encoding="utf-8")
     _git(repository, "commit", "--quiet", "--all", "-m", "main change")
+
+
+def _diverge_for_cherry_pick(repository: Path, source: Path) -> None:
+    """Build a history where cherry-picking forces a three-way merge.
+
+    `feature` carries two commits and only its tip is picked, so the merge base
+    for the pick is the intervening commit rather than the branch point. The
+    destination and that base then differ in two entities, which is what makes
+    Git run a content merge for `example.py` instead of applying a patch.
+    """
+    _git(repository, "commit", "--quiet", "-m", "base")
+    _git(repository, "switch", "--quiet", "--create", "feature")
+    source.write_text(FEATURE_FIRST_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "feature groundwork")
+    source.write_text(FEATURE_SECOND_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "feature change to pick")
+    _git(repository, "switch", "--quiet", "main")
+    source.write_text(MAIN_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "main change")
+
+
+def _prepare(repository: Path, source: Path, operation: str) -> None:
+    """Build the history the given operation needs."""
+    if operation == "cherry-pick":
+        _diverge_for_cherry_pick(repository, source)
+    else:
+        _diverge(repository, source)
 
 
 def _start_operation(
@@ -209,7 +237,7 @@ def _start_operation(
     _git(repository, "switch", "--quiet", "main")
     if operation == "merge":
         return _git(repository, *prefix, "merge", "--no-edit", "topic", check=False)
-    return _git(repository, *prefix, "cherry-pick", "topic", check=False)
+    return _git(repository, *prefix, "cherry-pick", "feature", check=False)
 
 
 def _abort(repository: Path, operation: str) -> None:
@@ -218,19 +246,18 @@ def _abort(repository: Path, operation: str) -> None:
 
 
 def test_clean_driver_exit_hides_structural_damage_from_git(
-    tmp_path: Path, diverged: tuple[Path, Path, Path]
+    diverged: tuple[Path, Path, Path],
 ) -> None:
     """A driver exiting `0` makes Git record unparsable output without complaint."""
     repository, source, attributes = diverged
-    _select_driver(
-        repository,
-        _write_driver(tmp_path, "corrupt.py", CORRUPT_CLEAN_DRIVER),
-        "global",
-        attributes,
-    )
+    _select_driver(repository, "global", attributes)
     _diverge(repository, source)
 
-    rebased = _start_operation(repository, "rebase")
+    with CmdMox() as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        rebased = _start_operation(repository, "rebase")
+        assert spy.call_count == 1, "Git must have run the driver for the rebase"
 
     assert rebased.returncode == 0, (
         "a driver exiting 0 must let Git complete the rebase; the skill's premise "
@@ -254,19 +281,21 @@ def test_clean_driver_exit_hides_structural_damage_from_git(
 
 
 def test_conflicting_driver_leaves_all_three_index_stages_readable(
-    tmp_path: Path, diverged: tuple[Path, Path, Path]
+    diverged: tuple[Path, Path, Path],
 ) -> None:
     """The documented stage inspection works while a path stays unmerged."""
     repository, source, attributes = diverged
-    _select_driver(
-        repository,
-        _write_driver(tmp_path, "conflict.py", CONFLICTING_DRIVER),
-        "global",
-        attributes,
-    )
+    _select_driver(repository, "global", attributes)
     _diverge(repository, source)
 
-    merged = _start_operation(repository, "merge")
+    with CmdMox() as mox:
+        spy = mox.spy(DRIVER_NAME).runs(
+            _writing_handler(repository, CONFLICTED_OUTPUT, 1)
+        )
+        mox.replay()
+        merged = _start_operation(repository, "merge")
+        assert spy.call_count == 1, "Git must have run the driver for the merge"
+
     assert merged.returncode != 0, "a driver exiting 1 must leave the merge unresolved"
     unmerged = _git(repository, "diff", "--name-only", "--diff-filter=U")
     assert unmerged.stdout.strip() == "example.py", (
@@ -286,16 +315,11 @@ def test_conflicting_driver_leaves_all_three_index_stages_readable(
 
 
 def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
-    tmp_path: Path, diverged: tuple[Path, Path, Path]
+    diverged: tuple[Path, Path, Path],
 ) -> None:
     """`--exec` stops the rebase before a corrupt replay reaches later commits."""
     repository, source, attributes = diverged
-    _select_driver(
-        repository,
-        _write_driver(tmp_path, "corrupt.py", CORRUPT_CLEAN_DRIVER),
-        "global",
-        attributes,
-    )
+    _select_driver(repository, "global", attributes)
     _git(repository, "commit", "--quiet", "-m", "base")
     _git(repository, "switch", "--quiet", "--create", "topic")
     source.write_text(TOPIC_SOURCE, encoding="utf-8")
@@ -308,8 +332,11 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
     _git(repository, "commit", "--quiet", "--all", "-m", "main change")
     _git(repository, "switch", "--quiet", "topic")
 
-    guard = f"{shlex.quote(sys.executable)} -m py_compile example.py"
-    rebased = _git(repository, "rebase", "--exec", guard, "main", check=False)
+    guard = f"{sys.executable} -m py_compile example.py"
+    with CmdMox() as mox:
+        mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        rebased = _git(repository, "rebase", "--exec", guard, "main", check=False)
 
     assert rebased.returncode != 0, (
         "the structural guard must fail the rebase at the corrupted replay"
@@ -327,51 +354,48 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
 @pytest.mark.parametrize("scope", SCOPES)
 @pytest.mark.parametrize("operation", OPERATIONS)
 def test_documented_bypass_recovers_each_operation_for_each_scope(
-    tmp_path: Path, diverged: tuple[Path, Path, Path], scope: str, operation: str
+    diverged: tuple[Path, Path, Path], scope: str, operation: str
 ) -> None:
     """Each matrix row makes `merge` unspecified and lets the retry succeed."""
     repository, source, attributes = diverged
-    invocations = tmp_path / "driver-invocations.log"
-    _select_driver(
-        repository,
-        _write_driver(tmp_path, "recording.py", _recording_driver_body(invocations)),
-        scope,
-        attributes,
-    )
-    _diverge(repository, source)
+    _select_driver(repository, scope, attributes)
+    _prepare(repository, source, operation)
 
     selected = _git(repository, "check-attr", "merge", "--", "example.py")
     assert selected.stdout.rstrip().endswith("merge: weave"), (
         f"the {scope} scope must select the stub driver before the bypass"
     )
 
-    interrupted = _start_operation(repository, operation)
-    assert interrupted.returncode != 0, (
-        f"the failing driver must interrupt the {operation}"
-    )
-    assert invocations.exists() and invocations.read_text(
-        encoding="utf-8"
-    ).splitlines() == ["example.py"], (
-        f"Git must have invoked the driver for the {operation}; a non-zero exit "
-        "alone would not distinguish that from an ordinary textual conflict"
-    )
-    _abort(repository, operation)
+    with CmdMox() as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_conflict_handler())
+        mox.replay()
 
-    prefix = _bypass_prefix(repository, scope, "example.py")
+        interrupted = _start_operation(repository, operation)
+        assert interrupted.returncode != 0, (
+            f"the failing driver must interrupt the {operation}"
+        )
+        assert spy.call_count == 1, (
+            f"Git must have invoked the driver for the {operation}; a non-zero "
+            "exit alone would not distinguish that from a textual conflict"
+        )
+        _abort(repository, operation)
 
-    bypassed = _git(repository, *prefix, "check-attr", "merge", "--", "example.py")
-    assert bypassed.stdout.rstrip().endswith("merge: unspecified"), (
-        f"the documented {scope} bypass must make merge unspecified, got "
-        f"{bypassed.stdout.rstrip()!r}"
-    )
+        prefix = _bypass_prefix(repository, scope, "example.py")
 
-    retried = _start_operation(repository, operation, prefix)
-    assert retried.returncode == 0, (
-        f"the {operation} must succeed under the {scope} bypass: {retried.stderr}"
-    )
-    assert invocations.read_text(encoding="utf-8").splitlines() == ["example.py"], (
-        f"the {scope} bypass must stop Git invoking the driver on the retry"
-    )
+        bypassed = _git(repository, *prefix, "check-attr", "merge", "--", "example.py")
+        assert bypassed.stdout.rstrip().endswith("merge: unspecified"), (
+            f"the documented {scope} bypass must make merge unspecified, got "
+            f"{bypassed.stdout.rstrip()!r}"
+        )
+
+        retried = _start_operation(repository, operation, prefix)
+        assert retried.returncode == 0, (
+            f"the {operation} must succeed under the {scope} bypass: {retried.stderr}"
+        )
+        assert spy.call_count == 1, (
+            f"the {scope} bypass must stop Git invoking the driver on the retry"
+        )
+
     assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
         "Git's built-in merge must combine both non-overlapping changes"
     )
