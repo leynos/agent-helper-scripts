@@ -2,11 +2,14 @@
 
 These exercise Git's merge-driver boundary with cmd-mox doubles so the skill's
 detection, inspection, guard, and bypass recipes are executable rather than
-merely asserted as prose. Nothing here tests Weave: the double is named
-`stub-merge-driver`, never `weave-driver`, so a shim that failed to intercept
-could not reach a real Weave installation, and no assertion depends on Weave's
-merge quality. The doubles stand in for any driver with a given exit status,
-which is the only part of the contract the documented procedures rely on.
+merely asserted as prose. Nothing here tests Weave, and the wiring makes that
+structural rather than incidental: Git is pointed at the shim's absolute path
+under `EnvironmentManager.shim_dir`, not at a bare command name, so resolution
+never consults `PATH` and cannot fall through to a real Weave installation.
+The double is named `stub-merge-driver` as a second guard. No assertion depends
+on Weave's merge quality. The doubles stand in for any driver with a given exit
+status, which is the only part of the contract the documented procedures rely
+on.
 
 Two details of this boundary are easy to get wrong:
 
@@ -29,6 +32,7 @@ test contributing anything.
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -36,7 +40,7 @@ import typing as typ
 from pathlib import Path
 
 import pytest
-from cmd_mox import CmdMox, skip_if_unsupported
+from cmd_mox import CmdMox, EnvironmentManager, skip_if_unsupported
 
 if typ.TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -48,8 +52,8 @@ GIT = shutil.which("git")
 if GIT is None:  # pragma: no cover - Git is a repository test prerequisite.
     raise RuntimeError("git is required to run the Weave procedure tests")
 
-# Deliberately not `weave-driver`: an unintercepted shim must not be able to
-# reach a real Weave installation on the developer's PATH.
+# Deliberately not `weave-driver`. Git is given the shim's absolute path, so
+# PATH is never consulted, but the name is kept distinct as a second guard.
 DRIVER_NAME = "stub-merge-driver"
 
 BASE_SOURCE = '''\
@@ -132,10 +136,8 @@ def _conflict_handler() -> Callable[[Invocation], tuple[str, str, int]]:
     return handler
 
 
-def _select_driver(repository: Path, scope: str, attributes: Path) -> None:
-    """Point `merge=weave` at the stub driver through one attribute scope."""
-    _git(repository, "config", "merge.weave.name", "stub driver")
-    _git(repository, "config", "merge.weave.driver", f"{DRIVER_NAME} %O %A %B %L %P")
+def _select_scope(repository: Path, scope: str, attributes: Path) -> None:
+    """Select `merge=weave` for `*.py` through one attribute scope."""
     rule = "*.py merge=weave\n"
     if scope == "global":
         attributes.write_text(rule, encoding="utf-8")
@@ -144,6 +146,24 @@ def _select_driver(repository: Path, scope: str, attributes: Path) -> None:
     else:  # tracked
         (repository / ".gitattributes").write_text(rule, encoding="utf-8")
         _git(repository, "add", ".gitattributes")
+
+
+def _wire_driver(repository: Path, environment: EnvironmentManager) -> None:
+    """Point `merge.weave.driver` at the shim by absolute path.
+
+    Addressing the shim directly keeps `PATH` out of the resolution, so no
+    lookup failure can reach a real driver of the same name.
+    """
+    assert environment.shim_dir is not None, "cmd-mox must be in replay"
+    shim = environment.shim_dir / DRIVER_NAME
+    assert shim.exists(), f"cmd-mox must have created a shim at {shim}"
+    _git(repository, "config", "merge.weave.name", "stub driver")
+    _git(
+        repository,
+        "config",
+        "merge.weave.driver",
+        f"{shlex.quote(str(shim))} %O %A %B %L %P",
+    )
 
 
 def _bypass_prefix(repository: Path, scope: str, path: str) -> list[str]:
@@ -250,12 +270,14 @@ def test_clean_driver_exit_hides_structural_damage_from_git(
 ) -> None:
     """A driver exiting `0` makes Git record unparsable output without complaint."""
     repository, source, attributes = diverged
-    _select_driver(repository, "global", attributes)
+    _select_scope(repository, "global", attributes)
     _diverge(repository, source)
 
-    with CmdMox() as mox:
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
         spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
         mox.replay()
+        _wire_driver(repository, environment)
         rebased = _start_operation(repository, "rebase")
         assert spy.call_count == 1, "Git must have run the driver for the rebase"
 
@@ -285,14 +307,16 @@ def test_conflicting_driver_leaves_all_three_index_stages_readable(
 ) -> None:
     """The documented stage inspection works while a path stays unmerged."""
     repository, source, attributes = diverged
-    _select_driver(repository, "global", attributes)
+    _select_scope(repository, "global", attributes)
     _diverge(repository, source)
 
-    with CmdMox() as mox:
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
         spy = mox.spy(DRIVER_NAME).runs(
             _writing_handler(repository, CONFLICTED_OUTPUT, 1)
         )
         mox.replay()
+        _wire_driver(repository, environment)
         merged = _start_operation(repository, "merge")
         assert spy.call_count == 1, "Git must have run the driver for the merge"
 
@@ -319,7 +343,7 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
 ) -> None:
     """`--exec` stops the rebase before a corrupt replay reaches later commits."""
     repository, source, attributes = diverged
-    _select_driver(repository, "global", attributes)
+    _select_scope(repository, "global", attributes)
     _git(repository, "commit", "--quiet", "-m", "base")
     _git(repository, "switch", "--quiet", "--create", "topic")
     source.write_text(TOPIC_SOURCE, encoding="utf-8")
@@ -333,9 +357,11 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
     _git(repository, "switch", "--quiet", "topic")
 
     guard = f"{sys.executable} -m py_compile example.py"
-    with CmdMox() as mox:
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
         mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
         mox.replay()
+        _wire_driver(repository, environment)
         rebased = _git(repository, "rebase", "--exec", guard, "main", check=False)
 
     assert rebased.returncode != 0, (
@@ -358,7 +384,7 @@ def test_documented_bypass_recovers_each_operation_for_each_scope(
 ) -> None:
     """Each matrix row makes `merge` unspecified and lets the retry succeed."""
     repository, source, attributes = diverged
-    _select_driver(repository, scope, attributes)
+    _select_scope(repository, scope, attributes)
     _prepare(repository, source, operation)
 
     selected = _git(repository, "check-attr", "merge", "--", "example.py")
@@ -366,9 +392,11 @@ def test_documented_bypass_recovers_each_operation_for_each_scope(
         f"the {scope} scope must select the stub driver before the bypass"
     )
 
-    with CmdMox() as mox:
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
         spy = mox.spy(DRIVER_NAME).runs(_conflict_handler())
         mox.replay()
+        _wire_driver(repository, environment)
 
         interrupted = _start_operation(repository, operation)
         assert interrupted.returncode != 0, (
