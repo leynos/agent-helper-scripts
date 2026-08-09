@@ -82,6 +82,22 @@ MERGED_SOURCE = MAIN_SOURCE.replace(_GAMMA_BASE, _GAMMA_TOPIC)
 FEATURE_FIRST_SOURCE = BASE_SOURCE.replace(_BETA_BASE, _BETA_FEATURE)
 FEATURE_SECOND_SOURCE = FEATURE_FIRST_SOURCE.replace(_GAMMA_BASE, _GAMMA_TOPIC)
 
+# Cherry-pick merges against the picked commit's parent, not the branch point,
+# so its outcome is derived from its own three-way inputs rather than reused
+# from the merge and rebase expectation. The two values coincide here by
+# construction: `main` supplies `alpha`, the picked commit supplies `gamma`,
+# and `beta` returns to `base` because the destination never carried the
+# groundwork commit and the picked commit did not touch `beta` again.
+CHERRY_PICK_SOURCE = BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_MAIN).replace(
+    _GAMMA_BASE, _GAMMA_TOPIC
+)
+
+EXPECTED_AFTER_BYPASS = {
+    "rebase": MERGED_SOURCE,
+    "merge": MERGED_SOURCE,
+    "cherry-pick": CHERRY_PICK_SOURCE,
+}
+
 CORRUPT_OUTPUT = 'def alpha() -> str:\n    return "main"\n\ndef gamma( -> str:\n'
 CONFLICTED_OUTPUT = "<<<<<<< ours\nours\n=======\ntheirs\n>>>>>>> theirs\n"
 
@@ -222,10 +238,20 @@ def _diverge(repository: Path, source: Path) -> None:
 def _diverge_for_cherry_pick(repository: Path, source: Path) -> None:
     """Build a history where cherry-picking forces a three-way merge.
 
-    `feature` carries two commits and only its tip is picked, so the merge base
-    for the pick is the intervening commit rather than the branch point. The
-    destination and that base then differ in two entities, which is what makes
-    Git run a content merge for `example.py` instead of applying a patch.
+    `git cherry-pick` does not apply a patch; it runs the merge machinery with
+    the picked commit's parent as the merge base. `feature` therefore carries
+    two commits and only its tip is picked, so that base is the groundwork
+    commit rather than the branch point:
+
+        base ── main change (alpha)                     <- ours
+          └──── F1 groundwork (beta) ── F2 to pick (gamma)
+                        ^ merge base                     ^ theirs
+
+    Both sides then differ from that base — `ours` in `alpha` and `beta`,
+    `theirs` in `gamma` — so `example.py` needs a content merge and Git hands
+    it to `merge.weave.driver`. The driver invocation is asserted directly by
+    the spy's call count, so a history that stopped forcing a merge would fail
+    rather than pass quietly.
     """
     _git(repository, "commit", "--quiet", "-m", "base")
     _git(repository, "switch", "--quiet", "--create", "feature")
@@ -424,6 +450,6 @@ def test_documented_bypass_recovers_each_operation_for_each_scope(
             f"the {scope} bypass must stop Git invoking the driver on the retry"
         )
 
-    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
-        "Git's built-in merge must combine both non-overlapping changes"
+    assert source.read_text(encoding="utf-8") == EXPECTED_AFTER_BYPASS[operation], (
+        f"Git's built-in merge must produce the {operation} result exactly"
     )
