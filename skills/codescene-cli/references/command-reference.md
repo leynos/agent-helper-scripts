@@ -157,7 +157,7 @@ Semantics:
 - If no config file exists when running `set-rule` or `set-threshold`, a
   minimal file is created automatically at the default path first.
 - Unknown rule or threshold names fail with suggestions.
-- If an update creates invalid config, the original file is restored.
+- If an update creates an invalid configuration, the original file is restored.
 
 ______________________________________________________________________
 
@@ -172,7 +172,7 @@ CodeScene CLI documentation topics: `cs docs <topic>`.
 | `interactive-pre-commit-hook-example` | Example interactive pre-commit hook |
 | `pre-commit-hook-example`             | Example pre-commit hook             |
 | `vim`                                 | `check` integration for (neo)vim    |
-| `license`                             | Setting up a license                |
+| `license`                             | Setting up a licence                |
 | `file-name`                           | File-name and language support      |
 | `code-health-rules`                   | Customizing code health rules       |
 | `code-health-rules-template`          | Outputs a rules template            |

@@ -4,10 +4,10 @@ description: >
   Run CodeScene code health analyses locally with the `cs` CLI. Use this skill
   whenever the user wants to analyse non-committed or staged changes, compare
   branches or commits with a delta analysis, lint a file for code health issues,
-  wire CodeScene into git hooks, editors, or CI, validate or edit
-  `.codescene/code-health-rules.json` from the command line, or install,
-  update, or activate the CodeScene CLI. Triggers include `cs delta`,
-  `cs review`, `cs check`, `cs check-rules`, `cs rules-config`, and requests to
+  wire CodeScene into git hooks, editors, or CI, or validate or edit
+  `.codescene/code-health-rules.json` from the command line. Triggers include
+  `cs delta`, `cs review`, `cs check`, `cs check-rules`, `cs rules-config`, and
+  requests to
   "run CodeScene locally" or "check code health before committing".
 ---
 
@@ -90,7 +90,7 @@ cs check test.c                         # same targets, lint-like output
 cs check --file-name test.c < test.c
 ```
 
-- `--file-name` is required when reading from stdin so the CLI can infer the
+- `--file-name` is required when reading from stdin, so the CLI can infer the
   language from the extension.
 - `cs review` supports `--output-format json|edn` and `--pretty`.
 - `cs check` is designed for editor integration — see `cs docs vim` for a
@@ -133,7 +133,7 @@ Behavioural notes:
 - With multiple `rule_set` entries and no `--matching-content-path`, the
   command fails and prints the available selectors.
 - Unknown rule or threshold names fail with suggestions.
-- If an update would create invalid config, the original file is restored.
+- If an update creates an invalid configuration, the original file is restored.
 
 Use `cs check-rules <file>` to confirm which rule set a given file matches —
 invaluable when debugging glob patterns.
@@ -174,7 +174,5 @@ ______________________________________________________________________
 
 ## Reference Files
 
-- [`references/command-reference.md`](references/command-reference.md) — Full
-  options for every command, verbatim from the upstream reference
-- [`references/install-and-activate.md`](references/install-and-activate.md) —
-  Installation, updating, licensing, and platform-specific notes
+- [`references/command-reference.md`](references/command-reference.md) —
+  Condensed command reference

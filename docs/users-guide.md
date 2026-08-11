@@ -49,6 +49,17 @@ shared libraries required by the user tools.
 See the [migration guide](migration-guide.md) when moving from the previous
 single-phase `rust-entrypoint` bootstrap to the system/home phase split.
 
+
+## CodeScene skills
+
+Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
+analysis with [`cs delta`](../skills/codescene-cli/references/command-reference.md#cs-delta),
+[`cs review`](../skills/codescene-cli/references/command-reference.md#cs-review),
+[`cs check`](../skills/codescene-cli/references/command-reference.md#cs-check),
+and [`cs rules-config`](../skills/codescene-cli/references/command-reference.md#cs-rules-config).
+Use [`codescene-health-rules`](../skills/codescene-health-rules/SKILL.md) to
+configure CodeScene rule weights, thresholds, and source directives.
+
 ## Shared spelling tools
 
 Run `make spelling` in this checkout to generate and validate the estate-wide

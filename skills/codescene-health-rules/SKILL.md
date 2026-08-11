@@ -32,8 +32,9 @@ When the user asks to generate or modify `code-health-rules.json`:
 3. **Start from CodeScene's template if available** — a documented JSON
    template is downloadable via the Hotspots section of the project
    configuration; remove any rules that should stay at defaults.
-4. **Emit only the overrides** — omit rules the user wants kept at defaults;
-   this is how CodeScene itself recommends it and it reduces config drift.
+4. **Emit only the overrides** — omit rules the user wants to keep at their
+   defaults; this is how CodeScene itself recommends it, and it reduces config
+   drift.
 5. **Place the file at `.codescene/code-health-rules.json`** in the repo root
    and commit it alongside application code.
 
