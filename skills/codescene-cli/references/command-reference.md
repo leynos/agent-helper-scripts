@@ -175,7 +175,7 @@ CodeScene CLI documentation topics: `cs docs <topic>`.
 | `license`                             | Setting up a licence                |
 | `file-name`                           | File-name and language support      |
 | `code-health-rules`                   | Customizing code health rules       |
-| `code-health-rules-template`          | Outputs a rules template            |
+| `code-health-rules-template`          | Outputs a code health rules template|
 
 ______________________________________________________________________
 
