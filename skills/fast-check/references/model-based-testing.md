@@ -135,15 +135,17 @@ test("queue is FIFO under concurrent producers", async () => {
 Waiting primitives (4.2+):
 
 - `s.waitNext(n)` — release exactly `n` scheduled tasks.
-- `s.waitIdle()` — run until no scheduled task remains.
+- `s.waitIdle()` — recursively drain scheduled and reachable tasks, including
+  follow-up tasks scheduled by those tasks.
 - `s.waitFor(promise)` — run scheduled tasks until the given promise
-  settles, even if some of its dependencies are scheduled late.
+  settles, even if some of its dependencies are scheduled late; use it for a
+  particular or otherwise uncontrolled completion condition.
 
-`waitOne` and `waitAll` are deprecated. Note the 4.x semantics: a task
-scheduled *after* `waitIdle`/`waitAll` began its final drain stays pending —
-tasks created behind intermediate `await`s are not magically picked up as they
-sometimes were in 3.x. When the code under test schedules follow-up work
-asynchronously, prefer `s.waitFor(finalPromise)`.
+`waitOne` and `waitAll` are deprecated. In 4.x, a task scheduled *after*
+`waitAll` began its final drain stays pending — tasks created behind
+intermediate `await`s are not picked up as they sometimes were in 3.x. Use
+`s.waitIdle()` for recursive draining or `s.waitFor(finalPromise)` for a
+particular or otherwise uncontrolled completion condition.
 
 Other scheduler helpers:
 

@@ -7,7 +7,7 @@ description: >
   scheduler, replay of failures, and CI tiering. Trigger whenever the user
   mentions fast-check, property-based testing in TypeScript or JavaScript,
   fc.assert, fc.property, arbitraries, model-based testing, fuzzing a
-  TypeScript function, or wants generated inputs instead of hand-written
+  TypeScript function, or wants generated inputs instead of handwritten
   test cases. Covers fast-check 4.x and flags 3.x idioms that no longer
   hold.
 ---
@@ -43,7 +43,7 @@ the test finds nothing.
 npm install --save-dev fast-check
 ```
 
-The current major is 4.x (latest: 4.8.0). It requires Node ≥ 12.17 and, for
+The current major is 4.x (latest: 4.9.0). It requires Node ≥ 12.17 and, for
 TypeScript users, TS ≥ 5.0. fast-check is runner-agnostic: it works under
 Vitest, Jest, and the Node test runner unchanged. Optional ergonomic bindings
 exist as `@fast-check/vitest`, `@fast-check/jest`, and `@fast-check/ava`.

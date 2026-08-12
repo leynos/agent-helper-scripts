@@ -14,11 +14,11 @@ source in both.
 ## CLI
 
 ```sh
-npx lsc gen   --backend=dafny src/foo.ts   # generate artefacts
-npx lsc check --backend=dafny src/foo.ts   # gen + additions-only check + dafny verify
-npx lsc regen --backend=dafny src/foo.ts   # regenerate with three-way merge (Dafny only)
-npx lsc extract src/foo.ts                 # dump Raw IR JSON (debugging)
-npx lsc info    src/foo.ts                 # JSON summary of verified functions
+npx --yes --package=lemmascript@0.5.22 -- lsc gen   --backend=dafny src/foo.ts   # generate artefacts
+npx --yes --package=lemmascript@0.5.22 -- lsc check --backend=dafny src/foo.ts   # gen + additions-only check + dafny verify
+npx --yes --package=lemmascript@0.5.22 -- lsc regen --backend=dafny src/foo.ts   # regenerate with three-way merge (Dafny only)
+npx --yes --package=lemmascript@0.5.22 -- lsc extract src/foo.ts                 # dump Raw IR JSON (debugging)
+npx --yes --package=lemmascript@0.5.22 -- lsc info    src/foo.ts                 # JSON summary of verified functions
 ```
 
 Useful flags: `--time-limit=<s>` (per-verification-condition limit) and
@@ -35,7 +35,7 @@ no build step.
 | ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `foo.ts`      | —           | TypeScript source with `//@` annotations                                                                                                   |
 | `foo.dfy.gen` | Yes         | Generated Dafny; merge base. **Never edit.**                                                                                               |
-| `foo.dfy`     | Seeded once | Source of truth: the generated code plus your proof additions (helper lemmas, ghost predicates, asserts, `modifies` clauses, spec bodies). |
+| `foo.dfy`     | Seeded once | Source of truth: the generated code plus proof additions (helper lemmas, ghost predicates, asserts, `modifies` clauses, spec bodies). |
 
 The diff `foo.dfy.gen` → `foo.dfy` must be **additions only**; `lsc check`
 enforces it. Large proof developments often move the bulk of lemmas to a

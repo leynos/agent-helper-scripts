@@ -15,8 +15,8 @@ description: >
 
 # LemmaScript formal verification for TypeScript
 
-LemmaScript is a verification toolchain for TypeScript. You write ordinary
-TypeScript with `//@` specification comments; the `lsc` CLI generates formal
+LemmaScript is a verification toolchain for TypeScript. Ordinary TypeScript
+carries `//@` specification comments; the `lsc` CLI generates formal
 artefacts that a backend prover (Dafny, or Lean via Velvet/Loom) checks. The
 annotations are comments — invisible to tsc, bundlers, and the runtime — and
 the TypeScript source *is* the production code; there is no erasure and no
@@ -49,7 +49,7 @@ Node.js ≥ 18. Dafny ≥ 4.x for the primary backend; `elan` plus the Loom/Velv
 forks for the Lean backend.
 
 ```sh
-npm install lemmascript
+npm install lemmascript@0.5.22
 ```
 
 For brownfield work, clone LemmaScript as a **sibling** of the target project
@@ -80,9 +80,9 @@ export function firstIndexOf(arr: number[], target: number): number {
 ```
 
 ```sh
-npx lsc gen   --backend=dafny src/find.ts   # generate artefacts
-npx lsc check --backend=dafny src/find.ts   # generate + verify
-npx lsc regen --backend=dafny src/find.ts   # regenerate, 3-way merge
+npx --yes --package=lemmascript@0.5.22 -- lsc gen   --backend=dafny src/find.ts   # generate artefacts
+npx --yes --package=lemmascript@0.5.22 -- lsc check --backend=dafny src/find.ts   # generate + verify
+npx --yes --package=lemmascript@0.5.22 -- lsc regen --backend=dafny src/find.ts   # regenerate, 3-way merge
 ```
 
 Key pieces:
@@ -155,8 +155,8 @@ flags, CI wiring, and brownfield strategy — lives in
 
 ## Hard-won lessons
 
-- **The spec is the product.** Provers check what you wrote, not what
-  you meant. Review `ensures` clauses as adversarially as code.
+- **The spec is the product.** Provers check the written specification, not
+  the intended one. Review `ensures` clauses as adversarially as code.
 - **`number` is a mathematical integer** in the model (floats become
   `real`; overflow at 2^53 is out of scope). Do not verify float-sensitive
   numerics; do flag integer-encoding overflow risks — a case study's
