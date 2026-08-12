@@ -93,7 +93,7 @@ Y by ~17% (`1 / 1.2`) so it doesn't appear to gain or lose mass.
 
 ## Stagger and random delay
 
-When several elements tween in together, give each a small randomized offset
+When several elements tween in together, give each a small randomised offset
 (typically 30–150ms). This breaks visual unison and reads as organic. Jonasson
 and Purho stagger their block grid this way for the level intro — the same
 animation with stagger looks orders of magnitude better than without.

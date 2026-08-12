@@ -39,7 +39,7 @@ no build step.
 
 The diff `foo.dfy.gen` → `foo.dfy` must be **additions only**; `lsc check`
 enforces it. Large proof developments often move the bulk of lemmas to a
-separate hand-written file (`domain.proofs.dfy`).
+separate handwritten file (`domain.proofs.dfy`).
 
 ### Lean (four files per source)
 
@@ -50,7 +50,7 @@ separate hand-written file (`domain.proofs.dfy`).
 | `foo.spec.lean`  | No         | Ghost definitions and helper lemmas        |
 | `foo.proof.lean` | No         | `prove_correct` with proof tactics         |
 
-Regenerating the generated pair never destroys work in the hand-written pair.
+Regenerating the generated pair never destroys work in the handwritten pair.
 Verify with `lake build`.
 
 ## The edit loop (Dafny)

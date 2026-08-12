@@ -98,7 +98,7 @@ aesthetic choice that imposes a usability cost. On mobile, the hamburger is a
 reasonable compromise; on desktop, it is rarely justified.
 
 **Instead:** Show primary navigation visibly. If the site has many sections,
-prioritize the most-used items and provide a "More" or secondary navigation
+prioritise the most-used items and provide a "More" or secondary navigation
 path.
 
 ### 2. Ambiguous link text
@@ -197,7 +197,7 @@ actual visual communication.
 commissioning. Stock fills the space immediately.
 
 **Why it fails:** Users have learned to ignore stock photography. It carries
-zero information and negative credibility — it signals that the organization
+zero information and negative credibility — it signals that the organisation
 did not care enough to show the real thing. Studies (NN/g) have found that
 users skip generic images entirely.
 

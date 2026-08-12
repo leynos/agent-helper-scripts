@@ -107,7 +107,7 @@ Permanent particles cross over into the territory of `references/permanence.md`.
 - **Linear motion.** Particles obeying constant velocity look like sprite spam.
   Apply gravity, drag, and easing.
 - **Symmetric emission.** A perfect circle of particles reads as a procedural
-  emitter, not a physical event. Bias the cone, vary the count, randomize the
+  emitter, not a physical event. Bias the cone, vary the count, randomise the
   timing.
 - **Foreground particles obscuring play.** The aesthetic win must not cost
   legibility. If players are missing bullets or pickups behind a smoke cloud,

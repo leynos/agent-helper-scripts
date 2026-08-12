@@ -4,7 +4,7 @@ The Robert Penner equations (2002), which are the de facto standard for tween
 easing in games and UI. Most engines and tween libraries ship them under these
 exact names.
 
-`t` is a normalized time in `[0, 1]`. The function returns the eased progress,
+`t` is a normalised time in `[0, 1]`. The function returns the eased progress,
 also in `[0, 1]`. Multiply by your value range to get position/scale/alpha.
 
 ## Naming convention

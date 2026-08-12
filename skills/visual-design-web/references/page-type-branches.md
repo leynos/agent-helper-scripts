@@ -32,7 +32,7 @@ Promise → Proof → Emotional tone → Primary action → Reassurance.
 2. **Value proposition** — one to two sentences. Not a tagline; an
    answer.
 3. **Primary call to action** — visible without scrolling.
-4. **Trust cue** — a recognizable logo, a metric, a testimonial snippet,
+4. **Trust cue** — a recognisable logo, a metric, a testimonial snippet,
    a press mention. Something that answers "why should I believe you?" early.
 
 ### Scroll narrative
@@ -269,7 +269,7 @@ conversion path.
    mission statement.
 2. **Best work, visible immediately** — the strongest piece, not a
    loading animation.
-3. **Navigation logic** — how is the work organized? By type, by date,
+3. **Navigation logic** — how is the work organised? By type, by date,
    by client, by medium?
 
 ### Design philosophy
