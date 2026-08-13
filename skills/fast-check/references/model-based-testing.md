@@ -110,7 +110,7 @@ named regression test that constructs it explicitly.
 ## Race-condition detection with the scheduler
 
 `fc.scheduler()` generates a scheduler `s` whose job is to reorder the async
-work you hand it, exploring interleavings that the happy-path event loop never
+work supplied to it, exploring interleavings that the happy-path event loop never
 produces.
 
 ```typescript

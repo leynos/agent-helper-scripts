@@ -179,7 +179,7 @@ Watch for stale 3.x idioms in existing suites and in generated code:
   alone never exercises surrogate pairs; add `{ unit: "binary" }` coverage for
   codec properties.
 - **Shrinking is sacred.** Never swallow failures, never tune
-  `numRuns` to hide a flake, never filter when you can compose.
+  `numRuns` to hide a flake, never filter when composition is possible.
 - **The report is not a regression test.** Promote each failure to a
   named unit test; seeds rot as arbitraries evolve.
 - **Sampled is not proved.** When the property is load-bearing enough
