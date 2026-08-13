@@ -209,3 +209,8 @@ mutants/
 # typos.toml remains tracked and is guarded by a drift test.
 .typos-oxendict-base.json
 .typos-oxendict-base.toml
+.vtcode/
+.claude/
+*.swp
+*.swo
+*~
