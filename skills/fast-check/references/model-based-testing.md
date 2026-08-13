@@ -114,7 +114,7 @@ work supplied to it, exploring interleavings that the happy-path event loop neve
 produces.
 
 ```typescript
-test("queue is FIFO under concurrent producers", async () => {
+test("queue loses no items under concurrent producers", async () => {
   await fc.assert(
     fc.asyncProperty(fc.scheduler(), async (s) => {
       const q = new AsyncQueue<number>();
@@ -126,7 +126,8 @@ test("queue is FIFO under concurrent producers", async () => {
       // Drive everything the scheduler currently knows about
       await s.waitIdle();
 
-      expect(q.drain()).toHaveLength(2);
+      // Producer order is adversarial, so assert that no item is lost.
+      expect(q.drain().sort((a, b) => a - b)).toEqual([1, 2]);
     }),
   );
 });
