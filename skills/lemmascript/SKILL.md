@@ -71,10 +71,13 @@ export function firstIndexOf(arr: number[], target: number): number {
   //@ verify
   //@ requires arr.length > 0
   //@ ensures \result >= -1 && \result < arr.length
+  //@ ensures \result === -1 ==> forall(k: nat, k < arr.length ==> arr[k] !== target)
   //@ ensures \result >= 0 ==> arr[\result] === target
+  //@ ensures \result >= 0 ==> forall(k: nat, k < \result ==> arr[k] !== target)
   let i = 0;
   while (i < arr.length) {
     //@ invariant 0 <= i && i <= arr.length
+    //@ invariant forall(k: nat, k < i ==> arr[k] !== target)
     //@ decreases arr.length - i
     if (arr[i] === target) return i;
     i = i + 1;
