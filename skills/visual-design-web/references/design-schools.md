@@ -13,7 +13,7 @@ ______________________________________________________________________
 3. Postmodern / deconstructive
 4. Brutalist
 5. Motion-first
-6. Data-visualisation
+6. Data-visualization
 7. Computational / generative
 8. Cultural / postcolonial
 9. Revivalist / nostalgic
@@ -156,7 +156,7 @@ kill switch that makes the page boring.
 
 ______________________________________________________________________
 
-## 6. Data-visualisation
+## 6. Data-visualization
 
 **Communicates:** Evidence, pattern, insight, analytical rigour, transparency.
 
@@ -274,7 +274,7 @@ soft shadows, natural textures, humanist sans-serif or serif type, illustration
 over photography, gentle curves in layout.
 
 **When earned:** Health and wellbeing, education, childcare, community
-organisations, any product that needs to feel approachable and unthreatening.
+organizations, any product that needs to feel approachable and unthreatening.
 
 **Web strengths:** Reduces anxiety. Warm colour and rounded form signal safety.
 Illustration can simplify complex information better than photography.
@@ -334,7 +334,7 @@ gives room for focus styles and target sizes.
 **Web risks:** Thin type and hairline details can fail contrast requirements.
 Extreme whitespace can waste the first screen (the "cinematic hero slab"
 antipattern — a gorgeous image that starves the viewport of information).
-Photography-heavy pages are slow. If the luxury treatment prioritises
+Photography-heavy pages are slow. If the luxury treatment prioritizes
 atmosphere over information, the five-second test fails.
 
 **Convention guidance:** Navigation can be minimal but must remain

@@ -41,7 +41,7 @@ apply physics to the shells until you can swim in them. Operationally:
 
 <!-- Triage: [type:grammar] -->
 - **Shell ejection** on every shot. A shell sprite is spawned at the gun, given
-  a small randomised velocity and rotation, and falls under gravity.
+  a small randomized velocity and rotation, and falls under gravity.
 - **Settle on contact** with the ground. Physics either sleep or is zeroed out;
   the shell sprite stops moving.
 - **No collision with the player.** Shells are decorative. They should not
@@ -118,6 +118,6 @@ frozen between player inputs reads as broken or boring.
   forever, having a pool means you control the budget and can FIFO if needed.
 - **Render them in a different layer.** Persistent decoration usually doesn't
   need per-frame physics or AI; flag and skip.
-- **Don't serialise everything.** Save-game files don't need to remember every
+- **Don't serialize everything.** Save-game files don't need to remember every
   shell. Decide which permanence is gameplay-relevant (cleared dungeons) and
   which is purely visual (bullet shells), and persist accordingly.

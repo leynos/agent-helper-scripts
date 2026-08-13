@@ -103,7 +103,7 @@ participant, not an automaton.
 ### Voice and call-outs
 
 For any character with audible output, even non-verbal "ohs" and "argh"s
-humanise. The dashpong dev added a voice announcement for goal events —
+humanize. The dashpong dev added a voice announcement for goal events —
 different reactions for "scoring spree," "domination," etc. The voice is short,
 sampled, and triggered on event. The cumulative effect is a game that comments
 on itself.

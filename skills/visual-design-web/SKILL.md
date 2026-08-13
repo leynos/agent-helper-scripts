@@ -73,7 +73,7 @@ Before designing anything, establish:
 
 1. **User need** — who is this for, what do they need, why? Use the
    GOV.UK framing: "As a _**, I need to**_, so that ___."
-2. **Business or mission need** — what does the organisation need this
+2. **Business or mission need** — what does the organization need this
    page to accomplish?
 3. **Page job** — one sentence: what is this page's job?
 4. **Page archetype** — landing, article, product, service task,

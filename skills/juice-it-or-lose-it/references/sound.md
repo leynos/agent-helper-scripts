@@ -36,7 +36,7 @@ complained about the gameplay. The designer opened the gunshot WAV in Audacity,
 applied 12dB of bass boost, and saved. The investors, on next play, said the
 gunplay felt great. Same bullets, same recoil, same damage — just deeper sound.
 
-Operationalising:
+Operationalizing:
 
 - Boost low frequencies on impact and weapon sounds (60–250Hz).
 - Compress dynamic range so transients don't clip but punch hard.
