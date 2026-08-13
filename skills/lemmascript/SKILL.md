@@ -20,11 +20,14 @@ carries `//@` specification comments; the `lsc` CLI generates formal
 artefacts that a backend prover (Dafny, or Lean via Velvet/Loom) checks. The
 annotations are comments — invisible to tsc, bundlers, and the runtime — and
 the annotated TypeScript source remains the shipped production code.
-Verification applies only to the supported TypeScript fragment and declared
-model and trust boundaries: `number` uses mathematical-integer rather than
-IEEE 754 semantics, Map/Record values can differ at runtime, lifted method
-calls lose JavaScript short-circuit behaviour, and UI/I/O/auth/clock/adapter
-code is trusted unless separately covered. Think "Verus is to Rust as
+LemmaScript verifies a formal model of that source; proofs apply only within
+the supported TypeScript fragment and documented modelling assumptions. See
+[`references/annotations.md`](references/annotations.md) for semantic limits:
+`number` uses mathematical-integer rather than IEEE-754 semantics, Map/Record
+values can differ at runtime, lifted method calls lose JavaScript short-circuit
+behaviour, and cross-file calls are axiomatized rather than body-verified.
+UI/I/O/auth/clock/adapter code is trusted unless separately covered. Think
+"Verus is to Rust as
 LemmaScript is to TypeScript".
 
 Where fast-check samples inputs and can only find bugs, LemmaScript proves
@@ -128,14 +131,14 @@ flags, CI wiring, and brownfield strategy — lives in
 - **Reaching for `//@ assume` to silence a failure.** It tells the
   prover to trust the obligation unconditionally; the proof stops meaning
   anything. Restructure, or prove a helper lemma. Its one sanctioned use is
-  constraining a value you deliberately `havoc`ed.
+  constraining a deliberately `havoc`ed value.
 - **Refactoring production code "for clarity" during brownfield
   verification.** In-place verification is the point; an unchanged diff is the
   evidence the verified code is the shipped code.
 - **Editing `.dfy.gen`.** It is regenerated; changes vanish. Edit the
   `.dfy`.
 - **Deleting `.dfy` files to "start clean".** Proof work lives there;
-  `regen`'s three-way merge exists precisely so you never do this.
+  `regen`'s three-way merge preserves it.
 - **Verifying a parallel model instead of the real function.** Prefer
   in-place annotation; where a type can't be imported, shadow it with
   `//@ declare-type` so the actual function stays the proof target.
