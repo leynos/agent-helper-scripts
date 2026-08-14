@@ -42,6 +42,9 @@ Every ExecPlan must satisfy all of the following:
   not merely "code changes that compile".
 - Test-first delivery: all code changes must follow Red-Green-Refactor when
   the project has any practical test framework for the affected behaviour.
+- Joint implementation and verification planning: identify the invariants,
+  lemmas, and non-trivial axioms before settling the implementation structure,
+  then align each obligation with a proportionate verification strategy.
 - Plain language: define every term of art immediately, or do not use it.
 - Outcome-focused: begin with why the work matters and how to observe success.
 - Controlled delegation: the agent implementing the plan proceeds
@@ -145,6 +148,8 @@ Be safe and idempotent:
 Validation is not optional:
 
 - Include instructions to run tests, lint, and any relevant runtime checks.
+- Keep the unit and behavioural test plan, then add verification evidence for
+  invariants and lemmas that examples alone cannot establish.
 - Establish a failing test suite prior to implementation using
   Red-Green-Refactor:
   - Red: add or update the smallest test that specifies the missing behaviour
@@ -171,6 +176,87 @@ Validation is not optional:
 - Include expected outputs (even short ones) so a novice can tell success from
   failure.
 
+## Plan implementation and verification together
+
+Do not choose an implementation and bolt verification onto it afterwards.
+Select an implementation structure whose decomposition, state representation,
+and control flow expose tractable verification obligations. If implementation
+reveals an unplanned invariant, lemma, or axiom, return to the plan and revise
+both the implementation and verification strategy before continuing.
+
+Every ExecPlan must contain a `Verification plan` that:
+
+- states each invariant over inputs, states, orderings, or transitions that the
+  planned implementation introduces or preserves;
+- states each lemma or intermediate contract needed to connect those invariants
+  to the required behaviour;
+- lists every non-trivial axiom on which the reasoning depends, including
+  assumptions about runtimes, platforms, external services, and third-party
+  interfaces;
+- assigns each invariant and lemma a verification method, planned artefact,
+  command, expected evidence, and discharge condition; and
+- justifies why the selected method provides adequate rigour and records any
+  bound, abstraction, or residual gap.
+
+Choose methods according to the obligation rather than language or habit:
+
+- Use parameterized tests for finite partitions, boundary cases, and explicit
+  combinations where exhaustive enumeration is practical.
+- Use property tests for invariants spanning generated inputs, operation
+  sequences, orderings, or state transitions.
+- Use bounded model checking when exhaustive exploration within explicit bounds
+  materially strengthens confidence in memory, arithmetic, or transition
+  safety.
+- Use state-machine model checking for protocols, concurrent actors, retries,
+  and temporal or ordering properties.
+- Use a formal prover for introduced lemmas, contractual business logic, or
+  obligations whose required guarantee applies to all admissible inputs.
+- Combine methods when no single technique covers both repository behaviour and
+  the strongest invariant.
+
+Any proof must be substantive, rigorous, and well-founded. A restatement of the
+assumed property, a vacuous assertion, or finite examples presented as an
+exhaustive argument do not discharge an obligation. If the change introduces
+no non-trivial invariant or lemma, say so explicitly in the verification plan
+and justify that conclusion; do not omit the section.
+
+### Avoid vacuous verification
+
+For every obligation, explain why the verification can fail when the
+implementation is wrong. A passing result is vacuous when, for example, an
+unsatisfiable precondition excludes every input, a generator or filter never
+reaches relevant cases, an implication's antecedent is never true, a model's
+target states are unreachable, a bound excludes every meaningful transition,
+or a proof merely assumes the conclusion.
+
+Require a non-vacuity argument and evidence appropriate to the method:
+
+- Exhibit at least one witness satisfying every precondition and exercise each
+  material equivalence class, boundary, and transition named by the invariant.
+- Record generator acceptance and classification evidence; treat excessive
+  filtering, missing classes, or unreachable states as verification failures.
+- Include a negative control, seeded fault, or representative mutation that the
+  verification rejects for the intended reason. If this is impractical, state
+  why and provide an independent counterexample or witness argument.
+- For bounded or state-machine models, show that initial states exist, relevant
+  transitions are reachable, and the chosen bounds admit the shortest
+  interesting execution.
+- For formal proofs, inspect the trusted assumptions and proof dependencies,
+  demonstrate that antecedents are satisfiable, and reject proofs that derive
+  the goal only from contradiction, an equivalent assumption, or an axiom added
+  solely for the theorem.
+
+Record the non-vacuity checks beside the obligation they protect, not as a
+generic assurance at the end of the plan.
+
+Do not plan to verify the internal correctness of third-party libraries or
+tools. Treat their documented interfaces as axioms. However, when
+repository-owned configuration logic builds upon such an interface, or safe
+behaviour depends on non-trivial interaction with it, verify the
+repository-owned logic against the real interface or a faithful contract-level
+boundary. Record the exact external assumptions and the evidence that exercises
+that boundary.
+
 Capture evidence:
 
 - When steps produce output, include concise transcripts as codefenced examples.
@@ -187,12 +273,15 @@ ExecPlans must contain, and must keep up to date as work proceeds:
 - `Surprises & Discoveries` (unexpected findings during implementation)
 - `Decision Log` (every key decision with rationale)
 - `Outcomes & Retrospective` (what was achieved and lessons learned)
+- `Verification Plan` (obligations, axioms, methods, artefacts, and evidence)
 
 If you change course mid-implementation:
 
 - Document why in `Decision Log`.
 - Reflect the implications in `Progress` (what changed, what remains).
 - Update `Risks` if new uncertainties have emerged.
+- Update `Verification Plan` if implementation structure, proof obligations, or
+  external assumptions changed.
 
 ## Exception handling (manage by exception)
 
