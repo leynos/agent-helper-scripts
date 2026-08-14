@@ -39,8 +39,10 @@ Bullet shells. Spent grenade pins. Empty magazines. Nijman recommends letting
 these stay forever, and adds the offhand suggestion that it would be funny to
 apply physics to the shells until you can swim in them. Operationally:
 
-- **Shell ejection** on every shot. Shell sprite spawned at the gun, given a
-  small randomized velocity and rotation, falls under gravity.
+Triage: `[type:grammar]`
+
+- **Shell ejection** on every shot. A shell sprite is spawned at the gun, given
+  a small randomized velocity and rotation, and falls under gravity.
 - **Settle on contact** with the ground. Physics either sleep or is zeroed out;
   the shell sprite stops moving.
 - **No collision with the player.** Shells are decorative. They should not
