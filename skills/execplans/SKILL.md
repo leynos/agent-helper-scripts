@@ -325,7 +325,7 @@ for any of the following surfaces:
 - private APIs, including application-internal interfaces declared `public`;
 - test-only APIs and support surfaces;
 - pre-1.0 public APIs; and
-- code ahead of the latest formal release tag.
+- APIs introduced after the latest formal release tag.
 
 For a released 1.0-or-later API without known external consumers,
 compatibility is normally unnecessary, subject to explicit project policy. For
