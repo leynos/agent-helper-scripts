@@ -34,7 +34,7 @@ ______________________________________________________________________
 For supported installation instructions, see the [CodeScene CLI
 documentation](https://docs.enterprise.codescene.io/latest/cli/index.html).
 Use its manual-installation method: download the platform binary, inspect it,
-make it executable, and place it on your `PATH`.
+make it executable, and place it on the `PATH`.
 
 ______________________________________________________________________
 
