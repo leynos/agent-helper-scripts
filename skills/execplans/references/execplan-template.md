@@ -1,4 +1,4 @@
-# <Short, action-oriented description>
+# `<Short, action-oriented description>`
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
@@ -30,12 +30,12 @@ Document the conflict in `Decision Log` and escalate.
 Thresholds that trigger escalation when breached. These define the boundaries
 of autonomous action, not quality criteria.
 
-- Scope: if implementation requires changes to more than <N> files or <M> lines
+- Scope: if implementation requires changes to more than `<N>` files or `<M>` lines
   of code (net), stop and escalate.
 - Interface: if a public API signature must change, stop and escalate.
 - Dependencies: if a new external dependency is required, stop and escalate.
-- Iterations: if tests still fail after <K> attempts, stop and escalate.
-- Time: if a milestone takes more than <T> hours, stop and escalate.
+- Iterations: if tests still fail after `<K>` attempts, stop and escalate.
+- Time: if a milestone takes more than `<T>` hours, stop and escalate.
 - Ambiguity: if multiple valid interpretations exist and the choice materially
   affects the outcome, stop and present options with trade-offs.
 
@@ -48,10 +48,10 @@ Known uncertainties that might affect the plan. Identify these upfront and
 update as work proceeds. Each risk should note severity, likelihood, and
 mitigation or contingency.
 
-- Risk: <description>
+- Risk: `<description>`
   Severity: low | medium | high
   Likelihood: low | medium | high
-  Mitigation: <how to prevent or reduce impact>.
+  Mitigation: `<how to prevent or reduce impact>`.
 
 Risks differ from Surprises: risks are anticipated; surprises are not.
 
@@ -73,18 +73,18 @@ Use timestamps to measure rates of progress and detect tolerance breaches.
 Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
-- Observation: <what was unexpected>.
-  Evidence: <how you know>.
-  Impact: <how it affects this plan or future work>.
+- Observation: `<what was unexpected>`.
+  Evidence: `<how you know>`.
+  Impact: `<how it affects this plan or future work>`.
 
 ## Decision log
 
 Record every significant decision made while working on the plan. Include
 decisions to escalate, decisions on ambiguous requirements, and design choices.
 
-- Decision: <what was decided>
-  Rationale: <why this choice over alternatives>
-  Date/Author: <timestamp and who decided>.
+- Decision: `<what was decided>`
+  Rationale: `<why this choice over alternatives>`
+  Date/Author: `<timestamp and who decided>`.
 
 ## Outcomes & retrospective
 
@@ -125,8 +125,8 @@ reader can compare. This section must be updated as work proceeds.
 
 Describe how to start or exercise the system and what to observe. Phrase
 acceptance as behaviour, with specific inputs and outputs. If tests are
-involved, say "run <project's test command> and expect <N> passed; the new test
-<name> fails before the change and passes after".
+involved, say "run `<project's test command>` and expect `<N>` passed; the new
+test `<name>` fails before the change and passes after".
 
 For code changes, record the Red-Green-Refactor evidence:
 
@@ -141,14 +141,14 @@ passes afterwards.
 
 Quality criteria (what "done" means):
 
-- Tests: <what must pass>
-- Lint/typecheck: <commands and expected result>
-- Performance: <any benchmarks or thresholds>
-- Security: <any scans or review requirements>
+- Tests: `<what must pass>`
+- Lint/typecheck: `<commands and expected result>`
+- Performance: `<any benchmarks or thresholds>`
+- Security: `<any scans or review requirements>`
 
 Quality method (how we check):
 
-- <CI command or manual verification steps>
+- `<CI command or manual verification steps>`
 
 ## Idempotence and recovery
 
