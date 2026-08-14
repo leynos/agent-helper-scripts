@@ -2,7 +2,7 @@
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, `Outcomes & Retrospective`, and `Verification Plan` must be kept
+`Decision Log`, `Outcomes & Retrospective`, and `Verification plan` must be kept
 up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
@@ -98,7 +98,7 @@ Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
 
-## Verification Plan
+## Verification plan
 
 Co-design verification with the implementation rather than adding it after the
 implementation structure is fixed. State every invariant over inputs, states,
