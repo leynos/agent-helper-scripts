@@ -184,7 +184,7 @@ and control flow expose tractable verification obligations. If implementation
 reveals an unplanned invariant, lemma, or axiom, return to the plan and revise
 both the implementation and verification strategy before continuing.
 
-Every ExecPlan must contain a `Verification plan` that:
+Every ExecPlan must contain a `Verification Plan` that:
 
 - states each invariant over inputs, states, orderings, or transitions that the
   planned implementation introduces or preserves;
@@ -217,7 +217,7 @@ Choose methods according to the obligation rather than language or habit:
 Any proof must be substantive, rigorous, and well-founded. A restatement of the
 assumed property, a vacuous assertion, or finite examples presented as an
 exhaustive argument do not discharge an obligation. If the change introduces
-no non-trivial invariant or lemma, say so explicitly in the verification plan
+no non-trivial invariant or lemma, say so explicitly in the `Verification Plan`
 and justify that conclusion; do not omit the section.
 
 ### Avoid vacuous verification

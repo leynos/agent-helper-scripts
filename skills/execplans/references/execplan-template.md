@@ -98,7 +98,7 @@ Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
 
-## Verification plan
+## Verification Plan
 
 Co-design verification with the implementation rather than adding it after the
 implementation structure is fixed. State every invariant over inputs, states,
