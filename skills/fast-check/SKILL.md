@@ -11,7 +11,6 @@ description: >
   test cases. Covers fast-check 4.x and flags 3.x idioms that no longer
   hold.
 ---
-
 # fast-check property-based testing for TypeScript and JavaScript
 
 fast-check generates many random inputs against a property and shrinks any
@@ -132,8 +131,9 @@ Watch for stale 3.x idioms in existing suites and in generated code:
   friends collapse into `fc.bigInt({ min, max })`.
 - `fc.date()` now generates Invalid Date by default — pass
   `{ noInvalidDate: true }` if the code under test cannot take one.
-- `fc.record(model, { withDeletedKeys })` becomes
-  `{ requiredKeys: [] }`; `record` and `dictionary` may now generate
+- `fc.record(model, { withDeletedKeys: true })` becomes `{ requiredKeys: [] }`;
+  `withDeletedKeys: false` retains the default required-key behaviour. `record`
+  and `dictionary` may now generate
   null-prototype objects unless `{ noNullPrototype: true }`.
 - Failures now attach the original error as `Error.cause` instead of
   splicing messages; pass `{ includeErrorInReport: true }` to restore the old
@@ -174,7 +174,7 @@ Watch for stale 3.x idioms in existing suites and in generated code:
 
 ## Hard-won lessons
 
-- **Arbitraries decide what you test.** A weak generator makes a
+- **Arbitraries decide which cases are tested.** A weak generator makes a
   strong property look strong. Audit the arbitrary first — e.g. `fc.string()`
   alone never exercises surrogate pairs; add `{ unit: "binary" }` coverage for
   codec properties.

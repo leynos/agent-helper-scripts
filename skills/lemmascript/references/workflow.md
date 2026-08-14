@@ -127,8 +127,8 @@ runs `check.sh dafny`, and fails when generated files are out of date.
 
 ## Incremental adoption boundary
 
-Verification does not need to cover the codebase. The `@lemmafit/contracts`
-layer enforces, at runtime, that unverified TypeScript interacts correctly with
-verified modules: proofs inside (zero runtime cost), contracts at the boundary,
-plain TypeScript outside. State the trust boundary explicitly — UI, I/O, auth,
-clock, and adapter code are trusted, not proved.
+Verification does not need to cover the codebase. Proof applies to declared
+contracts and model boundaries, not to runtime behaviour; fail-closed
+verification is not runtime evidence. Runtime boundary contracts must be
+satisfied. UI, I/O, auth, clock, and adapter code are trusted unless separately
+covered.

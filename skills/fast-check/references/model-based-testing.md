@@ -9,9 +9,11 @@ A command couples a precondition with an action. It implements
 
 - `check(m: Readonly<Model>): boolean` — may this operation run in the
   current model state?
-- `run(m: Model, r: Real): void` — apply the operation to the real
-  system *and* the model; throw (or fail an assertion) on any inconsistency
-  between the two.
+- Synchronous commands implement `Command.run(m: Model, r: Real): void`;
+  asynchronous commands implement
+  `AsyncCommand.run(m: Model, r: Real): Promise<void>`. Both apply the
+  operation to the real system *and* the model; throw (or fail an assertion)
+  on any inconsistency between the two.
 - `toString(): string` — how the command appears in the failure
   report. Capture runtime-resolved parameters into fields inside `run` so the
   report shows what actually happened (e.g. the resolved track name, not the
