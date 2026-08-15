@@ -166,7 +166,7 @@ Validation is not optional:
   expected-failure markers in the final passing implementation unless the plan
   explicitly scopes a known unresolved defect.
 - If Red-Green-Refactor is genuinely unavailable, document why in `Constraints`
-  or `Decision Log`, then use the nearest observable substitute such as a
+  or `Decision log`, then use the nearest observable substitute such as a
   reproducer script, golden fixture, compile-fail test, approval test, or
   manual runtime check.
 - Where behaviour-driven development (BDD) is used, include the feature
@@ -267,17 +267,18 @@ Capture evidence:
 ExecPlans must contain, and must keep up to date as work proceeds:
 
 - `Constraints` (hard invariants that must not be violated)
-- `Tolerances` (thresholds that trigger escalation when breached)
+- `Tolerances (exception triggers)` (thresholds that trigger escalation when
+  breached)
 - `Risks` (known uncertainties with mitigations, identified upfront)
 - `Progress` (with checkbox list and timestamps)
-- `Surprises & Discoveries` (unexpected findings during implementation)
-- `Decision Log` (every key decision with rationale)
-- `Outcomes & Retrospective` (what was achieved and lessons learned)
+- `Surprises & discoveries` (unexpected findings during implementation)
+- `Decision log` (every key decision with rationale)
+- `Outcomes & retrospective` (what was achieved and lessons learned)
 - `Verification plan` (obligations, axioms, methods, artefacts, and evidence)
 
 If you change course mid-implementation:
 
-- Document why in `Decision Log`.
+- Document why in `Decision log`.
 - Reflect the implications in `Progress` (what changed, what remains).
 - Update `Risks` if new uncertainties have emerged.
 - Update `Verification plan` if implementation structure, proof obligations, or
@@ -288,7 +289,7 @@ If you change course mid-implementation:
 When a tolerance threshold is reached or a constraint would be violated:
 
 1. Stop implementation immediately.
-2. Document the situation in `Decision Log` with:
+2. Document the situation in `Decision log` with:
    - What threshold was reached or constraint threatened.
    - What options exist to proceed.
    - Trade-offs of each option.
