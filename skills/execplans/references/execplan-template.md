@@ -100,6 +100,10 @@ design; update the technical design or ADR for an architectural change; or
 record a purely mechanical difference in `Decision Log`. An upstream change or
 deviation must not remain unrecorded or unaccepted at completion.
 
+Once the original implementation has merged, a completed plan is a historical
+document reflecting the repository state at the time of implementation. Later
+changes that affect the plan do not require retroactive updates to it.
+
 ## Context and orientation
 
 Describe the current state relevant to this task as if the reader knows
