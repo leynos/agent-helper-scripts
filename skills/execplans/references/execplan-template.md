@@ -2,8 +2,8 @@
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+`Decision Log`, `Outcomes & Retrospective`, and `Verification plan` must be kept
+up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
 
@@ -98,6 +98,57 @@ Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
 
+## Verification plan
+
+Co-design verification with the implementation rather than adding it after the
+implementation structure is fixed. State every invariant over inputs, states,
+orderings, or transitions that the planned implementation introduces or
+preserves. State every lemma or intermediate contract required to connect those
+invariants to the required behaviour.
+
+List the non-trivial axioms on which the reasoning depends. Include assumptions
+about runtimes, platforms, external services, and third-party interfaces. Do
+not attempt to verify third-party internals. Where repository-owned
+configuration or integration logic depends on an external interface, plan
+verification against the real interface or a faithful contract-level boundary.
+
+For each invariant and lemma, specify:
+
+- Obligation: <stable name and precise statement>.
+- Method: <parameterized test, property test, bounded model check, state-machine
+  model check, formal proof, or justified combination>.
+- Rationale: <why this method provides proportionate rigour>.
+- Domain: <inputs, states, transitions, generated cases, or explicit bounds>.
+- Artefact: <repository-relative test, harness, model, or proof path>.
+- Evidence: <command, expected initial failure or counterexample, and discharge
+  condition>.
+- Non-vacuity: <satisfying witnesses, exercised classes or reachable states, and
+  the negative control or mutation that must be rejected>.
+
+Use parameterized tests for finite partitions and explicit combinations;
+property tests for ranges of inputs, sequences, orderings, or transitions;
+bounded model checking for exhaustive exploration within meaningful bounds;
+state-machine model checking for protocols, concurrency, and temporal
+properties; and formal proofs for introduced lemmas or contractual business
+logic requiring guarantees over all admissible inputs. Combine methods when
+necessary. State bounds, abstractions, and residual gaps explicitly.
+
+Any proof must be substantive, rigorous, and well-founded, not a restatement of
+an assumed property or a vacuous assertion. If this change introduces no
+non-trivial invariant or lemma, record that conclusion and its rationale here;
+do not omit this section.
+
+For each obligation, explain why the verification can fail when the
+implementation is wrong. Show that preconditions are satisfiable, generators
+reach material classes and boundaries, model states and transitions are
+reachable within meaningful bounds, and proof antecedents are inhabited. Plan
+a negative control, seeded fault, or representative mutation that must be
+rejected for the intended reason. If a negative control is impractical, justify
+that exception and provide independent counterexample or witness evidence.
+Treat excessive filtering, missing classifications, unreachable model states,
+zero-work bounds, contradiction, or assuming the conclusion as verification
+failures rather than successful evidence.
+
 ## Plan of work
 
 Describe, in prose, the sequence of edits and additions. For each edit, name
@@ -107,10 +158,12 @@ concrete and minimal.
 Structure as stages with explicit go/no-go points where appropriate:
 
 - Stage A: understand and propose (no code changes)
-- Stage B: red tests or BDD feature specification (small, verifiable diffs that
-  fail before implementation for the expected reason)
-- Stage C: implementation (minimal change to satisfy tests)
-- Stage D: refactor, documentation, and cleanup
+- Stage B: red tests or BDD feature specification plus the smallest verification
+  artefacts that fail, find a counterexample, or leave the proof obligation open
+  for the expected reason
+- Stage C: implementation and verification scaffold developed together to
+  discharge the planned obligations
+- Stage D: refactor, documentation, proof cleanup, and wider validation
 
 Each stage ends with validation. Do not proceed to the next stage if the
 current stage's validation fails.
@@ -139,9 +192,17 @@ For BDD changes, include the feature specification that drives the work and the
 BDD runner command that proves the scenario fails before implementation and
 passes afterwards.
 
+For verification obligations, record the command and the initial failure,
+counterexample, open goal, or model-checking result. After implementation,
+record the passing result, explored bounds where applicable, axioms relied on,
+and any obligation that remains undischarged. An implementation change that
+requires an unplanned invariant, lemma, or axiom must return to `Verification
+plan` before further elaboration.
+
 Quality criteria (what "done" means):
 
 - Tests: `<what must pass>`
+- Verification: `<which invariants and lemmas must be discharged, and how>`
 - Lint/typecheck: `<commands and expected result>`
 - Performance: `<any benchmarks or thresholds>`
 - Security: `<any scans or review requirements>`
