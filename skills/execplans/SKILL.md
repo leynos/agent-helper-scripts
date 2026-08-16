@@ -343,7 +343,7 @@ shims.
 Reject **compatibility theatre**: aliases, facade types, deprecated
 entrypoints, dual implementations, adapters, migration wrappers, or temporary
 shims added merely to create incremental milestones. If the plan cannot answer
-"compatible with whom or what?", it must not prescribe the layer.
+"compatible with whom or what?" it must not prescribe the layer.
 
 ## Mandatory living sections (always present)
 

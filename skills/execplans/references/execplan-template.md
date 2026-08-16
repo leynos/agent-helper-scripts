@@ -2,7 +2,7 @@
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, `Outcomes & Retrospective`, `Conformance basis`, and
+`Decision log`, `Outcomes & retrospective`, `Conformance basis`, and
 `Verification plan` must be kept up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
@@ -97,7 +97,7 @@ done differently next time. Before marking the plan `COMPLETE`, reconcile every
 implementation discovery with the upstream artefacts listed in `Conformance
 basis`: update a falsified Terms of Reference assumption and impact-check the
 design; update the technical design or ADR for an architectural change; or
-record a purely mechanical difference in `Decision Log`. An upstream change or
+record a purely mechanical difference in `Decision log`. An upstream change or
 deviation must not remain unrecorded or unaccepted at completion.
 
 Once the original implementation has merged, a completed plan is a historical
