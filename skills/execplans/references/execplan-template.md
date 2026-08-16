@@ -110,58 +110,6 @@ Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
 
-
-## Verification Plan
-
-Co-design verification with the implementation rather than adding it after the
-implementation structure is fixed. State every invariant over inputs, states,
-orderings, or transitions that the planned implementation introduces or
-preserves. State every lemma or intermediate contract required to connect those
-invariants to the required behaviour.
-
-List the non-trivial axioms on which the reasoning depends. Include assumptions
-about runtimes, platforms, external services, and third-party interfaces. Do
-not attempt to verify third-party internals. Where repository-owned
-configuration or integration logic depends on an external interface, plan
-verification against the real interface or a faithful contract-level boundary.
-
-For each invariant and lemma, specify:
-
-- Obligation: <stable name and precise statement>.
-- Method: <parameterized test, property test, bounded model check, state-machine
-  model check, formal proof, or justified combination>.
-- Rationale: <why this method provides proportionate rigour>.
-- Domain: <inputs, states, transitions, generated cases, or explicit bounds>.
-- Artefact: <repository-relative test, harness, model, or proof path>.
-- Evidence: <command, expected initial failure or counterexample, and discharge
-  condition>.
-- Non-vacuity: <satisfying witnesses, exercised classes or reachable states, and
-  the negative control or mutation that must be rejected>.
-
-Use parameterized tests for finite partitions and explicit combinations;
-property tests for ranges of inputs, sequences, orderings, or transitions;
-bounded model checking for exhaustive exploration within meaningful bounds;
-state-machine model checking for protocols, concurrency, and temporal
-properties; and formal proofs for introduced lemmas or contractual business
-logic requiring guarantees over all admissible inputs. Combine methods when
-necessary. State bounds, abstractions, and residual gaps explicitly.
-
-Any proof must be substantive, rigorous, and well-founded, not a restatement of
-an assumed property or a vacuous assertion. If this change introduces no
-non-trivial invariant or lemma, record that conclusion and its rationale here;
-do not omit this section.
-
-For each obligation, explain why the verification can fail when the
-implementation is wrong. Show that preconditions are satisfiable, generators
-reach material classes and boundaries, model states and transitions are
-reachable within meaningful bounds, and proof antecedents are inhabited. Plan
-a negative control, seeded fault, or representative mutation that must be
-rejected for the intended reason. If a negative control is impractical, justify
-that exception and provide independent counterexample or witness evidence.
-Treat excessive filtering, missing classifications, unreachable model states,
-zero-work bounds, contradiction, or assuming the conclusion as verification
-failures rather than successful evidence.
-
 ## Conformance basis
 
 Treat this plan as a lightweight architecture contract. Name the exact Terms of
@@ -180,7 +128,7 @@ TOR-GOAL-004 -> TDD-REQ-012 -> TDD-COMP-queue-store -> EP-M3 -> tests::queue::pe
 When a traced item changes, identify and record its upstream and downstream
 impacts before accepting the change, then update every affected link.
 
-## Verification Plan
+## Verification plan
 
 Co-design verification with the implementation rather than adding it after the
 implementation structure is fixed. State every invariant over inputs, states,
