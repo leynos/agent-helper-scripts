@@ -2,8 +2,8 @@
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, `Outcomes & Retrospective`, and `Verification plan` must be kept
-up to date as work proceeds.
+`Decision log`, `Outcomes & retrospective`, `Conformance basis`, and
+`Verification plan` must be kept up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
 
@@ -81,6 +81,9 @@ Document with evidence so future work benefits.
 
 Record every significant decision made while working on the plan. Include
 decisions to escalate, decisions on ambiguous requirements, and design choices.
+For an architecture deviation, name the affected upstream identifiers, impacts,
+options, required upstream-document changes, and approving authority. Set the
+plan status to `BLOCKED` until the deviation is accepted.
 
 - Decision: `<what was decided>`
   Rationale: `<why this choice over alternatives>`
@@ -90,13 +93,40 @@ decisions to escalate, decisions on ambiguous requirements, and design choices.
 
 Summarize outcomes, gaps, and lessons learned at major milestones or at
 completion. Compare the result against the original purpose. Note what would be
-done differently next time.
+done differently next time. Before marking the plan `COMPLETE`, reconcile every
+implementation discovery with the upstream artefacts listed in `Conformance
+basis`: update a falsified Terms of Reference assumption and impact-check the
+design; update the technical design or ADR for an architectural change; or
+record a purely mechanical difference in `Decision log`. An upstream change or
+deviation must not remain unrecorded or unaccepted at completion.
+
+Once the original implementation has merged, a completed plan is a historical
+document reflecting the repository state at the time of implementation. Later
+changes that affect the plan do not require retroactive updates to it.
 
 ## Context and orientation
 
 Describe the current state relevant to this task as if the reader knows
 nothing. Name the key files and modules by full path. Define any non-obvious
 term you will use. Do not refer to prior plans.
+
+## Conformance basis
+
+Treat this plan as a lightweight architecture contract. Name the exact Terms of
+Reference revision, technical-design revision, ADRs, governing standards, and
+relevant requirement or design-element identifiers. If an upstream artefact
+does not exist, say so; do not invent one.
+
+Use stable identifiers only for important traced items. Map each applicable
+upstream requirement and baseline-to-target gap through its milestone to
+observable evidence, for example:
+
+```plaintext
+TOR-GOAL-004 -> TDD-REQ-012 -> TDD-COMP-queue-store -> EP-M3 -> tests::queue::persists_reordering
+```
+
+When a traced item changes, identify and record its upstream and downstream
+impacts before accepting the change, then update every affected link.
 
 ## Verification plan
 
@@ -168,6 +198,39 @@ Structure as stages with explicit go/no-go points where appropriate:
 Each stage ends with validation. Do not proceed to the next stage if the
 current stage's validation fails.
 
+## Milestones and plateaus
+
+Define each implementation milestone as a coherent, validated repository state
+that is safe to continue from if later work is postponed. A plateau requires
+correctness and internal coherence, not simultaneous support for old and new
+interfaces. For each milestone record:
+
+- Identifier and outcome: `<EP-M1 and the coherent end state>`.
+- Requirements and gaps: `<upstream identifiers discharged or advanced>`.
+- Acceptance evidence: `<observable behaviour and stable evidence identifier>`.
+- Conformance check: `<requirements satisfied; design still followed; upstream
+  assumptions still valid; no unapproved public interface, dependency, trust
+  boundary, or persisted-format change; trace links current>`.
+- Recovery: `<how to retry, revert, or safely continue>`.
+- Remaining gaps: `<work deliberately left for later milestones>`.
+- Compatibility decision: `<none, or the named consumer, deployed state,
+  commitment, or migration requirement that makes compatibility necessary>`.
+
+Never introduce compatibility machinery merely to create an incremental
+milestone. If compatibility would not be required for one atomic change, update
+the interface and all affected callers together. Plans MUST NOT prescribe
+source-API compatibility layers for private or application-internal APIs,
+test-only surfaces, pre-1.0 APIs, or code ahead of the latest formal release
+tag. For released 1.0-or-later APIs, inherit compatibility only from an actual
+external consumer or explicit project commitment. Persisted and wire formats
+are separate: deployed data or peers may require a migration even when source
+compatibility does not.
+
+Do not prescribe aliases, facade types, deprecated entrypoints, dual
+implementations, adapters, migration wrappers, or temporary shims unless the
+plan can answer "compatible with whom or what?" and trace the answer to a real
+requirement.
+
 ## Concrete steps
 
 State the exact commands to run and where to run them (working directory).
@@ -198,6 +261,12 @@ record the passing result, explored bounds where applicable, axioms relied on,
 and any obligation that remains undischarged. An implementation change that
 requires an unplanned invariant, lemma, or axiom must return to `Verification
 plan` before further elaboration.
+
+At each milestone boundary, record the focused architecture-conformance check
+from `Milestones and plateaus`. If implementation evidence requires an
+unapproved design departure, record the proposed deviation and affected
+identifiers in `Decision Log`, set the status to `BLOCKED`, and obtain explicit
+acceptance before continuing.
 
 Quality criteria (what "done" means):
 

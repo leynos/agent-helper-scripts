@@ -45,6 +45,9 @@ Every ExecPlan must satisfy all of the following:
 - Joint implementation and verification planning: identify the invariants,
   lemmas, and non-trivial axioms before settling the implementation structure,
   then align each obligation with a proportionate verification strategy.
+- Lightweight architecture contract: preserve selective traceability from
+  approved upstream requirements and design decisions through milestones to
+  acceptance evidence, and surface deviations rather than silently drifting.
 - Plain language: define every term of art immediately, or do not use it.
 - Outcome-focused: begin with why the work matters and how to observe success.
 - Controlled delegation: the agent implementing the plan proceeds
@@ -103,6 +106,48 @@ When implementing an ExecPlan:
 - Stop and escalate when a tolerance threshold is reached.
 - Keep all sections current, especially the mandatory living sections.
 - Commit frequently and keep changes small and testable.
+
+## Traceability and architecture conformance
+
+Treat an ExecPlan as a lightweight architecture contract, not as an isolated
+task list. Where upstream artefacts exist, add a `Conformance basis` naming the
+exact Terms of Reference revision, technical-design revision, ADRs, governing
+standards, and relevant requirement or design-element identifiers. If no such
+artefact exists, say so explicitly rather than inventing one.
+
+Use stable identifiers selectively for propositions whose provenance and
+discharge matter: upstream goals, hard constraints, success criteria,
+important assumptions, architecture requirements and major design elements;
+ExecPlan milestones; and their acceptance evidence. Do not number every
+paragraph. Preserve a chain such as:
+
+```plaintext
+TOR-GOAL-004 -> TDD-REQ-012 -> TDD-COMP-queue-store -> EP-M3 -> tests::queue::persists_reordering
+```
+
+Map each applicable upstream requirement or baseline-to-target gap to at least
+one milestone and observable acceptance item. When a traced item changes,
+identify its upstream and downstream impacts before accepting the change, and
+update every affected link.
+
+At each milestone boundary, perform a focused conformance check:
+
+- Are the requirements and gaps assigned to this milestone satisfied?
+- Does the implementation still conform to the approved design?
+- Did a discovery falsify an upstream assumption?
+- Did the work introduce an unapproved public interface, dependency, trust
+  boundary, or persistent-format change?
+- Are trace links and acceptance evidence still current?
+
+Tailor this check to the work's material risks; do not create a ceremonial
+enterprise-compliance checklist.
+
+If evidence shows that the approved design cannot or should not be followed,
+do not silently amend the implementation or plan around it. Record a proposed
+deviation in `Decision log`, including the affected identifiers, impacts,
+options, and whether the technical design or an ADR must change. Set the plan
+status to `BLOCKED` and wait for explicit acceptance of the deviation before
+continuing.
 
 ## Formatting rules (strict)
 
@@ -262,6 +307,44 @@ Capture evidence:
 - When steps produce output, include concise transcripts as codefenced examples.
 - Keep evidence focused on what proves success.
 
+## Milestones are coherent plateaus
+
+Every implementation milestone must end in a coherent, validated repository
+state that is safe to continue from if later work is postponed. This plateau
+requires correctness and internal coherence, not simultaneous support for the
+old and new architecture. For each milestone, state its stable identifier,
+assigned requirements or gaps, end state, acceptance evidence, conformance
+check, recovery path, and remaining gaps.
+
+Never introduce compatibility machinery solely to make a milestone
+independently viable. Ask: "Would compatibility be required if this work were
+made as one atomic change?" If not, update the interface and every affected
+caller together. Plans MUST NOT prescribe source-API compatibility machinery
+for any of the following surfaces:
+
+- private APIs, including application-internal interfaces declared `public`;
+- test-only APIs and support surfaces;
+- pre-1.0 public APIs; and
+- APIs introduced after the latest formal release tag.
+
+For a released 1.0-or-later API without known external consumers,
+compatibility is normally unnecessary, subject to explicit project policy. For
+a released API with external consumers, preserve compatibility or plan a
+deliberate migration only when an existing commitment requires it. Any
+proposed compatibility layer must name the external consumer, deployed state,
+compatibility commitment, or other concrete requirement that necessitates it.
+
+Persisted and wire formats are separate from source API compatibility. A
+private application may still need to migrate data written by an earlier
+deployed version or communicate with an existing peer. Model that deployed
+state explicitly rather than treating it as justification for unrelated API
+shims.
+
+Reject **compatibility theatre**: aliases, facade types, deprecated
+entrypoints, dual implementations, adapters, migration wrappers, or temporary
+shims added merely to create incremental milestones. If the plan cannot answer
+"compatible with whom or what?" it must not prescribe the layer.
+
 ## Mandatory living sections (always present)
 
 ExecPlans must contain, and must keep up to date as work proceeds:
@@ -274,6 +357,7 @@ ExecPlans must contain, and must keep up to date as work proceeds:
 - `Surprises & discoveries` (unexpected findings during implementation)
 - `Decision log` (every key decision with rationale)
 - `Outcomes & retrospective` (what was achieved and lessons learned)
+- `Conformance basis` (upstream revisions, identifiers, and trace links)
 - `Verification plan` (obligations, axioms, methods, artefacts, and evidence)
 
 If you change course mid-implementation:
@@ -283,10 +367,13 @@ If you change course mid-implementation:
 - Update `Risks` if new uncertainties have emerged.
 - Update `Verification plan` if implementation structure, proof obligations, or
   external assumptions changed.
+- Update `Conformance basis` and affected trace links if an upstream item,
+  milestone, design element, or acceptance item changed.
 
 ## Exception handling (manage by exception)
 
-When a tolerance threshold is reached or a constraint would be violated:
+When a tolerance threshold is reached, a constraint would be violated, or an
+architecture deviation needs approval:
 
 1. Stop implementation immediately.
 2. Document the situation in `Decision log` with:
@@ -297,6 +384,21 @@ When a tolerance threshold is reached or a constraint would be violated:
 
 Do not attempt to work around tolerances. They exist to catch situations where
 human judgement is required.
+
+## Reconcile discoveries before completion
+
+Before setting an ExecPlan to `COMPLETE`, reconcile implementation discoveries
+with every upstream artefact in the conformance basis:
+
+- If a discovery falsifies a Terms of Reference assumption, update that
+  artefact, impact-check the technical design, and revise the ExecPlan.
+- If implementation changes the architecture, update the technical design or
+  ADR and re-check every affected requirement and trace link.
+- If a difference is mechanical and changes neither requirement nor
+  architecture, record the rationale in `Decision log`.
+
+Do not mark the plan `COMPLETE` while an upstream change or deviation remains
+unrecorded or unaccepted.
 
 ## Prototyping milestones (encouraged when de-risking)
 
