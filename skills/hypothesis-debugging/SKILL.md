@@ -77,10 +77,11 @@ Prefer tests that are:
 
 Generate a Markdown document following the template in
 `assets/debugging-plan.md`. Save it under `docs/debugging/` as
-`debugging-plan-{timestamp}.md`, creating `docs/debugging/` first if it does
-not already exist. The document must name the sub-agent type that will execute
-falsification, preferring `alchemist` when available, and must state that the
-planning agent is not the execution agent.
+`debugging-plan-<year>-<month>-<day>-<problem-slug>.md`, creating
+`docs/debugging/` first if it does not already exist. For example, use
+`debugging-plan-2026-08-20-acp-skill-agent-menu.md`. The document must name
+the sub-agent type that will execute falsification, preferring `alchemist` when
+available, and must state that the planning agent is not the execution agent.
 
 ## Quality Criteria
 
