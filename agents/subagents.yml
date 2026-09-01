@@ -24,7 +24,8 @@
 #         reasoning_effort: <str>      # optional
 #         sandbox_mode: <str>          # optional
 #         nickname_candidates: [<str>] # optional
-#         mcp_servers: [<str>]         # optional; names must be explicitly
+#         mcp_servers: [<str>]         # optional; omit to inherit the parent
+#                                      #   registry; selected names must be
 #                                      #   supported by the Codex module
 #         extra: <dict>                # optional, never overrides managed keys
 #       claude:
@@ -99,6 +100,9 @@ agent_tools_subagents:
           - Read
           - Grep
           - Glob
+        extra_frontmatter:
+          mcpServers:
+            - codegraph
       goose:
         enabled: true
 
@@ -245,8 +249,6 @@ agent_tools_subagents:
         model: gpt-5.6-terra
         reasoning_effort: high
         sandbox_mode: workspace-write
-        mcp_servers:
-          - context_pack
       claude:
         enabled: true
         scope: user
@@ -264,6 +266,9 @@ agent_tools_subagents:
           color: orange
           mcpServers:
             - context_pack
+            - firecrawl
+            - deepwiki
+            - codegraph
       goose:
         enabled: true
 
@@ -365,8 +370,6 @@ agent_tools_subagents:
         model: gpt-5.6-luna
         reasoning_effort: xhigh
         sandbox_mode: workspace-write
-        mcp_servers:
-          - context_pack
       claude:
         enabled: true
         scope: user
@@ -383,6 +386,7 @@ agent_tools_subagents:
           color: blue
           mcpServers:
             - context_pack
+            - codegraph
       goose:
         enabled: true
 
@@ -445,6 +449,9 @@ agent_tools_subagents:
           - Write
           - Grep
           - Glob
+        extra_frontmatter:
+          mcpServers:
+            - codegraph
       goose:
         enabled: true
 
@@ -543,8 +550,6 @@ agent_tools_subagents:
         model: gpt-5.6-terra
         reasoning_effort: medium
         sandbox_mode: workspace-write
-        mcp_servers:
-          - context_pack
         nickname_candidates:
           - agrippa
           - albertus
@@ -574,6 +579,9 @@ agent_tools_subagents:
           - Write
         extra_frontmatter:
           color: violet
+          mcpServers:
+            - context_pack
+            - codegraph
       goose:
         enabled: true
 
@@ -757,8 +765,6 @@ agent_tools_subagents:
         model: gpt-5.6-luna
         reasoning_effort: medium
         sandbox_mode: workspace-write
-        mcp_servers:
-          - context_pack
         nickname_candidates:
           - archimedes
           - brunel
@@ -786,5 +792,8 @@ agent_tools_subagents:
           - Glob
         extra_frontmatter:
           color: green
+          mcpServers:
+            - context_pack
+            - codegraph
       goose:
         enabled: true

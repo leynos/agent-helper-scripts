@@ -398,6 +398,14 @@ this repository and renders each enabled provider's native configuration file.
 The schema is documented in the manifest's header comment, and the deployment
 contracts are pinned by `tests/test_subagent_definitions.py`.
 
+Managed subagents receive the MCP servers provisioned by the parent agent
+client. Every subagent can use CodeGraph. The journeyman can additionally use
+Firecrawl and DeepWiki. Codex subagent entries deliberately omit
+`mcp_servers`, because Codex then inherits the complete parent registry,
+including Firecrawl's secret-bearing configuration. Claude Code uses each
+subagent's `mcpServers` allow-list, while goose recipes omit `extensions` to
+inherit the parent's configured extensions.
+
 ## OpenTofu helper settings
 
 These variables apply when running `get-open-tofu-tooling` directly. That

@@ -28,6 +28,7 @@ CLAUDE_SUBAGENT_MODELS = (
     ("journeyman", "opus", "medium"),
     ("artisan", "sonnet", "medium"),
 )
+MANAGED_SUBAGENTS = tuple(case[0] for case in CLAUDE_SUBAGENT_MODELS)
 
 
 @pytest.mark.parametrize(("name", "model", "effort"), CLAUDE_SUBAGENT_MODELS)
@@ -105,8 +106,8 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_alchemist_codex_subagent_uses_terra_model_and_context_pack() -> None:
-    """Alchemist's Codex entry must request Terra and the context pack MCP."""
+def test_alchemist_codex_subagent_uses_terra_model() -> None:
+    """Alchemist's Codex entry must request Terra for falsification work."""
     codex = load_provider("alchemist", "codex")
 
     assert codex["model"] == "gpt-5.6-terra", (
@@ -117,11 +118,6 @@ def test_alchemist_codex_subagent_uses_terra_model_and_context_pack() -> None:
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Alchemist must retain workspace-write access for instrumentation"
-    )
-    mcp_servers = cast("list[str]", codex["mcp_servers"])
-    assert "context_pack" in mcp_servers, (
-        "Alchemist must expose context_pack as the canonical handoff channel "
-        "between planning agents and subagents"
     )
     nicknames = cast("list[str]", codex["nickname_candidates"])
     assert nicknames, "Alchemist must ship an alchemy-themed nickname pool"
@@ -148,8 +144,8 @@ def test_alchemist_claude_subagent_tools_are_exact() -> None:
     )
 
 
-def test_scrutineer_codex_subagent_has_context_pack_mcp() -> None:
-    """Scrutineer's Codex entry must wire the context_pack MCP server."""
+def test_scrutineer_codex_subagent_contract() -> None:
+    """Scrutineer's Codex entry must retain its gate-runner configuration."""
     codex = load_provider("scrutineer", "codex")
 
     assert codex["model"] == "gpt-5.6-luna", (
@@ -160,11 +156,6 @@ def test_scrutineer_codex_subagent_has_context_pack_mcp() -> None:
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Scrutineer needs workspace-write so gate caches can be written"
-    )
-    mcp_servers = cast("list[str]", codex["mcp_servers"])
-    assert "context_pack" in mcp_servers, (
-        "Scrutineer must expose the context_pack MCP server so it can hand "
-        "structured artefacts back to a connected planning agent"
     )
     nicknames = cast("list[str]", codex["nickname_candidates"])
     assert nicknames, "Scrutineer must ship an engineer/scientist nickname pool"
@@ -206,13 +197,9 @@ def test_delivery_subagent_codex_contract(
     assert codex["sandbox_mode"] == "workspace-write", (
         f"{name} must be able to implement its assigned work"
     )
-    mcp_servers = cast("list[str]", codex["mcp_servers"])
-    assert "context_pack" in mcp_servers, (
-        f"{name} must support exact, source-anchored hand-offs"
-    )
 
 
-def test_delivery_subagent_claude_capabilities_are_bounded() -> None:
+def test_delivery_subagent_claude_tools_are_bounded() -> None:
     """Only the journeyman may delegate through Claude's Agent tool."""
     journeyman = load_provider("journeyman", "claude")
     artisan = load_provider("artisan", "claude")
@@ -222,9 +209,55 @@ def test_delivery_subagent_claude_capabilities_are_bounded() -> None:
         "Agent"
     }
     assert set(cast("list[str]", artisan["tools"])) == editing_tools
-    for provider in (journeyman, artisan):
-        extra = cast("dict[str, object]", provider["extra_frontmatter"])
-        assert extra["mcpServers"] == ["context_pack"]
+
+
+def test_codex_subagents_inherit_the_parent_mcp_registry() -> None:
+    """Codex agents must inherit complete, secret-bearing parent MCP configs.
+
+    A custom-agent ``mcp_servers`` table is a complete flattened registry, not
+    a list of references to the parent configuration. Omitting it preserves
+    access to every globally provisioned server, including CodeGraph for every
+    agent and Firecrawl and DeepWiki for the journeyman.
+    """
+    for name in MANAGED_SUBAGENTS:
+        codex = load_provider(name, "codex")
+        assert "mcp_servers" not in codex, (
+            f"{name} must inherit the parent Codex MCP registry rather than "
+            "replace it with a partial flattened table"
+        )
+
+
+def test_claude_subagent_mcp_access_is_exact() -> None:
+    """Claude agents must receive the requested named MCP server access."""
+    expected = {
+        "wyvern": {"codegraph"},
+        "scribe": {"codegraph"},
+        "alchemist": {"context_pack", "codegraph"},
+        "scrutineer": {"context_pack", "codegraph"},
+        "journeyman": {
+            "context_pack",
+            "firecrawl",
+            "deepwiki",
+            "codegraph",
+        },
+        "artisan": {"context_pack", "codegraph"},
+    }
+
+    for name, expected_servers in expected.items():
+        claude = load_provider(name, "claude")
+        extra = cast("dict[str, object]", claude["extra_frontmatter"])
+        actual_servers = cast("list[str]", extra["mcpServers"])
+        assert set(actual_servers) == expected_servers
+
+
+def test_goose_subagents_inherit_parent_extensions() -> None:
+    """Goose recipes must inherit provisioned MCP extensions from the parent."""
+    for name in MANAGED_SUBAGENTS:
+        goose = load_provider(name, "goose")
+        assert "extensions" not in goose, (
+            f"{name} must inherit the parent Goose extensions, including "
+            "CodeGraph, Firecrawl, and DeepWiki"
+        )
 
 
 def test_journeyman_owns_delivery_and_bounded_delegation() -> None:

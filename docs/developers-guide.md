@@ -405,6 +405,15 @@ downstream provisioning renders the manifest, see the
 `## Sub-agent definitions` section in [docs/users-guide.md](users-guide.md).
 This section covers the test-loader concerns only.
 
+The manifest expresses MCP access according to each provider's inheritance
+model. Codex provider blocks omit `mcp_servers` so the custom agent inherits
+the parent's complete, concrete registry rather than flattening a partial
+replacement into its agent file. Claude Code provider blocks use named
+`mcpServers` allow-lists. Goose provider blocks omit `extensions`, which makes
+the recipe inherit the parent session's extensions. The resulting contract
+gives every managed subagent CodeGraph access and also gives the journeyman
+Firecrawl and DeepWiki access.
+
 ### Test helper: `tests/subagent_manifest.py`
 
 `tests/subagent_manifest.py` loads the manifest with `yaml.safe_load` and
