@@ -399,11 +399,11 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 ## Subagent manifest
 
 `agents/subagents.yml` is the provider-neutral source of truth for the managed
-subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`). For the user-facing
-description of what each subagent does and how downstream provisioning renders
-the manifest, see the `## Sub-agent definitions` section in
-[docs/users-guide.md](users-guide.md). This section covers the test-loader
-concerns only.
+subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`, `journeyman`,
+`artisan`). For the user-facing description of what each subagent does and how
+downstream provisioning renders the manifest, see the
+`## Sub-agent definitions` section in [docs/users-guide.md](users-guide.md).
+This section covers the test-loader concerns only.
 
 ### Test helper: `tests/subagent_manifest.py`
 

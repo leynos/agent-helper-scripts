@@ -18,14 +18,25 @@ from subagent_manifest import (
 )
 
 # Every managed subagent that ships a Claude Code provider block. The shared
-# enabled/model contract is asserted once, parametrized over this tuple; the
+# enabled/model contract is asserted once, parametrized over these cases; the
 # per-subagent tool grants are pinned by the dedicated tests below.
-CLAUDE_SUBAGENTS = ("wyvern", "scribe", "alchemist", "scrutineer")
+CLAUDE_SUBAGENT_MODELS = (
+    ("wyvern", "sonnet", None),
+    ("scribe", "sonnet", None),
+    ("alchemist", "sonnet", None),
+    ("scrutineer", "sonnet", None),
+    ("journeyman", "opus", "medium"),
+    ("artisan", "sonnet", "medium"),
+)
 
 
-@pytest.mark.parametrize("name", CLAUDE_SUBAGENTS)
-def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
-    """Each managed subagent is enabled on Claude Code and pinned to sonnet.
+@pytest.mark.parametrize(("name", "model", "effort"), CLAUDE_SUBAGENT_MODELS)
+def test_claude_subagent_model_and_effort(
+    name: str,
+    model: str,
+    effort: str | None,
+) -> None:
+    """Each managed subagent is enabled with its intended Claude settings.
 
     Codex model selection is independent of the Claude provider; enabling the
     provider is what causes the agent definition to be rendered at all.
@@ -33,8 +44,12 @@ def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
     claude = load_provider(name, "claude")
 
     assert claude["enabled"] is True, f"{name} must be enabled on Claude Code"
-    assert claude["model"] == "sonnet", (
-        f"{name} must use sonnet on Claude Code"
+    assert claude["model"] == model, (
+        f"{name} must use {model} on Claude Code"
+    )
+    extra = cast("dict[str, object]", claude.get("extra_frontmatter", {}))
+    assert extra.get("effort") == effort, (
+        f"{name} must use {effort!r} effort on Claude Code"
     )
 
 
@@ -167,6 +182,85 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
         "Scrutineer's Claude tools must be exactly Bash, Read, Grep, Glob so "
         "the subagent can run and inspect gates but never edit tracked files"
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "model", "reasoning_effort"),
+    [
+        ("journeyman", "gpt-5.6-terra", "high"),
+        ("artisan", "gpt-5.6-luna", "xhigh"),
+    ],
+)
+def test_delivery_subagent_codex_contract(
+    name: str,
+    model: str,
+    reasoning_effort: str,
+) -> None:
+    """Delivery agents must retain their requested Codex execution settings."""
+    codex = load_provider(name, "codex")
+
+    assert codex["model"] == model, f"{name} must use {model} on Codex"
+    assert codex["reasoning_effort"] == reasoning_effort, (
+        f"{name} must use {reasoning_effort} reasoning effort on Codex"
+    )
+    assert codex["sandbox_mode"] == "workspace-write", (
+        f"{name} must be able to implement its assigned work"
+    )
+    mcp_servers = cast("list[str]", codex["mcp_servers"])
+    assert "context_pack" in mcp_servers, (
+        f"{name} must support exact, source-anchored hand-offs"
+    )
+
+
+def test_delivery_subagent_claude_capabilities_are_bounded() -> None:
+    """Only the journeyman may delegate through Claude's Agent tool."""
+    journeyman = load_provider("journeyman", "claude")
+    artisan = load_provider("artisan", "claude")
+    editing_tools = {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}
+
+    assert set(cast("list[str]", journeyman["tools"])) == editing_tools | {
+        "Agent"
+    }
+    assert set(cast("list[str]", artisan["tools"])) == editing_tools
+    for provider in (journeyman, artisan):
+        extra = cast("dict[str, object]", provider["extra_frontmatter"])
+        assert extra["mcpServers"] == ["context_pack"]
+
+
+def test_journeyman_owns_delivery_and_bounded_delegation() -> None:
+    """Journeyman instructions must preserve accountability and escalation."""
+    instructions = _normalized(
+        cast("str", load_subagent_entry("journeyman")["instructions"])
+    )
+
+    for required in (
+        "full approved ExecPlan",
+        "coherent, validated plateau",
+        "remain accountable",
+        "small, bounded, and independently measurable or testable",
+        "exit clauses",
+        "pack ID and a short summary",
+        "Stop and escalate",
+    ):
+        assert required in instructions
+
+
+def test_artisan_requires_a_complete_bounded_packet_and_escalates() -> None:
+    """Artisan instructions must reject ambiguity and scope expansion."""
+    instructions = _normalized(
+        cast("str", load_subagent_entry("artisan")["instructions"])
+    )
+
+    for required in (
+        "exactly one bounded work item or process",
+        "success and completion criteria",
+        "uncompletable exit clauses",
+        "Do not delegate",
+        "Any uncertainty is an escalation condition",
+        "Never broaden scope",
+        "pack ID and a short summary",
+    ):
+        assert required in instructions
 
 
 def test_every_subagent_enables_the_goose_provider() -> None:

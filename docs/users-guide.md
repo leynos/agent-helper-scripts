@@ -389,14 +389,14 @@ These variables customize that installation:
 ## Sub-agent definitions
 
 `agents/subagents.yml` is the provider-neutral manifest of the managed
-sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`, and
-`scrutineer`). Each entry carries a shared `description` and `instructions`
-body plus per-provider blocks for Codex CLI, Claude Code, and goose. Downstream
-provisioning tooling (for example the dev-env-rocky `agent_tools` Ansible role)
-loads the manifest from a checkout of this repository and renders each enabled
-provider's native configuration file. The schema is documented in the
-manifest's header comment, and the deployment contracts are pinned by
-`tests/test_subagent_definitions.py`.
+sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`,
+`scrutineer`, `journeyman`, and `artisan`). Each entry carries a shared
+`description` and `instructions` body plus per-provider blocks for Codex CLI,
+Claude Code, and goose. Downstream provisioning tooling (for example the
+dev-env-rocky `agent_tools` Ansible role) loads the manifest from a checkout of
+this repository and renders each enabled provider's native configuration file.
+The schema is documented in the manifest's header comment, and the deployment
+contracts are pinned by `tests/test_subagent_definitions.py`.
 
 ## OpenTofu helper settings
 
