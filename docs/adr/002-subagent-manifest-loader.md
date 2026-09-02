@@ -38,6 +38,24 @@ directly.
 Adopt PyYAML (`pyyaml>=6.0.3`) as a development-only dependency for this
 purpose, declared in the `[dependency-groups] dev` array of `pyproject.toml`.
 
+### Addendum: provider inheritance semantics
+
+**Date:** 2026-09-02
+
+The manifest intentionally relies on provider-specific inheritance instead of
+flattening every managed subagent to an isolated per-role registry. Claude Code
+uses explicit per-role `mcpServers` allow-lists so the manifest can state the
+minimum tool set directly: CodeGraph for every managed subagent, with Firecrawl
+and DeepWiki only on the journeyman. Codex omits `mcp_servers`, and goose omits
+`extensions`, so both providers inherit the complete credentialed parent
+registry or session extension set that already exists in the host environment.
+
+That choice keeps the secret-bearing parent configuration in one place and
+avoids duplicating or serialising it into per-agent files. It also means Codex
+and goose may expose additional parent MCPs beyond the minimum contract, so the
+docs and tests must describe the inheritance boundary explicitly instead of
+implying a narrower allow-list than the renderer actually enforces.
+
 ## Consequences
 
 **Positives:**
