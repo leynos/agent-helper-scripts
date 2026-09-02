@@ -18,14 +18,28 @@ from subagent_manifest import (
 )
 
 # Every managed subagent that ships a Claude Code provider block. The shared
-# enabled/model contract is asserted once, parametrized over this tuple; the
+# enabled/model contract is asserted once, parametrized over these cases; the
 # per-subagent tool grants are pinned by the dedicated tests below.
-CLAUDE_SUBAGENTS = ("wyvern", "scribe", "alchemist", "scrutineer")
+CLAUDE_SUBAGENT_MODELS = (
+    ("wyvern", "sonnet", None),
+    ("scribe", "sonnet", None),
+    ("alchemist", "sonnet", None),
+    ("scrutineer", "sonnet", None),
+    ("journeyman", "opus", "medium"),
+    ("artisan", "sonnet", "medium"),
+)
+SUBAGENT_NAMES = tuple(
+    cast("str", entry["name"]) for entry in load_subagent_entries()
+)
 
 
-@pytest.mark.parametrize("name", CLAUDE_SUBAGENTS)
-def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
-    """Each managed subagent is enabled on Claude Code and pinned to sonnet.
+@pytest.mark.parametrize(("name", "model", "effort"), CLAUDE_SUBAGENT_MODELS)
+def test_claude_subagent_model_and_effort(
+    name: str,
+    model: str,
+    effort: str | None,
+) -> None:
+    """Each managed subagent is enabled with its intended Claude settings.
 
     Codex model selection is independent of the Claude provider; enabling the
     provider is what causes the agent definition to be rendered at all.
@@ -33,8 +47,12 @@ def test_claude_subagent_is_enabled_on_sonnet(name: str) -> None:
     claude = load_provider(name, "claude")
 
     assert claude["enabled"] is True, f"{name} must be enabled on Claude Code"
-    assert claude["model"] == "sonnet", (
-        f"{name} must use sonnet on Claude Code"
+    assert claude["model"] == model, (
+        f"{name} must use {model} on Claude Code"
+    )
+    extra = cast("dict[str, object]", claude.get("extra_frontmatter", {}))
+    assert extra.get("effort") == effort, (
+        f"{name} must use {effort!r} effort on Claude Code"
     )
 
 
@@ -90,8 +108,8 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_alchemist_codex_subagent_uses_terra_model_and_context_pack() -> None:
-    """Alchemist's Codex entry must request Terra and the context pack MCP."""
+def test_alchemist_codex_subagent_uses_terra_model() -> None:
+    """Alchemist's Codex entry must request Terra for falsification work."""
     codex = load_provider("alchemist", "codex")
 
     assert codex["model"] == "gpt-5.6-terra", (
@@ -102,11 +120,6 @@ def test_alchemist_codex_subagent_uses_terra_model_and_context_pack() -> None:
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Alchemist must retain workspace-write access for instrumentation"
-    )
-    mcp_servers = cast("list[str]", codex["mcp_servers"])
-    assert "context_pack" in mcp_servers, (
-        "Alchemist must expose context_pack as the canonical handoff channel "
-        "between planning agents and subagents"
     )
     nicknames = cast("list[str]", codex["nickname_candidates"])
     assert nicknames, "Alchemist must ship an alchemy-themed nickname pool"
@@ -133,8 +146,8 @@ def test_alchemist_claude_subagent_tools_are_exact() -> None:
     )
 
 
-def test_scrutineer_codex_subagent_has_context_pack_mcp() -> None:
-    """Scrutineer's Codex entry must wire the context_pack MCP server."""
+def test_scrutineer_codex_subagent_contract() -> None:
+    """Scrutineer's Codex entry must retain its gate-runner configuration."""
     codex = load_provider("scrutineer", "codex")
 
     assert codex["model"] == "gpt-5.6-luna", (
@@ -145,11 +158,6 @@ def test_scrutineer_codex_subagent_has_context_pack_mcp() -> None:
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "Scrutineer needs workspace-write so gate caches can be written"
-    )
-    mcp_servers = cast("list[str]", codex["mcp_servers"])
-    assert "context_pack" in mcp_servers, (
-        "Scrutineer must expose the context_pack MCP server so it can hand "
-        "structured artefacts back to a connected planning agent"
     )
     nicknames = cast("list[str]", codex["nickname_candidates"])
     assert nicknames, "Scrutineer must ship an engineer/scientist nickname pool"
@@ -169,14 +177,149 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_every_subagent_enables_the_goose_provider() -> None:
-    """Every subagent manifest entry enables the goose provider."""
-    for entry in load_subagent_entries():
-        providers = cast("dict[str, object]", entry["providers"])
-        goose = cast("dict[str, object]", providers.get("goose", {}))
-        assert goose.get("enabled") is True, (
-            f"subagent {entry.get('name')!r} must enable the goose provider so "
-            "its recipe is rendered"
+@pytest.mark.parametrize(
+    ("name", "model", "reasoning_effort"),
+    [
+        ("journeyman", "gpt-5.6-terra", "high"),
+        ("artisan", "gpt-5.6-luna", "xhigh"),
+    ],
+)
+def test_delivery_subagent_codex_contract(
+    name: str,
+    model: str,
+    reasoning_effort: str,
+) -> None:
+    """Delivery agents must retain their requested Codex execution settings."""
+    codex = load_provider(name, "codex")
+
+    assert codex["model"] == model, f"{name} must use {model} on Codex"
+    assert codex["reasoning_effort"] == reasoning_effort, (
+        f"{name} must use {reasoning_effort} reasoning effort on Codex"
+    )
+    assert codex["sandbox_mode"] == "workspace-write", (
+        f"{name} must be able to implement its assigned work"
+    )
+
+
+def test_delivery_subagent_claude_tools_are_bounded() -> None:
+    """Only the journeyman may delegate through Claude's Task tool."""
+    journeyman = load_provider("journeyman", "claude")
+    artisan = load_provider("artisan", "claude")
+    editing_tools = {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}
+
+    assert set(cast("list[str]", journeyman["tools"])) == editing_tools | {
+        "Task"
+    }, "Journeyman must have editing tools plus Task for bounded delegation"
+    assert set(cast("list[str]", artisan["tools"])) == editing_tools, (
+        "Artisan must have editing tools without Task or another delegation grant"
+    )
+
+
+@pytest.mark.parametrize("name", SUBAGENT_NAMES)
+def test_codex_subagents_inherit_the_parent_mcp_registry(name: str) -> None:
+    """Codex agents must inherit complete, secret-bearing parent MCP configs.
+
+    A custom-agent ``mcp_servers`` table is a complete flattened registry, not
+    a list of references to the parent configuration. Omitting it preserves
+    access to every globally provisioned server, including CodeGraph for every
+    agent and Firecrawl and DeepWiki for the journeyman.
+    """
+    codex = load_provider(name, "codex")
+    assert "mcp_servers" not in codex, (
+        f"{name} must inherit the parent Codex MCP registry rather than "
+        "replace it with a partial flattened table"
+    )
+
+
+def test_claude_subagent_mcp_access_is_exact() -> None:
+    """Claude agents must receive the requested named MCP server access."""
+    expected = {
+        "wyvern": {"codegraph"},
+        "scribe": {"codegraph"},
+        "alchemist": {"context_pack", "codegraph"},
+        "scrutineer": {"context_pack", "codegraph"},
+        "journeyman": {
+            "context_pack",
+            "firecrawl",
+            "deepwiki",
+            "codegraph",
+        },
+        "artisan": {"context_pack", "codegraph"},
+    }
+
+    for name, expected_servers in expected.items():
+        claude = load_provider(name, "claude")
+        extra = cast("dict[str, object]", claude["extra_frontmatter"])
+        actual_servers = cast("list[str]", extra["mcpServers"])
+        assert set(actual_servers) == expected_servers, (
+            f"{name} must expose exactly its intended Claude MCP allow-list"
+        )
+
+
+@pytest.mark.parametrize("name", SUBAGENT_NAMES)
+def test_goose_subagents_inherit_parent_extensions(name: str) -> None:
+    """Goose recipes must inherit provisioned MCP extensions from the parent."""
+    goose = load_provider(name, "goose")
+    assert "extensions" not in goose, (
+        f"{name} must inherit the parent Goose extensions, including "
+        "CodeGraph, Firecrawl, and DeepWiki"
+    )
+
+
+@pytest.mark.parametrize("name", ("journeyman", "artisan"))
+def test_delivery_subagent_is_present_and_enables_every_provider(name: str) -> None:
+    """Each delivery-agent definition must be installed for every provider."""
+    entry = load_subagent_entry(name)
+
+    assert entry["state"] == "present", (
+        f"{name} must have state present so provisioning installs it"
+    )
+    providers = cast("dict[str, object]", entry["providers"])
+    for provider_name in ("codex", "claude", "goose"):
+        provider = cast("dict[str, object]", providers[provider_name])
+        assert provider["enabled"] is True, (
+            f"{name} must enable its {provider_name} provider definition"
+        )
+
+
+def test_journeyman_owns_delivery_and_bounded_delegation() -> None:
+    """Journeyman instructions must preserve accountability and escalation."""
+    instructions = _normalized(
+        cast("str", load_subagent_entry("journeyman")["instructions"])
+    )
+
+    for required in (
+        "full approved ExecPlan",
+        "Treat approval of an ExecPlan or plateau assignment as authorization",
+        "coherent, validated plateau",
+        "remain accountable",
+        "small, bounded, and independently measurable or testable",
+        "exit clauses",
+        "pack ID and a short summary",
+        "Stop and escalate",
+    ):
+        assert required in instructions, (
+            f"Journeyman instructions must retain the {required!r} contract"
+        )
+
+
+def test_artisan_requires_a_complete_bounded_packet_and_escalates() -> None:
+    """Artisan instructions must reject ambiguity and scope expansion."""
+    instructions = _normalized(
+        cast("str", load_subagent_entry("artisan")["instructions"])
+    )
+
+    for required in (
+        "exactly one bounded work item or process",
+        "success and completion criteria",
+        "uncompletable exit clauses",
+        "Do not delegate",
+        "Any uncertainty is an escalation condition",
+        "Never broaden scope",
+        "pack ID and a short summary",
+    ):
+        assert required in instructions, (
+            f"Artisan instructions must retain the {required!r} contract"
         )
 
 

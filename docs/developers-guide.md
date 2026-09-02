@@ -399,11 +399,21 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 ## Subagent manifest
 
 `agents/subagents.yml` is the provider-neutral source of truth for the managed
-subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`). For the user-facing
-description of what each subagent does and how downstream provisioning renders
-the manifest, see the `## Sub-agent definitions` section in
-[docs/users-guide.md](users-guide.md). This section covers the test-loader
-concerns only.
+subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`, `journeyman`,
+`artisan`). For the user-facing description of what each subagent does and how
+downstream provisioning renders the manifest, see the
+`## Sub-agent definitions` section in [docs/users-guide.md](users-guide.md).
+This section covers the test-loader concerns only.
+
+The manifest expresses MCP access according to each provider's inheritance
+model. Claude Code provider blocks use named `mcpServers` allow-lists: every
+managed subagent gets CodeGraph, and only the journeyman gets Firecrawl and
+DeepWiki. Codex provider blocks omit `mcp_servers`, so the custom agent
+inherits the parent's complete, credentialed registry rather than flattening a
+partial replacement into its agent file. Goose provider blocks omit
+`extensions`, which makes the recipe inherit the parent session's extensions.
+The resulting contract keeps Claude access explicit while allowing Codex and
+goose to inherit any other parent MCPs that are already configured.
 
 ### Test helper: `tests/subagent_manifest.py`
 

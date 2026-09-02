@@ -389,14 +389,30 @@ These variables customize that installation:
 ## Sub-agent definitions
 
 `agents/subagents.yml` is the provider-neutral manifest of the managed
-sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`, and
-`scrutineer`). Each entry carries a shared `description` and `instructions`
-body plus per-provider blocks for Codex CLI, Claude Code, and goose. Downstream
-provisioning tooling (for example the dev-env-rocky `agent_tools` Ansible role)
-loads the manifest from a checkout of this repository and renders each enabled
-provider's native configuration file. The schema is documented in the
-manifest's header comment, and the deployment contracts are pinned by
-`tests/test_subagent_definitions.py`.
+sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`,
+`scrutineer`, `journeyman`, and `artisan`). Each entry carries a shared
+`description` and `instructions` body plus per-provider blocks for Codex CLI,
+Claude Code, and goose. Downstream provisioning tooling (for example the
+dev-env-rocky `agent_tools` Ansible role) loads the manifest from a checkout of
+this repository and renders each enabled provider's native configuration file.
+The schema is documented in the manifest's header comment, and the deployment
+contracts are pinned by `tests/test_subagent_definitions.py`.
+
+`journeyman` delivers one full approved ExecPlan, or one named plateau of it,
+end-to-end. It may delegate small, bounded, measurable, testable work items to
+`artisan` agents.
+
+`artisan` accepts exactly one bounded task packet. It cannot delegate and
+must escalate incomplete packets or work outside the packet's scope.
+
+Managed subagents receive the MCP servers provisioned by the parent agent
+client. Every subagent's Claude allow-list includes CodeGraph; only the
+`journeyman` allow-list also includes Firecrawl and DeepWiki. Codex subagent
+entries deliberately omit `mcp_servers`, so Codex inherits the complete
+credentialed parent registry. Goose recipes omit `extensions`, so goose
+inherits the parent's configured extensions. As a result, Codex and goose may
+expose other parent MCPs to every role, while Claude access stays limited to
+the listed allow-lists.
 
 ## OpenTofu helper settings
 
