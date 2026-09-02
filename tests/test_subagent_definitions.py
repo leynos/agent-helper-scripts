@@ -28,7 +28,9 @@ CLAUDE_SUBAGENT_MODELS = (
     ("journeyman", "opus", "medium"),
     ("artisan", "sonnet", "medium"),
 )
-MANAGED_SUBAGENTS = tuple(case[0] for case in CLAUDE_SUBAGENT_MODELS)
+SUBAGENT_NAMES = tuple(
+    cast("str", entry["name"]) for entry in load_subagent_entries()
+)
 
 
 @pytest.mark.parametrize(("name", "model", "effort"), CLAUDE_SUBAGENT_MODELS)
@@ -200,18 +202,21 @@ def test_delivery_subagent_codex_contract(
 
 
 def test_delivery_subagent_claude_tools_are_bounded() -> None:
-    """Only the journeyman may delegate through Claude's Agent tool."""
+    """Only the journeyman may delegate through Claude's Task tool."""
     journeyman = load_provider("journeyman", "claude")
     artisan = load_provider("artisan", "claude")
     editing_tools = {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}
 
     assert set(cast("list[str]", journeyman["tools"])) == editing_tools | {
-        "Agent"
-    }
-    assert set(cast("list[str]", artisan["tools"])) == editing_tools
+        "Task"
+    }, "Journeyman must have editing tools plus Task for bounded delegation"
+    assert set(cast("list[str]", artisan["tools"])) == editing_tools, (
+        "Artisan must have editing tools without Task or another delegation grant"
+    )
 
 
-def test_codex_subagents_inherit_the_parent_mcp_registry() -> None:
+@pytest.mark.parametrize("name", SUBAGENT_NAMES)
+def test_codex_subagents_inherit_the_parent_mcp_registry(name: str) -> None:
     """Codex agents must inherit complete, secret-bearing parent MCP configs.
 
     A custom-agent ``mcp_servers`` table is a complete flattened registry, not
@@ -219,12 +224,11 @@ def test_codex_subagents_inherit_the_parent_mcp_registry() -> None:
     access to every globally provisioned server, including CodeGraph for every
     agent and Firecrawl and DeepWiki for the journeyman.
     """
-    for name in MANAGED_SUBAGENTS:
-        codex = load_provider(name, "codex")
-        assert "mcp_servers" not in codex, (
-            f"{name} must inherit the parent Codex MCP registry rather than "
-            "replace it with a partial flattened table"
-        )
+    codex = load_provider(name, "codex")
+    assert "mcp_servers" not in codex, (
+        f"{name} must inherit the parent Codex MCP registry rather than "
+        "replace it with a partial flattened table"
+    )
 
 
 def test_claude_subagent_mcp_access_is_exact() -> None:
@@ -247,16 +251,34 @@ def test_claude_subagent_mcp_access_is_exact() -> None:
         claude = load_provider(name, "claude")
         extra = cast("dict[str, object]", claude["extra_frontmatter"])
         actual_servers = cast("list[str]", extra["mcpServers"])
-        assert set(actual_servers) == expected_servers
+        assert set(actual_servers) == expected_servers, (
+            f"{name} must expose exactly its intended Claude MCP allow-list"
+        )
 
 
-def test_goose_subagents_inherit_parent_extensions() -> None:
+@pytest.mark.parametrize("name", SUBAGENT_NAMES)
+def test_goose_subagents_inherit_parent_extensions(name: str) -> None:
     """Goose recipes must inherit provisioned MCP extensions from the parent."""
-    for name in MANAGED_SUBAGENTS:
-        goose = load_provider(name, "goose")
-        assert "extensions" not in goose, (
-            f"{name} must inherit the parent Goose extensions, including "
-            "CodeGraph, Firecrawl, and DeepWiki"
+    goose = load_provider(name, "goose")
+    assert "extensions" not in goose, (
+        f"{name} must inherit the parent Goose extensions, including "
+        "CodeGraph, Firecrawl, and DeepWiki"
+    )
+
+
+@pytest.mark.parametrize("name", ("journeyman", "artisan"))
+def test_delivery_subagent_is_present_and_enables_every_provider(name: str) -> None:
+    """Each delivery-agent definition must be installed for every provider."""
+    entry = load_subagent_entry(name)
+
+    assert entry["state"] == "present", (
+        f"{name} must have state present so provisioning installs it"
+    )
+    providers = cast("dict[str, object]", entry["providers"])
+    for provider_name in ("codex", "claude", "goose"):
+        provider = cast("dict[str, object]", providers[provider_name])
+        assert provider["enabled"] is True, (
+            f"{name} must enable its {provider_name} provider definition"
         )
 
 
@@ -268,6 +290,7 @@ def test_journeyman_owns_delivery_and_bounded_delegation() -> None:
 
     for required in (
         "full approved ExecPlan",
+        "Treat approval of an ExecPlan or plateau assignment as authorization",
         "coherent, validated plateau",
         "remain accountable",
         "small, bounded, and independently measurable or testable",
@@ -275,7 +298,9 @@ def test_journeyman_owns_delivery_and_bounded_delegation() -> None:
         "pack ID and a short summary",
         "Stop and escalate",
     ):
-        assert required in instructions
+        assert required in instructions, (
+            f"Journeyman instructions must retain the {required!r} contract"
+        )
 
 
 def test_artisan_requires_a_complete_bounded_packet_and_escalates() -> None:
@@ -293,17 +318,8 @@ def test_artisan_requires_a_complete_bounded_packet_and_escalates() -> None:
         "Never broaden scope",
         "pack ID and a short summary",
     ):
-        assert required in instructions
-
-
-def test_every_subagent_enables_the_goose_provider() -> None:
-    """Every subagent manifest entry enables the goose provider."""
-    for entry in load_subagent_entries():
-        providers = cast("dict[str, object]", entry["providers"])
-        goose = cast("dict[str, object]", providers.get("goose", {}))
-        assert goose.get("enabled") is True, (
-            f"subagent {entry.get('name')!r} must enable the goose provider so "
-            "its recipe is rendered"
+        assert required in instructions, (
+            f"Artisan instructions must retain the {required!r} contract"
         )
 
 

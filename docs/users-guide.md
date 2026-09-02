@@ -398,7 +398,7 @@ this repository and renders each enabled provider's native configuration file.
 The schema is documented in the manifest's header comment, and the deployment
 contracts are pinned by `tests/test_subagent_definitions.py`.
 
-`journeyman` delivers one approved ExecPlan, or one named plateau of it,
+`journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
 `artisan` agents.
 

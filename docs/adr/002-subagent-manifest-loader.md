@@ -51,7 +51,7 @@ and DeepWiki only on the journeyman. Codex omits `mcp_servers`, and goose omits
 registry or session extension set that already exists in the host environment.
 
 That choice keeps the secret-bearing parent configuration in one place and
-avoids duplicating or serialising it into per-agent files. It also means Codex
+avoids duplicating or serializing it into per-agent files. It also means Codex
 and goose may expose additional parent MCPs beyond the minimum contract, so the
 docs and tests must describe the inheritance boundary explicitly instead of
 implying a narrower allow-list than the renderer actually enforces.

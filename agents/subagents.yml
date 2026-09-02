@@ -24,9 +24,10 @@
 #         reasoning_effort: <str>      # optional
 #         sandbox_mode: <str>          # optional
 #         nickname_candidates: [<str>] # optional
-#         mcp_servers: [<str>]         # optional; omit to inherit the parent
-#                                      #   registry; selected names must be
-#                                      #   supported by the Codex module
+#         mcp_servers: [<str>]         # optional; omit to inherit the complete
+#                                      #   credentialed parent registry;
+#                                      #   selected names must be supported by
+#                                      #   the Codex module
 #         extra: <dict>                # optional, never overrides managed keys
 #       claude:
 #         enabled: <bool>              # default false
@@ -39,8 +40,9 @@
 #         title: <str>                 # optional, defaults to name
 #         version: <str>               # optional, recipe version
 #         activities: [<str>]          # optional
-#         extensions: [<dict>]         # optional; omit to inherit the parent
-#                                      #   session's extensions (incl. summon)
+#         extensions: [<dict>]         # optional; omit to inherit the complete
+#                                      #   credentialed parent session's
+#                                      #   extensions (including summon)
 #         parameters: [<dict>]         # optional
 #         prompt: <str>                # optional
 #         settings: <dict>             # optional
@@ -162,8 +164,10 @@ agent_tools_subagents:
       - Keep Progress, Surprises & discoveries, Decision log, Risks,
         Verification plan, Conformance basis, and Outcomes & retrospective
         synchronized with the implementation evidence.
-      - Do not commit, push, publish, merge, or perform destructive operations
-        unless the assignment explicitly authorizes that action.
+      - Treat approval of an ExecPlan or plateau assignment as authorization
+        for the commits its prescribed workflow requires. Do not push,
+        publish, merge, or perform destructive operations unless the
+        assignment explicitly authorizes that action.
 
       Delegation policy:
       - You may delegate only work that is small, bounded, and independently
@@ -260,7 +264,7 @@ agent_tools_subagents:
           - Glob
           - Edit
           - Write
-          - Agent
+          - Task
         extra_frontmatter:
           effort: medium
           color: orange
