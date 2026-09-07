@@ -56,7 +56,7 @@ analysis with [`cs delta`](../skills/codescene-cli/references/command-reference.
 [`cs review`](../skills/codescene-cli/references/command-reference.md#cs-review),
 [`cs check`](../skills/codescene-cli/references/command-reference.md#cs-check),
 and [`cs rules-config`](../skills/codescene-cli/references/command-reference.md#cs-rules-config).
-Use [`codescene-health-rules`](../skills/codescene-cli-health-rules/SKILL.md) to
+Use [`codescene-health-rules`](../skills/codescene-health-rules/SKILL.md) to
 configure CodeScene rule weights, thresholds, and source directives.
 
 ## Shared spelling tools
