@@ -1,4 +1,5 @@
 ---
+name: rebase
 description: Rebase the current branch onto origin/main, resolve conflicts carefully, validate, and commit.
 ---
 
