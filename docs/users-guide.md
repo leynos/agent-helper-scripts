@@ -56,7 +56,7 @@ analysis with [`cs delta`](../skills/codescene-cli/references/command-reference.
 [`cs review`](../skills/codescene-cli/references/command-reference.md#cs-review),
 [`cs check`](../skills/codescene-cli/references/command-reference.md#cs-check),
 and [`cs rules-config`](../skills/codescene-cli/references/command-reference.md#cs-rules-config).
-Use [`codescene-health-rules`](../skills/codescene-health-rules/SKILL.md) to
+Use [`codescene-health-rules`](../skills/codescene-cli-health-rules/SKILL.md) to
 configure CodeScene rule weights, thresholds, and source directives.
 
 ## Shared spelling tools
@@ -431,13 +431,25 @@ These variables customize that installation:
 
 `agents/subagents.yml` is the provider-neutral manifest of the managed
 sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`,
-`scrutineer`, `journeyman`, and `artisan`). Each entry carries a shared
-`description` and `instructions` body plus per-provider blocks for Codex CLI,
-Claude Code, and goose. Downstream provisioning tooling (for example the
-dev-env-rocky `agent_tools` Ansible role) loads the manifest from a checkout of
-this repository and renders each enabled provider's native configuration file.
-The schema is documented in the manifest's header comment, and the deployment
-contracts are pinned by `tests/test_subagent_definitions.py`.
+`scrutineer`, `journeyman`, `artisan`, and `natural-philosopher`). Each entry
+carries a shared `description` and `instructions` body plus per-provider blocks
+for Codex CLI, Claude Code, and goose. Downstream provisioning tooling (for
+example the dev-env-rocky `agent_tools` Ansible role) loads the manifest from a
+checkout of this repository and renders each enabled provider's native
+configuration file. The schema is documented in the manifest's header comment,
+and the deployment contracts are pinned by `tests/test_subagent_definitions.py`
+and `tests/test_natural_philosopher.py`.
+
+`natural-philosopher` designs evidence-led steps for one selected GIST idea
+and its parent goal. Supply the relevant sources, existing IDs, constraints,
+owned document paths, inquiry budget, and experiment permissions. It reads
+`roadmap-doc`, returns hypotheses, coherent workstreams, evidence criteria,
+and decision gates, and leaves approval to the parent. It may use bounded
+Wyvern reconnaissance or explicitly authorized Alchemist experiments when
+the host supports delegation. Without experiment authority it designs only;
+without owned document paths it returns a report rather than editing files.
+See [ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
+provider limits, and a worked example.
 
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
@@ -447,13 +459,14 @@ end-to-end. It may delegate small, bounded, measurable, testable work items to
 must escalate incomplete packets or work outside the packet's scope.
 
 Managed subagents receive the MCP servers provisioned by the parent agent
-client. Every subagent's Claude allow-list includes CodeGraph; only the
-`journeyman` allow-list also includes Firecrawl and DeepWiki. Codex subagent
-entries deliberately omit `mcp_servers`, so Codex inherits the complete
-credentialed parent registry. Goose recipes omit `extensions`, so goose
-inherits the parent's configured extensions. As a result, Codex and goose may
-expose other parent MCPs to every role, while Claude access stays limited to
-the listed allow-lists.
+client. Every subagent's Claude allow-list includes CodeGraph; the
+`journeyman` and `natural-philosopher` allow-lists also include Firecrawl and
+DeepWiki. Codex subagent entries deliberately omit `mcp_servers`, so Codex
+inherits the complete credentialed parent registry. Goose recipes omit
+`extensions`, so goose inherits the parent's configured extensions. As a
+result, Codex and goose may expose other parent MCPs to every role, while
+Claude access stays limited to the listed allow-lists. Tool access never
+expands the assignment's authority.
 
 ## OpenTofu helper settings
 
