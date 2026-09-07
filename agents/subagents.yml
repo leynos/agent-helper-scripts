@@ -733,7 +733,7 @@ agent_tools_subagents:
       ## Gate Results
 
       | Gate | Status | Log file | Duration | Notes |
-      |------|--------|----------|-------|
+      |------|--------|----------|----------|-------|
 
       ## Findings
 
