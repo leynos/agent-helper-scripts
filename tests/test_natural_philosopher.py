@@ -1,0 +1,126 @@
+"""Pin the Natural Philosopher's deployment and step-design contracts.
+
+These are manifest regression tests, not live-model behavioural evaluations.
+The scenario checks in ADR 004 describe the additional review boundary.
+"""
+
+from __future__ import annotations
+
+from typing import cast
+
+import pytest
+from subagent_manifest import (
+    load_provider,
+    load_subagent_entries,
+    load_subagent_entry,
+)
+
+NAME = "natural-philosopher"
+
+
+def test_natural_philosopher_is_unique_and_present() -> None:
+    """Provision exactly one unambiguous definition using the existing schema."""
+    entries = [entry for entry in load_subagent_entries() if entry["name"] == NAME]
+
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["state"] == "present"
+    assert set(entry) == {
+        "name", "state", "description", "instructions", "providers"
+    }
+    assert "before task-level ExecPlan planning" in " ".join(
+        cast("str", entry["description"]).split()
+    )
+
+
+@pytest.mark.parametrize("provider_name", ("codex", "claude", "goose"))
+def test_natural_philosopher_enables_each_provider(provider_name: str) -> None:
+    """Enable the role for every provider supported by the manifest."""
+    provider = load_provider(NAME, provider_name)
+
+    assert provider["enabled"] is True
+    if provider_name != "goose":
+        assert provider["scope"] == "user"
+
+
+def test_natural_philosopher_codex_contract() -> None:
+    """Use the existing Terra planning tier and inherit credentialed MCPs."""
+    codex = load_provider(NAME, "codex")
+
+    assert codex["model"] == "gpt-5.6-terra"
+    assert codex["reasoning_effort"] == "high"
+    assert codex["sandbox_mode"] == "workspace-write"
+    assert "mcp_servers" not in codex
+
+
+def test_natural_philosopher_claude_contract() -> None:
+    """Allow document work and bounded research delegation, but no Bash grant."""
+    claude = load_provider(NAME, "claude")
+    extra = cast("dict[str, object]", claude["extra_frontmatter"])
+
+    assert claude["model"] == "opus"
+    assert extra["effort"] == "high"
+    assert set(cast("list[str]", claude["tools"])) == {
+        "Read", "Grep", "Glob", "Edit", "Write", "Task"
+    }
+    assert set(cast("list[str]", extra["mcpServers"])) == {
+        "context_pack", "firecrawl", "deepwiki", "codegraph"
+    }
+
+
+def test_natural_philosopher_goose_inherits_extensions() -> None:
+    """Do not replace the parent's credentialed extension registry."""
+    assert "extensions" not in load_provider(NAME, "goose")
+
+
+@pytest.mark.parametrize(
+    "required",
+    (
+        "Goal: the parent-owned outcome",
+        "Idea = roadmap phase: a falsifiable bet",
+        "Step = workstream: one coherent delivery objective",
+        "Task = execution unit",
+        "A step is not a task or an ExecPlan milestone",
+        "one selected idea to proposed steps",
+        "GitHub tracks the work; Linear tracks the programme",
+        "never mirror every GitHub issue or PR into a Linear issue",
+        "Load roadmap-doc and read its references/conventions.md",
+        "Record the revision used",
+        "Uncertainty about how the system works is your subject of inquiry",
+        "including retaining the current behaviour",
+        "baseline or comparator",
+        "correctness and safety invariants",
+        "Define thresholds and decision rules before observing trial results",
+        "Do not invent baseline measurements or move the goalposts",
+        "untested | falsified | not-falsified | inconclusive",
+        "Prefer usable vertical slices",
+        "Keep dependencies acyclic",
+        "preserve existing IDs, completion evidence, and unrelated status",
+        "Weave unit and behavioural tests, property tests, and formal verification",
+        "Dedicated E2E/combinatorial suites are legitimate tasks",
+        "Account for every relevant source obligation",
+        "Do not promise dates or durations",
+        "Absent experiment authority means design only",
+        "only with explicit experiment authority",
+        "Do not delegate to another natural-philosopher",
+        "or commission journeyman or artisan implementation",
+        "uncompletable exit clauses",
+        "Children may not redelegate",
+        "Inspect returned evidence yourself",
+        "pack ID and a short summary",
+        "Edit only explicitly assigned roadmap or design-document paths",
+        "Tool availability is not permission",
+        "Research recommendations do not approve themselves",
+        "Never mark a step, idea, or goal complete merely because",
+        "Stop and escalate when",
+        "Stop affected work safely",
+        "Return a Step Design Report",
+        "status: ready-for-review | escalated",
+    ),
+)
+def test_natural_philosopher_retains_load_bearing_contract(required: str) -> None:
+    """Catch accidental removal of a boundary while tolerating prose wrapping."""
+    entry = load_subagent_entry(NAME)
+    instructions = " ".join(cast("str", entry["instructions"]).split())
+
+    assert required in instructions, f"Missing Natural Philosopher contract: {required}"
