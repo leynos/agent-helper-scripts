@@ -1,6 +1,6 @@
 ---
 name: weave-git-merge
-description: Use and troubleshoot Weave as an entity-aware Git merge driver during merges, rebases, cherry-picks, and conflict resolution. Use when configuring Weave, previewing a merge, checking whether Git will invoke it, interpreting Weave conflict markers or exit behaviour, detecting structurally corrupt clean results, bypassing Weave safely, recovering from driver failures, or explaining what Weave actually resolves versus when it falls back to line-level merging.
+description: Use and troubleshoot Weave as an entity-aware Git merge driver during merges, rebases, cherry-picks, and conflict resolution. Use when configuring Weave, previewing a merge, checking whether Git will invoke it, interpreting Weave conflict markers or exit behaviour, detecting structurally corrupt clean results, auditing semantic corruption after a clean replay, bypassing Weave safely, recovering from driver failures, or explaining what Weave actually resolves versus when it falls back to line-level merging.
 ---
 
 # Use Weave with Git
@@ -10,16 +10,92 @@ or `git rebase`. Git selects it through attributes and invokes
 `weave-driver %O %A %B %L %P` for each selected path.
 
 Read [behaviour.md](references/behaviour.md) before diagnosing a surprising
-result or deciding whether an unresolved file is safe to edit.
+result or deciding whether an unresolved file is safe to edit. In particular,
+Weave 0.3.6 has produced clean-exit semantic corruption that parses, compiles,
+and passes tests, so neither the driver's exit code nor a structural gate is
+sufficient evidence on its own.
 
 Every shell example below requires Bash. This matters for the stage-validation
-commands in particular: `set -o pipefail` is a Bash builtin option with no
-POSIX `sh` equivalent, so running those commands under `sh` silently drops the
-guard and lets a failing `git show` pass as success.
+commands and stderr capture in particular: `set -o pipefail` and process
+substitution are Bash features with no POSIX `sh` equivalent.
 
-## Configure it
+## Establish the operation and evidence boundary
 
-Choose one scope deliberately:
+Perform unattended merge and rebase work in a linked worktree. Treat the
+primary checkout as a read-only coordination anchor: do not use it as a scratch,
+formatting, conflict-repair, or rebase surface.
+
+Before a rebase or merge, record the candidate and target identities before any
+history rewrite:
+
+```bash
+OLD_HEAD=$(git rev-parse HEAD)
+TARGET=$(git rev-parse origin/main)
+MERGE_BASE=$(git merge-base "$OLD_HEAD" "$TARGET")
+printf 'old_head=%s\ntarget=%s\nmerge_base=%s\n' "$OLD_HEAD" "$TARGET" "$MERGE_BASE"
+```
+
+For a different target, substitute its exact fetched ref. Do not use a mutable
+local primary checkout as the implicit base for unattended work. Resolve the
+remote target to a commit first.
+
+A completed rebase creates a new candidate. Any gate, review, or merge-eligibility
+evidence tied to `OLD_HEAD` is stale for acceptance after the replay. Preserve
+it as historical evidence, record the new `HEAD`, and rerun the candidate-bound
+checks required by the repository.
+
+Before any destructive `reset`, `clean`, abort-and-retry sequence, or recovery
+that could discard manual resolution work, either prove there is no unrelated
+work to preserve or create and verify recovery material covering staged,
+unstaged, and intended untracked files. A patch that applies successfully does
+not prove it captured untracked files. Generate native recovery diffs with
+`--no-ext-diff --no-textconv --binary` and keep an explicit untracked-file
+manifest.
+
+## Decide whether Weave should participate
+
+First identify why Weave is selected:
+
+```bash
+git check-attr merge -- path/to/file.rs
+git config --show-origin --get merge.weave.driver
+command -v weave-driver
+weave-driver --version
+weave --version
+```
+
+Expect `git check-attr` to report `merge: weave` when selected.
+`git check-attr -a -- path` reports only effective attribute values, not which
+source supplied them. Inspect `.git/info/attributes`, applicable
+`.gitattributes` files, and the configured global attributes file directly (or
+the default `$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes`
+when no file is configured). Locate an explicitly configured file with
+`git config --path --get core.attributesFile`. That command prints nothing and
+exits non-zero when the setting is absent, which means the default path applies,
+not that no global rule exists; read the default path before concluding that
+Weave was selected somewhere else.
+
+For unattended agents, ambient selection is not repository consent. When an
+operation will replay multiple commits, or a long-lived branch is being rebased
+across substantial target history, bypass Weave up front when it is selected
+only by global or clone-local ambient configuration. Use Git's built-in merge
+machinery with `zdiff3` instead. Use Weave for such an operation only when the
+repository explicitly opts in through tracked attributes or the task explicitly
+requests Weave dogfooding/evidence collection.
+
+For a global ambient rule, a typical unattended rebase therefore starts as:
+
+```bash
+git -c core.attributesFile=/dev/null \
+    -c merge.conflictStyle=zdiff3 \
+    rebase origin/main
+```
+
+If tracked `.gitattributes` selects Weave, that is explicit repository policy.
+Do not silently bypass it. If an authorised recovery requires bypassing a
+tracked or clone-local rule, use the scope-specific override below.
+
+Choose one setup scope deliberately when configuring Weave:
 
 ```bash
 # Tracked for this repository; suitable when the whole team should use Weave.
@@ -34,27 +110,6 @@ weave setup --global
 
 Pass `--driver /absolute/path/to/weave-driver` when auto-detection is
 unreliable. Prefer a stable installed path over a versioned build directory.
-
-Do not assume setup succeeded merely because `.gitattributes` contains a rule.
-Verify both selection and command:
-
-```bash
-git check-attr merge -- path/to/file.ts
-git config --show-origin --get merge.weave.driver
-command -v weave-driver
-weave-driver --version
-```
-
-Expect `git check-attr` to report `merge: weave`. `git check-attr -a -- path`
-reports only effective attribute values, not which source supplied them.
-Inspect `.git/info/attributes`, applicable `.gitattributes` files, and the
-configured global attributes file directly (or the default
-`$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes` when no file
-is configured). Locate an explicitly configured file with
-`git config --path --get core.attributesFile`. That command prints nothing and
-exits non-zero when the setting is absent, which means the default path applies,
-not that no global rule exists; read the default path before concluding that
-Weave was selected somewhere else.
 
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:
@@ -76,13 +131,31 @@ Use preview as an estimate. It reads the merge base, `HEAD`, and the named
 branch directly; it does not reproduce every higher-level Git operation or
 pre-existing conflicted stage exactly.
 
-## Merge or rebase normally
+## Merge or rebase with observable driver output
 
 Run the ordinary Git operation. During a rebase, remember that Git's labels
 and the human meaning of “ours” and “theirs” are easy to misread. Reason from
 the desired rebased result and inspect the stage blobs when provenance matters.
 
-After Git stops:
+Never discard driver stderr. A line such as
+`weave: 5 entities auto-resolved (conflict confidence)` identifies a file or
+operation whose clean reconstruction deserves scrutiny; it is not proof of
+correctness. On Weave versions that support it, set `WEAVE_EVENT=1` for one
+JSON event per merge on stderr. Keep the environment override command-scoped
+rather than exporting it across an agent session:
+
+```bash
+env WEAVE_EVENT=1 git rebase origin/main \
+  2> >(tee /tmp/weave-rebase.stderr >&2)
+grep -E 'auto-resolved|^weave-event: ' /tmp/weave-rebase.stderr || true
+```
+
+Read the captured stderr after the operation and correlate every auto-resolved
+or event-reported path with the post-operation audit below. A clean exit and a
+high-confidence label are evidence about Weave's decision, not evidence that
+the merged semantics are correct.
+
+After Git stops on a conflict:
 
 ```bash
 git status --short
@@ -142,27 +215,127 @@ Resolve remaining markers, perform the structural check, run the repository's
 normal formatting, tests, lint, and type checks, then `git add` the path and
 continue the Git operation.
 
-## Guard a multi-commit rebase
+## Guard every replayed commit
 
 A cleanly returned but corrupted early replay becomes an input to later
 replays. In a later conflict it may appear as stage 2, so reconstruction damage
 can compound before an end-of-rebase test ever runs.
 
-For a branch that relocates or reorders imports, or contains "repair after
-rebase" commits, either bypass Weave for the whole operation or run a cheap
-syntax or import check after every replayed commit. Git's `--exec` option makes
-that check stop the rebase at the first bad intermediate result, for example:
+For agents, a per-replay guard is the default whenever Weave participates in a
+multi-commit rebase. Use `git rebase --exec` with the repository's cheapest
+credible structural gate, rather than reserving this only for import-relocation
+branches.
+
+For Python, for example:
 
 ```bash
 git rebase --exec 'python -m compileall -q -f path/to/package' origin/main
 ```
 
-Replace the example with the repository's cheapest suitable structural gate.
-Do not rely solely on the full test suite after the final commit.
+For Rust, `rustfmt` is a useful parser-level tripwire, but it does not establish
+workspace type correctness. `cargo check --workspace` is the honest default
+when its cost is acceptable:
+
+```bash
+git rebase --exec 'cargo check --workspace' origin/main
+```
+
+A deliberately cheaper Rust parse guard such as `cargo fmt --all -- --check`
+may be used when a workspace check per commit would be prohibitive, but record
+that reduced scope explicitly. In every language, the per-replay structural
+gate is necessary but not sufficient: the cfg-gated Rust test replacement
+recorded in [behaviour.md](references/behaviour.md) parsed, compiled, and passed
+tests. Do not rely solely on the full test suite after the final commit.
+
+When dogfooding Weave during the rebase, combine the guard with command-scoped
+event capture:
+
+```bash
+env WEAVE_EVENT=1 git rebase \
+  --exec 'cargo check --workspace' \
+  origin/main 2> >(tee /tmp/weave-rebase.stderr >&2)
+```
+
+## Audit the completed operation semantically
+
+Run this audit after every Weave-participating merge or rebase, even when the
+driver exits `0`, every per-replay structural gate passes, and the full test
+suite is green. Use the `OLD_HEAD`, `TARGET`, and `MERGE_BASE` recorded before
+the operation.
+
+First enumerate what the branch and target independently changed:
+
+```bash
+git diff --name-only -z "$MERGE_BASE..$OLD_HEAD" > /tmp/weave-branch-paths.z
+git diff --name-only -z "$MERGE_BASE..$TARGET" > /tmp/weave-target-paths.z
+```
+
+Then enforce these three checks:
+
+1. **Target-only paths are byte-identical.** Every file changed by the target
+   but not by the branch must be byte-identical at the final `HEAD` to the
+   target version. Any difference is an andon event. A semantic merge driver
+   had no branch-side change to reconcile in that path.
+2. **Every deletion against the target in a branch-touched file is explained.**
+   Read each deletion hunk in `git diff "$TARGET"..HEAD -- <path>` and map it
+   to an intended branch change from `git diff "$MERGE_BASE".."$OLD_HEAD" --
+   <path>` or to a named, reviewed conflict-resolution decision. An unexplained
+   deletion is an andon event even if the file compiles and tests pass.
+3. **Look for newly repeated blocks.** Scan each resulting text file for a
+   multi-line block repeated more often at `HEAD` than at `TARGET`, then inspect
+   every new repetition. This catches duplicated re-export/import blocks and
+   similar reconstruction artefacts that may remain syntactically valid.
+
+The first check can be automated directly. Compute the set difference between
+the NUL-delimited target and branch path manifests above and require this for
+each remaining path:
+
+```bash
+git diff --quiet "$TARGET" HEAD -- "$path"
+```
+
+For the second and third checks, use a repository audit helper when one exists;
+otherwise inspect the diffs and repeated-block report explicitly. Do not waive
+the review because a parser, compiler, formatter, linter, or test suite is
+green. The known Rust cfg-gated sibling replacement is specifically a case
+where all of those structural signals can miss the corruption.
+
+Finally run ordinary repository checks such as `git diff --check`, formatting,
+lint, type checking, and tests. Markdown doubled-blank-line corruption has been
+caught by Markdownlint, while Rust duplicate blocks with stray braces have been
+caught by the compiler; these are useful detectors, but they complement rather
+than replace the semantic audit.
+
+## Run Weave's own post-merge checker when supported
+
+Record `weave --version` in the operation evidence. The estate is expected to
+provision Weave 0.5.1 or newer; on an installed version that supports
+`weave check`, run it after the Git operation and before accepting the result:
+
+```bash
+weave --version
+weave check --help >/dev/null
+weave check
+```
+
+`weave check` verifies the merged working tree against the merge inputs and can
+report leftover markers, lines present on both sides that went missing, and
+content repeated more often than either side supplied. Treat findings or an
+unsupported/missing checker as explicit evidence states; do not translate
+“checker unavailable” into success.
+
+When the Weave MCP server is available, the read-only `weave_check` tool is the
+agent-facing equivalent. Use it instead of shelling out when that is the
+established integration, and retain its findings with the same candidate
+identity. Neither interface replaces the target/branch semantic audit above.
+
+As a read-only verifier, `weave check` or MCP `weave_check` must not mutate the
+working tree. Unexpected mutation is an andon event.
 
 ## Interpret driver outcomes
 
-- Exit `0`: Weave wrote the result to `%A` and considers it clean.
+- Exit `0`: Weave wrote the result to `%A` and considers it clean. This is not
+  semantic acceptance.
 - Exit `1`: Weave wrote a partially merged result with conflicts to `%A`; Git
   keeps the path unmerged for manual or agent resolution.
 - Exit `2`: invocation, input, output, or binary-file failure. Do not treat
@@ -173,27 +346,53 @@ hints. The `-l` option selects standard diff3-compatible markers and is meant
 for tools such as Jujutsu; Git's positional `%L` does not disable enhanced
 markers.
 
-Set `WEAVE_VERBOSE=1` to print per-file statistics. Set `WEAVE_TIMEOUT` to a
-whole number of seconds only when the default five-second entity-merge timeout
-is unsuitable. A timeout falls back to `git merge-file`; it does not abort the
-overall driver invocation.
+Set `WEAVE_VERBOSE=1` to print per-file statistics. Prefer command-scoped
+`env WEAVE_VERBOSE=1 ...` rather than a session-wide export. Set
+`WEAVE_TIMEOUT` to a whole number of seconds only when the default five-second
+entity-merge timeout is unsuitable. A timeout falls back to `git merge-file`;
+it does not abort the overall driver invocation.
+
+## Andon triggers
+
+Stop advancing the branch, preserve the current state, and establish the
+candidate again when any of these occurs:
+
+- Weave, a parser, compiler, formatter, linter, test, or `weave check` reports a
+  failure after a replay;
+- a target-only path differs from `TARGET` after the operation;
+- a branch-touched path contains an unexplained deletion against `TARGET`;
+- a repeated-block scan finds a new duplication that cannot be justified;
+- driver stderr records an auto-resolution whose affected path has not yet been
+  audited;
+- the installed `weave` and `weave-driver` versions disagree unexpectedly, or
+  the required post-merge checker is unavailable;
+- source or compiled artefact provenance disagrees;
+- recovery evidence omits staged, unstaged, or intended untracked work;
+- the rebase changes the candidate head while old gate/review evidence is still
+  being treated as current.
+
+An andon event is not an instruction to guess a repair. Preserve evidence,
+identify the authoritative inputs, and either rerun with built-in Git merging
+or investigate the specific reconstruction before continuing.
 
 ## Recover safely
 
 Before rerunning or replacing a result, preserve it or inspect the index
 stages. Commands that recreate conflict markers can overwrite Weave's
-partially merged `%A` file.
+partially merged `%A` file. Do not perform a destructive abort until any manual
+resolution work or unrelated local state that matters has verified recovery
+coverage, including intended untracked files.
 
 If Weave was selected but never ran, check attribute precedence, the exact
 config scope, executable discovery, and quoting of a driver path containing
 spaces. If the driver returned `2`, use its stderr to distinguish missing
 inputs, binary detection, and write failure.
 
-If Weave returned `0` with structurally broken output, abort the operation and
-rerun the whole operation with the built-in merge machinery. For a global
-setup, first verify that ignoring the user attributes file makes `merge`
-unspecified for a representative affected path, then use the same override for
-the rebase, merge, or cherry-pick:
+If Weave returned `0` with structurally or semantically broken output, abort the
+operation and rerun the whole operation with the built-in merge machinery. For
+a global setup, first verify that ignoring the user attributes file makes
+`merge` unspecified for a representative affected path, then use the same
+override for the rebase, merge, or cherry-pick:
 
 ```bash
 git rebase --abort
@@ -208,6 +407,15 @@ git -c core.attributesFile=/dev/null merge <same-original-arguments>
 # For an in-progress cherry-pick, abort and retry with the same original arguments:
 git cherry-pick --abort
 git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>
+```
+
+For unattended rebase recovery, also force the expected conflict style for the
+retry without mutating persistent Git configuration:
+
+```bash
+git -c core.attributesFile=/dev/null \
+    -c merge.conflictStyle=zdiff3 \
+    rebase origin/main
 ```
 
 This override disables only the user attributes file for those commands.
