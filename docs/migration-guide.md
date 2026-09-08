@@ -1,9 +1,15 @@
 # Migration Guide
 
-This guide explains how to move from the previous single-phase
-`rust-entrypoint` bootstrap to the phase-aware bootstrap model.
+This guide records migrations that change how the helper scripts and skills
+in this repository behave, and what to do about work produced under the
+previous behaviour.
 
-## Previous model
+## Bootstrap phases
+
+Moving from the previous single-phase `rust-entrypoint` bootstrap to the
+phase-aware bootstrap model.
+
+### Previous model
 
 The previous bootstrap model ran everything inline through one
 `rust-entrypoint` invocation. A single run configured package repositories,
@@ -13,7 +19,7 @@ toolchains, cloned helper scripts, and wrote user-level configuration.
 That worked for one-shot environments, but it mixed privileged system mutation
 with warm-cache-friendly home-directory work.
 
-## New model
+### New model
 
 The new model keeps `rust-entrypoint` as the public entrypoint, but it
 dispatches to phase-specific scripts according to `RUST_ENTRYPOINT_PHASE`.
@@ -34,7 +40,7 @@ The system phase is intended for fresh or reset system layers. The home phase
 is intended for durable user-home setup, including warm-cache creation and
 refresh.
 
-## Backward compatibility
+### Backward compatibility
 
 `RUST_ENTRYPOINT_PHASE=both` preserves the previous sequential behaviour by
 running the system phase first and the home phase second.
@@ -51,7 +57,7 @@ The explicit equivalent is:
 RUST_ENTRYPOINT_PHASE=both bash rust-entrypoint
 ```
 
-## Transition examples
+### Transition examples
 
 Run only the system phase when building or refreshing a CI image layer that
 does not preserve `$HOME`:
@@ -79,3 +85,26 @@ RUST_ENTRYPOINT_PHASE=home bash rust-entrypoint
 The home phase expects the system phase to have installed the shared libraries,
 APT packages, certificates, and other machine-level prerequisites required by
 the tools under `$HOME`.
+
+## Debugging plan filenames
+
+The [`hypothesis-debugging`](../skills/hypothesis-debugging/SKILL.md) skill
+previously wrote its output to `docs/debugging/debugging-plan-{timestamp}.md`.
+It now writes `debugging-plan-<year>-<month>-<day>-<problem-slug>.md`, for
+example `debugging-plan-2026-08-20-acp-skill-agent-menu.md`.
+
+The output directory is unchanged, so nothing needs moving. Existing plans keep
+working where they are; the skill only governs the names it writes from now on.
+
+Rename older plans opportunistically, when you next touch one, by replacing the
+timestamp with the date the plan was written and a short lower-case,
+hyphen-separated slug naming the problem it investigates:
+
+```bash
+git mv docs/debugging/debugging-plan-1755710308.md \
+  docs/debugging/debugging-plan-2026-08-20-acp-skill-agent-menu.md
+```
+
+Update any links to the old filename in the same commit. A bulk rename is not
+required, because the date and slug must come from the plan's contents rather
+than from its timestamp.
