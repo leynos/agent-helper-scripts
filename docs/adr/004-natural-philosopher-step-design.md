@@ -148,7 +148,10 @@ experiment is not proof, and completed child tasks do not complete the idea.
 ### Provider choices and limits
 
 Codex uses `gpt-5.6-terra`, high reasoning effort, and `workspace-write`, reusing
-the existing Journeyman model tier without assuming unreleased models. Claude
+the existing Journeyman model tier without assuming unreleased models. Its
+nickname pool draws on the natural philosophers who established evidence-led
+inquiry, from Ibn al-Haytham to Faraday and Maxwell, matching the themed pools
+the other Codex roles carry. Claude
 uses `opus` with high effort and exactly `Read`, `Grep`, `Glob`, `Edit`, `Write`,
 and `Task`. There is no direct Claude `Bash` grant. Its MCP allow-list contains
 `context_pack`, `firecrawl`, `deepwiki`, and `codegraph` for grounded research.

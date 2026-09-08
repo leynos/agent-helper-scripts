@@ -988,6 +988,23 @@ agent_tools_subagents:
         model: gpt-5.6-terra
         reasoning_effort: high
         sandbox_mode: workspace-write
+        nickname_candidates:
+          - al-haytham
+          - boyle
+          - cavendish
+          - davy
+          - faraday
+          - galileo
+          - gilbert
+          - grosseteste
+          - halley
+          - hooke
+          - huygens
+          - kepler
+          - lavoisier
+          - maxwell
+          - oresme
+          - whewell
       claude:
         enabled: true
         scope: user

@@ -50,7 +50,7 @@ def test_natural_philosopher_enables_each_provider(provider_name: str) -> None:
 
 
 def test_natural_philosopher_codex_contract() -> None:
-    """Use the existing Terra planning tier and inherit credentialed MCPs."""
+    """Use the Terra planning tier, inherit MCPs, and name the role fittingly."""
     codex = load_provider(NAME, "codex")
 
     assert codex["model"] == "gpt-5.6-terra", (
@@ -64,6 +64,13 @@ def test_natural_philosopher_codex_contract() -> None:
     )
     assert "mcp_servers" not in codex, (
         "the Codex contract must inherit the parent's credentialed MCP registry"
+    )
+    nicknames = cast("list[str]", codex["nickname_candidates"])
+    assert nicknames, (
+        "the Codex contract must ship a natural-philosopher nickname pool"
+    )
+    assert "faraday" in nicknames, (
+        "the nickname pool must draw from the natural philosophers"
     )
 
 
