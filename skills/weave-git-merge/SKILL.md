@@ -92,7 +92,7 @@ git -c core.attributesFile=/dev/null \
 ```
 
 If tracked `.gitattributes` selects Weave, that is explicit repository policy.
-Do not silently bypass it. If an authorised recovery requires bypassing a
+Do not silently bypass it. If an authorized recovery requires bypassing a
 tracked or clone-local rule, use the scope-specific override below.
 
 Choose one setup scope deliberately when configuring Weave:
@@ -145,9 +145,21 @@ JSON event per merge on stderr. Keep the environment override command-scoped
 rather than exporting it across an agent session:
 
 ```bash
-env WEAVE_EVENT=1 git rebase origin/main \
-  2> >(tee /tmp/weave-rebase.stderr >&2)
-grep -E 'auto-resolved|^weave-event: ' /tmp/weave-rebase.stderr || true
+WEAVE_STDERR=$(mktemp -t weave-rebase.stderr.XXXXXX) || exit 1
+env WEAVE_EVENT=1 git rebase origin/main 2>"$WEAVE_STDERR"
+REBASE_STATUS=$?
+cat -- "$WEAVE_STDERR" >&2
+
+# Fail closed. `grep` exits 1 for "no match" and 2 for "could not read the
+# file", so only the latter is a capture failure; an empty capture means the
+# driver said nothing, which is itself worth recording rather than assuming.
+grep -E 'auto-resolved|^weave-event: ' -- "$WEAVE_STDERR"
+GREP_STATUS=$?
+if [ "$GREP_STATUS" -gt 1 ]; then
+  echo 'andon: driver stderr capture unreadable; stop before the audit' >&2
+  exit 1
+fi
+printf 'rebase_status=%s\nevidence=%s\n' "$REBASE_STATUS" "$WEAVE_STDERR"
 ```
 
 Read the captured stderr after the operation and correlate every auto-resolved
@@ -251,9 +263,16 @@ When dogfooding Weave during the rebase, combine the guard with command-scoped
 event capture:
 
 ```bash
+WEAVE_STDERR=$(mktemp -t weave-rebase.stderr.XXXXXX) || exit 1
 env WEAVE_EVENT=1 git rebase \
   --exec 'cargo check --workspace' \
-  origin/main 2> >(tee /tmp/weave-rebase.stderr >&2)
+  origin/main 2>"$WEAVE_STDERR"
+REBASE_STATUS=$?
+cat -- "$WEAVE_STDERR" >&2
+if [ ! -s "$WEAVE_STDERR" ] && [ "$REBASE_STATUS" -ne 0 ]; then
+  echo 'andon: the rebase failed with no captured driver stderr' >&2
+  exit 1
+fi
 ```
 
 ## Audit the completed operation semantically
@@ -287,11 +306,24 @@ Then enforce these three checks:
    similar reconstruction artefacts that may remain syntactically valid.
 
 The first check can be automated directly. Compute the set difference between
-the NUL-delimited target and branch path manifests above and require this for
-each remaining path:
+the NUL-delimited target and branch path manifests above, bind each remaining
+path, and run the comparison once per path:
 
 ```bash
-git diff --quiet "$TARGET" HEAD -- "$path"
+sort -z /tmp/weave-branch-paths.z > /tmp/weave-branch-paths.sorted.z
+sort -z /tmp/weave-target-paths.z > /tmp/weave-target-paths.sorted.z
+comm -z -13 \
+  /tmp/weave-branch-paths.sorted.z \
+  /tmp/weave-target-paths.sorted.z > /tmp/weave-target-only-paths.z
+
+while IFS= read -r -d '' path; do
+  # `$path` must be bound before use; comparing an unset variable would widen
+  # the check to the whole tree and fail on legitimate branch changes.
+  if ! git diff --quiet "$TARGET" HEAD -- "$path"; then
+    printf 'andon: target-only path is not byte-identical: %s\n' "$path" >&2
+    exit 1
+  fi
+done < /tmp/weave-target-only-paths.z
 ```
 
 For the second and third checks, use a repository audit helper when one exists;
@@ -388,23 +420,44 @@ config scope, executable discovery, and quoting of a driver path containing
 spaces. If the driver returned `2`, use its stderr to distinguish missing
 inputs, binary detection, and write failure.
 
-If Weave returned `0` with structurally or semantically broken output, abort the
-operation and rerun the whole operation with the built-in merge machinery. For
-a global setup, first verify that ignoring the user attributes file makes
+If Weave returned `0` with structurally or semantically broken output, do not
+repair the result in place. Rerun the whole operation with the built-in merge
+machinery. How you return to the recorded candidate depends on whether the
+operation is still in progress:
+
+- **Still in progress.** `git rebase --abort`, `git merge --abort`, or
+  `git cherry-pick --abort` restores the pre-operation state.
+- **Already completed.** A clean driver exit lets Git finish, so the operation
+  state those abort commands need is gone and they fail. Restore the recorded
+  candidate with `git reset --hard "$OLD_HEAD"` instead, and only once recovery
+  evidence for staged, unstaged, and intended untracked work has been captured
+  and verified. The reset discards all of it.
+
+Retry against the recorded `TARGET`, not `origin/main`. The remote ref is
+mutable and may have moved since the candidate identities were recorded, so
+reusing it would silently retry against different history than the audit
+covered.
+
+For a global setup, first verify that ignoring the user attributes file makes
 `merge` unspecified for a representative affected path, then use the same
 override for the rebase, merge, or cherry-pick:
 
 ```bash
+# Only after recovery evidence is verified. Use the abort for an interrupted
+# operation, or the reset for one a clean driver exit allowed to complete.
 git rebase --abort
+git reset --hard "$OLD_HEAD"
+
 git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py
 # path/to/file.py: merge: unspecified
-git -c core.attributesFile=/dev/null rebase origin/main
+git -c core.attributesFile=/dev/null rebase "$TARGET"
 
-# For an in-progress merge, abort and retry with the same original arguments:
+# For a merge, abort it or reset to "$OLD_HEAD", then retry with the same
+# original arguments resolved against the recorded target:
 git merge --abort
 git -c core.attributesFile=/dev/null merge <same-original-arguments>
 
-# For an in-progress cherry-pick, abort and retry with the same original arguments:
+# For a cherry-pick, likewise:
 git cherry-pick --abort
 git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>
 ```
@@ -415,7 +468,7 @@ retry without mutating persistent Git configuration:
 ```bash
 git -c core.attributesFile=/dev/null \
     -c merge.conflictStyle=zdiff3 \
-    rebase origin/main
+    rebase "$TARGET"
 ```
 
 This override disables only the user attributes file for those commands.

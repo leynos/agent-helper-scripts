@@ -199,6 +199,14 @@ def test_skill_reads_driver_stderr_and_supports_event_capture() -> None:
     assert "weave: 5 entities auto-resolved (conflict confidence)" in skill, (
         "the known auto-resolution signal must be named explicitly"
     )
+    assert "|| true" not in skill, (
+        "driver-evidence parsing must fail closed rather than masking a failed "
+        "capture or an unreadable stderr file as a quiet success"
+    )
+    assert "2> >(" not in skill, (
+        "stderr capture must use a checked redirection, not process "
+        "substitution whose exit status is invisible to the caller"
+    )
     assert "WEAVE_EVENT=1" in skill, (
         "supported Weave versions must expose one structured event per merge"
     )
@@ -229,6 +237,14 @@ def test_skill_requires_semantic_post_operation_audit() -> None:
     assert 'git diff --quiet "$TARGET" HEAD -- "$path"' in skill, (
         "the target-only byte-identity rule must have an executable check"
     )
+    assert "while IFS= read -r -d '' path; do" in skill, (
+        "the check must bind each path from the set difference before "
+        "comparing it, or an unbound `$path` would widen it to the whole tree"
+    )
+    assert "comm -z -13" in skill, (
+        "the target-only path set must be a real set difference of the two "
+        "NUL-delimited manifests"
+    )
     assert "parsed, compiled, and passed\ntests" in skill, (
         "the workflow must retain the semantic-corruption counterexample"
     )
@@ -244,8 +260,12 @@ def test_skill_runs_weave_check_only_when_the_installed_version_supports_it() ->
     assert "weave --version" in skill, (
         "the operation receipt must identify the CLI version"
     )
-    assert "weave check --help" in skill and "weave check" in skill, (
-        "the workflow must feature-probe and run the checker"
+    assert "weave check --help" in skill, (
+        "the workflow must feature-probe the checker before invoking it"
+    )
+    assert "\nweave check\n" in skill, (
+        "the workflow must execute the checker on its own command line; a bare "
+        "substring check would be satisfied by the `--help` probe alone"
     )
     assert "`weave_check` tool" in skill, (
         "agents using MCP must be told about the equivalent read-only tool"
@@ -294,7 +314,7 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
 
     required_commands = (
         "git rebase --abort",
-        "git -c core.attributesFile=/dev/null rebase origin/main",
+        'git -c core.attributesFile=/dev/null rebase "$TARGET"',
         "git merge --abort",
         "git -c core.attributesFile=/dev/null merge <same-original-arguments>",
         "git cherry-pick --abort",
@@ -305,6 +325,28 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
             f"the fallback must document `{command}` so each operation is "
             "aborted before its own retry"
         )
+    assert "git -c core.attributesFile=/dev/null rebase origin/main" not in skill, (
+        "the retry must resolve the recorded target, not re-read a remote ref "
+        "that may have moved since the candidate identities were recorded"
+    )
+
+
+def test_skill_recovers_a_completed_operation_by_resetting_the_candidate() -> None:
+    """A clean driver exit leaves nothing to abort, so recovery must reset."""
+    _, skill = _skill_frontmatter()
+
+    assert 'git reset --hard "$OLD_HEAD"' in skill, (
+        "an operation the driver's clean exit allowed to complete must be "
+        "recovered by restoring the recorded candidate"
+    )
+    assert "state those abort commands need is gone and they fail" in skill, (
+        "the workflow must say why `--abort` cannot recover a completed "
+        "operation, not merely offer an alternative"
+    )
+    assert "Only after recovery evidence is verified" in skill, (
+        "the destructive reset must be ordered after recovery evidence, "
+        "because it discards staged, unstaged, and untracked work"
+    )
 
 
 def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:

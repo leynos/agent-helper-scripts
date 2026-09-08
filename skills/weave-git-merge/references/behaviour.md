@@ -189,9 +189,9 @@ by the operation and the post-operation audit.
 
 Weave 0.5.x adds the optional `WEAVE_EVENT=1` channel. When enabled for the Git
 command, the driver writes one JSON line per merge to stderr behind a
-`weave-event: ` prefix. Preserve these lines with the operation receipt. Use a
-command-scoped environment override rather than exporting `WEAVE_EVENT` across
-an agent session.
+`weave-event:` prefix, followed by a single space. Preserve these lines with
+the operation receipt. Use a command-scoped environment override rather than
+exporting `WEAVE_EVENT` across an agent session.
 
 Record both binaries before relying on version-specific behaviour:
 
@@ -250,4 +250,4 @@ For unattended agents, a rule arriving only from global or clone-local ambient
 configuration is not repository consent for a long multi-commit replay. The
 main skill therefore defaults such operations to built-in Git merging with
 `zdiff3`. A tracked `.gitattributes` rule is an explicit repository opt-in and
-should be respected unless an authorised recovery says otherwise.
+should be respected unless an authorized recovery says otherwise.
