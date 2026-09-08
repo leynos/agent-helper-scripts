@@ -466,6 +466,33 @@ Weave is an optional local developer tool, not a repository-wide dependency
 this project adopts; this branch only ships a skill that documents it, so
 adopting Weave repository-wide would need its own ADR.
 
+### Read-only primary checkout
+
+Unattended merge and rebase work belongs in a linked worktree. The primary
+checkout is a coordination anchor for that unattended work, not a scratch,
+formatting, or conflict-repair surface: do not rebase, resolve conflicts, or
+run ad-hoc fixes directly in it.
+
+### Candidate-bound evidence
+
+Before any history rewrite, record `OLD_HEAD`, the exact fetched `TARGET`
+commit, and `MERGE_BASE`. A completed rebase produces a new candidate, so any
+gate or review evidence bound to the old head is stale for acceptance once the
+replay finishes. Preserve the old evidence as historical record, then rerun
+the candidate-bound checks the repository requires against the new `HEAD`.
+
+### Ambient Weave bypass rules
+
+Unattended multi-commit or long-lived-branch rebases default to Git's
+built-in merge machinery with `merge.conflictStyle=zdiff3` whenever Weave is
+selected only by ambient global or clone-local configuration; ambient
+selection is not repository consent for that scale of unattended replay. A
+tracked `.gitattributes` rule is explicit repository opt-in, and it is
+honoured unless an authorized recovery overrides it. Setting
+`core.attributesFile=/dev/null` cannot override tracked or clone-local rules —
+that limitation is why the scope matrix in the "Bypass recovery" subsection
+below exists.
+
 ### Setup scopes
 
 `weave setup` writes three mutually exclusive scopes:
@@ -494,6 +521,47 @@ before `git add` or `git rebase --continue`. Multi-commit rebases need a
 `git rebase --exec` guard as well, because an early silently corrupted replay
 can become an input to a later one before any end-of-rebase test runs.
 
+### Recovery completeness
+
+Destructive Git recovery — a `reset`, `clean`, or abort-and-retry sequence —
+requires complete evidence for staged, unstaged, and intended untracked work
+before it runs. Generate native recovery diffs with
+`--no-ext-diff --no-textconv --binary` and keep an explicit untracked-file
+manifest; a patch that applies does not by itself prove it captured untracked
+files.
+
+### Driver observability
+
+Driver stderr must be preserved and read, including summary lines such as
+`weave: N entities auto-resolved (... confidence)`. Set command-scoped
+`WEAVE_EVENT=1` to obtain `weave-event:` JSON lines on stderr, and keep those
+lines with the operation receipt. Capture must fail closed — a broken pipe or
+missing redirect must be treated as lost evidence, not silently discarded.
+
+### Semantic post-operation audit
+
+Run this audit independently of the driver's exit code and every structural
+gate, because a clean exit and a passing test suite are not sufficient
+evidence on their own:
+
+- every path changed by `TARGET` but untouched by the branch must be
+  byte-identical to `TARGET` at the final `HEAD`;
+- every deletion against `TARGET` in a branch-touched path must be explained
+  by the branch's own intent or a named, reviewed resolution decision;
+- newly repeated multi-line blocks must be inspected.
+
+The known Rust cfg-gated sibling test-body replacement (see
+[behaviour.md](../skills/weave-git-merge/references/behaviour.md)) parsed,
+compiled, and passed the test suite. That incident is exactly why this audit
+cannot be waived on a green suite.
+
+### Version recording and `weave check`
+
+Record `weave --version` and `weave-driver --version`; an unexpected mismatch
+between them is an andon trigger. Run `weave check` — after feature-probing it
+with `weave check --help` — or the MCP `weave_check` tool when supported,
+while the independent semantic audit above remains authoritative.
+
 ### Bypass recovery
 
 `git -c core.attributesFile=/dev/null` bypasses only the global-scope rule.
@@ -501,6 +569,12 @@ Tracked and clone-local rules still apply and need a later, path-specific
 `path/to/file.ext !merge` line added to `.git/info/attributes` instead. See
 the scope matrix in [SKILL.md](../skills/weave-git-merge/SKILL.md) for the
 full set of bypass and verification commands per scope.
+
+### Andon triggers
+
+See the skill's
+["Andon triggers"](../skills/weave-git-merge/SKILL.md#andon-triggers) section
+for the authoritative, current trigger list rather than duplicating it here.
 
 ### Why this matters here
 
@@ -512,13 +586,21 @@ the skill:
 - `tests/test_weave_git_merge_procedures.py` executes the procedures against
   real repositories, standing a cmd-mox double named `stub-merge-driver` in
   for the driver, wired in by the shim's absolute path under
-  `EnvironmentManager.shim_dir` so resolution never consults `PATH`: a driver exiting `0` over unparsable output, the three index
-  stages of an unmerged path, the `git rebase --exec` guard stopping a
-  multi-commit rebase, and every bypass in the scope matrix across rebase,
-  merge, and cherry-pick. The double stands in for any driver with a given
-  exit status, so the suite needs no Weave installation and asserts nothing
-  about Weave's own merge quality. Its spy call counts are what prove Git
-  invoked the driver before a bypass and stopped invoking it after.
+  `EnvironmentManager.shim_dir` so resolution never consults `PATH`. It covers
+  a driver exiting `0` over unparsable output, the three index stages of an
+  unmerged path, the `git rebase --exec` guard stopping a multi-commit
+  rebase, and every bypass in the scope matrix across rebase, merge, and
+  cherry-pick. It also covers the hardened unattended workflow: the
+  ambient-bypass default and `zdiff3` conflict style, tracked opt-in surviving
+  that bypass, candidate and merge-base evidence recorded across a replay, the
+  target-preservation semantic audit, capture of driver stderr and
+  `WEAVE_EVENT` output, resetting to the recorded head after a completed
+  operation, and recovery evidence spanning staged, unstaged, and untracked
+  work. The
+  double stands in for any driver with a given exit status, so the suite
+  needs no Weave installation and asserts nothing about Weave's own merge
+  quality. Its spy call counts are what prove Git invoked the driver before a
+  bypass and stopped invoking it after.
 
 When extending that module, note two traps at this boundary. A cmd-mox shim
 reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and

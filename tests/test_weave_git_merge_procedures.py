@@ -73,6 +73,7 @@ _ALPHA_BASE = 'def alpha() -> str:\n    return "base"'
 _BETA_BASE = 'def beta() -> str:\n    return "base"'
 _GAMMA_BASE = 'def gamma() -> str:\n    return "base"'
 _ALPHA_MAIN = 'def alpha() -> str:\n    return "main"'
+_ALPHA_TOPIC = 'def alpha() -> str:\n    return "topic"'
 _BETA_FEATURE = 'def beta() -> str:\n    return "feature"'
 _GAMMA_TOPIC = 'def gamma() -> str:\n    return "topic"'
 
@@ -452,4 +453,434 @@ def test_documented_bypass_recovers_each_operation_for_each_scope(
 
     assert source.read_text(encoding="utf-8") == EXPECTED_AFTER_BYPASS[operation], (
         f"Git's built-in merge must produce the {operation} result exactly"
+    )
+
+
+# --- Hardened unattended workflow ------------------------------------------
+#
+# The procedures below were added after a `weave-driver 0.3.6` clean exit
+# produced semantically corrupt output that parsed, compiled, and passed tests.
+# Each test executes one documented policy rather than asserting its wording;
+# the wording is pinned separately by `test_weave_git_merge_skill.py`.
+
+UNATTENDED_PREFIX = (
+    "-c",
+    "core.attributesFile=/dev/null",
+    "-c",
+    "merge.conflictStyle=zdiff3",
+)
+
+AUTO_RESOLVED_LINE = "weave: 5 entities auto-resolved (conflict confidence)"
+EVENT_LINE = 'weave-event: {"path":"example.py","entities":5}'
+# Emitted by the driver but deliberately outside the evidence grammar, so a
+# parse that swept up every stderr line would be caught rather than passing.
+DECOY_LINE = "weave: skipping binary path assets/logo.png"
+
+
+def _record_identities(repository: Path, target: str) -> dict[str, str]:
+    """Record the candidate, target, and merge base before a history rewrite.
+
+    This is the skill's pre-rewrite receipt. Resolving `target` to a commit is
+    the point: a later retry must use this value rather than re-reading a
+    mutable remote ref that may have moved.
+    """
+    old_head = _git(repository, "rev-parse", "HEAD").stdout.strip()
+    target_commit = _git(repository, "rev-parse", target).stdout.strip()
+    merge_base = _git(
+        repository, "merge-base", old_head, target_commit
+    ).stdout.strip()
+    return {
+        "old_head": old_head,
+        "target": target_commit,
+        "merge_base": merge_base,
+    }
+
+
+def _target_only_audit(repository: Path, identities: dict[str, str]) -> tuple[int, str]:
+    """Run the skill's first semantic audit check and return status and stderr.
+
+    This is a transcription of the documented Bash, kept executable so the
+    policy is verified rather than merely described. The `$path` binding is the
+    part that matters: an unbound variable would widen every comparison to the
+    whole tree and fail on legitimate branch changes.
+    """
+    script = """
+set -eu
+branch=$(mktemp); target=$(mktemp); only=$(mktemp)
+git diff --name-only -z "$MERGE_BASE..$OLD_HEAD" | sort -z > "$branch"
+git diff --name-only -z "$MERGE_BASE..$TARGET" | sort -z > "$target"
+comm -z -13 "$branch" "$target" > "$only"
+status=0
+while IFS= read -r -d '' path; do
+  if ! git diff --quiet "$TARGET" HEAD -- "$path"; then
+    printf 'andon: target-only path is not byte-identical: %s\\n' "$path" >&2
+    status=1
+  fi
+done < "$only"
+exit "$status"
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and script.
+        ["/bin/bash", "-c", script],
+        cwd=repository,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        env=os.environ
+        | {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "OLD_HEAD": identities["old_head"],
+            "TARGET": identities["target"],
+            "MERGE_BASE": identities["merge_base"],
+        },
+    )
+    return completed.returncode, completed.stderr
+
+
+def test_unattended_prefix_keeps_an_ambient_global_rule_out_of_the_rebase(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Weave selected only by ambient global config is bypassed by default."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+
+        assert spy.call_count == 0, (
+            "an ambient global rule is not repository consent for an unattended "
+            "replay; the documented prefix must keep the driver out entirely"
+        )
+
+    assert rebased.returncode == 0, f"the built-in rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "Git's built-in merge must produce the result, not the corrupt driver output"
+    )
+
+
+def test_unattended_prefix_still_honours_a_tracked_repository_opt_in(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A tracked `.gitattributes` rule is explicit consent and is not bypassed."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "tracked", attributes)
+    _diverge(repository, source)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_conflict_handler())
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+
+        assert spy.call_count == 1, (
+            "`core.attributesFile=/dev/null` must not silently discard a tracked "
+            "repository opt-in; only the scope matrix's own row may do that"
+        )
+        _abort(repository, "rebase")
+
+
+def test_unattended_prefix_records_the_merge_base_in_conflict_markers(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """`zdiff3` keeps the base section a reviewer needs to explain a deletion."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    # Both sides edit the same function, so the built-in merge cannot resolve it.
+    _git(repository, "commit", "--quiet", "-m", "base")
+    _git(repository, "switch", "--quiet", "--create", "topic")
+    source.write_text(BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_TOPIC), encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "topic alpha")
+    _git(repository, "switch", "--quiet", "main")
+    source.write_text(MAIN_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "main alpha")
+    _git(repository, "switch", "--quiet", "topic")
+
+    conflicted = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+    assert conflicted.returncode != 0, "the competing edits must conflict"
+
+    markers = source.read_text(encoding="utf-8")
+    assert "|||||||" in markers, (
+        "`merge.conflictStyle=zdiff3` must emit the base section; without it a "
+        "reviewer cannot tell an intended deletion from a reconstruction artefact"
+    )
+    assert '"base"' in markers, "the base section must carry the merge-base content"
+
+    _abort(repository, "rebase")
+
+
+def test_a_replay_makes_evidence_bound_to_the_old_candidate_stale(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """The rebase creates a new candidate, so old-head evidence cannot carry over."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+    _git(repository, "switch", "--quiet", "topic")
+
+    identities = _record_identities(repository, "main")
+    assert identities["merge_base"] not in {identities["old_head"], identities["target"]}, (
+        "the fixture must genuinely diverge, or staleness could not be observed"
+    )
+
+    rebased = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+    assert rebased.returncode == 0, f"the rebase must complete: {rebased.stderr}"
+
+    new_head = _git(repository, "rev-parse", "HEAD").stdout.strip()
+    assert new_head != identities["old_head"], (
+        "the replay must produce a new candidate commit"
+    )
+    ancestry = _git(
+        repository,
+        "merge-base",
+        "--is-ancestor",
+        identities["old_head"],
+        new_head,
+        check=False,
+    )
+    assert ancestry.returncode != 0, (
+        "the old candidate must not be an ancestor of the new head; gate and "
+        "review evidence tied to it therefore describes no commit being accepted"
+    )
+    assert (
+        _git(repository, "merge-base", "--is-ancestor", identities["target"], new_head)
+    ).returncode == 0, "the recorded target must be an ancestor of the new candidate"
+
+
+def test_semantic_audit_flags_a_target_only_path_a_structural_gate_accepts(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A target-only path altered at HEAD is caught even though it parses."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    sibling = repository / "sibling.py"
+    sibling.write_text(BASE_SOURCE, encoding="utf-8")
+    _git(repository, "add", "sibling.py")
+    _diverge(repository, source)
+    _git(repository, "switch", "--quiet", "main")
+    # `sibling.py` is changed by the target only; the branch never touches it.
+    sibling.write_text(BASE_SOURCE.replace(_BETA_BASE, _BETA_FEATURE), encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "main sibling change")
+    _git(repository, "switch", "--quiet", "topic")
+
+    identities = _record_identities(repository, "main")
+    rebased = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+    assert rebased.returncode == 0, f"the rebase must complete: {rebased.stderr}"
+
+    status, _ = _target_only_audit(repository, identities)
+    assert status == 0, (
+        "a faithful replay must pass the audit; a false positive here would "
+        "mean the check compares an unbound path and inspects the whole tree"
+    )
+
+    # Now stand in for a driver that reconstructed a path it had no branch-side
+    # change to reconcile. The result still parses, so no structural gate fires.
+    sibling.write_text(
+        BASE_SOURCE.replace(_BETA_BASE, _BETA_FEATURE).replace(_GAMMA_BASE, _GAMMA_TOPIC),
+        encoding="utf-8",
+    )
+    _git(repository, "commit", "--quiet", "--all", "-m", "reconstructed sibling")
+
+    compiled = subprocess.run(  # noqa: S603 - interpreter path and fixed arguments.
+        [sys.executable, "-m", "py_compile", str(sibling)],
+        cwd=repository,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    assert compiled.returncode == 0, (
+        "the corrupted sibling must still parse, or the audit would be redundant"
+    )
+
+    status, stderr = _target_only_audit(repository, identities)
+    assert status != 0, (
+        "the semantic audit must fail on a target-only path that is not "
+        "byte-identical, independently of any parser or compiler being green"
+    )
+    assert "sibling.py" in stderr, "the audit must name the offending path"
+    assert "example.py" not in stderr, (
+        "a branch-touched path must not be reported; it is expected to differ "
+        "from the target and is covered by the deletion-explanation check"
+    )
+
+
+def test_driver_stderr_capture_preserves_auto_resolution_and_event_lines(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Command-scoped `WEAVE_EVENT=1` reaches the driver and its stderr survives."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+    capture = repository / "driver.stderr"
+
+    def handler(invocation: Invocation) -> tuple[str, str, int]:
+        assert invocation.env.get("WEAVE_EVENT") == "1", (
+            "the command-scoped override must reach the driver process"
+        )
+        _ancestor, current, _other, _marker_size, _pathname = invocation.args
+        (repository / current).write_text(MERGED_SOURCE, encoding="utf-8")
+        return ("", f"{DECOY_LINE}\n{AUTO_RESOLVED_LINE}\n{EVENT_LINE}\n", 0)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(handler)
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        with capture.open("w", encoding="utf-8") as stream:
+            rebased = subprocess.run(  # noqa: S603 - absolute executable.
+                [GIT, "rebase", "main"],
+                cwd=repository,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=stream,
+                check=False,
+                timeout=60,
+                stdin=subprocess.DEVNULL,
+                env=os.environ
+                | {
+                    "GIT_CONFIG_GLOBAL": os.devnull,
+                    "GIT_CONFIG_SYSTEM": os.devnull,
+                    "WEAVE_EVENT": "1",
+                },
+            )
+        assert spy.call_count == 1, "Git must have run the driver"
+
+    assert rebased.returncode == 0, "the driver's clean exit must complete the rebase"
+    captured = capture.read_text(encoding="utf-8")
+    assert AUTO_RESOLVED_LINE in captured, (
+        "the auto-resolution summary must survive the operation; it names the "
+        "reconstruction work the semantic audit has to cover"
+    )
+    assert EVENT_LINE in captured, "structured events must reach the operation receipt"
+
+    matched = subprocess.run(  # noqa: S603 - fixed executable and arguments.
+        ["/usr/bin/env", "grep", "-E", "auto-resolved|^weave-event: ", str(capture)],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+    )
+    assert DECOY_LINE in captured, "the decoy must reach the capture file"
+    assert matched.returncode == 0, (
+        "the documented parse must find both lines; a fail-open `|| true` would "
+        "have hidden an empty or unreadable capture here"
+    )
+    assert AUTO_RESOLVED_LINE in matched.stdout, (
+        "the auto-resolution summary must be reported by the parse"
+    )
+    assert EVENT_LINE in matched.stdout, "the event line must be reported by the parse"
+    assert DECOY_LINE not in matched.stdout, (
+        "the parse must be selective; reporting every stderr line would give an "
+        "agent no way to tell auto-resolution evidence from ordinary chatter"
+    )
+
+
+def test_a_completed_operation_cannot_be_aborted_and_needs_the_recorded_head(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A clean driver exit removes the state `--abort` needs, so recovery resets."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+    _git(repository, "switch", "--quiet", "topic")
+    identities = _record_identities(repository, "main")
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        rebased = _git(repository, "rebase", "main", check=False)
+
+    assert rebased.returncode == 0, "the clean exit must let the rebase complete"
+    assert not (repository / ".git" / "rebase-merge").exists(), (
+        "no rebase state may remain, which is exactly why `--abort` cannot help"
+    )
+
+    aborted = _git(repository, "rebase", "--abort", check=False)
+    assert aborted.returncode != 0, (
+        "`git rebase --abort` must fail on a completed rebase; documenting it as "
+        "the only recovery would strand an agent holding a corrupt candidate"
+    )
+
+    _git(repository, "reset", "--hard", identities["old_head"])
+    assert _git(repository, "rev-parse", "HEAD").stdout.strip() == identities["old_head"], (
+        "resetting to the recorded candidate must restore the pre-replay state"
+    )
+    assert source.read_text(encoding="utf-8") == TOPIC_SOURCE, (
+        "the corrupt driver output must be gone from the working tree"
+    )
+
+
+def test_recovery_evidence_must_cover_staged_unstaged_and_untracked_work(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Partial evidence silently loses work a destructive reset discards."""
+    repository, source, attributes = diverged
+    del attributes
+    _git(repository, "commit", "--quiet", "-m", "base")
+
+    source.write_text(MAIN_SOURCE, encoding="utf-8")
+    _git(repository, "add", "example.py")
+    staged_only = _git(
+        repository, "diff", "--cached", "--no-ext-diff", "--no-textconv", "--binary"
+    ).stdout
+    source.write_text(MERGED_SOURCE, encoding="utf-8")
+    unstaged_only = _git(
+        repository, "diff", "--no-ext-diff", "--no-textconv", "--binary"
+    ).stdout
+    untracked = repository / "intended.py"
+    untracked.write_text(BASE_SOURCE, encoding="utf-8")
+
+    assert staged_only and unstaged_only, "the fixture must produce both diffs"
+
+    def restore(patches: tuple[str, ...], keep_untracked: bool) -> None:
+        _git(repository, "reset", "--hard", "--quiet", "HEAD")
+        if not keep_untracked:
+            untracked.unlink(missing_ok=True)
+        for patch in patches:
+            subprocess.run(  # noqa: S603 - absolute executable, piped patch.
+                [GIT, "apply", "-"],
+                cwd=repository,
+                text=True,
+                input=patch,
+                capture_output=True,
+                check=True,
+                timeout=60,
+                env=os.environ
+                | {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull},
+            )
+
+    # Evidence that omits the staged diff reconstructs the wrong content.
+    restore((unstaged_only,), keep_untracked=True)
+    assert source.read_text(encoding="utf-8") != MERGED_SOURCE, (
+        "an unstaged-only capture must not silently appear to restore the tree; "
+        "the staged change it was layered on is missing"
+    )
+
+    # Complete evidence for all three categories restores the tree exactly.
+    restore((staged_only, unstaged_only), keep_untracked=True)
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "staged and unstaged diffs together must reproduce the working file"
+    )
+    assert untracked.read_text(encoding="utf-8") == BASE_SOURCE, (
+        "intended untracked work is not in any diff and needs its own evidence"
+    )
+
+    # A reset without untracked evidence loses the intended untracked file.
+    restore((staged_only, unstaged_only), keep_untracked=False)
+    assert not untracked.exists(), (
+        "this is the loss the recovery-completeness rule exists to prevent"
     )
