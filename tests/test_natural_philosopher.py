@@ -22,35 +22,49 @@ def test_natural_philosopher_is_unique_and_present() -> None:
     """Provision exactly one unambiguous definition using the existing schema."""
     entries = [entry for entry in load_subagent_entries() if entry["name"] == NAME]
 
-    assert len(entries) == 1
+    assert len(entries) == 1, (
+        f"expected exactly one {NAME} definition, found {len(entries)}"
+    )
     entry = entries[0]
-    assert entry["state"] == "present"
+    assert entry["state"] == "present", f"{NAME} is not provisioned as present"
     assert set(entry) == {
         "name", "state", "description", "instructions", "providers"
-    }
+    }, f"{NAME} does not match the manifest entry schema"
     assert "before task-level ExecPlan planning" in " ".join(
         cast("str", entry["description"]).split()
-    )
+    ), f"{NAME} description dropped its pre-ExecPlan boundary contract"
 
 
-@pytest.mark.parametrize("provider_name", ("codex", "claude", "goose"))
+@pytest.mark.parametrize("provider_name", ["codex", "claude", "goose"])
 def test_natural_philosopher_enables_each_provider(provider_name: str) -> None:
     """Enable the role for every provider supported by the manifest."""
     provider = load_provider(NAME, provider_name)
 
-    assert provider["enabled"] is True
+    assert provider["enabled"] is True, (
+        f"{NAME} is not enabled for the {provider_name} provider"
+    )
     if provider_name != "goose":
-        assert provider["scope"] == "user"
+        assert provider["scope"] == "user", (
+            f"{NAME} is not scoped to the user for the {provider_name} provider"
+        )
 
 
 def test_natural_philosopher_codex_contract() -> None:
     """Use the existing Terra planning tier and inherit credentialed MCPs."""
     codex = load_provider(NAME, "codex")
 
-    assert codex["model"] == "gpt-5.6-terra"
-    assert codex["reasoning_effort"] == "high"
-    assert codex["sandbox_mode"] == "workspace-write"
-    assert "mcp_servers" not in codex
+    assert codex["model"] == "gpt-5.6-terra", (
+        "the Codex contract no longer pins the repository's Terra planning tier"
+    )
+    assert codex["reasoning_effort"] == "high", (
+        "the Codex contract no longer pins the high reasoning tier"
+    )
+    assert codex["sandbox_mode"] == "workspace-write", (
+        "the Codex contract no longer pins workspace-write sandboxing"
+    )
+    assert "mcp_servers" not in codex, (
+        "the Codex contract must inherit the parent's credentialed MCP registry"
+    )
 
 
 def test_natural_philosopher_claude_contract() -> None:
@@ -58,24 +72,30 @@ def test_natural_philosopher_claude_contract() -> None:
     claude = load_provider(NAME, "claude")
     extra = cast("dict[str, object]", claude["extra_frontmatter"])
 
-    assert claude["model"] == "opus"
-    assert extra["effort"] == "high"
+    assert claude["model"] == "opus", (
+        "the Claude contract no longer pins the opus planning model"
+    )
+    assert extra["effort"] == "high", (
+        "the Claude contract no longer pins the high effort tier"
+    )
     assert set(cast("list[str]", claude["tools"])) == {
         "Read", "Grep", "Glob", "Edit", "Write", "Task"
-    }
+    }, "the Claude tool grant drifted from document work plus bounded delegation"
     assert set(cast("list[str]", extra["mcpServers"])) == {
         "context_pack", "firecrawl", "deepwiki", "codegraph"
-    }
+    }, "the Claude MCP allow-list drifted from the research contract"
 
 
 def test_natural_philosopher_goose_inherits_extensions() -> None:
     """Do not replace the parent's credentialed extension registry."""
-    assert "extensions" not in load_provider(NAME, "goose")
+    assert "extensions" not in load_provider(NAME, "goose"), (
+        "the goose contract must inherit the parent's extension registry"
+    )
 
 
 @pytest.mark.parametrize(
     "required",
-    (
+    [
         "Goal: the parent-owned outcome",
         "Idea = roadmap phase: a falsifiable bet",
         "Step = workstream: one coherent delivery objective",
@@ -116,7 +136,7 @@ def test_natural_philosopher_goose_inherits_extensions() -> None:
         "Stop affected work safely",
         "Return a Step Design Report",
         "status: ready-for-review | escalated",
-    ),
+    ],
 )
 def test_natural_philosopher_retains_load_bearing_contract(required: str) -> None:
     """Catch accidental removal of a boundary while tolerating prose wrapping."""
