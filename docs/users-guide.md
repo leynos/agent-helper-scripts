@@ -49,7 +49,6 @@ shared libraries required by the user tools.
 See the [migration guide](migration-guide.md) when moving from the previous
 single-phase `rust-entrypoint` bootstrap to the system/home phase split.
 
-
 ## CodeScene skills
 
 Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
@@ -149,6 +148,26 @@ detailed skill gives the scoped bypass for those sources. The
 `rebase` skill routes garbled or non-parsing resolutions here. See the
 [detailed skill](../skills/weave-git-merge/SKILL.md) and
 [behaviour reference](../skills/weave-git-merge/references/behaviour.md).
+
+## Hypothesis-driven debugging
+
+The [`hypothesis-debugging`](../skills/hypothesis-debugging/SKILL.md) skill
+plans a debugging investigation rather than performing it. It writes a
+falsification plan and hands execution to a sub-agent, preferring `alchemist`.
+
+Plans are written under `docs/debugging/`, which the skill creates when it is
+missing. Each plan is named
+`debugging-plan-<year>-<month>-<day>-<problem-slug>.md`: a four-digit year,
+zero-padded month and day, then a lower-case, hyphen-separated slug naming the
+problem under investigation. For example, a plan opened on 20 August 2026 for a
+faulty ACP skill agent menu is
+`debugging-plan-2026-08-20-acp-skill-agent-menu.md`.
+
+The slug is required. The date alone sorts plans chronologically but leaves a
+directory of indistinguishable filenames, so the slug is what makes a plan
+identifiable without opening it. Earlier plans used an opaque
+`debugging-plan-{timestamp}.md` name; see the
+[migration guide](migration-guide.md) for renaming them.
 
 ## Common settings
 
