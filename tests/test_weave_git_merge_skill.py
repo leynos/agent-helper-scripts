@@ -106,7 +106,7 @@ def test_skill_declares_bash_as_the_shell_for_every_example() -> None:
     assert "```" not in requirement, (
         "the Bash requirement must precede every command block it governs"
     )
-    assert "`set -o pipefail` is a Bash builtin option" in remainder, (
+    assert "`set -o pipefail`" in remainder, (
         "the requirement must call out the Bash-only stage-validation option"
     )
 
@@ -135,15 +135,157 @@ def test_skill_guards_each_commit_in_a_multi_commit_rebase() -> None:
     """The workflow prevents an early clean corruption from cascading."""
     _, skill = _skill_frontmatter()
 
-    assert "## Guard a multi-commit rebase" in skill, (
+    assert "## Guard every replayed commit" in skill, (
         "the workflow must cover multi-commit rebases explicitly"
     )
     assert (
         "git rebase --exec 'python -m compileall -q -f path/to/package' origin/main"
-    ) in skill, "each replayed commit must be checked by a rebase --exec guard"
+    ) in skill, "each replayed Python commit must have an executable guard"
+    assert "git rebase --exec 'cargo check --workspace' origin/main" in skill, (
+        "Rust replay guidance must name cargo check as the honest workspace gate"
+    )
+    assert "`rustfmt` is a useful parser-level tripwire" in skill, (
+        "the Rust guidance must distinguish parsing from type correctness"
+    )
     assert (
         "Do not rely solely on the full test suite after the final commit" in skill
     ), "the workflow must reject end-of-rebase-only validation"
+
+
+def test_skill_bypasses_ambient_weave_for_unattended_long_rebases() -> None:
+    """Ambient global configuration is not treated as repository consent."""
+    _, skill = _skill_frontmatter()
+
+    assert "ambient selection is not repository consent" in skill, (
+        "the policy must distinguish ambient configuration from repository opt-in"
+    )
+    assert "bypass Weave up front" in skill, (
+        "unattended long replays must default to the built-in merge machinery"
+    )
+    assert "repository explicitly opts in through tracked attributes" in skill, (
+        "tracked attributes must remain an explicit repository policy boundary"
+    )
+    assert "-c merge.conflictStyle=zdiff3" in skill, (
+        "the built-in fallback must use the expected zdiff3 conflict style"
+    )
+    assert "primary checkout as a read-only coordination anchor" in skill, (
+        "automation must not use the primary checkout as a rebase scratch surface"
+    )
+
+
+def test_skill_binds_rebase_evidence_to_candidate_identity() -> None:
+    """History rewrites invalidate acceptance evidence for the old candidate."""
+    _, skill = _skill_frontmatter()
+
+    for variable in ("OLD_HEAD", "TARGET", "MERGE_BASE"):
+        assert f"{variable}=$(git" in skill, (
+            f"the workflow must record {variable} before rewriting history"
+        )
+    assert "evidence tied to `OLD_HEAD` is stale for acceptance" in skill, (
+        "old gate and review evidence must not authorize the replayed candidate"
+    )
+    assert "rerun the candidate-bound\nchecks" in skill, (
+        "the new candidate must receive fresh acceptance checks"
+    )
+
+
+def test_skill_reads_driver_stderr_and_supports_event_capture() -> None:
+    """Clean auto-resolution output is retained as evidence, not discarded."""
+    _, skill = _skill_frontmatter()
+
+    assert "Never discard driver stderr" in skill, (
+        "driver diagnostics must survive the Git operation"
+    )
+    assert "weave: 5 entities auto-resolved (conflict confidence)" in skill, (
+        "the known auto-resolution signal must be named explicitly"
+    )
+    assert "WEAVE_EVENT=1" in skill, (
+        "supported Weave versions must expose one structured event per merge"
+    )
+    assert "weave-event:" in skill, (
+        "the structured stderr prefix must be documented for log parsing"
+    )
+    assert "command-scoped" in skill, (
+        "observability overrides must not leak across the agent session"
+    )
+
+
+def test_skill_requires_semantic_post_operation_audit() -> None:
+    """A parser or compiler cannot be the final acceptance oracle."""
+    _, skill = _skill_frontmatter()
+
+    assert "## Audit the completed operation semantically" in skill, (
+        "the workflow must require an audit beyond structural gates"
+    )
+    assert "Target-only paths are byte-identical" in skill, (
+        "target changes untouched by the branch must survive exactly"
+    )
+    assert "Every deletion against the target" in skill, (
+        "branch-touched files must receive explicit deletion review"
+    )
+    assert "Look for newly repeated blocks" in skill, (
+        "the audit must look for clean duplicate reconstruction"
+    )
+    assert 'git diff --quiet "$TARGET" HEAD -- "$path"' in skill, (
+        "the target-only byte-identity rule must have an executable check"
+    )
+    assert "parsed, compiled, and passed\ntests" in skill, (
+        "the workflow must retain the semantic-corruption counterexample"
+    )
+
+
+def test_skill_runs_weave_check_only_when_the_installed_version_supports_it() -> None:
+    """Weave's checker is versioned evidence rather than an assumed command."""
+    _, skill = _skill_frontmatter()
+
+    assert "## Run Weave's own post-merge checker when supported" in skill, (
+        "the workflow must make post-merge self-checking explicit"
+    )
+    assert "weave --version" in skill, (
+        "the operation receipt must identify the CLI version"
+    )
+    assert "weave check --help" in skill and "weave check" in skill, (
+        "the workflow must feature-probe and run the checker"
+    )
+    assert "`weave_check` tool" in skill, (
+        "agents using MCP must be told about the equivalent read-only tool"
+    )
+    assert "Neither interface replaces" in skill, (
+        "Weave self-validation must not replace the independent semantic audit"
+    )
+
+
+def test_skill_declares_andon_triggers() -> None:
+    """Known evidence failures stop branch advancement before repair guessing."""
+    _, skill = _skill_frontmatter()
+
+    assert "## Andon triggers" in skill, "the workflow must name stop-the-line events"
+    for trigger in (
+        "target-only path differs",
+        "unexplained deletion",
+        "new duplication",
+        "versions disagree unexpectedly",
+        "recovery evidence omits staged, unstaged, or intended untracked work",
+    ):
+        assert trigger in skill, f"the andon list must include {trigger!r}"
+    assert "not an instruction to guess a repair" in skill, (
+        "an andon event must preserve evidence before remediation"
+    )
+
+
+def test_skill_requires_complete_recovery_evidence_before_destructive_git() -> None:
+    """Recovery coverage includes untracked files and neutralizes display diffs."""
+    _, skill = _skill_frontmatter()
+
+    assert "staged,\nunstaged, and intended untracked files" in skill, (
+        "destructive Git operations must account for every local-state class"
+    )
+    assert "--no-ext-diff --no-textconv --binary" in skill, (
+        "native recovery diffs must bypass display and text-conversion drivers"
+    )
+    assert "patch that applies successfully does\nnot prove" in skill, (
+        "applicability must not be confused with recovery completeness"
+    )
 
 
 def test_skill_keeps_operation_specific_global_fallbacks() -> None:
@@ -235,8 +377,8 @@ def test_rebase_skill_keeps_patch_recovery_clear_of_external_diff_drivers() -> N
     ), "stash recovery must point at the command that is already safe"
 
 
-def test_behaviour_reference_records_the_known_import_risk() -> None:
-    """The behavioural reference retains the observed unsafe reconstruction."""
+def test_behaviour_reference_records_known_clean_exit_corruptions() -> None:
+    """The reference keeps all observed corruption classes searchable."""
     behaviour = _read(BEHAVIOUR_PATH)
 
     assert "conflict-free replicated data type (CRDT)" in behaviour, (
@@ -246,8 +388,38 @@ def test_behaviour_reference_records_the_known_import_risk() -> None:
         "Do not generalize the import-addition case to import relocation" in behaviour
     ), "the reference must scope the safe import case narrowly"
     assert "non-parsing Python despite a clean exit" in behaviour, (
-        "the reference must record the observed silent corruption"
+        "the reference must record the observed Python silent corruption"
     )
     assert "belongs on the line-level-fallback path" in behaviour, (
         "the reference must state where import relocation should be handled"
+    )
+    for heading in (
+        "### Rust cfg-gated sibling replacement",
+        "### Rust re-export duplication",
+        "### Markdown doubled blank lines",
+    ):
+        assert heading in behaviour, f"the reference must retain {heading!r}"
+    assert "parsed, compiled, and passed the test suite" in behaviour, (
+        "the Rust semantic corruption must explicitly defeat structural gates"
+    )
+
+
+def test_behaviour_reference_documents_observability_and_weave_check() -> None:
+    """The reference names both driver evidence channels and the checker."""
+    behaviour = _read(BEHAVIOUR_PATH)
+
+    assert "weave: 5 entities auto-resolved (conflict confidence)" in behaviour, (
+        "the known stderr signal must remain searchable"
+    )
+    assert "WEAVE_EVENT=1" in behaviour and "weave-event:" in behaviour, (
+        "structured per-merge events must be documented"
+    )
+    assert "weave --version" in behaviour and "weave-driver --version" in behaviour, (
+        "CLI and driver provenance must both be recorded"
+    )
+    assert "Weave 0.5.1 and later provide `weave check`" in behaviour, (
+        "the expected estate baseline must expose the post-merge checker"
+    )
+    assert "`weave_check` tool" in behaviour, (
+        "the MCP equivalent must be discoverable by agents"
     )
