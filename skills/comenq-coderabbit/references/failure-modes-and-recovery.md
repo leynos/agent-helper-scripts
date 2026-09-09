@@ -111,9 +111,15 @@ needed, and explicit hosted reconciliation. A withdrawn number stays withdrawn.
 ## Unsupported behavioural claim in a review response
 
 **Recorded incident:** VTCode #25 correctly used native `BehaviourConfig` with
-wire key `behavior`, but a review table incorrectly claimed `[behaviour]` input
-was rejected. The corrected response separated serialization/round-tripping
-from handling of unknown input fields.
+the following fixed TOML wire table:
+
+```toml
+[behavior]
+```
+
+A review table incorrectly claimed that `[behaviour]` input was rejected. The
+corrected response separated serialization/round-tripping from handling of
+unknown input fields.
 
 **Recovery:** Trace each behavioural assertion to the actual source and a test
 that proves that assertion. Separate what a serializer emits, what a parser
