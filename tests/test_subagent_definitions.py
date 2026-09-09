@@ -416,3 +416,113 @@ def test_scrutineer_report_marks_logs_as_canonical_evidence() -> None:
         "The report must tell the planner to read the cited log files "
         "rather than re-running gates, or the delegation saves nothing"
     )
+
+@pytest.mark.parametrize(
+    "capability",
+    (
+        "deterministic commit gates",
+        "CodeRabbit review monitoring",
+        "GitHub Actions",
+        "gh run watch",
+        "summary bundle",
+    ),
+)
+def test_scrutineer_description_advertises_monitoring(capability: str) -> None:
+    """Agent selection must expose gates, review monitoring, and Actions watching."""
+    entry = load_subagent_entry("scrutineer")
+    description = _normalized(cast("str", entry["description"]))
+
+    assert capability in description, (
+        f"Scrutineer's description must advertise {capability!r}"
+    )
+
+@pytest.mark.parametrize(
+    "required",
+    (
+        'gh run watch "$run_id" --repo "$repo" --exit-status',
+        "--interval 30",
+        'gh run view "$run_id" --repo "$repo" --attempt "$attempt"',
+        "--json status,conclusion,headSha,attempt,jobs,url",
+        "--log-failed",
+        'gh run view --job "$job_id" --repo "$repo" --log',
+        "watch_status=$?",
+        "Never use `&&` to gate failure-log collection",
+    ),
+)
+def test_scrutineer_actions_commands_preserve_failure_evidence(
+    required: str,
+) -> None:
+    """Watching and log collection must retain explicit run and exit identities."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    assert required in instructions, (
+        f"Scrutineer's Actions instructions must retain {required!r}"
+    )
+
+@pytest.mark.parametrize(
+    "required",
+    (
+        "expected commit SHA",
+        "run ID and attempt",
+        "Never substitute the latest run on a branch",
+        "synthetic merge commit",
+        "post-merge integration",
+        "Only `status=completed` with `conclusion=success`",
+        "cancelled, timed_out, skipped, neutral, action_required",
+        "watcher exit code alone is not a workflow verdict",
+        "An empty run list is not success",
+        "monitoring-only",
+        "Do not rerun, cancel, dispatch, approve, or merge",
+        "infrastructure-error",
+    ),
+)
+def test_scrutineer_actions_monitoring_is_candidate_bound_and_read_only(
+    required: str,
+) -> None:
+    """Missing, stale, or non-successful evidence cannot authorize advancement."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    assert required in instructions, (
+        f"Scrutineer's Actions safety contract must retain {required!r}"
+    )
+
+@pytest.mark.parametrize(
+    "required",
+    (
+        "## GitHub Actions",
+        "## Summary Bundle",
+        "summary.md",
+        "run.json",
+        "watch.log",
+        "failed.log",
+        "failed-log.stderr",
+        "summoning agent",
+        "failed job and step names",
+        "missing, expired, or inaccessible logs",
+        "not-requested",
+        "Never overwrite an earlier attempt",
+    ),
+)
+def test_scrutineer_actions_handoff_contains_summary_and_captured_logs(
+    required: str,
+) -> None:
+    """The summoner must receive inspectable evidence rather than a bare verdict."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    assert required in instructions, (
+        f"Scrutineer's Actions summary bundle must retain {required!r}"
+    )
+
+def test_scrutineer_retains_local_gates_and_optional_coderabbit_review() -> None:
+    """Actions monitoring must not weaken gate ownership or review prerequisites."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "You never edit tracked files",
+        "Run gates strictly sequentially",
+        "`coderabbit review --agent`",
+        "requests a review *and* every applicable deterministic gate",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's existing execution contract must retain {required!r}"
+        )
