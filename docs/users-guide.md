@@ -451,6 +451,44 @@ without owned document paths it returns a report rather than editing files.
 See [ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
 provider limits, and a worked example.
 
+Each hypothesis carries its own verdict, which the report keeps separate from
+its overall status. The diagram below traces one hypothesis from `untested`,
+through a verdict and a decision gate, to the status the report returns.
+
+```mermaid
+stateDiagram-v2
+    accTitle: Natural Philosopher hypothesis verdict and decision gate flow
+    accDescr {
+        Every hypothesis begins untested and takes one of three verdicts:
+        not falsified when the evidence does not falsify it, falsified when a
+        falsification condition is met, or inconclusive when the evidence is
+        insufficient or conflicting. Each verdict then reaches a decision
+        gate. Not falsified proceeds when the acceptance criteria are met.
+        Falsified leads to revise when the preferred bet is defeated, or to
+        stop when proceeding would change the mandate. Inconclusive leads to
+        defer when bounded further inquiry is required, or to escalated when
+        budget, authority, or scope is blocked. The proceed, revise, and
+        defer gates all return a report that is ready for review. Escalated
+        is the report's other status, and stop is terminal.
+    }
+    [*] --> untested
+    untested --> not_falsified: evidence does not falsify
+    untested --> falsified: falsification condition met
+    untested --> inconclusive: evidence is insufficient or conflicting
+    not_falsified --> proceed: acceptance criteria met
+    falsified --> revise: preferred bet defeated
+    inconclusive --> defer: bounded further inquiry required
+    proceed --> ready_for_review
+    revise --> ready_for_review
+    defer --> ready_for_review
+    falsified --> stop: proceeding would change the mandate
+    inconclusive --> escalated: budget, authority, or scope blocked
+```
+
+*Hypothesis verdicts, the decision gate each one reaches, and the report
+status that follows. A verdict describes one hypothesis; a status describes
+the whole report.*
+
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
 `artisan` agents.
