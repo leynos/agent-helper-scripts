@@ -253,6 +253,17 @@ agent_tools_subagents:
         model: gpt-5.6-terra
         reasoning_effort: high
         sandbox_mode: workspace-write
+        nickname_candidates:
+          - telford
+          - smeaton
+          - maudslay
+          - roebling
+          - bazalgette
+          - eiffel
+          - paxton
+          - stephenson
+          - bramah
+          - trevithick
       claude:
         enabled: true
         scope: user
@@ -374,6 +385,17 @@ agent_tools_subagents:
         model: gpt-5.6-luna
         reasoning_effort: xhigh
         sandbox_mode: workspace-write
+        nickname_candidates:
+          - stradivari
+          - cellini
+          - boulle
+          - chippendale
+          - gibbons
+          - lalique
+          - faberge
+          - morris
+          - wedgwood
+          - riley
       claude:
         enabled: true
         scope: user

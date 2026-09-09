@@ -282,6 +282,33 @@ def test_delivery_subagent_is_present_and_enables_every_provider(name: str) -> N
         )
 
 
+def test_journeyman_codex_nicknames_are_civil_engineers() -> None:
+    """Journeyman's nickname pool must name builders of delivered works."""
+    nicknames = cast(
+        "list[str]", load_provider("journeyman", "codex")["nickname_candidates"]
+    )
+
+    assert nicknames, "Journeyman must ship a civil-engineering nickname pool"
+    assert "brunel" not in nicknames, (
+        "Journeyman's pool must not reuse a name from Scrutineer's pool"
+    )
+    assert "telford" in nicknames, (
+        "Journeyman's nickname pool must draw from the great civil engineers"
+    )
+
+
+def test_artisan_codex_nicknames_are_master_craftspeople() -> None:
+    """Artisan's nickname pool must name makers of single bounded works."""
+    nicknames = cast(
+        "list[str]", load_provider("artisan", "codex")["nickname_candidates"]
+    )
+
+    assert nicknames, "Artisan must ship a master-craft nickname pool"
+    assert "stradivari" in nicknames, (
+        "Artisan's nickname pool must draw from the master craftspeople"
+    )
+
+
 def test_journeyman_owns_delivery_and_bounded_delegation() -> None:
     """Journeyman instructions must preserve accountability and escalation."""
     instructions = _normalized(
