@@ -1,9 +1,0 @@
- .github/workflows/ci.yml                   |  4 +-
- .github/workflows/dependabot-automerge.yml |  2 +-
- .github/workflows/mutation-testing.yml     |  2 +-
- Makefile                                   | 19 +++++++--
- hooks/test_post_turn_quality_stop_hook.py  |  2 +-
- pyproject.toml                             |  5 +++
- tests/test_workflow_contract.py            | 54 ++++++++++++-------------
- uv.lock                                    | 65 +++++++++++++++++++++++++++---
- 8 files changed, 110 insertions(+), 43 deletions(-)

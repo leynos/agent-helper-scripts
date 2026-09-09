@@ -1,4 +1,0 @@
-README.md:5:skills, hooks, and agent configuration used by the Leynos agent workflow. The
-SUPPORTED_VERSIONS.md:6:for pytest-based validation, cmd-mox, cuprum, and repository quality hooks; the
-docs/migration-guide.md:31:  - Writes shell profile snippets, skills, hooks, and agent configuration.
-docs/helper-repo-bootstrap.md:108:exported so sub-scripts such as `install-hooks`, `install-skills`,

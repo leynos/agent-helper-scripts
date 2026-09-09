@@ -1,7 +1,0 @@
-./pyproject.toml:8:# hooks/; its co-located pytest module loads it in-process via importlib
-./pyproject.toml:13:source_paths = ["hooks/"]
-./pyproject.toml:15:pytest_add_cli_args_test_selection = ["hooks/"]
-./skills/biomejs/references/migration.md:31:| `react-hooks/exhaustive-deps` | `correctness/useExhaustiveDependencies` |
-./skills/biomejs/references/migration.md:60:Biome's `useExhaustiveDependencies` may flag different patterns than `react-hooks/exhaustive-deps`. Test thoroughly.
-./.github/workflows/mutation-testing.yml:23:      # Mutable Python source lives in hooks/, not the src/ default.
-./.github/workflows/mutation-testing.yml:24:      paths: "hooks/"

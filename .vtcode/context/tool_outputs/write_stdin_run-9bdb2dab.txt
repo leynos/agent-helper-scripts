@@ -1,8 +1,0 @@
-201,206d200
-< 
-< # memtrace local knowledge-graph database
-< .memdb/
-< 
-< # mutmut mutation-testing working copy and results
-< mutants/
-diff-exit:1

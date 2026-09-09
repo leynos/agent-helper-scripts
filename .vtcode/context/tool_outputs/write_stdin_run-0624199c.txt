@@ -1,6 +1,0 @@
-[kill-mutation-survivors 4cec44e] Remove the obsolete post-turn quality stop hook
- 11 files changed, 15 insertions(+), 2329 deletions(-)
- delete mode 100644 .github/workflows/mutation-testing.yml
- delete mode 100644 hooks/post-turn-quality-stop-hook.py
- delete mode 100644 hooks/test_post_turn_quality_stop_hook.py
- delete mode 100644 tests/test_workflow_contract.py

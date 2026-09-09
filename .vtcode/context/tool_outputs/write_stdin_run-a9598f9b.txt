@@ -1,4 +1,0 @@
-15:import yaml
-31:    yaml.YAMLError
-37:    data = yaml.safe_load(SUBAGENT_MANIFEST.read_text(encoding="utf-8"))
-73:    yaml.YAMLError

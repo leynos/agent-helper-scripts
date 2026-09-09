@@ -1,6 +1,0 @@
-./docs/users-guide.md:52:### Post-turn quality stop hook removed
-./docs/users-guide.md:54:This repository no longer provides the post-turn quality stop hook. It has
-./docs/users-guide.md:56:<https://github.com/leynos/post-turn-quality-stop-hook>.
-./README.md:30:The post-turn quality stop hook is no longer provided here. See
-./README.md:31:<https://github.com/leynos/post-turn-quality-stop-hook> for installation,
-=== sweep done (only migration notes expected above) ===
