@@ -1,0 +1,5 @@
+ M .vtcode/context/tool_outputs/write_stdin_run-b5abfdc7.txt
+?? .vtcode/context/tool_outputs/write_stdin_run-007848b1.txt
+?? .vtcode/context/tool_outputs/write_stdin_run-6f9745a7.txt
+?? .vtcode/context/tool_outputs/write_stdin_run-93d976f2.txt
+?? .vtcode/context/tool_outputs/write_stdin_run-ccad90f9.txt
