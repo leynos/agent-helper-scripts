@@ -500,7 +500,7 @@ The caller passes two configuration inputs:
 - `paths` — set to `hooks/`, the change-detection glob bounding scheduled runs
   to the repository's only importable product code (the Stop-hook script and
   its co-located tests).
-- `module-prefix-strip` — set to `""`, because the flat `hooks/` layout means
+- `module-prefix-strip` — set to `""` because the flat `hooks/` layout means
   changed-file paths already map to module globs unaltered, with no package
   prefix to strip.
 
@@ -518,7 +518,7 @@ pins the shape it must uphold, failing the pull request when the caller drifts
 — repointing the pin at a branch, widening the token scope, or dropping a
 configuration input — rather than letting the breakage surface only in a
 scheduled run. The test module self-skips when the workflow file is absent
-(`pytestmark = pytest.mark.skipif(not WORKFLOW_PATH.exists(), ...)`), because
+(`pytestmark = pytest.mark.skipif(not WORKFLOW_PATH.exists(), ...)`) because
 `mutmut` copies sources into a `mutants/` sandbox that omits `.github/`, and
 the contract test would otherwise fail there for the wrong reason. Run it
 locally with
