@@ -1,0 +1,15 @@
+D  .github/workflows/mutation-testing.yml
+M  .gitignore
+M  Makefile
+M  README.md
+M  docs/developers-guide.md
+M  docs/users-guide.md
+D  hooks/post-turn-quality-stop-hook.py
+D  hooks/test_post_turn_quality_stop_hook.py
+M  install-hooks
+M  pyproject.toml
+D  tests/test_workflow_contract.py
+?? .vtcode/
+ pyproject.toml                            |   11 -
+ tests/test_workflow_contract.py           |  147 ----
+ 11 files changed, 15 insertions(+), 2329 deletions(-)

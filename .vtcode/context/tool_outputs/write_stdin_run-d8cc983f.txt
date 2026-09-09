@@ -1,0 +1,88 @@
+check-fmt: no formatter configured
+typecheck: no static type checker configured (ran syntax-check)
+Using CPython 3.14.4
+Creating virtual environment at: .venv
+Installed 11 packages in 9ms
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0 -- /home/leynos/.lody/repos/github---leynos---agent-helper-scripts/worktrees/cae779ed-c2b7-4a94-84d8-c1e393b78a94/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /home/leynos/.lody/repos/github---leynos---agent-helper-scripts/worktrees/cae779ed-c2b7-4a94-84d8-c1e393b78a94
+configfile: pyproject.toml
+plugins: syrupy-5.4.0, hypothesis-6.155.7
+collecting ... collected 70 items
+
+tests/test_bootstrap_common.py::test_append_block_if_missing_is_idempotent PASSED [  1%]
+tests/test_bootstrap_common.py::test_append_block_if_missing_is_safe_under_concurrent_access PASSED [  2%]
+tests/test_bootstrap_common.py::test_fs_atomic_write_creates_temp_in_destination_directory PASSED [  4%]
+tests/test_bootstrap_common.py::test_ensure_profile_path_is_idempotent PASSED [  5%]
+tests/test_bootstrap_common.py::test_ensure_profile_sources_bashrc_is_idempotent PASSED [  7%]
+tests/test_bootstrap_common.py::test_ensure_runtime_path_adds_directory_to_subprocess_path PASSED [  8%]
+tests/test_bootstrap_common.py::test_replace_managed_block_replaces_existing_block PASSED [ 10%]
+tests/test_bootstrap_common.py::test_replace_managed_block_rejects_unclosed_sentinel PASSED [ 11%]
+tests/test_bootstrap_common.py::test_replace_managed_block_rejects_duplicate_blocks PASSED [ 12%]
+tests/test_bootstrap_common.py::test_replace_managed_block_rejects_end_before_begin PASSED [ 14%]
+tests/test_bootstrap_common.py::test_ensure_top_level_toml_setting_treats_key_as_literal PASSED [ 15%]
+tests/test_bootstrap_common.py::test_ensure_top_level_toml_setting_ignores_table_keys PASSED [ 17%]
+tests/test_bootstrap_common.py::test_ensure_top_level_toml_setting_ignores_key_inside_table PASSED [ 18%]
+tests/test_bootstrap_common.py::test_ensure_top_level_toml_setting_is_safe_under_concurrent_access PASSED [ 20%]
+tests/test_bootstrap_common.py::test_apt_lists_exist_matches_only_real_index_files[empty-dir] PASSED [ 21%]
+tests/test_bootstrap_common.py::test_apt_lists_exist_matches_only_real_index_files[lock-file] PASSED [ 22%]
+tests/test_bootstrap_common.py::test_apt_lists_exist_matches_only_real_index_files[packages-index] PASSED [ 24%]
+tests/test_bootstrap_common.py::test_apt_lists_exist_matches_only_real_index_files[inrelease-index] PASSED [ 25%]
+tests/test_bootstrap_common.py::test_apt_lists_exist_matches_only_real_index_files[bare-packages] PASSED [ 27%]
+tests/test_bootstrap_common.py::test_needs_reports_missing_commands PASSED [ 28%]
+tests/test_bootstrap_common.py::test_git_supports_sparse_checkout_skip_checks_detects_version[2.38.0-0] PASSED [ 30%]
+tests/test_bootstrap_common.py::test_git_supports_sparse_checkout_skip_checks_detects_version[2.36.0-1] PASSED [ 31%]
+tests/test_bootstrap_common.py::test_install_helper_script_copies_executable PASSED [ 32%]
+tests/test_bootstrap_common.py::test_package_scripts_for_tools_filters_helper_prefixes PASSED [ 34%]
+tests/test_bootstrap_common.py::test_clone_or_update_helper_tools_repo_uses_local_git_remote PASSED [ 35%]
+tests/test_bootstrap_common.py::test_clone_or_update_helper_tools_repo_uses_adapter_overrides PASSED [ 37%]
+tests/test_bootstrap_common.py::test_install_helper_script_uses_fs_install_adapter_override PASSED [ 38%]
+tests/test_bootstrap_common.py::test_build_selected_tools_adds_ai_tooling_when_enabled PASSED [ 40%]
+tests/test_bootstrap_common.py::test_build_selected_tools_omits_ai_tooling_by_default PASSED [ 41%]
+tests/test_bootstrap_common_properties.py::test_append_block_if_missing_is_idempotent_for_any_block PASSED [ 42%]
+tests/test_bootstrap_common_properties.py::test_replace_managed_block_preserves_one_sentinel_pair PASSED [ 44%]
+tests/test_bootstrap_common_properties.py::test_replace_managed_block_rejects_unbalanced_or_duplicate_sentinels PASSED [ 45%]
+tests/test_bootstrap_common_properties.py::test_ensure_profile_path_is_idempotent_for_repeated_calls PASSED [ 47%]
+tests/test_makefile_checks.py::test_home_phase_boundary_ignores_comment_only_matches PASSED [ 48%]
+tests/test_makefile_checks.py::test_home_phase_boundary_rejects_forbidden_commands PASSED [ 50%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_dispatches_selected_phase PASSED [ 51%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_both_runs_system_then_home PASSED [ 52%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_clones_delegates_when_run_from_stdin PASSED [ 54%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_rejects_unknown_phase PASSED [ 55%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_enables_trace_when_requested PASSED [ 57%]
+tests/test_rust_entrypoints.py::test_rust_entrypoint_does_not_trace_by_default PASSED [ 58%]
+tests/test_rust_entrypoints.py::test_home_phase_runs_selected_helpers_without_system_commands PASSED [ 60%]
+tests/test_rust_entrypoints.py::test_system_phase_uses_temporary_checkout_and_installs_system_packages PASSED [ 61%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_preserves_user_config_before_legacy_block PASSED [ 62%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_rejects_unclosed_legacy_config_block PASSED [ 64%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_preserves_randomized_nonlegacy_candidates PASSED [ 65%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_handles_duplicate_features_sections PASSED [ 67%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_handles_multiple_complete_legacy_blocks PASSED [ 68%]
+tests/test_rust_entrypoints.py::test_install_sub_agents_rejects_unclosed_legacy_config_after_scribe_file PASSED [ 70%]
+tests/test_subagent_definitions.py::test_claude_subagent_is_enabled_on_sonnet[wyvern] PASSED [ 71%]
+tests/test_subagent_definitions.py::test_claude_subagent_is_enabled_on_sonnet[scribe] PASSED [ 72%]
+tests/test_subagent_definitions.py::test_claude_subagent_is_enabled_on_sonnet[alchemist] PASSED [ 74%]
+tests/test_subagent_definitions.py::test_claude_subagent_is_enabled_on_sonnet[scrutineer] PASSED [ 75%]
+tests/test_subagent_definitions.py::test_scribe_codex_subagent_uses_spark_model PASSED [ 77%]
+tests/test_subagent_definitions.py::test_scribe_claude_subagent_tools_are_exact PASSED [ 78%]
+tests/test_subagent_definitions.py::test_wyvern_claude_subagent_is_read_only PASSED [ 80%]
+tests/test_subagent_definitions.py::test_alchemist_codex_subagent_uses_spark_model_and_context_pack PASSED [ 81%]
+tests/test_subagent_definitions.py::test_alchemist_claude_subagent_tools_are_exact PASSED [ 82%]
+tests/test_subagent_definitions.py::test_scrutineer_codex_subagent_has_context_pack_mcp PASSED [ 84%]
+tests/test_subagent_definitions.py::test_scrutineer_claude_subagent_is_read_only PASSED [ 85%]
+tests/test_subagent_definitions.py::test_every_subagent_enables_the_goose_provider PASSED [ 87%]
+tests/test_subagent_definitions.py::test_scrutineer_scopes_docs_only_changes_to_markdown_gates PASSED [ 88%]
+tests/test_subagent_definitions.py::test_scrutineer_report_marks_logs_as_canonical_evidence PASSED [ 90%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[non-mapping-root] PASSED [ 91%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[non-list-entries] PASSED [ 92%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[non-mapping-entry] PASSED [ 94%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[unknown-name] PASSED [ 95%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[missing-providers-mapping] PASSED [ 97%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[missing-provider-block] PASSED [ 98%]
+tests/test_subagent_manifest.py::test_loader_rejects_malformed_manifest[non-mapping-provider-block] PASSED [100%]
+
+--------------------------- snapshot report summary ----------------------------
+3 snapshots passed.
+============================= 70 passed in 10.80s ==============================

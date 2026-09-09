@@ -1,0 +1,7 @@
+docs/users-guide.md:23:    packages, skills, hooks, and sub-agent configuration.
+docs/users-guide.md:118:  - Checkout used by `install-hooks` and `install-skills`.
+docs/developers-guide.md:54:  - Controls which branch `rust-entrypoint-home`, `install-hooks`, and
+docs/developers-guide.md:63:  - `install-hooks` and `install-skills` respect this value, so the helper
+docs/developers-guide.md:222:### `install-hooks`
+docs/developers-guide.md:298:- `make test-hooks`
+docs/helper-repo-bootstrap.md:108:exported so sub-scripts such as `install-hooks`, `install-skills`,

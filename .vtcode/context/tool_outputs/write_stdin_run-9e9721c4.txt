@@ -1,0 +1,15 @@
+  `KOPIA_BUCKET` is set.
+- Must not run package-manager commands, privilege escalation, or mutate
+  machine-level package state.
+
+### `install-hooks`
+
+- Reuses the managed helper checkout path when `HELPER_TOOLS_REPO_DIR` is
+  exported.
+- Fetches the requested helper branch before copying hook files.
+
+### `install-skills`
+
+- Reuses the managed helper checkout path when `HELPER_TOOLS_REPO_DIR` is
+  exported.
+- Reapplies sparse checkout for `skills` when a managed clone already exists,

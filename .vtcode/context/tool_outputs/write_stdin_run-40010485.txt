@@ -1,0 +1,26 @@
+test_rust_entrypoints.ambr
+tests/test_rust_entrypoints.py:155:        "install-hooks",
+tests/__snapshots__/test_rust_entrypoints.ambr:10:  install-hooks
+tests/__snapshots__/test_rust_entrypoints.ambr:96:  git sparse-checkout set --skip-checks add-repositories apt-update-if-stale bootstrap-common get-ai-tooling get-github-tooling get-markdown-tooling get-python-tooling get-postgresql get-rust-tooling install-required-apt-packages install-hooks install-skills install-sub-agents markdownlint mdformat-all notdeadyet rust-entrypoint rust-entrypoint-home rust-entrypoint-system rust-setup skills
+tests/__snapshots__/test_rust_entrypoints.ambr:98:  install-required get-rust-tooling get-markdown-tooling get-github-tooling get-python-tooling install-skills install-hooks install-sub-agents
+===
+commit 0c097c144808e0db55f0185a5ef499339a3890fd
+Author: Leynos <leynos@troubledskies.net>
+Date:   Thu Jul 9 19:17:12 2026 +0100
+
+    Add scheduled mutation testing via the shared workflow (#30)
+    
+    * Add scheduled mutation testing via the shared workflow
+    
+    Enrol the repository in the estate-wide mutation-testing rollout by
+    adding a thin caller of the leynos/shared-actions mutation-mutmut
+    reusable workflow, pinned to 859416a90eb3987b46a57682c5d6b8964ad3f0a6,
+    scheduled daily at 12:50 UTC with a manual dispatch trigger.
+    
+    Configuration reflects this repository's unusual layout: the only
+    importable Python product code is hooks/post-turn-quality-stop-hook.py,
+    so [tool.mutmut] sets source_paths to hooks/, excludes the co-located
+    test module from mutation, and scopes the pytest selection to hooks/.
+    The tests/ suite exercises shell scripts through root-relative paths
+    that mutmut's mutants/ sandbox does not copy, so it stays outside the
+    selection. The caller passes paths "hooks/" for change detection and an

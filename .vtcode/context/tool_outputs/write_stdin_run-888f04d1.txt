@@ -1,0 +1,10 @@
+.cursorignore
+.cursorindexingignore
+
+# GrepAI local index
+.grepai/
+
+# Windows "mark of the web" metadata streams
+*:Zone.Identifier
+
+mutants/

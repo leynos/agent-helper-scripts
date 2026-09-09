@@ -1,0 +1,47 @@
+- `HELPER_TOOLS_REPO_URL`
+  - Default: `https://github.com/leynos/agent-helper-scripts.git`
+  - Git repository to clone for helper scripts.
+  - Set this to test a fork or mirror.
+- `HELPER_TOOLS_REPO_BRANCH`
+  - Default: `main`
+  - Branch to fetch and reset the helper checkout to.
+  - Set this to test branch-specific bootstrap changes.
+- `HELPER_TOOLS_REPO_NAME`
+  - Default: derived from `HELPER_TOOLS_REPO_URL`
+  - Directory name used when `HELPER_TOOLS_REPO_DIR` is not set.
+- `HELPER_TOOLS_REPO_DIR`
+  - Default: `${HOME}/git/${HELPER_TOOLS_REPO_NAME}`
+  - Managed helper checkout path.
+  - Set when an isolated checkout is required.
+- `REPO_DIR`
+  - Default: `HELPER_TOOLS_REPO_DIR`, then
+    `${HOME}/git/agent-helper-scripts`
+  - Checkout used by `install-hooks` and `install-skills`.
+  - Most users should leave this unset and configure
+    `HELPER_TOOLS_REPO_DIR` instead.
+
+Example:
+
+```bash
+export HELPER_TOOLS_REPO_BRANCH=my-feature-branch
+export HELPER_TOOLS_REPO_DIR="$HOME/git/agent-helper-scripts"
+bash rust-entrypoint
+```
+
+Use `main` for the published helper scripts, or replace it with a specific
+helper branch when testing unpublished bootstrap changes.
+
+## Feature toggles
+
+### Repository and system toggles
+
+- `WITH_ADD_REPOSITORIES`
+  - Default: `1`
+  - Runs `add-repositories` during the system phase.
+  - Set to `0` when the image already has the required repositories.
+=====
+docs/developers-guide.md:54:  - Controls which branch `rust-entrypoint-home`, `install-hooks`, and
+docs/developers-guide.md:63:  - `install-hooks` and `install-skills` respect this value, so the helper
+docs/developers-guide.md:222:### `install-hooks`
+docs/users-guide.md:118:  - Checkout used by `install-hooks` and `install-skills`.
+docs/helper-repo-bootstrap.md:108:exported so sub-scripts such as `install-hooks`, `install-skills`,

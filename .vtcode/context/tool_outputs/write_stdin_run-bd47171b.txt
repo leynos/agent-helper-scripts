@@ -1,0 +1,4 @@
+./docs/developers-guide.md:105:# requires-apt-packages: gh ripgrep fd-find
+./docs/helper-repo-bootstrap.md:28:  `get-*` and `install-*` scripts for `# requires-apt-packages: ...` metadata
+./tests/test_rust_entrypoints.py:245:        (path / helper_name).write_text("# requires-apt-packages: test-package\n")
+===

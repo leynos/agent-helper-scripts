@@ -1,0 +1,19 @@
+4cec44ea9d9563027ebe34fcbc4c0d0ba575342b
+Remove the obsolete post-turn quality stop hook
+
+The post-turn quality stop hook now lives in its own project:
+https://github.com/leynos/post-turn-quality-stop-hook. Remove the
+in-tree implementation and its dedicated pytest module.
+
+The installer previously validated the stop hook and registered it in
+Claude Code settings with a 600s Stop timeout; that registration is
+gone while the clone, sparse-checkout, generic hook-copy loop, and
+install-hook-cmd helper installation are preserved.
+
+Drop the hooks-only test-hooks Make target and the [tool.mutmut]
+configuration plus the mutation-testing workflow caller and its
+contract test, all of which existed solely to mutate and pin the
+removed hook. Users are directed to the replacement project in the
+README and users guide.
+
+?? .vtcode/

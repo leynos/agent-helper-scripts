@@ -1,0 +1,88 @@
+# Agent Helper Scripts
+
+This repository contains bootstrap scripts for preparing development
+environments with the system packages, language toolchains, helper utilities,
+skills, hooks, and agent configuration used by the Leynos agent workflow. The
+Rust bootstrap is split by authority boundary so machine-level setup and
+user-home setup can be run independently for cold system layers and warm home
+caches.
+
+## Quick start
+
+Start with the [users' guide](docs/users-guide.md) for the bootstrap model,
+common commands, and environment-variable configuration.
+
+The main bootstrap entrypoint is [`rust-entrypoint`](rust-entrypoint). It
+dispatches to the system, home, or sequential compatibility flow through
+`RUST_ENTRYPOINT_PHASE`.
+
+```bash
+bash rust-entrypoint
+```
+
+For split runs:
+
+```bash
+RUST_ENTRYPOINT_PHASE=system bash rust-entrypoint
+RUST_ENTRYPOINT_PHASE=home bash rust-entrypoint
+```
+
+## Developer guide
+
+See the [developers' guide](docs/developers-guide.md) for repository structure,
+phase-split internals, validation targets, and contribution workflow.
+[project]
+name = "agent-helper-scripts"
+version = "0.0.0"
+requires-python = ">=3.13"
+
+[tool.mutmut]
+# The only importable Python product code is the Stop-hook script in
+# hooks/; its co-located pytest module loads it in-process via importlib
+# (Path(__file__)-relative), so mutants are attributable inside mutmut's
+# mutants/ sandbox. The tests/ suite exercises shell scripts and
+# repository files through root-relative paths the sandbox does not
+# copy, so it stays outside the mutation test selection.
+source_paths = ["hooks/"]
+do_not_mutate = ["hooks/test_*.py"]
+pytest_add_cli_args_test_selection = ["hooks/"]
+
+[dependency-groups]
+dev = [
+  "cmd-mox",
+  "cuprum",
+  "hypothesis",
+  "pytest",
+  "pyyaml>=6.0.3",
+  "syrupy",
+]
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  make-ci:
+    name: Makefile gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+
+      - name: Run CI gate sequence
+        run: make ci

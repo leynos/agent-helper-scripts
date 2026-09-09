@@ -1,0 +1,5 @@
+docs/developers-guide.md:54:  - Controls which branch `rust-entrypoint-home`, `install-hooks`, and
+docs/developers-guide.md:63:  - `install-hooks` and `install-skills` respect this value, so the helper
+docs/developers-guide.md:222:### `install-hooks`
+docs/users-guide.md:124:  - Checkout used by `install-hooks` and `install-skills`.
+docs/helper-repo-bootstrap.md:108:exported so sub-scripts such as `install-hooks`, `install-skills`,

@@ -1,0 +1,11 @@
+7:## Bootstrap model
+47:## Upgrading
+52:## Common settings
+95:## Helper checkout settings
+133:## Feature toggles
+183:## Tool version settings
+233:## Cache and cloud settings
+273:## Sub-agent and context-pack settings
+288:## Sub-agent definitions
+300:## OpenTofu helper settings
+315:## Less common process settings

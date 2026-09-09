@@ -1,0 +1,67 @@
+    -------
+    list[str]
+        Ordered helper names expected to run during the home phase.
+
+    Notes
+    -----
+    The order mirrors ``bootstrap-common`` defaults used by the tests.
+    """
+    names = [
+        "get-rust-tooling",
+        "rust-setup",
+        "get-markdown-tooling",
+        "get-github-tooling",
+        "get-python-tooling",
+        "install-skills",
+        "install-hooks",
+        "install-sub-agents",
+    ]
+    if include_ai:
+        names.append("get-ai-tooling")
+    return names
+
+
+def create_helper_checkout(
+    path: Path,
+    *,
+    include_ai: bool = False,
+    git_as_file: bool = False,
+) -> None:
+    """Create a mock managed helper checkout.
+
+    Parameters
+    ----------
+    path : Path
+        Checkout directory to create.
+    include_ai : bool, optional
+=====
+# serializer version: 1
+# name: test_home_phase_runs_selected_helpers_without_system_commands
+  '''
+  get-rust-tooling
+  rust-setup
+  get-markdown-tooling
+  get-github-tooling
+  get-python-tooling
+  install-skills
+  install-hooks
+  install-sub-agents
+  get-ai-tooling
+  
+  '''
+# ---
+# name: test_install_sub_agents_preserves_user_config_before_legacy_block
+  '''
+  suppress_unstable_features_warning = true
+  [features]
+  user_feature = true
+  
+  [profiles.default]
+  model = "gpt-5.5"
+  
+  [agents.custom]
+  config_file = "agents/custom.toml"
+  
+  
+  [profiles.after]
+  approval_policy = "never"

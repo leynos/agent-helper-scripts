@@ -1,0 +1,116 @@
+docs:
+total 128
+drwxr-xr-x.  4 leynos leynos  4096 Sep  9 09:54 .
+drwxr-xr-x. 10 leynos leynos  4096 Sep  9 09:54 ..
+drwxr-xr-x.  2 leynos leynos  4096 Sep  9 09:54 adr
+-rw-r--r--.  1 leynos leynos 16558 Sep  9 09:54 cmd-mox-users-guide.md
+-rw-r--r--.  1 leynos leynos 20837 Sep  9 09:54 cuprum-users-guide.md
+-rw-r--r--.  1 leynos leynos 13924 Sep  9 09:54 developers-guide.md
+drwxr-xr-x.  2 leynos leynos  4096 Sep  9 09:54 execplans
+-rw-r--r--.  1 leynos leynos  5352 Sep  9 09:54 helper-repo-bootstrap.md
+-rw-r--r--.  1 leynos leynos  2488 Sep  9 09:54 migration-guide.md
+-rw-r--r--.  1 leynos leynos 11877 Sep  9 09:54 odw-skills-users-guide.md
+-rw-r--r--.  1 leynos leynos 15572 Sep  9 09:54 srgn.md
+-rw-r--r--.  1 leynos leynos  9997 Sep  9 09:54 users-guide.md
+
+.github/workflows:
+total 20
+drwxr-xr-x. 2 leynos leynos 4096 Sep  9 09:54 .
+drwxr-xr-x. 3 leynos leynos 4096 Sep  9 09:54 ..
+-rw-r--r--. 1 leynos leynos  483 Sep  9 09:54 ci.yml
+-rw-r--r--. 1 leynos leynos 1337 Sep  9 09:54 dependabot-automerge.yml
+-rw-r--r--. 1 leynos leynos  752 Sep  9 09:54 mutation-testing.yml
+
+hooks:
+total 80
+drwxr-xr-x.  2 leynos leynos  4096 Sep  9 09:54 .
+drwxr-xr-x. 10 leynos leynos  4096 Sep  9 09:54 ..
+-rw-r--r--.  1 leynos leynos 32598 Sep  9 09:54 post-turn-quality-stop-hook.py
+-rw-r--r--.  1 leynos leynos 39748 Sep  9 09:54 test_post_turn_quality_stop_hook.py
+
+tests:
+total 124
+drwxr-xr-x.  3 leynos leynos  4096 Sep  9 09:54 .
+drwxr-xr-x. 10 leynos leynos  4096 Sep  9 09:54 ..
+-rw-r--r--.  1 leynos leynos   344 Sep  9 09:54 conftest.py
+drwxr-xr-x.  2 leynos leynos  4096 Sep  9 09:54 __snapshots__
+-rw-r--r--.  1 leynos leynos  5694 Sep  9 09:54 subagent_manifest.py
+-rw-r--r--.  1 leynos leynos  5864 Sep  9 09:54 test_bootstrap_common_properties.py
+-rw-r--r--.  1 leynos leynos 25674 Sep  9 09:54 test_bootstrap_common.py
+-rw-r--r--.  1 leynos leynos  2519 Sep  9 09:54 test_makefile_checks.py
+-rw-r--r--.  1 leynos leynos 33134 Sep  9 09:54 test_rust_entrypoints.py
+-rw-r--r--.  1 leynos leynos  9669 Sep  9 09:54 test_subagent_definitions.py
+-rw-r--r--.  1 leynos leynos  3926 Sep  9 09:54 test_subagent_manifest.py
+-rw-r--r--.  1 leynos leynos  5518 Sep  9 09:54 test_workflow_contract.py
+---
+SHELL := /usr/bin/env
+.SHELLFLAGS := bash -c
+
+ROOT_SHELL_SCRIPTS := \
+	$(wildcard add-* apt-* get-* install-* rust-*) \
+	bootstrap-adapters \
+	bootstrap-common \
+	markdownlint \
+	mdformat-all \
+	notdeadyet \
+	python-setup
+SHELL_SCRIPTS := $(sort $(ROOT_SHELL_SCRIPTS) $(wildcard bin/*.sh))
+HOME_PHASE_HELPERS != awk '\
+	/^[[:space:]]*SELECTED_TOOLS=[(][[:space:]]*$$/ { in_tools=1; next } \
+	in_tools && /^[[:space:]]*[)][[:space:]]*$$/ { in_tools=0; next } \
+	in_tools && /^[[:space:]]*[[:alnum:]_-]+[[:space:]]*$$/ { print $$1 } \
+	/SELECTED_TOOLS[+][=][(]/ { \
+		line=$$0; \
+		sub(/^.*SELECTED_TOOLS[+][=][(]/, "", line); \
+		sub(/\).*$$/, "", line); \
+		if (line != "") print line; \
+	} \
+' bootstrap-common
+HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
+HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|install|realpath|ln)([[:space:]]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
+PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py tests/*.py))
+PYTEST := uv run --group dev python -m pytest
+HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
+REPO_TESTS := $(sort $(wildcard tests/test_*.py))
+ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
+TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
+
+# Test targets:
+# - test-hooks: post-turn hook behavior and git-state decisions.
+# - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
+# - test: full pytest suite for all repository tests.
+# - ci: complete CI/CD gate sequence used by GitHub Actions.
+.PHONY: all clean check-fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary test-hooks test-entrypoints test ci
+
+all: ci
+
+ci: check-fmt lint typecheck test
+
+clean:
+	@echo "clean: nothing to clean"
+
+check-fmt:
+	@echo "check-fmt: no formatter configured"
+
+syntax-check:
+	@python3 -m py_compile $(PYTHON_SCRIPTS)
+
+shell-syntax-check:
+	@bash -n $(SHELL_SCRIPTS)
+
+check-home-phase-boundary:
+	@awk 'BEGIN { forbidden = "$(HOME_PHASE_BOUNDARY_PATTERN)" } /^[[:space:]]*#/ { next } $$0 ~ forbidden { printf "%s:%d:%s\n", FILENAME, FNR, $$0; found=1 } END { exit found ? 1 : 0 }' $(HOME_PHASE_SCRIPTS)
+
+lint: syntax-check shell-syntax-check check-home-phase-boundary
+
+typecheck: syntax-check
+	@echo "typecheck: no static type checker configured (ran syntax-check)"
+
+test:
+	@$(PYTEST) $(TEST_TARGETS) -v
+
+test-hooks:
+	@$(PYTEST) $(HOOK_TESTS) -v
+
+test-entrypoints:
+	@$(PYTEST) $(ENTRYPOINT_TESTS) -v

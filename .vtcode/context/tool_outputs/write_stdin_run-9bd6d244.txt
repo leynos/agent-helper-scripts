@@ -1,0 +1,12 @@
+ M .gitignore
+.github/workflows/mutation-testing.yml
+.gitignore
+Makefile
+README.md
+docs/developers-guide.md
+docs/users-guide.md
+hooks/post-turn-quality-stop-hook.py
+hooks/test_post_turn_quality_stop_hook.py
+install-hooks
+pyproject.toml
+:100644 100644 34e3def80c69e1a5fccb78aa0e3d1f048819bdc5 0000000000000000000000000000000000000000 M	.gitignore

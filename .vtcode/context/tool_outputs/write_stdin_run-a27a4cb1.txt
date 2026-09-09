@@ -1,0 +1,5 @@
+(node:2456841) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+To https://github.com/leynos/agent-helper-scripts.git
+   97441e9..4cec44e  kill-mutation-survivors -> kill-mutation-survivors
+branch 'kill-mutation-survivors' set up to track 'origin/kill-mutation-survivors'.
