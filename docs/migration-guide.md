@@ -108,3 +108,16 @@ git mv docs/debugging/debugging-plan-1755710308.md \
 Update any links to the old filename in the same commit. A bulk rename is not
 required, because the date and slug must come from the plan's contents rather
 than from its timestamp.
+
+## CodeRabbit review skill
+
+This repository now ships the
+[`comenq-coderabbit`](../skills/comenq-coderabbit/SKILL.md) skill, which
+documents the queue-based CodeRabbit review workflow and its recovery
+procedures. `install-skills` copies every immediate skill directory into the
+agent skill paths, so a deployment that already installs an independently
+maintained copy of the same name has two candidates for one skill name.
+
+Choose one authoritative version before rollout, compare the copies, and keep
+approved connection and identity settings in deployment configuration. Do not
+rely on installer ordering to combine two different copies.

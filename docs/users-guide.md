@@ -171,6 +171,72 @@ resolutions here. See the
 [detailed skill](../skills/weave-git-merge/SKILL.md) and
 [behaviour reference](../skills/weave-git-merge/references/behaviour.md).
 
+## CodeRabbit reviews via comenq
+
+The [`comenq-coderabbit`](../skills/comenq-coderabbit/SKILL.md) skill requests
+CodeRabbit reviews through the managed `comenq` queue and carries the
+review-response loop through evidence-backed convergence. `install-skills`
+copies every immediate skill directory into the agent skill paths, so the skill
+installs with the rest of the repository's skills; keep approved hosts,
+credentials, and posting identities in deployment configuration rather than in
+the skill itself.
+
+Inspect the pending queue and recent pull-request activity before requesting
+anything, and route new full reviews and retries through the queue rather than
+a direct GitHub comment or a personal bot identity:
+
+```bash
+comenq list
+comenq hist -n 20
+comenq put OWNER/REPO PR_NUMBER "@coderabbitai review"
+```
+
+Focused replies to existing findings or pre-merge rows are a different
+operation and use only the project's already authorized reply route. A posted
+request, a completed review, a resolved thread, an approval, green checks, and
+a successful integration are separate facts; the skill never substitutes one
+for another, and it stops at an andon rather than guessing a repair. See
+[failure modes and recovery](../skills/comenq-coderabbit/references/failure-modes-and-recovery.md)
+for the incident-derived cases and their exit evidence, and
+[evidence and rehearsal](../skills/comenq-coderabbit/references/evidence-and-rehearsal.md)
+for the handoff and reconciliation templates and the offline rehearsal
+scenarios.
+
+```mermaid
+stateDiagram-v2
+    [*] --> CandidatePrepared
+    CandidatePrepared --> RequestPending: comenq put
+    CandidatePrepared --> ReviewActivityFound: existing activity
+    RequestPending --> ReviewPosted
+    RequestPending --> RequestFailed
+    RequestFailed --> InspectionIncomplete
+    ReviewPosted --> InspectionComplete
+    ReviewActivityFound --> InspectionComplete: current candidate and scope verified
+    InspectionComplete --> FindingsPending
+    FindingsPending --> DispositionsComplete: fix, rebut, or scope findings
+    DispositionsComplete --> ReviewStateReconciled: threads and rows read back
+    ReviewStateReconciled --> MergeEligible: approval and required checks on head
+    ReviewStateReconciled --> CandidateStale: rebase or later commit
+    CandidateStale --> CandidatePrepared
+    MergeEligible --> Merged
+    Merged --> IntegrationVerified
+    Merged --> IntegrationFailed
+    IntegrationFailed --> Andon
+    InspectionIncomplete --> Andon
+    Andon --> [*]
+    IntegrationVerified --> [*]
+```
+
+Figure 1: the review lifecycle. A prepared candidate either receives a queued
+`comenq put` request or already has review activity. A failed request leaves
+inspection incomplete and stops at an andon rather than counting as a clean
+review. A posted review, or activity verified against the current candidate and
+scope, reaches inspection complete; findings then need dispositions and
+reconciliation, which reaches merge eligibility only when approval and required
+checks hold on the head. A rebase or later commit makes the candidate stale and
+returns it to preparation. A merge is verified separately from integration, and
+an integration failure is another andon stop.
+
 ## Hypothesis-driven debugging
 
 The [`hypothesis-debugging`](../skills/hypothesis-debugging/SKILL.md) skill
