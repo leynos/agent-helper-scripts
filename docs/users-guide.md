@@ -431,13 +431,68 @@ These variables customize that installation:
 
 `agents/subagents.yml` is the provider-neutral manifest of the managed
 sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`,
-`scrutineer`, `journeyman`, and `artisan`). Each entry carries a shared
-`description` and `instructions` body plus per-provider blocks for Codex CLI,
-Claude Code, and goose. Downstream provisioning tooling (for example the
-dev-env-rocky `agent_tools` Ansible role) loads the manifest from a checkout of
-this repository and renders each enabled provider's native configuration file.
-The schema is documented in the manifest's header comment, and the deployment
-contracts are pinned by `tests/test_subagent_definitions.py`.
+`scrutineer`, `journeyman`, `artisan`, and `natural-philosopher`). Each entry
+carries a shared `description` and `instructions` body plus per-provider blocks
+for Codex CLI, Claude Code, and goose. Downstream provisioning tooling (for
+example the dev-env-rocky `agent_tools` Ansible role) loads the manifest from a
+checkout of this repository and renders each enabled provider's native
+configuration file. The schema is documented in the manifest's header comment,
+and the deployment contracts are pinned by `tests/test_subagent_definitions.py`
+and `tests/test_natural_philosopher.py`.
+
+`natural-philosopher` designs evidence-led steps for one selected GIST idea
+and its parent goal. Supply the relevant sources, existing IDs, constraints,
+owned document paths, inquiry budget, and experiment permissions. It reads
+`roadmap-doc`, returns hypotheses, coherent workstreams, evidence criteria,
+and decision gates, and leaves approval to the parent. It may use bounded
+Wyvern reconnaissance or explicitly authorized Alchemist experiments when
+the host supports delegation. Without experiment authority it designs only;
+without owned document paths it returns a report rather than editing files.
+See [ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
+provider limits, and a worked example.
+
+Each hypothesis carries its own verdict, which the report keeps separate from
+its overall status. The diagram below traces one hypothesis from `untested`,
+through a verdict and a decision gate, to the status the report returns.
+
+```mermaid
+stateDiagram-v2
+    accTitle: Natural Philosopher hypothesis verdict and decision gate flow
+    accDescr {
+        Every hypothesis begins untested and takes one of three verdicts:
+        not-falsified when the evidence does not falsify it, falsified when a
+        falsification condition is met, or inconclusive when the evidence is
+        insufficient or conflicting. Each verdict then reaches a decision
+        gate. Not-falsified proceeds when the acceptance criteria are met.
+        Falsified leads to revise when the preferred bet is defeated, or to
+        stop when proceeding would change the mandate. Inconclusive leads to
+        defer when bounded further inquiry is required, or to escalated when
+        budget, authority, or scope is blocked. The proceed, revise, defer,
+        and stop gates all return a report that is ready-for-review, because
+        each one is a recommendation for the parent to weigh. Escalated is
+        the report's other status, and the only one that does not carry a
+        recommendation.
+    }
+    state "not-falsified" as not_falsified
+    state "ready-for-review" as ready_for_review
+    [*] --> untested
+    untested --> not_falsified: evidence does not falsify
+    untested --> falsified: falsification condition met
+    untested --> inconclusive: evidence is insufficient or conflicting
+    not_falsified --> proceed: acceptance criteria met
+    falsified --> revise: preferred bet defeated
+    inconclusive --> defer: bounded further inquiry required
+    proceed --> ready_for_review
+    revise --> ready_for_review
+    defer --> ready_for_review
+    falsified --> stop: proceeding would change the mandate
+    stop --> ready_for_review
+    inconclusive --> escalated: budget, authority, or scope blocked
+```
+
+*Hypothesis verdicts, the decision gate each one reaches, and the report
+status that follows. A verdict describes one hypothesis; a status describes
+the whole report.*
 
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
@@ -447,13 +502,14 @@ end-to-end. It may delegate small, bounded, measurable, testable work items to
 must escalate incomplete packets or work outside the packet's scope.
 
 Managed subagents receive the MCP servers provisioned by the parent agent
-client. Every subagent's Claude allow-list includes CodeGraph; only the
-`journeyman` allow-list also includes Firecrawl and DeepWiki. Codex subagent
-entries deliberately omit `mcp_servers`, so Codex inherits the complete
-credentialed parent registry. Goose recipes omit `extensions`, so goose
-inherits the parent's configured extensions. As a result, Codex and goose may
-expose other parent MCPs to every role, while Claude access stays limited to
-the listed allow-lists.
+client. Every subagent's Claude allow-list includes CodeGraph; the
+`journeyman` and `natural-philosopher` allow-lists also include Firecrawl and
+DeepWiki. Codex subagent entries deliberately omit `mcp_servers`, so Codex
+inherits the complete credentialed parent registry. Goose recipes omit
+`extensions`, so goose inherits the parent's configured extensions. As a
+result, Codex and goose may expose other parent MCPs to every role, while
+Claude access stays limited to the listed allow-lists. Tool access never
+expands the assignment's authority.
 
 ## OpenTofu helper settings
 

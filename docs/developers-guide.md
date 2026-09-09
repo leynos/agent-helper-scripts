@@ -400,17 +400,19 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 
 `agents/subagents.yml` is the provider-neutral source of truth for the managed
 subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`, `journeyman`,
-`artisan`). For the user-facing description of what each subagent does and how
-downstream provisioning renders the manifest, see the
-`## Sub-agent definitions` section in [docs/users-guide.md](users-guide.md).
-This section covers the test-loader concerns only.
+`artisan`, and `natural-philosopher`). For the user-facing description of what
+each subagent does and how downstream provisioning renders the manifest, see
+the `## Sub-agent definitions` section in
+[docs/users-guide.md](users-guide.md). This section covers the test-loader
+concerns only.
 
 The manifest expresses MCP access according to each provider's inheritance
 model. Claude Code provider blocks use named `mcpServers` allow-lists: every
-managed subagent gets CodeGraph, and only the journeyman gets Firecrawl and
-DeepWiki. Codex provider blocks omit `mcp_servers`, so the custom agent
-inherits the parent's complete, credentialed registry rather than flattening a
-partial replacement into its agent file. Goose provider blocks omit
+managed subagent gets CodeGraph, and only the journeyman and
+natural-philosopher get Firecrawl and DeepWiki as well. Codex provider blocks
+omit `mcp_servers`, so the custom agent inherits the parent's complete,
+credentialed registry rather than flattening a partial replacement into its
+agent file. Goose provider blocks omit
 `extensions`, which makes the recipe inherit the parent session's extensions.
 The resulting contract keeps Claude access explicit while allowing Codex and
 goose to inherit any other parent MCPs that are already configured.
@@ -437,7 +439,7 @@ incorrect test data.
 
 ### Test suites
 
-Two test suites consume the helper:
+Three test suites consume the helper:
 
 - `tests/test_subagent_definitions.py` — happy-path deployment-contract
   regressions. It asserts specific model choices, sandbox modes, tool grants,
@@ -447,6 +449,11 @@ Two test suites consume the helper:
 - `tests/test_subagent_manifest.py` — error-path coverage of the loader. It
   exercises the typed-error contract directly, confirming that malformed or
   incomplete manifests produce the expected exception types.
+- `tests/test_natural_philosopher.py` — pins the `natural-philosopher` entry's
+  deployment and step-design contracts specifically: its uniqueness, its
+  per-provider configuration, and the load-bearing phrases its instructions
+  must retain. These are manifest regression tests, not live-model
+  behavioural evaluations.
 
 ### PyYAML dependency
 
