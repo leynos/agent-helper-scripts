@@ -1,0 +1,55 @@
+.github/workflows/mutation-testing.yml --- YAML
+18     permissions:                     18     permissions:
+19       contents: read                 19       contents: read
+20       id-token: write # OIDC workflo 20       id-token: write # OIDC workflo
+.. w-source resolution                  .. w-source resolution
+21     uses: leynos/shared-actions/.git 21     uses: leynos/shared-actions/.git
+.. hub/workflows/mutation-mutmut.yml@85 .. hub/workflows/mutation-mutmut.yml@e9
+.. 9416a90eb3987b46a57682c5d6b8964ad3f0 .. f155f1613acdc3dae4ea99da3a2ce8adff75
+.. a6                                   .. 97
+22     with:                            22     with:
+23       # Mutable Python source lives  23       # Mutable Python source lives 
+.. in hooks/, not the src/ default.     .. in hooks/, not the src/ default.
+24       paths: "hooks/"                24       paths: "hooks/"
+
+hooks/test_post_turn_quality_stop_hook.py --- Python
+ 1 """Exercise the post-turn quality st  1 """Exercise the post-turn quality st
+ . op hook end to end and in pieces.     . op hook end to end and in pieces.
+ 2                                       2 
+ 3 This module covers the hook's expect  3 This module covers the hook's expect
+ . ed git-state decisions, environment   . ed git-state decisions, environment
+ 4 parsing, subprocess error handling,   4 parsing, subprocess error handling, 
+ . make-target discovery, and compush    . make-target discovery, and compush
+ 5 follow-up behavior. The tests focus   5 follow-up behaviour. The tests focus
+ . on observable inputs and outputs,     .  on observable inputs and outputs,
+ 6 including successful checks, soft-fa  6 including successful checks, soft-fa
+ . ilure paths that must stay silent,    . ilure paths that must stay silent,
+ 7 and blocking/error conditions that s  7 and blocking/error conditions that s
+ . hould surface through the hook        . hould surface through the hook
+ 8 contract.                             8 contract.
+ 9                                       9 
+10 Run the suite from the repository ro 10 Run the suite from the repository ro
+.. ot with `pytest` or the repository's .. ot with `pytest` or the repository's
+11 test target. No external fixtures or 11 test target. No external fixtures or
+..  environment setup are required      ..  environment setup are required
+12 beyond a Python environment with `py 12 beyond a Python environment with `py
+.. test` installed because the tests    .. test` installed because the tests
+13 mock subprocess-heavy interactions.  13 mock subprocess-heavy interactions.
+14                                      14 
+15 Example:                             15 Example:
+16     python3 -m pytest hooks/test_pos 16     python3 -m pytest hooks/test_pos
+.. t_turn_quality_stop_hook.py -v       .. t_turn_quality_stop_hook.py -v
+17 """                                  17 """
+18                                      18 
+19 from __future__ import annotations   19 from __future__ import annotations
+20                                      20 
+
+pyproject.toml --- TOML
+24 24   "syrupy",
+25 25 ]
+   26 
+   27 [tool.pytest.ini_options]
+   28 markers = [
+   29   "slow: exercises an external tool or process boundary",
+   30 ]
+
