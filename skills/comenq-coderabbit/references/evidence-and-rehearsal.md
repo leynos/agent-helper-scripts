@@ -16,6 +16,9 @@ Retain the following with the PR evidence, without secrets:
   timestamp, review/comment URLs, and missing coverage. Use unknown when unknown.
 - **Finding:** live row or thread ID, underlying defect, disposition, source/test
   evidence, repair commit if applicable, and tagged reply/confirmation URLs.
+- **Delegation:** wyvern verification evidence and skipped-repair reasons;
+  journeyman, artisan, and scribe batch owners and paths; any automated fix or
+  codemod scope; scrutineer commands, candidate, results, and log references.
 - **Eligibility:** thread-resolution completeness, pre-merge row dispositions,
   current review decision, required-check results and their SHAs, gate receipt,
   and explicit blockers. Do not collapse these into one green flag.
@@ -44,6 +47,60 @@ For a documentation percentage, include the population, numerator, denominator,
 attribute-handling rule, and declaration list. For stale approval metadata,
 include the observed review state as well as the substantive dispositions.
 Do not send the template itself or request a blanket approval without evidence.
+
+## Pre-merge checks reconciliation
+
+Use this as a focused top-level PR comment through the approved reply route once
+current-code verification and the relevant repairs and validation are complete.
+Copy the live failed checks heading, table column headings, and the relevant
+rows, including warnings; replace the placeholder rather than posting it. Add
+the exact current base/head and source/test evidence alongside the template so
+that "now" has an identifiable candidate. Do not queue a full review merely to
+refresh a stale table.
+
+```text
+@coderabbitai Have the following failed checks now been resolved?
+
+If further work is required, please provide an AI agent prompt for the remaining work to be done to address these failures.
+
+Do not treat warnings as optional or aspirational. Where a change is out of scope for this PR, propose a GitHub issue unless one exists already. (Treat o11y, code safety, documentation and validation coverage as in scope).
+
+<table rows here, with heading>
+```
+
+Retain a brief reason for each row that needs no further edit. Look for an
+existing issue before proposing a follow-up for genuinely out-of-scope work;
+observability, code safety, documentation, and validation coverage for this PR's
+changes are not optional enhancements. Treat any returned AI agent prompt as
+new review input for wyvern verification, not an automatically approved repair
+plan. Preserve required-check and approval state separately from row resolution.
+
+## Uncertain comment disposition
+
+Reply in the existing finding's thread through the approved reply route, not as
+an unrelated top-level comment. Use this when inspection leaves the disposition
+uncertain, and add the exact current head and relevant evidence alongside it:
+
+```text
+@coderabbitai Has this now been resolved in the latest commit?
+
+Use codegraph analysis to determine your answer.
+
+If this comment is now resolved, please mark it as such using the API. Otherwise, please provide an AI agent prompt for the remaining work to be done to address this comment.
+```
+
+The request for codegraph analysis is not evidence that the analysis ran or
+covered the current code. If the graph is empty, stale, unsupported, or
+unavailable, retain that limitation, inspect the current source directly, and
+ask the scrutineer to run relevant executable checks. Keep any missing required
+inspection explicitly pending rather than treating absent graph results as a
+clean finding.
+
+After the bot responds, read back the thread's actual API resolution state and
+the candidate it assessed. A promise to mark a comment resolved is not an
+observed API update, and a resolved thread is not approval of the PR. Verify
+any returned repair prompt with the wyvern team before handing still-valid
+work to the appropriate implementation team and then the scrutineer.
 
 ## Offline rehearsal scenarios
 
@@ -76,6 +133,25 @@ for the skill; passing Markdown syntax alone does not prove them.
 12. **Green PR, main coverage cannot find Conftest:** record integration failure,
     route the environment repair to its owner, and preserve unknown causes for
     the other failures instead of declaring a service delay or success.
+13. **Large mixed finding set:** wyverns verify each finding on the current
+    candidate, group duplicates, and record brief reasons for skipped repairs.
+    Only still-valid work goes to bounded journeyman and artisan/scribe teams
+    with explicit file ownership; uncertain findings stay pending.
+14. **Small documentation and mechanical batch:** use scribes for documentation;
+    prefer automated fixes or codemods for repeated changes, and use artisans
+    where those transformations cannot safely express the mechanical work.
+15. **Codemod and validation handoff:** preview only verified, owned paths,
+    preserve unrelated code, and have one scrutineer execute focused tests and
+    required gates on the final candidate. Report failures, skips, unavailable
+    checks, and exact logs without upgrading a worker's inspection into a pass.
+16. **Pre-merge warning remains:** use the checks template with the live heading
+    and rows, not the placeholder. Warnings remain actionable; observability,
+    code safety, documentation, and validation coverage stay in scope. Reference
+    an existing issue or propose one for genuinely out-of-scope work.
+17. **Uncertain comment and unavailable codegraph:** send the thread template,
+    retain the analysis limitation, and use current-source inspection and
+    scrutineer tests without claiming the graph ran. Read back API resolution
+    and verify any returned repair prompt before dispatch; do not infer approval.
 
 ## Incident sources
 
