@@ -27,17 +27,15 @@ PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py scripts/*.py tests/*.py))
 PYTEST := uv run --group dev python -m pytest
 TYPOS_VERSION ?= 1.48.0
 TYPOS := uv tool run typos@$(TYPOS_VERSION)
-HOOK_TESTS := $(sort $(wildcard hooks/test_*.py))
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
-TEST_TARGETS := $(HOOK_TESTS) $(REPO_TESTS)
+TEST_TARGETS := $(REPO_TESTS)
 
 # Test targets:
-# - test-hooks: post-turn hook behaviour and git-state decisions.
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-hooks test-entrypoints test ci
+.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-entrypoints test ci
 
 all: ci
 
@@ -76,9 +74,6 @@ spelling:
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v
-
-test-hooks:
-	@$(PYTEST) $(HOOK_TESTS) -v
 
 test-entrypoints:
 	@$(PYTEST) $(ENTRYPOINT_TESTS) -v

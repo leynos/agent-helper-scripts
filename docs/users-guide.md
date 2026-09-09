@@ -49,6 +49,12 @@ shared libraries required by the user tools.
 See the [migration guide](migration-guide.md) when moving from the previous
 single-phase `rust-entrypoint` bootstrap to the system/home phase split.
 
+### Post-turn quality stop hook removed
+
+This repository no longer provides the post-turn quality stop hook. It has
+moved to its own project. For installation, configuration, and support see
+<https://github.com/leynos/post-turn-quality-stop-hook>.
+
 ## CodeScene skills
 
 Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
