@@ -224,6 +224,9 @@ distinction visible when adding new bootstrap behaviour.
 - Reuses the managed helper checkout path when `HELPER_TOOLS_REPO_DIR` is
   exported.
 - Fetches the requested helper branch before copying hook files.
+- Copies repository hook files into `~/.claude/hooks`; it no longer registers
+  any hook in Claude Code settings. The post-turn quality stop hook moved to
+  its own project: https://github.com/leynos/post-turn-quality-stop-hook.
 
 ### `install-skills`
 
@@ -387,9 +390,6 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 - `make check-home-phase-boundary`
   - Rejects APT, `sudo`, and linker mutation patterns in home-phase scripts.
   - Scans non-comment lines only.
-- `make test-hooks`
-  - Runs the hook-only pytest subset (`HOOK_TESTS`) via
-    `uv run python -m pytest`.
 - `make test-entrypoints`
   - Runs the entrypoint-only pytest subset (`ENTRYPOINT_TESTS`) via
     `uv run python -m pytest`.

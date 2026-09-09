@@ -27,6 +27,10 @@ RUST_ENTRYPOINT_PHASE=system bash rust-entrypoint
 RUST_ENTRYPOINT_PHASE=home bash rust-entrypoint
 ```
 
+The post-turn quality stop hook is no longer provided here. See
+<https://github.com/leynos/post-turn-quality-stop-hook> for installation,
+configuration, and support.
+
 ## Shared spelling dictionary
 
 `data/typos-oxendict-base.toml` is the shared en-GB-oxendict dictionary for the
