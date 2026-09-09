@@ -460,17 +460,21 @@ stateDiagram-v2
     accTitle: Natural Philosopher hypothesis verdict and decision gate flow
     accDescr {
         Every hypothesis begins untested and takes one of three verdicts:
-        not falsified when the evidence does not falsify it, falsified when a
+        not-falsified when the evidence does not falsify it, falsified when a
         falsification condition is met, or inconclusive when the evidence is
         insufficient or conflicting. Each verdict then reaches a decision
-        gate. Not falsified proceeds when the acceptance criteria are met.
+        gate. Not-falsified proceeds when the acceptance criteria are met.
         Falsified leads to revise when the preferred bet is defeated, or to
         stop when proceeding would change the mandate. Inconclusive leads to
         defer when bounded further inquiry is required, or to escalated when
-        budget, authority, or scope is blocked. The proceed, revise, and
-        defer gates all return a report that is ready for review. Escalated
-        is the report's other status, and stop is terminal.
+        budget, authority, or scope is blocked. The proceed, revise, defer,
+        and stop gates all return a report that is ready-for-review, because
+        each one is a recommendation for the parent to weigh. Escalated is
+        the report's other status, and the only one that does not carry a
+        recommendation.
     }
+    state "not-falsified" as not_falsified
+    state "ready-for-review" as ready_for_review
     [*] --> untested
     untested --> not_falsified: evidence does not falsify
     untested --> falsified: falsification condition met
@@ -482,6 +486,7 @@ stateDiagram-v2
     revise --> ready_for_review
     defer --> ready_for_review
     falsified --> stop: proceeding would change the mandate
+    stop --> ready_for_review
     inconclusive --> escalated: budget, authority, or scope blocked
 ```
 
