@@ -593,8 +593,12 @@ where every changed path ends in `.md`, scopes the gate set to
 Actions monitoring correlates an explicit repository, expected commit
 SHA, run ID and attempt; PR-head, synthetic-merge and post-merge
 integration evidence are kept distinct, and the latest run on a branch is
-never substituted for the assigned candidate. A deadline bounds the
-watcher itself, and reaching it stops only local observation:
+never substituted for the assigned candidate. Candidates are resolved
+from the pull request's own check links or from an exact commit; checks
+that are not Actions runs are classified separately rather than
+monitored, and every candidate is verified before it is watched. A
+deadline bounds the watcher itself, and reaching it stops only local
+observation:
 `scrutineer` never reruns, cancels, dispatches, approves or merges, and
 it does not cancel hosted runs when the deadline is reached.
 Only `status=completed` with `conclusion=success` counts as success;

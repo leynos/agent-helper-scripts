@@ -500,10 +500,16 @@ watching work. A missing `gh` or `jq` is classified
 `infrastructure-error` rather than reported as a successful observation.
 
 Correlation is explicit: repository via `--repo OWNER/REPO`, expected
-commit SHA, run ID and attempt. Run identity is resolved by parsing
-`gh pr checks` Actions links and verifying each candidate with
-`gh run view`, or, for commit-scoped work, via
-`gh run list --commit`. `gh run watch` does not pin an attempt, so the
+commit SHA, run ID and attempt. Candidate resolution and verification
+are published, executable procedures rather than prose guidance.
+`gh pr checks` links are parsed into `candidate-runs.txt`, or
+`gh run list --commit` resolves commit-scoped work, and every candidate
+is confirmed with `gh run view` before it may enter the watch or
+evidence steps. Verification records one of three
+`candidate-identity.txt` states — `verified`, `pr-head-synthetic-merge`,
+or `sha-mismatch` — because a `pull_request` run reports the PR head
+as its `headSha` while GitHub actually builds a synthetic merge of
+that head into the base. `gh run watch` does not pin an attempt, so the
 latest attempt and candidate identity are rechecked before hand-off;
 superseded evidence is retained and reported as stale rather than
 silently transferred to the new attempt.
@@ -526,21 +532,39 @@ credential, permission, and API problems are classified
 
 Evidence is written to a private `mktemp` directory under `/tmp` created
 with `umask 077`, with a `run-<id>-attempt-<n>` subdirectory per run and
-attempt holding `run.json` and `watch.log`. `failed.log` and
-`failed-log.stderr` are conditional: they are captured only for a run
-that has reached `status=completed` with a non-success conclusion.
-The procedure enforces this condition itself, reading `status` and
-`conclusion` from the already-captured `run.json` with `jq` rather
-than making a second API call. A successful, still-pending, missing,
-or inaccessible run legitimately has no failure-log artefacts; the
-procedure instead writes a `failed-log.omitted` note recording the
-observed status and conclusion, so the omission is self-describing.
-The root `summary.md` manifest records the reason for any expected
-artefact's absence, so an omission is never ambiguous between "not
-applicable" and "retrieval failed". Failed-step log capture is never
-gated on watcher success with `&&`, and retrieval exit codes are
-recorded separately from the observed Actions conclusion. Logs stay
-private, and secrets are redacted from any excerpts.
+attempt. Resolution and verification add their own artefacts to that
+bundle: `pr.json` and `candidate-runs.txt` for PR-scoped resolution,
+with `non-actions-checks.txt` recording checks that are not Actions
+runs; `run-list.json` and `candidate-runs.txt` for commit-scoped
+resolution, with `candidates.missing` written only when no runs were
+found for the commit; and `candidate.json` plus
+`candidate-identity.txt` for verification. The bundle also holds
+`run.json` and `watch.log` for the watch itself, `recheck.json` from
+the attempt recheck before hand-off, with `attempt.superseded`
+written only when the latest attempt differs from the one the
+evidence covers. `failed.log` and `failed-log.stderr` are conditional:
+they are captured only for a run that has reached `status=completed`
+with a non-success conclusion. The procedure enforces this condition
+itself, reading `status` and `conclusion` from the already-captured
+`run.json` with `jq` rather than making a second API call. A
+successful, still-pending, missing, or inaccessible run legitimately
+has no failure-log artefacts; the procedure instead writes a
+`failed-log.omitted` note recording the observed status and
+conclusion, so the omission is self-describing. The root `summary.md`
+manifest records the reason for any expected artefact's absence, so
+an omission is never ambiguous between "not applicable" and
+"retrieval failed". Failed-step log capture is never gated on watcher
+success with `&&`, and retrieval exit codes are recorded separately
+from the observed Actions conclusion. Logs stay private, and secrets
+are redacted from any excerpts.
+
+`agents/subagents.yml` is the single authoritative copy of these
+procedures. `tests/test_scrutineer_actions_discovery.py` and
+`tests/test_scrutineer_actions_procedures.py` extract the `bash`
+snippets from the manifest's `instructions` body and execute them
+against a `gh` double that validates repository, run ID, attempt,
+commit SHA, and required flags, so the tests cannot drift from the
+published contract.
 
 ### Skill manifest tooling dependencies
 

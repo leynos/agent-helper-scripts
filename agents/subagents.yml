@@ -743,25 +743,84 @@ agent_tools_subagents:
         never rely on interactive run selection or the current checkout.
       - For a PR, read `gh pr view` and `gh pr checks` to identify its current
         head, base, and check links. `gh pr checks` reports check links, not
-        run identities. Parse each Actions link (`/actions/runs/<id>`) for its
-        run ID, deduplicate the IDs because many jobs share one run, and
-        confirm each candidate with `gh run view` before recording or watching
-        it. Classify links that are not Actions runs — external statuses,
-        deployments, CodeRabbit and similar apps — as non-Actions checks and
-        exclude them from run monitoring rather than treating them as runs.
-        For an explicit commit, discover runs with
-        `gh run list --repo "$repo" --commit "$expected_sha"`; this exact-commit
-        resolution stays authoritative for commit-scoped assignments.
-        Inspect enough results to cover every requested workflow; the default
+        run identities, and exits nonzero whenever a check is failing or
+        pending, so never gate the parse on its exit status. Parse each Actions
+        link (`/actions/runs/<id>`) for its run ID and deduplicate, because
+        every job of one run repeats that run's ID. Classify links that are not
+        Actions runs — external statuses, deployments, CodeRabbit and similar
+        apps, including checks that report no URL at all — as non-Actions
+        checks, and exclude them from run monitoring rather than treating them
+        as runs:
+
+        ```bash
+        pr_status=0
+        gh pr view "$pr_number" --repo "$repo" \
+          --json number,headRefOid,baseRefName \
+          > "$bundle_dir/pr.json" 2> "$bundle_dir/pr-view.stderr" \
+          || pr_status=$?
+        checks_status=0
+        gh pr checks "$pr_number" --repo "$repo" \
+          > "$bundle_dir/pr-checks.tsv" 2> "$bundle_dir/pr-checks.stderr" \
+          || checks_status=$?
+        grep -oE '/actions/runs/[0-9]+' "$bundle_dir/pr-checks.tsv" \
+          | grep -oE '[0-9]+$' | sort -un \
+          > "$bundle_dir/candidate-runs.txt" || true
+        grep -vE '/actions/runs/[0-9]+' "$bundle_dir/pr-checks.tsv" \
+          | cut -f1 > "$bundle_dir/non-actions-checks.txt" || true
+        ```
+
+      - For an explicit commit, resolve candidates by exact commit instead.
+        This resolution stays authoritative for commit-scoped assignments.
+        Request enough results to cover every requested workflow; the default
         result limit is not proof of completeness. An empty run list is not
-        success: report missing or not-yet-created runs at the deadline. Only
-        verified run identities may enter the watch and evidence steps below.
-      - Before watching, use `gh run view` JSON to record the workflow name,
-        event, headSha, URL, run ID and attempt. Verify the expected commit
-        SHA. Never substitute the latest run on a branch for the assigned
-        candidate. When PR checks use a synthetic merge commit, record its
-        association with the PR head and base rather than assuming equality.
-        Keep post-merge integration evidence separate from PR-head evidence.
+        success: record missing or not-yet-created runs and report them at the
+        deadline:
+
+        ```bash
+        list_status=0
+        gh run list --repo "$repo" --commit "$expected_sha" --limit 100 \
+          --json databaseId,workflowName,event,headSha,status,conclusion \
+          > "$bundle_dir/run-list.json" 2> "$bundle_dir/run-list.stderr" \
+          || list_status=$?
+        jq -r '.[].databaseId' "$bundle_dir/run-list.json" 2>/dev/null \
+          | sort -un > "$bundle_dir/candidate-runs.txt" || true
+        if [ ! -s "$bundle_dir/candidate-runs.txt" ]; then
+          printf 'no runs found for %s\n' "$expected_sha" \
+            > "$bundle_dir/candidates.missing"
+        fi
+        ```
+
+      - Confirm every candidate with `gh run view` before it enters the watch
+        or evidence steps below; only verified run identities may proceed.
+        Record the workflow name, event, headSha, URL, run ID and attempt, and
+        verify the expected commit SHA. Never substitute the latest run on a
+        branch for the assigned candidate. A `pull_request` run reports the PR
+        head as its `headSha` while GitHub actually builds a synthetic merge of
+        that head into the base, so record the association rather than claiming
+        the run built the head commit itself. Keep post-merge integration
+        evidence separate from PR-head evidence:
+
+        ```bash
+        verify_status=0
+        gh run view "$run_id" --repo "$repo" \
+          --json databaseId,workflowName,event,headSha,status,conclusion,attempt,url \
+          > "$bundle_dir/candidate.json" 2> "$bundle_dir/candidate.stderr" \
+          || verify_status=$?
+        observed_sha=$(jq -r '.headSha // ""' \
+          "$bundle_dir/candidate.json" 2>/dev/null) || observed_sha=""
+        observed_event=$(jq -r '.event // ""' \
+          "$bundle_dir/candidate.json" 2>/dev/null) || observed_event=""
+        if [ "$observed_sha" != "$expected_sha" ]; then
+          candidate_state=sha-mismatch
+        elif [ "$observed_event" = "pull_request" ]; then
+          candidate_state=pr-head-synthetic-merge
+        else
+          candidate_state=verified
+        fi
+        printf 'state=%s event=%s observed=%s expected=%s\n' \
+          "$candidate_state" "$observed_event" "$observed_sha" \
+          "$expected_sha" > "$bundle_dir/candidate-identity.txt"
+        ```
       - Create a private, unique bundle directory under `/tmp` with `mktemp`
         and restrictive permissions (`umask 077`). Use the log-slug rules
         above, then a separate `run-<id>-attempt-<n>` subdirectory for each
@@ -809,7 +868,21 @@ agent_tools_subagents:
       - Recheck the latest attempt and candidate identity before hand-off.
         `gh run watch` does not pin an attempt. If a rerun or rewritten PR
         changes that identity, retain the old evidence and report it as stale
-        or superseded; do not silently transfer its verdict to the new one.
+        or superseded; do not silently transfer its verdict to the new one:
+
+        ```bash
+        recheck_status=0
+        gh run view "$run_id" --repo "$repo" \
+          --json attempt,status,conclusion,headSha \
+          > "$bundle_dir/recheck.json" 2> "$bundle_dir/recheck.stderr" \
+          || recheck_status=$?
+        latest_attempt=$(jq -r '.attempt // 0' \
+          "$bundle_dir/recheck.json" 2>/dev/null) || latest_attempt=0
+        if [ "$latest_attempt" != "$attempt" ]; then
+          printf 'superseded: latest attempt %s, evidence is attempt %s\n' \
+            "$latest_attempt" "$attempt" > "$bundle_dir/attempt.superseded"
+        fi
+        ```
       - Only `status=completed` with `conclusion=success` establishes run
         success. Preserve failure and all other conclusions, including
         cancelled, timed_out, skipped, neutral, action_required, and
