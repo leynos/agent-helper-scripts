@@ -1,9 +1,21 @@
 #!/usr/bin/env bash
 
+# Lint Markdown with markdownlint-cli2.
+#
+# The repository's own .markdownlint-cli2.jsonc is used when it is present.
+# Otherwise a bundled default configuration is supplied, so the script also
+# works unchanged in consumer repositories that install it as `markdownlint`.
+#
+# markdownlint-cli2 lints nothing when it is given neither a glob argument nor
+# a "globs" key, which reads as a clean pass without any file having been
+# checked. To keep a bare invocation honest, callers that pass no path default
+# to every Markdown file in the tree.
+
 set -xeu
-MDLINT_BIN="${HOME}/.bun/bin/markdownlint-cli2"
+MDLINT_BIN="${MDLINT_BIN:-${HOME}/.bun/bin/markdownlint-cli2}"
 MDLINT_CONFIG_DIR="$(mktemp -d)"
 MDLINT_CONFIG="${MDLINT_CONFIG_DIR}/.markdownlint-cli2.jsonc"
+trap 'rm -rf "${MDLINT_CONFIG_DIR}"' EXIT
 cat > "${MDLINT_CONFIG}" <<'__EOF'
 {
   // Ignore MD013 (line length) inside tables since reflowing
@@ -24,9 +36,21 @@ cat > "${MDLINT_CONFIG}" <<'__EOF'
 }
 __EOF
 
+# Options are everything from the first leading dash onwards; anything else is
+# a path the caller selected. Only a genuinely path-less invocation is widened,
+# so `markdownlint --fix` fixes the tree instead of silently fixing nothing.
+has_path=0
+for arg in "$@"; do
+  if [[ "${arg}" != -* ]]; then
+    has_path=1
+  fi
+done
+if ((has_path == 0)); then
+  set -- "$@" '**/*.md'
+fi
+
 if [[ -f .markdownlint-cli2.jsonc ]]; then
   "${MDLINT_BIN}" "$@"
 else
   "${MDLINT_BIN}" --config "${MDLINT_CONFIG}" "$@"
 fi
-rm -rf "${MDLINT_CONFIG_DIR}"
