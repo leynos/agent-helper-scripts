@@ -91,12 +91,14 @@ def _evidence(graph: Linear, parent_head: str) -> object:
     """Freeze the observations `discover` would have gathered for this graph."""
     return planner.Evidence(
         operation="property",
+        parent=planner.ParentPullRequest("leynos/agent-helper-scripts", 50),
         old_head=graph.child[-1] if graph.child else parent_head,
         target=graph.target,
-        landed=graph.landed,
-        parent_head=parent_head,
-        evidence_ref="refs/agent-rebase/property/parent-head",
-        metadata={},
+        parent_evidence=planner.ParentEvidence(
+            head=parent_head,
+            landed=graph.landed,
+            evidence_ref="refs/agent-rebase/property/parent-head",
+        ),
     )
 
 

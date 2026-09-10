@@ -8,16 +8,26 @@ Only GitHub metadata and real Git ancestry inform the plan. The caller identifie
 an already confirmed squash-merged parent PR. Fetching creates a private evidence
 ref; discovery never moves a branch, changes the worktree, rebases, or pushes.
 
-Discovery and plan construction are separate, and the separation is visible in
-the names. :func:`discover` is the command-layer operation: it runs ``gh``,
-fetches the parent PR head into a private evidence ref, and returns an
-immutable :class:`Evidence` snapshot. :func:`build_plan` is the read path; it
-consumes an already collected snapshot and only queries the local graph.
-:func:`discover_and_plan` is the explicit composition of the two, named so that
-no caller mistakes a plan for a side-effect-free query.
+The module is layered, and the layers do not mix:
 
-Every process interaction goes through an injected :class:`Runner`, so a caller
-may substitute one without patching module globals.
+Domain
+    Typed identities, evidence, graph facts, boundary provenance and the pure
+    replay policy that reads them. Nothing here touches a :class:`~pathlib.Path`,
+    a subprocess, GitHub CLI JSON, or Cyclopts, so the policy is testable
+    without a repository.
+Adapters
+    :class:`Subprocess` runs processes; :class:`GitGraph` turns Git queries into
+    typed graph facts; :class:`GitHubCli` parses and validates ``gh`` output.
+Command layer
+    :func:`discover` is the only operation that runs ``gh``, fetches, or writes
+    a ref. It returns an immutable :class:`Evidence` snapshot.
+Read path
+    :func:`build_plan` consumes an already collected snapshot. It never invokes
+    discovery, so it makes no network access and writes no ref.
+
+Diagnostics form one operation span with child phase records, all on standard
+error, keyed by an operation identifier the plan also carries. Standard output
+carries a successful plan and nothing else.
 """
 
 from __future__ import annotations
@@ -59,9 +69,8 @@ OID_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 RECEIPT_PREFIX = "refs/stack-bases/"
 
-#: Bounded, fixed set of failure categories. Diagnostics report one of these
-#: rather than free-form text, so a reader can aggregate failures without
-#: parsing messages that are written for humans.
+#: Bounded failure categories. Diagnostics report one of these rather than free
+#: text, so failures aggregate without parsing messages written for humans.
 CATEGORY_IDENTITY = "identity"
 CATEGORY_REPOSITORY_STATE = "repository-state"
 CATEGORY_METADATA = "metadata"
@@ -72,6 +81,46 @@ CATEGORY_RACE = "race"
 CATEGORY_PROCESS = "process"
 CATEGORY_UNCLASSIFIED = "unclassified"
 
+#: Bounded phase names. Every diagnostic record carries exactly one of these.
+PHASE_OPERATION = "operation"
+PHASE_PREFLIGHT = "preflight"
+PHASE_PARENT_METADATA = "parent-metadata"
+PHASE_LANDING_VALIDATION = "landing-validation"
+PHASE_PARENT_HEAD_FETCH = "parent-head-fetch"
+PHASE_BOUNDARY_SELECTION = "boundary-selection"
+PHASE_GRAPH_PLANNING = "graph-planning"
+
+OUTCOME_OK = "ok"
+OUTCOME_BLOCKED = "blocked"
+
+STATUS_REVIEW_REQUIRED = "review-required"
+STATUS_NO_OP = "no-op-decision-required"
+STATUS_BLOCKED = "blocked"
+
+
+# --------------------------------------------------------------------------
+# Domain: identities and errors
+# --------------------------------------------------------------------------
+
+#: A resolved, full-length Git commit object ID.
+CommitId = typ.NewType("CommitId", str)
+
+
+@dataclasses.dataclass(frozen=True)
+class ErrorContext:
+    """Where a refusal happened, as structured data rather than prose.
+
+    Parameters
+    ----------
+    operation : str
+        Identifier correlating every diagnostic from one run.
+    phase : str
+        One of the bounded ``PHASE_*`` constants.
+    """
+
+    operation: str
+    phase: str
+
 
 class PlanError(RuntimeError):
     """Discovery cannot establish a safe, reviewable replay range.
@@ -81,12 +130,664 @@ class PlanError(RuntimeError):
     message : str
         Human-readable reason, reported verbatim as the blocked ``reason``.
     category : str
-        One of the bounded ``CATEGORY_*`` constants, reported in diagnostics.
+        One of the bounded ``CATEGORY_*`` constants.
+
+    Attributes
+    ----------
+    context : ErrorContext | None
+        Set by the innermost enclosing :func:`phase`, so a caller learns where
+        the refusal happened without parsing the message.
     """
 
     def __init__(self, message: str, category: str = CATEGORY_UNCLASSIFIED) -> None:
         super().__init__(message)
         self.category = category
+        self.context: ErrorContext | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ParentPullRequest:
+    """The confirmed squash-merged parent PR, as an identity rather than text.
+
+    Parameters
+    ----------
+    repository : str
+        GitHub ``owner/name`` hosting the parent PR.
+    number : int
+        Parent PR number.
+    """
+
+    repository: str
+    number: int
+
+    def __str__(self) -> str:
+        """Return the ``owner/name#number`` form used in plans and receipts."""
+        return f"{self.repository}#{self.number}"
+
+    def matches_receipt_identity(self, recorded: str) -> bool:
+        """Report whether a recorded ``stackParent`` value names this PR.
+
+        Parameters
+        ----------
+        recorded : str
+            Value read from ``branch.<name>.stackParent``, possibly empty.
+
+        Returns
+        -------
+        bool
+            True when the recorded identity is this PR, ignoring case.
+        """
+        return recorded.casefold() == str(self).casefold()
+
+
+@dataclasses.dataclass(frozen=True)
+class ParentEvidence:
+    """What was recovered about the parent, and where it was retained.
+
+    Parameters
+    ----------
+    head : CommitId
+        The parent PR's original head, fetched from GitHub.
+    landed : CommitId
+        The squash landing commit, proven reachable from the target.
+    evidence_ref : str
+        Private ref retaining ``head`` for review and recovery.
+    """
+
+    head: CommitId
+    landed: CommitId
+    evidence_ref: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Evidence:
+    """Immutable snapshot of everything discovery observed outside the planner.
+
+    Parameters
+    ----------
+    operation : str
+        Identifier correlating every diagnostic emitted for one run.
+    parent : ParentPullRequest
+        The parent PR the evidence was gathered for.
+    old_head : CommitId
+        Child branch tip observed at the start of discovery.
+    target : CommitId
+        Target ref tip observed at the start of discovery.
+    parent_evidence : ParentEvidence
+        The recovered parent head, its landing commit, and the retained ref.
+    """
+
+    operation: str
+    parent: ParentPullRequest
+    old_head: CommitId
+    target: CommitId
+    parent_evidence: ParentEvidence
+
+
+@dataclasses.dataclass(frozen=True)
+class ReceiptFacts:
+    """What the graph says about a maintained boundary receipt.
+
+    Parameters
+    ----------
+    ref : str
+        The receipt ref name, as supplied by the operator.
+    commit : CommitId
+        The commit the receipt names.
+    stack_parent : str
+        Recorded ``branch.<name>.stackParent`` value, empty when unset.
+    is_ancestor_of_child : bool
+        Whether ``commit`` is reachable from the child branch tip.
+    """
+
+    ref: str
+    commit: CommitId
+    stack_parent: str
+    is_ancestor_of_child: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class BoundaryFacts:
+    """Typed graph facts sufficient to choose a boundary, with no Git handle.
+
+    Parameters
+    ----------
+    parent_head : CommitId
+        Original parent PR head recovered from GitHub.
+    old_head : CommitId
+        Child branch tip.
+    parent_head_inherited : bool
+        Whether ``parent_head`` is reachable from ``old_head``.
+    merge_base_candidates : tuple[CommitId, ...]
+        Every merge base of the parent head and the child, reported only so a
+        refusal can name them. They are never used to choose a boundary.
+    receipt : ReceiptFacts | None
+        Facts about the supplied receipt, or None when none was supplied.
+    """
+
+    parent_head: CommitId
+    old_head: CommitId
+    parent_head_inherited: bool
+    merge_base_candidates: tuple[CommitId, ...]
+    receipt: ReceiptFacts | None
+
+
+@dataclasses.dataclass(frozen=True)
+class Boundary:
+    """The accepted exclusive replay boundary and the evidence supporting it.
+
+    Parameters
+    ----------
+    old_base : CommitId
+        Exclusive boundary commit; the last commit that must not be replayed.
+    evidence : str
+        Provenance label for ``old_base``, never a heuristic.
+    corroborated : bool
+        Whether preserved parent history proves no inherited commit follows
+        ``old_base``. A maintained receipt alone cannot prove this.
+    """
+
+    old_base: CommitId
+    evidence: str
+    corroborated: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class RangeFacts:
+    """Typed graph facts about the proposed replay range.
+
+    Parameters
+    ----------
+    old_base : CommitId
+        Exclusive boundary the range starts after.
+    old_head : CommitId
+        Inclusive tip the range ends at.
+    commits : tuple[CommitId, ...]
+        Commits in ``old_base..old_head``, oldest first.
+    contains_merges : bool
+        Whether any commit in that range is a merge.
+    """
+
+    old_base: CommitId
+    old_head: CommitId
+    commits: tuple[CommitId, ...]
+    contains_merges: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class Identities:
+    """Branch and target tips, re-read to detect a concurrent move.
+
+    Parameters
+    ----------
+    branch_head : CommitId
+        Current child branch tip.
+    target : CommitId
+        Current target ref tip.
+    """
+
+    branch_head: CommitId
+    target: CommitId
+
+
+# --------------------------------------------------------------------------
+# Domain: pure replay policy
+# --------------------------------------------------------------------------
+
+
+def check_identities(parent: ParentPullRequest, branch: str) -> None:
+    """Refuse an identity that is malformed, non-positive, or option-shaped.
+
+    Pure: this inspects only the supplied values.
+
+    Parameters
+    ----------
+    parent : ParentPullRequest
+        Parent PR identity to validate.
+    branch : str
+        Local child branch name, without the ``refs/heads/`` prefix.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    PlanError
+        If any identity is not explicit and well-formed.
+    """
+    if not REPOSITORY_PATTERN.fullmatch(parent.repository) or any(
+        part in {".", ".."} for part in parent.repository.split("/")
+    ):
+        raise PlanError(
+            "Parent repository must be an explicit GitHub owner/name",
+            CATEGORY_IDENTITY,
+        )
+    if type(parent.number) is not int or parent.number <= 0:
+        raise PlanError("Parent PR must be a positive integer", CATEGORY_IDENTITY)
+    if not branch or branch.startswith("-"):
+        raise PlanError(
+            "Branch must be an explicit local branch name, not an option",
+            CATEGORY_IDENTITY,
+        )
+
+
+def select_boundary(parent: ParentPullRequest, facts: BoundaryFacts) -> Boundary:
+    """Use inherited parent history or a maintained receipt, never a heuristic.
+
+    Pure: this reads typed graph facts and never queries a repository.
+
+    Parameters
+    ----------
+    parent : ParentPullRequest
+        The parent PR a receipt must name to be trusted.
+    facts : BoundaryFacts
+        Typed graph facts gathered by an adapter.
+
+    Returns
+    -------
+    Boundary
+        The accepted exclusive boundary, its provenance, and whether preserved
+        parent history corroborates it.
+
+    Raises
+    ------
+    PlanError
+        If the parent head is not inherited and no maintained receipt is
+        supplied, or the supplied receipt belongs to another parent, is not an
+        ancestor of the child, or contradicts inherited parent history.
+    """
+    inherited = facts.parent_head_inherited
+    if facts.receipt is None:
+        if inherited:
+            return Boundary(facts.parent_head, "parent-pr-head", corroborated=True)
+        raise PlanError(
+            "Parent head is not inherited. Merge-base candidates are not proof: "
+            f"{' '.join(facts.merge_base_candidates)}. "
+            "Review a maintained boundary receipt or historical reflog.",
+            CATEGORY_BOUNDARY,
+        )
+    receipt = facts.receipt
+    if not parent.matches_receipt_identity(receipt.stack_parent):
+        raise PlanError(
+            "Boundary receipt needs the matching branch stackParent identity",
+            CATEGORY_BOUNDARY,
+        )
+    if not receipt.is_ancestor_of_child:
+        raise PlanError(
+            "Recorded boundary is not an ancestor of the child", CATEGORY_BOUNDARY
+        )
+    if inherited and receipt.commit != facts.parent_head:
+        raise PlanError(
+            "Recorded boundary disagrees with the inherited parent head",
+            CATEGORY_BOUNDARY,
+        )
+    return Boundary(
+        receipt.commit,
+        f"maintained-receipt:{receipt.ref}",
+        # Only inherited parent history can prove that no inherited commit
+        # follows the receipt. Otherwise the receipt is an unverified claim.
+        corroborated=inherited,
+    )
+
+
+def check_receipt_ref(boundary_ref: str) -> None:
+    """Refuse a boundary ref outside the maintained receipt namespace.
+
+    Parameters
+    ----------
+    boundary_ref : str
+        Ref name supplied by the operator.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    PlanError
+        If the ref is not under ``refs/stack-bases/``.
+    """
+    if not boundary_ref.startswith(RECEIPT_PREFIX):
+        raise PlanError(
+            f"Use a maintained {RECEIPT_PREFIX} boundary receipt", CATEGORY_BOUNDARY
+        )
+
+
+def check_range(facts: RangeFacts) -> tuple[CommitId, ...]:
+    """Accept a replay range only when its topology is replayable in order.
+
+    Pure: this reads typed graph facts and never queries a repository.
+
+    Parameters
+    ----------
+    facts : RangeFacts
+        Typed graph facts about the proposed range.
+
+    Returns
+    -------
+    tuple[CommitId, ...]
+        The accepted commits, oldest first. May be empty.
+
+    Raises
+    ------
+    PlanError
+        If the range contains a merge.
+    """
+    if facts.contains_merges:
+        raise PlanError(
+            "The selected range contains merges; use a topology-aware procedure",
+            CATEGORY_RANGE,
+        )
+    return facts.commits
+
+
+def check_unmoved(evidence: Evidence, current: Identities) -> None:
+    """Refuse a plan whose inputs moved while the evidence was being gathered.
+
+    Pure: this compares two typed snapshots.
+
+    Parameters
+    ----------
+    evidence : Evidence
+        Identities frozen at the start of discovery.
+    current : Identities
+        Identities re-read after the range was computed.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    PlanError
+        If the child branch or the target ref moved.
+    """
+    if current.branch_head != evidence.old_head:
+        raise PlanError(
+            "Child branch moved during discovery; discard this plan", CATEGORY_RACE
+        )
+    if current.target != evidence.target:
+        raise PlanError(
+            "Target ref moved during discovery; discard this plan", CATEGORY_RACE
+        )
+
+
+def review_notes(boundary: Boundary) -> list[str]:
+    """Return the review obligations this plan explicitly does not discharge.
+
+    Parameters
+    ----------
+    boundary : Boundary
+        The accepted boundary, whose corroboration decides the extra note.
+
+    Returns
+    -------
+    list[str]
+        Human-readable obligations, most specific first.
+    """
+    notes = [
+        "Confirm the parent relationship and squash merge method independently.",
+        "Account for every included child commit and excluded inherited commit.",
+        "Check receipt freshness, target reverts, worktree ownership and driver policy.",
+        "Preserve recovery refs and recheck branch/target identities before replay.",
+    ]
+    if not boundary.corroborated:
+        notes.insert(
+            0,
+            "The receipt is uncorroborated: the recovered parent head is not in the "
+            "child's history, so nothing here proves no inherited parent commit "
+            "follows the receipt. Prove it from preserved parent history or reflog "
+            "before replaying.",
+        )
+    return notes
+
+
+def render_plan(
+    branch: str,
+    evidence: Evidence,
+    boundary: Boundary,
+    commits: tuple[CommitId, ...],
+) -> dict[str, object]:
+    """Render the reviewable plan document from accepted domain values.
+
+    Pure: this reads typed values and never queries a repository. The status is
+    a request for review, never an authorization to replay.
+
+    Parameters
+    ----------
+    branch : str
+        Local child branch the plan applies to.
+    evidence : Evidence
+        The snapshot the plan was derived from.
+    boundary : Boundary
+        The accepted exclusive boundary.
+    commits : tuple[CommitId, ...]
+        Accepted replay commits, oldest first.
+
+    Returns
+    -------
+    dict[str, object]
+        A ``review-required`` or ``no-op-decision-required`` plan.
+    """
+    parent_evidence = evidence.parent_evidence
+    return {
+        "status": STATUS_REVIEW_REQUIRED if commits else STATUS_NO_OP,
+        "operation": evidence.operation,
+        "branch": branch,
+        "old_head": evidence.old_head,
+        "target": evidence.target,
+        "old_base": boundary.old_base,
+        "parent_head": parent_evidence.head,
+        "landed": parent_evidence.landed,
+        "parent_pr": str(evidence.parent),
+        "boundary_evidence": boundary.evidence,
+        "boundary_corroborated": boundary.corroborated,
+        "evidence_ref": parent_evidence.evidence_ref,
+        "commits": list(commits),
+        "rebase_argv": [
+            *REBASE_PREFIX,
+            evidence.target,
+            boundary.old_base,
+            branch,
+        ]
+        if commits
+        else None,
+        "review": review_notes(boundary),
+    }
+
+
+# --------------------------------------------------------------------------
+# Diagnostics
+# --------------------------------------------------------------------------
+
+
+def trace(operation: str, event: str, **fields: object) -> None:
+    """Emit one bounded, structured diagnostic line on standard error.
+
+    Diagnostics carry only identities and fixed labels, never repository
+    contents, credentials, or subprocess output. Standard output stays reserved
+    for the plan.
+
+    Parameters
+    ----------
+    operation : str
+        Identifier correlating diagnostics from one run.
+    event : str
+        Short, stable event name.
+    **fields : object
+        Additional bounded, JSON-serializable fields for this event.
+
+    Returns
+    -------
+    None
+    """
+    record = {"operation": operation, "event": event, **fields}
+    print(json.dumps(record, default=str), file=sys.stderr)
+
+
+@contextlib.contextmanager
+def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
+    """Time one phase, record its outcome, and stamp refusals with their phase.
+
+    Every phase emits the same bounded fields, so outcomes and durations
+    aggregate without parsing human-readable reasons. A :class:`PlanError`
+    leaving this block is stamped with an :class:`ErrorContext` naming the
+    innermost phase, so callers never infer the phase from message text.
+
+    Parameters
+    ----------
+    operation : str
+        Identifier correlating diagnostics from one run.
+    name : str
+        One of the bounded ``PHASE_*`` constants.
+    **fields : object
+        Additional bounded identities recorded on the start event.
+
+    Yields
+    ------
+    None
+
+    Raises
+    ------
+    PlanError
+        Re-raised unchanged, apart from the stamped context.
+    """
+    started = time.monotonic()
+    trace(operation, "phase-started", phase=name, **fields)
+
+    def elapsed_ms() -> int:
+        return round((time.monotonic() - started) * 1000)
+
+    try:
+        yield
+    except PlanError as exc:
+        if exc.context is None:
+            exc.context = ErrorContext(operation, name)
+        trace(
+            operation,
+            "phase-finished",
+            phase=name,
+            outcome=OUTCOME_BLOCKED,
+            error_category=exc.category,
+            elapsed_ms=elapsed_ms(),
+        )
+        raise
+    else:
+        trace(
+            operation,
+            "phase-finished",
+            phase=name,
+            outcome=OUTCOME_OK,
+            elapsed_ms=elapsed_ms(),
+        )
+
+
+@contextlib.contextmanager
+def operation_span(operation: str, branch: str) -> Iterator[None]:
+    """Wrap one restack-planning operation, recording its terminal outcome.
+
+    Parameters
+    ----------
+    operation : str
+        Identifier correlating every diagnostic from this run.
+    branch : str
+        Child branch being planned, recorded on the start event.
+
+    Yields
+    ------
+    None
+
+    Raises
+    ------
+    PlanError
+        Re-raised unchanged, apart from a fallback context for a refusal that
+        escaped without passing through any phase.
+    """
+    started = time.monotonic()
+    trace(operation, "operation-started", phase=PHASE_OPERATION, branch=branch)
+
+    def elapsed_ms() -> int:
+        return round((time.monotonic() - started) * 1000)
+
+    try:
+        yield
+    except PlanError as exc:
+        if exc.context is None:
+            exc.context = ErrorContext(operation, PHASE_OPERATION)
+        trace(
+            operation,
+            "operation-finished",
+            phase=exc.context.phase,
+            outcome=OUTCOME_BLOCKED,
+            error_category=exc.category,
+            elapsed_ms=elapsed_ms(),
+        )
+        raise
+    else:
+        trace(
+            operation,
+            "operation-finished",
+            phase=PHASE_OPERATION,
+            outcome=OUTCOME_OK,
+            elapsed_ms=elapsed_ms(),
+        )
+
+
+def blocked_record(exc: PlanError, operation: str) -> dict[str, str]:
+    """Render the terminal blocked result as a bounded, structured record.
+
+    The record carries only fixed labels and the human-readable reason. It never
+    carries command output, credentials, or repository contents.
+
+    Parameters
+    ----------
+    exc : PlanError
+        The refusal to report.
+    operation : str
+        Operation identifier, used when the refusal carries no context.
+
+    Returns
+    -------
+    dict[str, str]
+        The object written to standard error before exiting with status 2.
+    """
+    context = exc.context or ErrorContext(operation, PHASE_OPERATION)
+    return {
+        "status": STATUS_BLOCKED,
+        "operation": context.operation,
+        "phase": context.phase,
+        "outcome": OUTCOME_BLOCKED,
+        "category": exc.category,
+        "reason": str(exc),
+    }
+
+
+def _new_operation_id() -> str:
+    """Return a fresh identifier correlating one run's diagnostics.
+
+    Returns
+    -------
+    str
+        A random hexadecimal identifier.
+    """
+    return uuid.uuid4().hex
+
+
+def _new_evidence_ref() -> str:
+    """Return a fresh, unused private ref name for the fetched parent head.
+
+    Returns
+    -------
+    str
+        A ref under ``refs/agent-rebase/`` that no earlier run can collide with.
+    """
+    return f"refs/agent-rebase/{uuid.uuid4().hex}/parent-head"
+
+
+# --------------------------------------------------------------------------
+# Adapters
+# --------------------------------------------------------------------------
 
 
 @typ.runtime_checkable
@@ -158,6 +859,340 @@ class Subprocess:
 
 
 @dataclasses.dataclass(frozen=True)
+class GitGraph:
+    """Turns Git queries into typed graph facts for the domain layer.
+
+    Parameters
+    ----------
+    run : Runner
+        Process adapter bound to the repository.
+    """
+
+    run: Runner
+
+    def git(self, *args: str) -> str:
+        """Run a Git query or the narrowly scoped evidence fetch.
+
+        Parameters
+        ----------
+        *args : str
+            Git subcommand and arguments.
+
+        Returns
+        -------
+        str
+            Stripped standard output.
+        """
+        return self.run("git", *args)
+
+    def commit(self, ref: str) -> CommitId:
+        """Resolve exactly one commit without treating a user ref as an option.
+
+        Parameters
+        ----------
+        ref : str
+            Ref or object name supplied by the operator or by metadata.
+
+        Returns
+        -------
+        CommitId
+            Full commit object ID.
+        """
+        return CommitId(
+            self.git("rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}")
+        )
+
+    def is_ancestor(self, older: CommitId, newer: CommitId) -> bool:
+        """Ask a real graph query, propagating errors rather than answering no.
+
+        Parameters
+        ----------
+        older : CommitId
+            Candidate ancestor.
+        newer : CommitId
+            Candidate descendant.
+
+        Returns
+        -------
+        bool
+            True when ``older`` is reachable from ``newer``.
+        """
+        # rev-list errors remain errors; empty output means every older commit
+        # is reachable from newer. Inputs are already resolved commit IDs.
+        return not self.git("rev-list", "--max-count=1", older, f"^{newer}")
+
+    def config(self, key: str) -> str:
+        """Read one local config value, treating "unset" as an answer.
+
+        Parameters
+        ----------
+        key : str
+            Fully qualified configuration key.
+
+        Returns
+        -------
+        str
+            The recorded value, or the empty string when unset.
+        """
+        return self.run("git", "config", "--local", "--get", key, allowed=(0, 1))
+
+    def check_ref_format(self, ref: str) -> None:
+        """Refuse a ref name Git itself considers malformed.
+
+        Parameters
+        ----------
+        ref : str
+            Fully qualified ref name.
+
+        Returns
+        -------
+        None
+        """
+        self.git("check-ref-format", ref)
+
+    def git_path(self, name: str, repository: Path) -> Path:
+        """Resolve a path inside the Git directory, honouring worktree layouts.
+
+        Parameters
+        ----------
+        name : str
+            Name relative to the Git directory.
+        repository : Path
+            Repository root, used to absolutize a relative answer.
+
+        Returns
+        -------
+        Path
+            The resolved path, which may not exist.
+        """
+        path = Path(self.git("rev-parse", "--git-path", name))
+        return path if path.is_absolute() else repository / path
+
+    def is_shallow(self) -> bool:
+        """Report whether the repository has incomplete history.
+
+        Returns
+        -------
+        bool
+            True when the clone is shallow.
+        """
+        return self.git("rev-parse", "--is-shallow-repository") != "false"
+
+    def is_dirty(self) -> bool:
+        """Report whether the checkout holds staged, unstaged or untracked work.
+
+        Returns
+        -------
+        bool
+            True when anything would be lost by proceeding.
+        """
+        return bool(self.git("status", "--porcelain=v1", "--untracked-files=all"))
+
+    def identities(self, branch: str, target_ref: str) -> Identities:
+        """Resolve the child branch and target tips together.
+
+        Parameters
+        ----------
+        branch : str
+            Local child branch name.
+        target_ref : str
+            Fetched target ref.
+
+        Returns
+        -------
+        Identities
+            Both tips, resolved at the same point in time.
+        """
+        return Identities(self.commit(f"refs/heads/{branch}"), self.commit(target_ref))
+
+    def fetch_parent_head(
+        self, parent: ParentPullRequest, evidence_ref: str
+    ) -> CommitId:
+        """Fetch the PR head, never the synthetic merge ref, into a private ref.
+
+        Parameters
+        ----------
+        parent : ParentPullRequest
+            Parent PR whose head is recovered.
+        evidence_ref : str
+            Private ref the head is written to.
+
+        Returns
+        -------
+        CommitId
+            The fetched parent head.
+        """
+        self.git(
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+            "fetch",
+            "--no-prune",
+            "--no-tags",
+            "--no-write-fetch-head",
+            f"https://github.com/{parent.repository}.git",
+            f"refs/pull/{parent.number}/head:{evidence_ref}",
+        )
+        return self.commit(evidence_ref)
+
+    def boundary_facts(
+        self,
+        parent_head: CommitId,
+        old_head: CommitId,
+        branch: str,
+        boundary_ref: str | None,
+    ) -> BoundaryFacts:
+        """Gather every graph fact the boundary policy needs, and nothing more.
+
+        Parameters
+        ----------
+        parent_head : CommitId
+            Recovered parent PR head.
+        old_head : CommitId
+            Child branch tip.
+        branch : str
+            Local child branch name, used to read the receipt identity.
+        boundary_ref : str | None
+            Maintained receipt ref, or None.
+
+        Returns
+        -------
+        BoundaryFacts
+            Typed facts for :func:`select_boundary`.
+        """
+        inherited = self.is_ancestor(parent_head, old_head)
+        candidates: tuple[CommitId, ...] = ()
+        receipt: ReceiptFacts | None = None
+        if boundary_ref is None:
+            if not inherited:
+                candidates = tuple(
+                    CommitId(line)
+                    for line in self.git(
+                        "merge-base", "--all", parent_head, old_head
+                    ).splitlines()
+                )
+        else:
+            check_receipt_ref(boundary_ref)
+            self.check_ref_format(boundary_ref)
+            recorded = self.config(f"branch.{branch}.stackParent")
+            commit = self.commit(boundary_ref)
+            receipt = ReceiptFacts(
+                boundary_ref,
+                commit,
+                recorded,
+                self.is_ancestor(commit, old_head),
+            )
+        return BoundaryFacts(parent_head, old_head, inherited, candidates, receipt)
+
+    def range_facts(self, old_base: CommitId, old_head: CommitId) -> RangeFacts:
+        """Gather the topology facts the range policy needs.
+
+        Parameters
+        ----------
+        old_base : CommitId
+            Exclusive boundary.
+        old_head : CommitId
+            Inclusive tip.
+
+        Returns
+        -------
+        RangeFacts
+            Typed facts for :func:`check_range`.
+        """
+        series = f"{old_base}..{old_head}"
+        merges = bool(self.git("rev-list", "--merges", series))
+        commits = tuple(
+            CommitId(line)
+            for line in self.git("rev-list", "--reverse", series).splitlines()
+        )
+        return RangeFacts(old_base, old_head, commits, merges)
+
+
+@dataclasses.dataclass(frozen=True)
+class GitHubCli:
+    """Parses and validates ``gh`` output into typed parent metadata.
+
+    Parameters
+    ----------
+    run : Runner
+        Process adapter bound to the repository.
+    """
+
+    run: Runner
+
+    def parent_metadata(self, parent: ParentPullRequest) -> tuple[str, str]:
+        """Validate the CLI response before using any source or landing identity.
+
+        Parameters
+        ----------
+        parent : ParentPullRequest
+            Identity naming the parent PR to query.
+
+        Returns
+        -------
+        tuple[str, str]
+            The reported head commit ID and landing commit ID, unresolved.
+
+        Raises
+        ------
+        PlanError
+            If ``gh`` fails, returns malformed output, reports a different PR or
+            repository, reports an unmerged PR, or omits a valid commit ID.
+        """
+        output = self.run(
+            "gh",
+            "api",
+            f"repos/{parent.repository}/pulls/{parent.number}",
+            "--jq",
+            PARENT_QUERY,
+        )
+        try:
+            metadata = json.loads(output)
+        except json.JSONDecodeError as exc:
+            raise PlanError(
+                "gh returned malformed parent metadata", CATEGORY_METADATA
+            ) from exc
+        if not isinstance(metadata, dict):
+            raise PlanError("gh parent metadata must be an object", CATEGORY_METADATA)
+        if (
+            type(metadata.get("number")) is not int
+            or metadata["number"] != parent.number
+        ):
+            raise PlanError(
+                "Parent PR identity disagrees with the request", CATEGORY_METADATA
+            )
+        repository = metadata.get("base_repository")
+        if (
+            not isinstance(repository, str)
+            or repository.casefold() != parent.repository.casefold()
+        ):
+            raise PlanError(
+                "Parent repository disagrees with the request", CATEGORY_METADATA
+            )
+        merged_at = metadata.get("merged_at")
+        if (
+            metadata.get("merged") is not True
+            or not isinstance(merged_at, str)
+            or not merged_at
+        ):
+            raise PlanError("The parent PR has not merged", CATEGORY_METADATA)
+        for field in ("head_sha", "landed"):
+            value = metadata.get(field)
+            if not isinstance(value, str) or not OID_PATTERN.fullmatch(value):
+                raise PlanError(
+                    f"Parent metadata has no valid {field} commit ID",
+                    CATEGORY_METADATA,
+                )
+        return str(metadata["head_sha"]), str(metadata["landed"])
+
+
+# --------------------------------------------------------------------------
+# Request and preflight
+# --------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
 class Request:
     """Explicit identities supplied by the operator, not inferred from titles.
 
@@ -185,275 +1220,27 @@ class Request:
     parent_pr: int
     boundary_ref: str | None = None
 
+    @property
+    def parent(self) -> ParentPullRequest:
+        """Return the parent PR as a typed identity.
 
-@dataclasses.dataclass(frozen=True)
-class Boundary:
-    """The accepted exclusive replay boundary and the evidence supporting it.
-
-    Parameters
-    ----------
-    old_base : str
-        Exclusive boundary commit; the last commit that must not be replayed.
-    evidence : str
-        Provenance label for ``old_base``, never a heuristic.
-    corroborated : bool
-        Whether preserved parent history proves no inherited commit follows
-        ``old_base``. A maintained receipt alone cannot prove this.
-    """
-
-    old_base: str
-    evidence: str
-    corroborated: bool
+        Returns
+        -------
+        ParentPullRequest
+            The identity the domain layer consumes.
+        """
+        return ParentPullRequest(self.parent_repository, self.parent_pr)
 
 
-@dataclasses.dataclass(frozen=True)
-class Evidence:
-    """Immutable snapshot of everything discovery observed outside the planner.
-
-    Parameters
-    ----------
-    operation : str
-        Identifier correlating every diagnostic emitted for one discovery run.
-    old_head : str
-        Child branch tip observed at the start of discovery.
-    target : str
-        Target ref tip observed at the start of discovery.
-    landed : str
-        Squash landing commit, resolved locally and proven to be on the target.
-    parent_head : str
-        Original parent PR head, fetched into ``evidence_ref``.
-    evidence_ref : str
-        Private ref retaining ``parent_head`` for review and recovery.
-    metadata : dict[str, object]
-        Validated ``gh api`` response for the parent PR.
-    """
-
-    operation: str
-    old_head: str
-    target: str
-    landed: str
-    parent_head: str
-    evidence_ref: str
-    metadata: dict[str, object]
-
-
-def trace(operation: str, event: str, **fields: object) -> None:
-    """Emit one bounded, structured diagnostic line on standard error.
-
-    Diagnostics carry only identities the plan already reports, so they never
-    leak repository contents. Standard output stays reserved for the plan.
-
-    Parameters
-    ----------
-    operation : str
-        Identifier correlating diagnostics from one discovery run.
-    event : str
-        Short, stable event name.
-    **fields : object
-        Additional JSON-serializable identities for this event.
-
-    Returns
-    -------
-    None
-    """
-    record = {"operation": operation, "event": event, **fields}
-    print(json.dumps(record, default=str), file=sys.stderr)
-
-
-@contextlib.contextmanager
-def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
-    """Time one phase and emit a terminal success or failure diagnostic.
-
-    Every phase reports the same bounded fields, so a reader can aggregate
-    outcomes and durations without parsing human-readable reasons.
-
-    Parameters
-    ----------
-    operation : str
-        Identifier correlating diagnostics from one run.
-    name : str
-        Phase name, drawn from a fixed set of call sites.
-    **fields : object
-        Additional identities recorded on the start event.
-
-    Yields
-    ------
-    None
-
-    Raises
-    ------
-    PlanError
-        Re-raised unchanged after the failure diagnostic is emitted.
-    """
-    started = time.monotonic()
-    trace(operation, "phase-started", phase=name, **fields)
-
-    def elapsed_ms() -> int:
-        return round((time.monotonic() - started) * 1000)
-
-    try:
-        yield
-    except PlanError as exc:
-        trace(
-            operation,
-            "phase-finished",
-            phase=name,
-            outcome="blocked",
-            error_category=exc.category,
-            elapsed_ms=elapsed_ms(),
-        )
-        raise
-    else:
-        trace(
-            operation,
-            "phase-finished",
-            phase=name,
-            outcome="ok",
-            elapsed_ms=elapsed_ms(),
-        )
-
-
-def _new_operation_id() -> str:
-    """Return a fresh identifier correlating one run's diagnostics.
-
-    Returns
-    -------
-    str
-        A random hexadecimal identifier.
-    """
-    return uuid.uuid4().hex
-
-
-def _new_evidence_ref() -> str:
-    """Return a fresh, unused private ref name for the fetched parent head.
-
-    Returns
-    -------
-    str
-        A ref under ``refs/agent-rebase/`` that no earlier run can collide with.
-    """
-    return f"refs/agent-rebase/{uuid.uuid4().hex}/parent-head"
-
-
-def git(run: Runner, *args: str) -> str:
-    """Run a Git query or the narrowly scoped evidence fetch.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    *args : str
-        Git subcommand and arguments.
-
-    Returns
-    -------
-    str
-        Stripped standard output of the Git process.
-
-    Raises
-    ------
-    PlanError
-        If Git cannot run or exits non-zero.
-    """
-    return run("git", *args)
-
-
-def commit(run: Runner, ref: str) -> str:
-    """Resolve exactly one commit without treating a user ref as an option.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    ref : str
-        Ref or object name supplied by the operator or by metadata.
-
-    Returns
-    -------
-    str
-        Full commit object ID.
-
-    Raises
-    ------
-    PlanError
-        If the ref is missing, ambiguous, or does not name a commit.
-    """
-    return git(run, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}")
-
-
-def ancestor(run: Runner, older: str, newer: str) -> bool:
-    """Ask a real graph query, propagating errors rather than treating them as no.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository holding both commits.
-    older : str
-        Candidate ancestor, already resolved to a full commit ID.
-    newer : str
-        Candidate descendant, already resolved to a full commit ID.
-
-    Returns
-    -------
-    bool
-        True when ``older`` is reachable from ``newer``.
-
-    Raises
-    ------
-    PlanError
-        If either object is missing, so a negative answer is never faked.
-    """
-    # rev-list errors remain errors; empty output means every older commit is
-    # reachable from newer. Inputs are already resolved full commit IDs.
-    return not git(run, "rev-list", "--max-count=1", older, f"^{newer}")
-
-
-def _validate_identities(run: Runner, request: Request) -> None:
-    """Refuse an identity that is malformed, non-positive, or option-shaped.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    request : Request
-        Operator-supplied identities to validate.
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    PlanError
-        If the parent repository, parent PR number, or branch name is not an
-        explicit, well-formed identity.
-    """
-    if not REPOSITORY_PATTERN.fullmatch(request.parent_repository) or any(
-        part in {".", ".."} for part in request.parent_repository.split("/")
-    ):
-        raise PlanError(
-            "Parent repository must be an explicit GitHub owner/name",
-            CATEGORY_IDENTITY,
-        )
-    if type(request.parent_pr) is not int or request.parent_pr <= 0:
-        raise PlanError("Parent PR must be a positive integer", CATEGORY_IDENTITY)
-    if not request.branch or request.branch.startswith("-"):
-        raise PlanError(
-            "Branch must be an explicit local branch name, not an option",
-            CATEGORY_IDENTITY,
-        )
-    git(run, "check-ref-format", f"refs/heads/{request.branch}")
-
-
-def _refuse_active_operation(run: Runner, request: Request) -> None:
+def _refuse_active_operation(graph: GitGraph, repository: Path) -> None:
     """Refuse incomplete history, another in-flight Git operation, or dirty work.
 
     Parameters
     ----------
-    run : Runner
-        Process adapter bound to the repository.
-    request : Request
-        Operator-supplied identities, used for the repository path.
+    graph : GitGraph
+        Graph adapter bound to the repository.
+    repository : Path
+        Repository root, used to absolutize Git-directory paths.
 
     Returns
     -------
@@ -465,7 +1252,7 @@ def _refuse_active_operation(run: Runner, request: Request) -> None:
         If the history is shallow, another Git operation is in progress, or the
         checkout holds staged, unstaged, or untracked work.
     """
-    if git(run, "rev-parse", "--is-shallow-repository") != "false":
+    if graph.is_shallow():
         raise PlanError(
             "Shallow history cannot establish the complete replay range",
             CATEGORY_REPOSITORY_STATE,
@@ -478,254 +1265,55 @@ def _refuse_active_operation(run: Runner, request: Request) -> None:
         "REVERT_HEAD",
         "sequencer",
     ):
-        path = Path(git(run, "rev-parse", "--git-path", name))
-        if not path.is_absolute():
-            path = request.repository / path
-        if path.exists():
+        if graph.git_path(name, repository).exists():
             raise PlanError(
                 f"An active Git operation exists: {name}", CATEGORY_REPOSITORY_STATE
             )
-    if git(run, "status", "--porcelain=v1", "--untracked-files=all"):
+    if graph.is_dirty():
         raise PlanError(
             "Preserve staged, unstaged and untracked work before planning",
             CATEGORY_REPOSITORY_STATE,
         )
 
 
-def preflight(run: Runner, request: Request) -> tuple[str, str]:
+def preflight(graph: GitGraph, request: Request) -> Identities:
     """Freeze identities and refuse incomplete history or an occupied checkout.
 
     Parameters
     ----------
-    run : Runner
-        Process adapter bound to the repository.
+    graph : GitGraph
+        Graph adapter bound to the repository.
     request : Request
         Operator-supplied identities to validate.
 
     Returns
     -------
-    tuple[str, str]
+    Identities
         The child branch tip and the target ref tip.
 
     Raises
     ------
     PlanError
-        Propagated from :func:`_validate_identities` or
+        Propagated from :func:`check_identities` or
         :func:`_refuse_active_operation`, or raised when either ref does not
         resolve to exactly one commit.
     """
-    _validate_identities(run, request)
-    _refuse_active_operation(run, request)
-    return (
-        commit(run, f"refs/heads/{request.branch}"),
-        commit(run, request.target_ref),
-    )
+    check_identities(request.parent, request.branch)
+    graph.check_ref_format(f"refs/heads/{request.branch}")
+    _refuse_active_operation(graph, request.repository)
+    return graph.identities(request.branch, request.target_ref)
 
 
-def parent_metadata(run: Runner, request: Request) -> dict[str, object]:
-    """Validate the CLI response before using any source or landing identity.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    request : Request
-        Identities naming the parent PR to query.
-
-    Returns
-    -------
-    dict[str, object]
-        The validated ``gh api`` response.
-
-    Raises
-    ------
-    PlanError
-        If ``gh`` fails, returns malformed output, reports a different PR or
-        repository, reports an unmerged PR, or omits a valid commit ID.
-    """
-    output = run(
-        "gh",
-        "api",
-        f"repos/{request.parent_repository}/pulls/{request.parent_pr}",
-        "--jq",
-        PARENT_QUERY,
-    )
-    try:
-        metadata = json.loads(output)
-    except json.JSONDecodeError as exc:
-        raise PlanError(
-            "gh returned malformed parent metadata", CATEGORY_METADATA
-        ) from exc
-    if not isinstance(metadata, dict):
-        raise PlanError("gh parent metadata must be an object", CATEGORY_METADATA)
-    if (
-        type(metadata.get("number")) is not int
-        or metadata["number"] != request.parent_pr
-    ):
-        raise PlanError(
-            "Parent PR identity disagrees with the request", CATEGORY_METADATA
-        )
-    repository = metadata.get("base_repository")
-    if (
-        not isinstance(repository, str)
-        or repository.casefold() != request.parent_repository.casefold()
-    ):
-        raise PlanError(
-            "Parent repository disagrees with the request", CATEGORY_METADATA
-        )
-    merged_at = metadata.get("merged_at")
-    if (
-        metadata.get("merged") is not True
-        or not isinstance(merged_at, str)
-        or not merged_at
-    ):
-        raise PlanError("The parent PR has not merged", CATEGORY_METADATA)
-    for field in ("head_sha", "landed"):
-        value = metadata.get(field)
-        if not isinstance(value, str) or not OID_PATTERN.fullmatch(value):
-            raise PlanError(
-                f"Parent metadata has no valid {field} commit ID", CATEGORY_METADATA
-            )
-    return metadata
-
-
-def recover_parent(
-    run: Runner,
-    request: Request,
-    metadata: dict[str, object],
-    new_evidence_ref: Callable[[], str],
-) -> tuple[str, str]:
-    """Fetch head, never the synthetic PR merge ref, into a fresh namespace.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    request : Request
-        Identities naming the parent PR and the local repository.
-    metadata : dict[str, object]
-        Validated parent metadata supplying the expected head commit ID.
-    new_evidence_ref : Callable[[], str]
-        Supplies a fresh, unused private ref name for the fetched head.
-
-    Returns
-    -------
-    tuple[str, str]
-        The fetched parent head and the private ref retaining it.
-
-    Raises
-    ------
-    PlanError
-        If the fetch fails, the PR head is unavailable, or the fetched commit
-        disagrees with the metadata.
-    """
-    evidence_ref = new_evidence_ref()
-    git(
-        run,
-        "-c",
-        "gc.auto=0",
-        "-c",
-        "maintenance.auto=false",
-        "fetch",
-        "--no-prune",
-        "--no-tags",
-        "--no-write-fetch-head",
-        f"https://github.com/{request.parent_repository}.git",
-        f"refs/pull/{request.parent_pr}/head:{evidence_ref}",
-    )
-    parent_head = commit(run, evidence_ref)
-    if parent_head != metadata["head_sha"]:
-        raise PlanError(
-            f"Fetched PR head disagrees with metadata; retain {evidence_ref}",
-            CATEGORY_RECOVERY,
-        )
-    return parent_head, evidence_ref
-
-
-def choose_boundary(
-    run: Runner, request: Request, old_head: str, parent_head: str
-) -> Boundary:
-    """Use inherited parent history or a maintained receipt, never a heuristic.
-
-    Parameters
-    ----------
-    run : Runner
-        Process adapter bound to the repository.
-    request : Request
-        Identities, including any maintained boundary receipt.
-    old_head : str
-        Child branch tip.
-    parent_head : str
-        Original parent PR head recovered from GitHub.
-
-    Returns
-    -------
-    Boundary
-        The accepted exclusive boundary, its provenance, and whether preserved
-        parent history corroborates it.
-
-    Raises
-    ------
-    PlanError
-        If the parent head is not inherited and no maintained receipt is
-        supplied, or the supplied receipt is malformed, belongs to another
-        parent, is not an ancestor of the child, or contradicts inherited
-        parent history.
-    """
-    inherited = ancestor(run, parent_head, old_head)
-    if request.boundary_ref is None:
-        if inherited:
-            return Boundary(parent_head, "parent-pr-head", corroborated=True)
-        candidates = git(run, "merge-base", "--all", parent_head, old_head)
-        raise PlanError(
-            "Parent head is not inherited. Merge-base candidates are not proof: "
-            f"{candidates}. Review a maintained boundary receipt or historical reflog.",
-            CATEGORY_BOUNDARY,
-        )
-    if not request.boundary_ref.startswith(RECEIPT_PREFIX):
-        raise PlanError(
-            f"Use a maintained {RECEIPT_PREFIX} boundary receipt", CATEGORY_BOUNDARY
-        )
-    git(run, "check-ref-format", request.boundary_ref)
-    identity = run(
-        "git",
-        "config",
-        "--local",
-        "--get",
-        f"branch.{request.branch}.stackParent",
-        allowed=(0, 1),
-    )
-    if (
-        identity.casefold()
-        != f"{request.parent_repository}#{request.parent_pr}".casefold()
-    ):
-        raise PlanError(
-            "Boundary receipt needs the matching branch stackParent identity",
-            CATEGORY_BOUNDARY,
-        )
-    old_base = commit(run, request.boundary_ref)
-    if not ancestor(run, old_base, old_head):
-        raise PlanError(
-            "Recorded boundary is not an ancestor of the child", CATEGORY_BOUNDARY
-        )
-    if inherited and old_base != parent_head:
-        raise PlanError(
-            "Recorded boundary disagrees with the inherited parent head",
-            CATEGORY_BOUNDARY,
-        )
-    return Boundary(
-        old_base,
-        f"maintained-receipt:{request.boundary_ref}",
-        # Only inherited parent history can prove that no inherited commit
-        # follows the receipt. Otherwise the receipt is an unverified claim.
-        corroborated=inherited,
-    )
+# --------------------------------------------------------------------------
+# Command layer and read path
+# --------------------------------------------------------------------------
 
 
 def discover(
     request: Request,
     run: Runner | None = None,
     *,
+    operation: str | None = None,
     new_operation_id: Callable[[], str] = _new_operation_id,
     new_evidence_ref: Callable[[], str] = _new_evidence_ref,
 ) -> Evidence:
@@ -744,8 +1332,11 @@ def discover(
     run : Runner | None
         Process adapter; defaults to a :class:`Subprocess` bound to
         ``request.repository``.
+    operation : str | None
+        Diagnostic correlation identifier; generated when not supplied, so the
+        CLI can create it before discovery and reuse it in a terminal record.
     new_operation_id : Callable[[], str]
-        Supplies the diagnostic correlation identifier.
+        Supplies ``operation`` when it is not given.
     new_evidence_ref : Callable[[], str]
         Supplies the private ref name the fetched parent head is written to.
 
@@ -761,64 +1352,47 @@ def discover(
         reachable from the target, or the parent head cannot be recovered.
     """
     run = Subprocess(request.repository) if run is None else run
-    operation = new_operation_id()
-    with phase(operation, "preflight", branch=request.branch):
-        old_head, target = preflight(run, request)
-    with phase(operation, "parent-metadata", parent_pr=request.parent_pr):
-        metadata = parent_metadata(run, request)
-    with phase(operation, "landing-validation"):
-        landed = commit(run, str(metadata["landed"]))
-        if not ancestor(run, landed, target):
+    graph = GitGraph(run)
+    cli = GitHubCli(run)
+    operation = new_operation_id() if operation is None else operation
+    parent = request.parent
+
+    with phase(operation, PHASE_PREFLIGHT, branch=request.branch):
+        identities = preflight(graph, request)
+    with phase(operation, PHASE_PARENT_METADATA, parent_pr=str(parent)):
+        reported_head, reported_landed = cli.parent_metadata(parent)
+    with phase(operation, PHASE_LANDING_VALIDATION):
+        landed = graph.commit(reported_landed)
+        if not graph.is_ancestor(landed, identities.target):
             raise PlanError(
                 "Parent landing commit is not reachable from the target",
                 CATEGORY_METADATA,
             )
-    with phase(operation, "parent-head-fetch"):
-        parent_head, evidence_ref = recover_parent(
-            run, request, metadata, new_evidence_ref
-        )
+    with phase(operation, PHASE_PARENT_HEAD_FETCH):
+        evidence_ref = new_evidence_ref()
+        parent_head = graph.fetch_parent_head(parent, evidence_ref)
+        if parent_head != reported_head:
+            raise PlanError(
+                f"Fetched PR head disagrees with metadata; retain {evidence_ref}",
+                CATEGORY_RECOVERY,
+            )
+
     trace(
         operation,
         "evidence-frozen",
-        old_head=old_head,
-        target=target,
-        landed=landed,
+        phase=PHASE_PARENT_HEAD_FETCH,
+        old_head=identities.branch_head,
+        target=identities.target,
         parent_head=parent_head,
         evidence_ref=evidence_ref,
     )
     return Evidence(
-        operation, old_head, target, landed, parent_head, evidence_ref, metadata
+        operation,
+        parent,
+        identities.branch_head,
+        identities.target,
+        ParentEvidence(parent_head, landed, evidence_ref),
     )
-
-
-def review_notes(boundary: Boundary) -> list[str]:
-    """Return the review obligations this plan explicitly does not discharge.
-
-    Parameters
-    ----------
-    boundary : Boundary
-        The accepted boundary, whose corroboration decides the extra note.
-
-    Returns
-    -------
-    list[str]
-        Human-readable obligations, most specific first.
-    """
-    notes = [
-        "Confirm the parent relationship and squash merge method independently.",
-        "Account for every included child commit and excluded inherited commit.",
-        "Check receipt freshness, target reverts, worktree ownership and driver policy.",
-        "Preserve recovery refs and recheck branch/target identities before replay.",
-    ]
-    if not boundary.corroborated:
-        notes.insert(
-            0,
-            "The receipt is uncorroborated: the recovered parent head is not in the "
-            "child's history, so nothing here proves no inherited parent commit "
-            "follows the receipt. Prove it from preserved parent history or reflog "
-            "before replaying.",
-        )
-    return notes
 
 
 def build_plan(
@@ -827,11 +1401,13 @@ def build_plan(
     """Derive an explicit replay range from frozen evidence, never run a rebase.
 
     This is the read path. It consumes an already collected snapshot and never
-    invokes discovery, so it performs no network access and writes no ref.
-    Only local graph queries run here. A successful plan still requires
-    ownership and semantic review: it does not prove the merge method, receipt
-    freshness, worktree ownership, or that later target history did not revert
-    parent functionality.
+    invokes :func:`discover`, so it performs no network access, writes no ref,
+    and generates no identifier. It reads the local graph through an adapter,
+    then applies pure policy to typed facts.
+
+    A successful plan still requires ownership and semantic review: it does not
+    prove the merge method, receipt freshness, worktree ownership, or that later
+    target history did not revert parent functionality.
 
     Parameters
     ----------
@@ -856,64 +1432,43 @@ def build_plan(
         child or target ref moved during discovery.
     """
     run = Subprocess(request.repository) if run is None else run
-    with phase(evidence.operation, "boundary-selection"):
-        boundary = choose_boundary(
-            run, request, evidence.old_head, evidence.parent_head
+    graph = GitGraph(run)
+    operation = evidence.operation
+
+    with phase(operation, PHASE_BOUNDARY_SELECTION):
+        facts = graph.boundary_facts(
+            evidence.parent_evidence.head,
+            evidence.old_head,
+            request.branch,
+            request.boundary_ref,
         )
+        boundary = select_boundary(evidence.parent, facts)
     trace(
-        evidence.operation,
+        operation,
         "boundary-selected",
+        phase=PHASE_BOUNDARY_SELECTION,
         old_base=boundary.old_base,
         evidence=boundary.evidence,
         corroborated=boundary.corroborated,
     )
-    with phase(evidence.operation, "range-validation"):
-        series = f"{boundary.old_base}..{evidence.old_head}"
-        if git(run, "rev-list", "--merges", series):
-            raise PlanError(
-                "The selected range contains merges; use a topology-aware procedure",
-                CATEGORY_RANGE,
-            )
-        commits = git(run, "rev-list", "--reverse", series).splitlines()
-    with phase(evidence.operation, "identity-recheck"):
-        if commit(run, f"refs/heads/{request.branch}") != evidence.old_head:
-            raise PlanError(
-                "Child branch moved during discovery; discard this plan",
-                CATEGORY_RACE,
-            )
-        if commit(run, request.target_ref) != evidence.target:
-            raise PlanError(
-                "Target ref moved during discovery; discard this plan", CATEGORY_RACE
-            )
-    status = "review-required" if commits else "no-op-decision-required"
-    trace(evidence.operation, "plan-built", status=status, commits=len(commits))
-    return {
-        "status": status,
-        "operation": evidence.operation,
-        "branch": request.branch,
-        "old_head": evidence.old_head,
-        "target": evidence.target,
-        "old_base": boundary.old_base,
-        "parent_head": evidence.parent_head,
-        "landed": evidence.landed,
-        "parent_pr": f"{request.parent_repository}#{request.parent_pr}",
-        "boundary_evidence": boundary.evidence,
-        "boundary_corroborated": boundary.corroborated,
-        "evidence_ref": evidence.evidence_ref,
-        "commits": commits,
-        "rebase_argv": [
-            *REBASE_PREFIX,
-            evidence.target,
-            boundary.old_base,
-            request.branch,
-        ]
-        if commits
-        else None,
-        "review": review_notes(boundary),
-    }
+    with phase(operation, PHASE_GRAPH_PLANNING):
+        commits = check_range(graph.range_facts(boundary.old_base, evidence.old_head))
+        check_unmoved(evidence, graph.identities(request.branch, request.target_ref))
+
+    plan = render_plan(request.branch, evidence, boundary, commits)
+    trace(
+        operation,
+        "plan-built",
+        phase=PHASE_GRAPH_PLANNING,
+        status=plan["status"],
+        commits=len(commits),
+    )
+    return plan
 
 
-def discover_and_plan(request: Request, run: Runner | None = None) -> dict[str, object]:
+def discover_and_plan(
+    request: Request, run: Runner | None = None, *, operation: str | None = None
+) -> dict[str, object]:
     """Run discovery, then derive the reviewable plan from that snapshot.
 
     Named for what it does. This is a command, not a query: it runs ``gh`` and
@@ -928,6 +1483,8 @@ def discover_and_plan(request: Request, run: Runner | None = None) -> dict[str, 
     run : Runner | None
         Process adapter; defaults to a :class:`Subprocess` bound to
         ``request.repository``.
+    operation : str | None
+        Diagnostic correlation identifier; generated when not supplied.
 
     Returns
     -------
@@ -941,7 +1498,13 @@ def discover_and_plan(request: Request, run: Runner | None = None) -> dict[str, 
         evidence cannot establish a safe, reviewable replay range.
     """
     run = Subprocess(request.repository) if run is None else run
-    return build_plan(request, discover(request, run), run)
+    evidence = discover(request, run, operation=operation)
+    return build_plan(request, evidence, run)
+
+
+# --------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------
 
 
 def main(
@@ -954,6 +1517,12 @@ def main(
     boundary_ref: str | None = None,
 ) -> None:
     """Print a review-required JSON plan for a confirmed squash-merged parent.
+
+    The CLI owns the operation identifier: it creates one, calls discovery
+    first and plan construction second, and reports a terminal record either
+    way. A successful plan is written to standard output; a refusal is written
+    to standard error as a bounded ``blocked`` object and exits with status 2,
+    leaving standard output empty.
 
     Parameters
     ----------
@@ -979,28 +1548,27 @@ def main(
     Raises
     ------
     SystemExit
-        With status 2 when :func:`discover_and_plan` raises :class:`PlanError`.
-        The reason and its bounded category are written to standard error as a
-        ``blocked`` JSON object.
+        With status 2 when discovery or plan construction raises
+        :class:`PlanError`. The bounded blocked record, including the operation
+        identifier, failing phase, outcome and category, is written to standard
+        error; standard output stays empty.
     """
+    request = Request(
+        repository.resolve(),
+        branch,
+        target_ref,
+        parent_repository,
+        parent_pr,
+        boundary_ref,
+    )
+    run = Subprocess(request.repository)
+    operation = _new_operation_id()
     try:
-        result = discover_and_plan(
-            Request(
-                repository.resolve(),
-                branch,
-                target_ref,
-                parent_repository,
-                parent_pr,
-                boundary_ref,
-            )
-        )
+        with operation_span(operation, request.branch):
+            evidence = discover(request, run, operation=operation)
+            result = build_plan(request, evidence, run)
     except PlanError as exc:
-        print(
-            json.dumps(
-                {"status": "blocked", "reason": str(exc), "category": exc.category}
-            ),
-            file=sys.stderr,
-        )
+        print(json.dumps(blocked_record(exc, operation)), file=sys.stderr)
         raise SystemExit(2) from exc
     print(json.dumps(result, indent=2))
 

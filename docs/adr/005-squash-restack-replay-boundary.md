@@ -135,6 +135,33 @@ never an authorization to replay.
   local graph queries against that snapshot) keeps the refusal and
   corroboration logic testable without a live network dependency, at the cost
   of an extra data-passing layer between discovery and planning.
+- That split is implemented as four explicit layers, and the layers do not
+  mix. A domain layer holds typed identities and graph facts (`CommitId`,
+  `ParentPullRequest`, `Evidence`, `BoundaryFacts`, `Boundary`, `RangeFacts`,
+  and related types) and the pure policy functions that read them
+  (`check_identities()`, `select_boundary()`, `check_range()`,
+  `check_unmoved()`, `render_plan()`, and others); none of these touch a
+  `Path`, run a subprocess, parse `gh` JSON, or use Cyclopts. An adapters
+  layer (`Subprocess`, `GitGraph`, `GitHubCli`) turns process calls and `gh`
+  output into those typed facts. `discover()` is the sole command-layer
+  operation atop the adapters, and `build_plan()` is the read path that
+  consumes its `Evidence` snapshot without performing further discovery.
+  `tests/test_rebase_plan_domain.py` exercises the whole boundary and range
+  policy with no repository, no `gh`, and no process double at all, which is
+  the practical proof that the domain layer stayed pure.
+- Every run carries a diagnostic contract in addition to the plan or refusal
+  itself. `discover()` and `build_plan()` run inside one `operation_span()`
+  per invocation, itself nesting `phase()` records for the bounded
+  `PHASE_*` names (`preflight`, `parent-metadata`, `landing-validation`,
+  `parent-head-fetch`, `boundary-selection`, `graph-planning`). Every
+  terminal record carries `phase`, `outcome` (`ok` or `blocked`), and
+  `elapsed_ms`, plus `error_category` on failure. A `PlanError` is stamped
+  with an `ErrorContext` (`operation`, `phase`) by the innermost enclosing
+  `phase()`, so a caller learns where a refusal happened without parsing
+  message text. The blocked CLI contract is a bounded, six-field terminal
+  record on stderr — `status`, `operation`, `phase`, `outcome`, `category`,
+  `reason` — with exit status 2 and empty stdout; it never carries command
+  output, credentials, or repository contents.
 - Maintainers must keep this document,
   `skills/rebase/references/squashed-parent.md`, and the "Squash-restack
   replay boundary" section of

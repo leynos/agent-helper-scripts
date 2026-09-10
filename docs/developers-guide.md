@@ -887,6 +887,39 @@ github.com REST API and Git fetch endpoints; it does not accept a bundled
 GitHub client library as a substitute, and it fetches only from
 `https://github.com/<parent-repository>.git`, never another host.
 
+### Module layers
+
+`plan_restack.py` is explicitly layered, with banner comments marking each
+layer in the source. The layers do not mix:
+
+- **Domain** — typed values and pure policy. The typed values are
+  `CommitId` (a `typing.NewType` over `str`), `ParentPullRequest` (whose
+  `__str__` renders the `owner/name#number` form used in plans and receipts,
+  and whose `matches_receipt_identity()` compares a recorded `stackParent`
+  value case-insensitively), `ParentEvidence`, `Evidence`, `ReceiptFacts`,
+  `BoundaryFacts`, `Boundary`, `RangeFacts`, `Identities`, and
+  `ErrorContext`. The pure policy functions are `check_identities()`,
+  `select_boundary()`, `check_receipt_ref()`, `check_range()`,
+  `check_unmoved()`, `review_notes()`, and `render_plan()`. None of these
+  take a `Path`, run a subprocess, parse GitHub CLI JSON, or use Cyclopts, so
+  the whole policy is testable without a repository.
+- **Adapters** — `Runner`, a `typing.Protocol` that runs one program in one
+  repository and returns its standard output; `Subprocess`, the real process
+  adapter; `GitGraph`, which turns Git queries into typed graph facts
+  (`boundary_facts()`, `range_facts()`, `identities()`,
+  `fetch_parent_head()`, and related helpers); and `GitHubCli`, which runs
+  and validates `gh api`, returning the reported head and landing commit
+  IDs.
+- **Command layer** — `discover()`, the only operation that runs `gh`,
+  fetches, or writes a ref.
+- **Read path** — `build_plan()`, which consumes an `Evidence` snapshot and
+  never invokes discovery, makes no network access, writes no ref, and mints
+  no identifier.
+
+The CLI sits above all four: `main()` owns the operation identifier, calls
+`discover()` first and `build_plan()` second, and wraps both in an
+`operation_span()`.
+
 ### Query/command split
 
 `discover()` is the only command-layer operation in the module: it is the
@@ -894,8 +927,12 @@ sole function that runs `gh`, performs the private evidence fetch, or
 otherwise touches the network or a mutable ref. It fetches the parent PR's
 actual head (never the synthetic `refs/pull/N/merge` ref) into a fresh
 private `refs/agent-rebase/<uuid>/parent-head` ref and returns the result as
-an immutable `Evidence` snapshot — frozen commit identities, the validated
-`gh api` response, and the retained evidence ref.
+an immutable `Evidence` snapshot: `operation`, `parent` (a
+`ParentPullRequest`), `old_head` and `target` (the frozen `CommitId` tips),
+and `parent_evidence` (a `ParentEvidence` carrying the fetched head, the
+validated landing commit, and the retained evidence ref). The raw `gh`
+metadata dict is not carried on `Evidence`; that representation stays inside
+`GitHubCli`.
 
 `build_plan()` consumes that snapshot and performs only local Git graph
 queries: ancestry checks, `rev-list`, and receipt lookups. It never runs
@@ -911,7 +948,10 @@ evidence.
 It exists so that nothing query-shaped performs hidden discovery — a caller
 who already holds an `Evidence` snapshot calls `build_plan()` directly, and a
 caller who needs both steps calls `discover_and_plan()` and cannot mistake the
-result for a side-effect-free query. `main()` calls `discover_and_plan()`.
+result for a side-effect-free query. `main()` calls `discover()` and
+`build_plan()` directly rather than `discover_and_plan()`, so it can wrap
+both in one `operation_span()` and own the operation identifier passed to
+`discover()`.
 
 ### Process adapter injection
 
@@ -932,9 +972,10 @@ tests can assert against deterministic identifiers instead of random UUIDs.
 `preflight()` orchestrates two narrower checks and returns the child branch
 tip and target ref tip as frozen identities:
 
-- `_validate_identities()` rejects a malformed parent repository, a
+- `check_identities()` rejects a malformed parent repository, a
   non-positive parent PR number, or a branch name that is empty or
-  option-shaped, and runs `git check-ref-format` against the branch.
+  option-shaped, and `preflight()` then runs `git check-ref-format` against
+  the branch.
 - `_refuse_active_operation()` rejects a shallow clone, an in-flight Git
   operation (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`,
   `CHERRY_PICK_HEAD`, `REVERT_HEAD`, or `sequencer`), or a worktree carrying
@@ -942,7 +983,7 @@ tip and target ref tip as frozen identities:
 
 ### Boundary provenance
 
-`choose_boundary()` accepts exactly two forms of evidence for `OLD_BASE`,
+`select_boundary()` accepts exactly two forms of evidence for `OLD_BASE`,
 recorded on the returned `Boundary`:
 
 - `parent-pr-head` — the fetched parent head is itself an ancestor of the
@@ -968,28 +1009,50 @@ verify.
 Every unrecoverable evidence gap raises `PlanError`, which carries a bounded
 `category` drawn from the module's `CATEGORY_*` constants (`identity`,
 `repository-state`, `metadata`, `recovery`, `boundary`, `range`, `race`,
-`process`, `unclassified`). `main()` catches it, writes
-`{"status": "blocked", "reason": ..., "category": ...}` as JSON on stderr,
-and exits with status 2. A successful run prints the indented JSON plan on
-stdout, with a `status` of `review-required` or `no-op-decision-required`;
-neither status is an authorization to replay.
+`process`, `unclassified`). `PlanError` also carries a `context:
+ErrorContext | None` attribute, stamped by the innermost enclosing `phase()`
+that the error passed through. `ErrorContext` is a frozen dataclass of
+`operation` and `phase`; it is how `main()` learns the failing phase without
+ever parsing the message text.
+
+`main()` catches `PlanError` and writes a bounded, six-field blocked record
+to stderr via `blocked_record()`, then exits with status 2:
+
+- `status` — always the literal `"blocked"`;
+- `operation` — the run's correlation identifier, taken from the error's
+  `context` when present;
+- `phase` — the `PHASE_*` name the error was stamped with;
+- `outcome` — always the literal `"blocked"`;
+- `category` — the error's `CATEGORY_*` value;
+- `reason` — the human-readable message, reported verbatim.
+
+The record never carries command output, credentials, or repository
+contents, and stdout stays empty on a blocked run. A successful run prints
+the indented JSON plan on stdout, with a `status` of `review-required` or
+`no-op-decision-required`; neither status is an authorization to replay.
 
 `trace()` writes bounded, structured JSON diagnostics to stderr, one line per
-event, each keyed by an `operation` identifier generated once per discovery
-run. That same `operation` identifier is carried in the plan's own
-`operation` field, so a reviewer can correlate the diagnostics for one run
-with its resulting plan. Diagnostics never carry repository contents, only
-identities the plan already reports, and stdout stays reserved for the plan
-JSON alone.
+event, each keyed by an `operation` identifier generated once per run. That
+same `operation` identifier is carried in the plan's own `operation` field,
+so a reviewer can correlate the diagnostics for one run with its resulting
+plan. Diagnostics never carry repository contents, only identities the plan
+already reports, and stdout stays reserved for the plan JSON alone.
 
-The `phase()` context manager wraps each phase — `preflight`,
-`parent-metadata`, `landing-validation`, `parent-head-fetch`,
-`boundary-selection`, `range-validation`, and `identity-recheck` — emitting a
-`phase-started` diagnostic and a terminal `phase-finished` diagnostic. The
-terminal diagnostic carries an `outcome` of `ok` or `blocked`, an
-`elapsed_ms` duration, and, on failure, the `error_category` taken from the
-raised `PlanError`. A reviewer can therefore aggregate phase outcomes and
-timings without parsing human-readable reasons.
+Diagnostics form one `operation_span()` per run, emitting an
+`operation-started` and a terminal `operation-finished` record, with child
+`phase()` records nested inside it emitting `phase-started` and
+`phase-finished`. The bounded phase names are the `PHASE_*` constants:
+`operation`, `preflight`, `parent-metadata`, `landing-validation`,
+`parent-head-fetch`, `boundary-selection`, and `graph-planning`. The
+previously separate `range-validation` and `identity-recheck` phases are now
+one `graph-planning` phase in `build_plan()`, which computes the range and
+rechecks that the branch and target have not moved in the same phase.
+
+Every terminal record — `phase-finished` and `operation-finished` — carries
+`phase`, `outcome` (`ok` or `blocked`), and `elapsed_ms`; a failing record
+additionally carries `error_category` taken from the raised `PlanError`. A
+reviewer can therefore aggregate phase and operation outcomes and timings
+without parsing human-readable reasons.
 
 ### Test strategy
 
@@ -1028,12 +1091,22 @@ landing commit. Keep that separation intact — a property test that needed a
 `gh` double would be a sign that discovery had leaked back into plan
 construction.
 
+`tests/test_rebase_plan_domain.py` exercises the whole boundary and range
+policy as a domain: it builds no Git repository, runs no `gh`, and stands up
+no process double at all. It drives `check_identities()`,
+`select_boundary()`, `check_receipt_ref()`, `check_range()`,
+`check_unmoved()`, and `render_plan()` directly against hand-built typed
+facts (`BoundaryFacts`, `ReceiptFacts`, `RangeFacts`, `Identities`). This
+module is the practical proof that the domain layer is pure: a test in it
+that needed a process double would mean discovery had leaked back into the
+domain.
+
 ### Running these tests locally
 
 ```bash
 uv run --group dev python -m pytest \
   tests/test_rebase_plan.py tests/test_rebase_replay.py \
-  tests/test_rebase_plan_properties.py -v
+  tests/test_rebase_plan_properties.py tests/test_rebase_plan_domain.py -v
 ```
 
 ## Workflow pins and Dependabot
