@@ -3,7 +3,7 @@
 `classify` orders eight documented guards over eleven observed fields. The
 rehearsal cases in `test_comenq_coderabbit_rehearsal.py` stay the readable
 examples; this module generates review states instead, so the invariant is
-checked across combinations no hand-written table enumerates.
+checked across combinations no handwritten table enumerates.
 
 Each property restates one documented rule rather than the model's mechanics:
 every state classifies as one documented disposition, a required blocker
