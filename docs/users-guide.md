@@ -46,7 +46,7 @@ shared libraries required by the user tools.
 
 ## Upgrading
 
-See the [migration guide](migration-guide.md) when moving from the previous
+See the [migration guide](v0-2-0-migration-guide.md) when moving from the previous
 single-phase `rust-entrypoint` bootstrap to the system/home phase split.
 
 ### Post-turn quality stop hook removed
@@ -364,7 +364,7 @@ The slug is required. The date alone sorts plans chronologically but leaves a
 directory of indistinguishable filenames, so the slug is what makes a plan
 identifiable without opening it. Earlier plans used an opaque
 `debugging-plan-{timestamp}.md` name; see the
-[migration guide](migration-guide.md) for renaming them.
+[migration guide](v0-2-0-migration-guide.md) for renaming them.
 
 ## VidaiMock
 

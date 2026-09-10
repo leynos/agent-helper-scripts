@@ -1,4 +1,4 @@
-# Migration Guide
+# v0.2.0 Migration Guide
 
 This guide records migrations that change how the helper scripts and skills
 in this repository behave, and what to do about work produced under the
