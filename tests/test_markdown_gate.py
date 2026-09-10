@@ -6,17 +6,28 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LINT_SCRIPT = REPO_ROOT / "markdownlint"
 LINT_CONFIG = REPO_ROOT / ".markdownlint-cli2.jsonc"
 MAKEFILE = REPO_ROOT / "Makefile"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+REAL_LINTER = "markdownlint-cli2"
 
-# Rules kept disabled against the shared template, each of which must carry its
-# rationale next to the entry so the deviation is a decision rather than drift.
-DEVIATION_RULES = ("MD024", "MD033", "MD036")
+# Rules kept disabled against the shared template, each paired with the setting
+# it must hold, so a rule silently flipped back on fails a test rather than
+# passing on the strength of its rationale comment alone.
+DEVIATION_RULES: dict[str, object] = {
+    "MD024": {"siblings_only": True},
+    "MD033": False,
+    "MD036": False,
+}
 
 DEFAULT_GLOB = "**/*.md"
 
@@ -39,32 +50,42 @@ def strip_jsonc_comments(text: str) -> str:
     )
 
 
-def make_stub(directory: Path) -> Path:
+def make_stub(
+    directory: Path,
+    name: str = REAL_LINTER,
+    exit_status: int = 0,
+) -> Path:
     """Write an executable stand-in for markdownlint-cli2.
 
     The stub appends its arguments, one per line, to the file named by the
-    ``MDLINT_STUB_RECORD`` environment variable, and copies the configuration
-    named by ``--config`` to ``MDLINT_STUB_SNAPSHOT`` when that is set.
-    Recording the arguments lets the tests assert what the gate asked the
-    linter to read without running it.
+    ``STUB_ARGUMENT_RECORD`` environment variable, copies the configuration
+    named by ``--config`` to ``STUB_CONFIG_SNAPSHOT`` when that is set, and
+    exits with ``exit_status``. Recording the arguments lets the tests assert
+    what the gate asked the linter to read without running it.
 
     Parameters
     ----------
     directory
         Directory to create the stub in.
+    name
+        File name for the stub. The default is the name the lint script
+        resolves on ``PATH``; pass another to stand in for a different tool.
+    exit_status
+        Status the stub reports, so failure paths are reachable.
 
     Returns
     -------
     pathlib.Path
         Path to the executable stub.
     """
-    stub = directory / "markdownlint-cli2-stub"
+    stub = directory / name
     stub.write_text(
         "#!/usr/bin/env bash\n"
-        'printf "%s\\n" "$@" > "${MDLINT_STUB_RECORD}"\n'
-        'if [[ "${1:-}" == "--config" && -n "${MDLINT_STUB_SNAPSHOT:-}" ]]; then\n'
-        '  cp "${2}" "${MDLINT_STUB_SNAPSHOT}"\n'
-        "fi\n",
+        'printf "%s\\n" "$@" > "${STUB_ARGUMENT_RECORD}"\n'
+        'if [[ "${1:-}" == "--config" && -n "${STUB_CONFIG_SNAPSHOT:-}" ]]; then\n'
+        '  cp "${2}" "${STUB_CONFIG_SNAPSHOT}"\n'
+        "fi\n"
+        f"exit {exit_status}\n",
         encoding="utf-8",
     )
     stub.chmod(0o755)
@@ -77,6 +98,8 @@ def run_lint_script(
     *args: str,
     cwd: Path | None = None,
     environment: dict[str, str] | None = None,
+    expected_returncode: int = 0,
+    use_override: bool = True,
 ) -> list[str]:
     """Run the lint script against a recording stub.
 
@@ -92,6 +115,11 @@ def run_lint_script(
         Working directory for the run; the repository root when omitted.
     environment
         Extra environment variables for the run.
+    expected_returncode
+        Status the lint script is expected to exit with.
+    use_override
+        Whether to point ``MDLINT_BIN`` at the stub. Clear it to leave the
+        linter to be resolved from ``PATH`` or from ``HOME`` instead.
 
     Returns
     -------
@@ -103,8 +131,11 @@ def run_lint_script(
     Starts a subprocess and writes the recorded arguments to ``record``.
     """
     run_environment = os.environ.copy()
-    run_environment["MDLINT_BIN"] = stub.as_posix()
-    run_environment["MDLINT_STUB_RECORD"] = record.as_posix()
+    if use_override:
+        run_environment["MDLINT_BIN"] = stub.as_posix()
+    else:
+        run_environment.pop("MDLINT_BIN", None)
+    run_environment["STUB_ARGUMENT_RECORD"] = record.as_posix()
     if environment:
         run_environment.update(environment)
     completed = subprocess.run(  # noqa: S603,S607 - controlled args, shell=False.
@@ -116,7 +147,9 @@ def run_lint_script(
         check=False,
         timeout=30,
     )
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.returncode == expected_returncode, (
+        completed.stdout + completed.stderr
+    )
     return record.read_text(encoding="utf-8").split()
 
 
@@ -234,6 +267,51 @@ def test_option_only_invocation_still_lints_the_tree(tmp_path: Path) -> None:
     assert arguments == ["--fix", DEFAULT_GLOB], arguments
 
 
+def test_stdin_target_is_not_widened(tmp_path: Path) -> None:
+    """A standalone `-` reads the file list from stdin, so nothing else is added."""
+    arguments = run_lint_script(
+        make_stub(tmp_path),
+        tmp_path / "recorded-args.txt",
+        "-",
+    )
+
+    assert arguments == ["-"], (
+        "the stdin marker is an explicit target; appending a glob would lint the "
+        f"whole tree as well as the piped file list; got {arguments}"
+    )
+
+
+def test_config_operands_are_not_mistaken_for_targets(tmp_path: Path) -> None:
+    """`--config FILE` names a configuration, so the tree is still linted."""
+    arguments = run_lint_script(
+        make_stub(tmp_path),
+        tmp_path / "recorded-args.txt",
+        "--config",
+        "custom.jsonc",
+    )
+
+    assert arguments == ["--config", "custom.jsonc", DEFAULT_GLOB], (
+        "the operand of --config is not a document to lint; treating it as one "
+        f"leaves the invocation with no globs at all; got {arguments}"
+    )
+
+
+def test_config_pointer_operands_are_not_mistaken_for_targets(tmp_path: Path) -> None:
+    """`--configPointer POINTER` is likewise an operand, not a target."""
+    arguments = run_lint_script(
+        make_stub(tmp_path),
+        tmp_path / "recorded-args.txt",
+        "--configPointer",
+        "/tool/markdownlint-cli2",
+    )
+
+    assert arguments == [
+        "--configPointer",
+        "/tool/markdownlint-cli2",
+        DEFAULT_GLOB,
+    ], arguments
+
+
 def test_repository_without_a_config_uses_the_bundled_one(tmp_path: Path) -> None:
     """A consumer repository falls back to the configuration shipped with the script."""
     snapshot = tmp_path / "bundled-config.jsonc"
@@ -241,7 +319,7 @@ def test_repository_without_a_config_uses_the_bundled_one(tmp_path: Path) -> Non
         make_stub(tmp_path),
         tmp_path / "recorded-args.txt",
         cwd=tmp_path,
-        environment={"MDLINT_STUB_SNAPSHOT": snapshot.as_posix()},
+        environment={"STUB_CONFIG_SNAPSHOT": snapshot.as_posix()},
     )
 
     assert arguments[0] == "--config", arguments
@@ -249,6 +327,54 @@ def test_repository_without_a_config_uses_the_bundled_one(tmp_path: Path) -> Non
     bundled = json.loads(strip_jsonc_comments(snapshot.read_text(encoding="utf-8")))
     assert bundled["config"]["MD013"]["line_length"] == 80, bundled["config"]["MD013"]
     assert bundled["config"]["MD013"]["code_block_line_length"] == 120, bundled["config"]
+    assert not Path(arguments[1]).exists(), "the temporary config was not cleaned up"
+
+
+def test_linter_is_resolved_from_path(tmp_path: Path) -> None:
+    """A linter installed by a package manager is used without an override."""
+    arguments = run_lint_script(
+        make_stub(tmp_path),
+        tmp_path / "recorded-args.txt",
+        use_override=False,
+        environment={"PATH": os.pathsep.join([tmp_path.as_posix(), os.environ["PATH"]])},
+    )
+
+    assert arguments == [DEFAULT_GLOB], arguments
+
+
+def test_linter_falls_back_to_the_bun_global_install(tmp_path: Path) -> None:
+    """With no linter on PATH the script uses the bun global install."""
+    home = tmp_path / "home"
+    bun_bin = home / ".bun" / "bin"
+    bun_bin.mkdir(parents=True)
+    shims = tmp_path / "shims"
+    shims.mkdir()
+    # Keep the script runnable on a PATH that deliberately lacks the linter.
+    for tool in ("bash", "cat", "mktemp", "rm"):
+        resolved = shutil.which(tool)
+        assert resolved, f"{tool} is required to run the lint script"
+        (shims / tool).symlink_to(resolved)
+
+    arguments = run_lint_script(
+        make_stub(bun_bin),
+        tmp_path / "recorded-args.txt",
+        use_override=False,
+        environment={"HOME": home.as_posix(), "PATH": shims.as_posix()},
+    )
+
+    assert arguments == [DEFAULT_GLOB], arguments
+
+
+def test_a_failing_linter_fails_the_gate_and_cleans_up(tmp_path: Path) -> None:
+    """A lint failure propagates and still removes the temporary configuration."""
+    arguments = run_lint_script(
+        make_stub(tmp_path, exit_status=3),
+        tmp_path / "recorded-args.txt",
+        cwd=tmp_path,
+        expected_returncode=3,
+    )
+
+    assert arguments[0] == "--config", arguments
     assert not Path(arguments[1]).exists(), "the temporary config was not cleaned up"
 
 
@@ -294,11 +420,36 @@ def test_make_markdownlint_target_lints_the_tree(tmp_path: Path) -> None:
     completed = run_make(
         "markdownlint",
         f"MDLINT={stub.as_posix()}",
-        environment={"MDLINT_STUB_RECORD": record.as_posix()},
+        environment={"STUB_ARGUMENT_RECORD": record.as_posix()},
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert record.read_text(encoding="utf-8").split() == [DEFAULT_GLOB]
+
+
+def test_make_nixie_target_validates_diagrams(tmp_path: Path) -> None:
+    """The nixie target runs the configured binary over the diagram sources."""
+    stub = make_stub(tmp_path, name="nixie")
+    record = tmp_path / "recorded-args.txt"
+
+    completed = run_make(
+        "nixie",
+        f"NIXIE={stub.as_posix()}",
+        environment={"STUB_ARGUMENT_RECORD": record.as_posix()},
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert record.read_text(encoding="utf-8").split() == ["--no-sandbox"]
+
+
+def test_make_gate_fails_when_its_tool_is_absent() -> None:
+    """A gate whose tool is missing fails loudly instead of passing vacuously."""
+    completed = run_make("markdownlint", "MDLINT=markdownlint-not-installed")
+
+    assert completed.returncode != 0, "a missing tool must not pass the gate"
+    assert "'markdownlint-not-installed' is required, but not installed" in (
+        completed.stderr
+    ), completed.stderr
 
 
 def test_lint_config_adopts_the_template_rule_set() -> None:
@@ -312,10 +463,12 @@ def test_lint_config_adopts_the_template_rule_set() -> None:
 
 
 def test_lint_config_records_why_it_deviates() -> None:
-    """Every rule kept from the template's defaults carries its rationale."""
+    """Every rule kept from the template's defaults holds its setting and rationale."""
     lines = LINT_CONFIG.read_text(encoding="utf-8").splitlines()
+    config = load_lint_config()["config"]
 
-    for rule in DEVIATION_RULES:
+    for rule, setting in DEVIATION_RULES.items():
+        assert config[rule] == setting, f"{rule} is {config[rule]!r}, not {setting!r}"
         matching = [line for line in lines if f'"{rule}"' in line and "//" not in line]
         assert len(matching) == 1, f"expected one {rule} entry, found {len(matching)}"
         index = lines.index(matching[0])
@@ -340,3 +493,89 @@ def test_ci_workflow_installs_the_pinned_linter() -> None:
         "the CI workflow does not install the pinned version it declares"
     )
     assert "run: make ci" in workflow, "CI does not run the gate sequence"
+
+
+#: Argument chunks the widening property builds invocations from. Each chunk
+#: carries the role its tokens play, so the expected widening is known by
+#: construction rather than by restating the script's classification.
+PLAIN_OPTIONS = ("--fix", "--no-globs")
+CONFIG_OPTIONS = ("--config", "--configPointer")
+CONFIG_OPERANDS = ("custom.jsonc", "pointer.json")
+NAMED_TARGETS = ("docs/guide.md", "skills/example.md")
+STDIN_TARGET = "-"
+
+
+@pytest.fixture(scope="module")
+def recording_stub(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+    """A linter stub and the file it records its arguments to."""
+    directory = tmp_path_factory.mktemp("markdown-gate")
+    return make_stub(directory), directory / "recorded-args.txt"
+
+
+@given(
+    chunks=st.lists(
+        st.one_of(
+            st.tuples(st.sampled_from(PLAIN_OPTIONS)),
+            st.tuples(st.sampled_from(CONFIG_OPTIONS), st.sampled_from(CONFIG_OPERANDS)),
+            st.tuples(st.sampled_from(NAMED_TARGETS)),
+            st.tuples(st.just(STDIN_TARGET)),
+        ),
+        max_size=4,
+    )
+)
+@settings(deadline=None, max_examples=50)
+def test_only_a_target_less_invocation_is_widened(
+    chunks: list[tuple[str, ...]],
+    recording_stub: tuple[Path, Path],
+) -> None:
+    """The default glob is appended exactly when no argument names a target."""
+    stub, record = recording_stub
+    arguments = [token for chunk in chunks for token in chunk]
+    names_a_target = any(
+        chunk[0] in NAMED_TARGETS or chunk[0] == STDIN_TARGET for chunk in chunks
+    )
+
+    forwarded = run_lint_script(stub, record, *arguments)
+
+    expected = arguments if names_a_target else [*arguments, DEFAULT_GLOB]
+    assert forwarded == expected
+
+
+@pytest.mark.slow
+def test_the_wrapper_lints_through_the_real_linter(tmp_path: Path) -> None:
+    """End to end, the wrapper and its bundled configuration judge real files."""
+    linter = shutil.which(REAL_LINTER) or (
+        Path.home() / ".bun" / "bin" / REAL_LINTER
+    ).as_posix()
+    if not Path(linter).exists():
+        pytest.skip(f"{REAL_LINTER} is not installed; no lint run is possible")
+
+    document = tmp_path / "document.md"
+    document.write_text(
+        "# Title\n\nSee <https://example.com> for details.\n", encoding="utf-8"
+    )
+
+    def lint() -> subprocess.CompletedProcess[str]:
+        """Lint the temporary directory through the wrapper."""
+        return subprocess.run(  # noqa: S603,S607 - controlled args, shell=False.
+            [LINT_SCRIPT.as_posix()],
+            cwd=tmp_path,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+
+    clean = lint()
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+
+    document.write_text(
+        "# Title\n\nSee https://example.com for details.\n", encoding="utf-8"
+    )
+
+    violating = lint()
+    assert violating.returncode != 0, "a bare URL must fail the Markdown gate"
+    # markdownlint-cli2 reports findings on stderr and the summary on stdout.
+    assert "MD034" in violating.stdout + violating.stderr, (
+        violating.stdout + violating.stderr
+    )

@@ -29,9 +29,11 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.0.1
 
-      # Pinned so the Markdown gate cannot change under a passing PR. Mermaid
-      # validation (make nixie) needs a renderer this runner does not provide,
-      # so it stays a local-only gate.
+      # The exact version is pinned so a new release cannot change the gate
+      # under a passing PR. The dependency graph is not locked beyond that,
+      # matching the shared template this step mirrors. Mermaid validation
+      # (make nixie) needs a renderer this runner does not provide, so it stays
+      # a local-only gate.
       - name: Install Markdown tooling
         run: npm install --global "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
 

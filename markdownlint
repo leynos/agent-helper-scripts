@@ -40,15 +40,33 @@ cat > "${MDLINT_CONFIG}" <<'__EOF'
 __EOF
 
 # Options are everything from the first leading dash onwards; anything else is
-# a path the caller selected. Only a genuinely path-less invocation is widened,
-# so `markdownlint --fix` fixes the tree instead of silently fixing nothing.
-has_path=0
+# a target the caller selected. Two exceptions keep that judgement honest: a
+# standalone `-` reads the file list from standard input, and the operand of
+# `--config`/`--configPointer` names a configuration file rather than a document
+# to lint. Only a genuinely target-less invocation is widened, so
+# `markdownlint --fix` fixes the tree instead of silently fixing nothing.
+has_target=0
+expect_operand=0
 for arg in "$@"; do
-  if [[ "${arg}" != -* ]]; then
-    has_path=1
+  if ((expect_operand == 1)); then
+    expect_operand=0
+    continue
   fi
+  case "${arg}" in
+  --config | --configPointer)
+    expect_operand=1
+    ;;
+  -)
+    has_target=1
+    ;;
+  -*)
+    ;;
+  *)
+    has_target=1
+    ;;
+  esac
 done
-if ((has_path == 0)); then
+if ((has_target == 0)); then
   set -- "$@" '**/*.md'
 fi
 

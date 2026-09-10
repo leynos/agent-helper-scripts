@@ -317,7 +317,11 @@ recorded beside the entry:
 The `markdownlint` wrapper appends `**/*.md` when the caller names no path.
 `markdownlint-cli2` lints nothing when it receives neither a glob argument nor
 a `globs` key, yet still reports a clean pass, so the default glob is what
-keeps the gate from passing vacuously.
+keeps the gate from passing vacuously. The wrapper treats two arguments as
+explicit targets rather than paths, so no glob is appended for either: a
+standalone `-`, which tells `markdownlint-cli2` to read the file list from
+standard input, and the operand of `--config` or `--configPointer`, which names
+a configuration file rather than a document to lint.
 
 ### Shared en-GB-oxendict spelling data
 
