@@ -120,25 +120,48 @@ def _request(graph: Linear, **overrides: object) -> object:
     target_length=TARGET_LENGTHS,
 )
 def test_inherited_parent_replays_child_commits_and_nothing_else(
-    build, parent_length: int, child_length: int, target_length: int
+    build: Callable[[int, int, int], Linear],
+    parent_length: int,
+    child_length: int,
+    target_length: int,
 ) -> None:
     """An inherited parent head yields exactly the child commits, in order."""
     graph = build(parent_length, child_length, target_length)
     parent_head = graph.parent[-1]
     result = planner.build_plan(_request(graph), _evidence(graph, parent_head))
 
-    assert result["old_base"] == parent_head
-    assert result["boundary_evidence"] == "parent-pr-head"
-    assert result["boundary_corroborated"] is True
-    assert result["commits"] == graph.child
-    assert not set(result["commits"]) & set(graph.parent)
-    assert graph.landed not in result["commits"]
+    assert result["old_base"] == parent_head, (
+        "an inherited parent head is itself the exclusive boundary"
+    )
+    assert result["boundary_evidence"] == "parent-pr-head", (
+        "the provenance must name the parent head, never a heuristic"
+    )
+    assert result["boundary_corroborated"] is True, (
+        "the child's retained history corroborates an inherited parent head"
+    )
+    assert result["commits"] == graph.child, (
+        "the range must be exactly the child's own commits, in order"
+    )
+    assert not set(result["commits"]) & set(graph.parent), (
+        "no inherited parent commit may enter the replay range"
+    )
+    assert graph.landed not in result["commits"], (
+        "the squash landing commit belongs to the target, not the replay"
+    )
     if graph.child:
-        assert result["status"] == "review-required"
-        assert result["rebase_argv"][-3:] == [graph.target, parent_head, "child"]
+        assert result["status"] == "review-required", (
+            "a non-empty range always requires review before replay"
+        )
+        assert result["rebase_argv"][-3:] == [graph.target, parent_head, "child"], (
+            "the proposed argv must replay onto the target from the boundary"
+        )
     else:
-        assert result["status"] == "no-op-decision-required"
-        assert result["rebase_argv"] is None
+        assert result["status"] == "no-op-decision-required", (
+            "an empty range is a decision for the operator, not a replay"
+        )
+        assert result["rebase_argv"] is None, (
+            "an empty range must propose no rebase command at all"
+        )
 
 
 @settings(deadline=None, max_examples=25, suppress_health_check=SAFE_REUSE)
@@ -148,7 +171,10 @@ def test_inherited_parent_replays_child_commits_and_nothing_else(
     receipt_index=st.integers(min_value=0, max_value=3),
 )
 def test_receipt_disagreeing_with_inherited_parent_head_is_refused(
-    build, parent_length: int, child_length: int, receipt_index: int
+    build: Callable[[int, int, int], Linear],
+    parent_length: int,
+    child_length: int,
+    receipt_index: int,
 ) -> None:
     """A receipt naming any earlier inherited commit never authorizes a replay."""
     graph = build(parent_length, child_length, 1)

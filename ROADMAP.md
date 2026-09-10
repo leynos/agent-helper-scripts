@@ -9,6 +9,7 @@
 - [x] Unified `apt_lists_exist` across `add-repositories` and
   `apt-update-if-stale`
 - [x] Eliminate ambient `SUDO` global; use `_detect_sudo()`
+- [x] Non-mutating squash-restack planner in `skills/rebase/scripts/plan_restack.py`
 
 ## Planned
 

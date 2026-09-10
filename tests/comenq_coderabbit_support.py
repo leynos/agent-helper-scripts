@@ -15,14 +15,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_ROOT = REPO_ROOT / "skills" / "comenq-coderabbit"
-SKILL_PATH = SKILL_ROOT / "SKILL.md"
-FAILURE_MODES_PATH = SKILL_ROOT / "references" / "failure-modes-and-recovery.md"
-EVIDENCE_PATH = SKILL_ROOT / "references" / "evidence-and-rehearsal.md"
-USERS_GUIDE_PATH = REPO_ROOT / "docs" / "users-guide.md"
-MIGRATION_GUIDE_PATH = REPO_ROOT / "docs" / "v0-2-0-migration-guide.md"
-README_PATH = REPO_ROOT / "README.md"
+REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+SKILL_ROOT: Path = REPO_ROOT / "skills" / "comenq-coderabbit"
+SKILL_PATH: Path = SKILL_ROOT / "SKILL.md"
+FAILURE_MODES_PATH: Path = SKILL_ROOT / "references" / "failure-modes-and-recovery.md"
+EVIDENCE_PATH: Path = SKILL_ROOT / "references" / "evidence-and-rehearsal.md"
+USERS_GUIDE_PATH: Path = REPO_ROOT / "docs" / "users-guide.md"
+MIGRATION_GUIDE_PATH: Path = REPO_ROOT / "docs" / "v0-2-0-migration-guide.md"
+README_PATH: Path = REPO_ROOT / "README.md"
 
 LINK_RE = re.compile(r"\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 HEADING_RE = re.compile(r"^#{1,6}[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)

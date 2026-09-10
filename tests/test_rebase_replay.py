@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 import shlex
+import typing as typ
 
 import pytest
 from cmd_mox.ipc import Invocation
 from rebase_test_support import (
     ROOT,
+    Graph,
     change,
     expect_parent,
     git,
@@ -18,24 +20,33 @@ from rebase_test_support import (
     snapshot,
 )
 
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+
+    from cmd_mox import CmdMox
+
 
 @pytest.fixture
-def graph(tmp_path, monkeypatch):
+def graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Graph:
     """Build a fresh three-commit stacked-PR graph for each test."""
     return make_graph(tmp_path, monkeypatch)
 
 
-def test_first_child_commit_is_not_the_exclusive_boundary(graph):
+def test_first_child_commit_is_not_the_exclusive_boundary(graph: Graph) -> None:
     """The wrong off-by-one command succeeds while silently dropping C."""
     git(graph.repository, "rebase", "--onto", graph.target, graph.c, "child")
-    assert not (graph.repository / "first.txt").exists()
-    assert (graph.repository / "second.txt").exists()
+    assert not (graph.repository / "first.txt").exists(), (
+        "the wrong boundary drops C, and Git reports no error while doing so"
+    )
+    assert (graph.repository / "second.txt").exists(), (
+        "D survives, so the loss of C is silent rather than obviously broken"
+    )
     assert git(
         graph.repository, "log", "--format=%s", f"{graph.target}..HEAD"
     ).stdout.splitlines() == ["D"]
 
 
-def test_target_merge_base_replays_inherited_parent_work(graph):
+def test_target_merge_base_replays_inherited_parent_work(graph: Graph) -> None:
     """The too-early boundary starts replaying A, not the first child commit."""
     result = git(
         graph.repository,
@@ -51,11 +62,14 @@ def test_target_merge_base_replays_inherited_parent_work(graph):
     assert git(graph.repository, "ls-files", "--unmerged").stdout
 
 
-def test_initially_empty_commit_survives_explicit_replay(graph, cmd_mox):
+def test_initially_empty_commit_survives_explicit_replay(
+    graph: Graph,
+    cmd_mox: CmdMox,
+) -> None:
     """Preserve an already-empty commit through explicit replay."""
     git(graph.repository, "commit", "--allow-empty", "-m", "intentional empty")
     expect_parent(cmd_mox, graph)
-    result = planner.plan(graph.request())
+    result = planner.discover_and_plan(graph.request())
     assert len(result["commits"]) == 3
     git(graph.repository, *result["rebase_argv"][1:])
     assert git(
@@ -66,7 +80,10 @@ def test_initially_empty_commit_survives_explicit_replay(graph, cmd_mox):
     )
 
 
-def test_newly_empty_child_commit_stops_instead_of_disappearing(graph, cmd_mox):
+def test_newly_empty_child_commit_stops_instead_of_disappearing(
+    graph: Graph,
+    cmd_mox: CmdMox,
+) -> None:
     """Stop instead of silently dropping a commit that becomes empty on replay."""
     git(graph.repository, "switch", "main")
     target = change(
@@ -75,27 +92,33 @@ def test_newly_empty_child_commit_stops_instead_of_disappearing(graph, cmd_mox):
     git(graph.repository, "update-ref", "refs/remotes/origin/main", target)
     git(graph.repository, "switch", "child")
     expect_parent(cmd_mox, graph)
-    result = planner.plan(graph.request())
+    result = planner.discover_and_plan(graph.request())
     replay = git(graph.repository, *result["rebase_argv"][1:], check=False)
     assert replay.returncode != 0
     assert oid(graph.repository, "REBASE_HEAD") == graph.c
     assert (graph.repository / ".git/rebase-merge").is_dir()
 
 
-def test_target_revert_of_parent_is_not_resurrected(graph, cmd_mox):
+def test_target_revert_of_parent_is_not_resurrected(
+    graph: Graph,
+    cmd_mox: CmdMox,
+) -> None:
     """Do not resurrect parent content that the target has already reverted."""
     git(graph.repository, "switch", "main")
     target = change(graph.repository, "revert parent", "parent.txt", "base\n")
     git(graph.repository, "update-ref", "refs/remotes/origin/main", target)
     git(graph.repository, "switch", "child")
     expect_parent(cmd_mox, graph)
-    result = planner.plan(graph.request())
+    result = planner.discover_and_plan(graph.request())
     git(graph.repository, *result["rebase_argv"][1:])
     assert (graph.repository / "parent.txt").read_text() == "base\n"
     assert (graph.repository / "first.txt").exists()
 
 
-def test_parent_reflog_recovers_the_old_incarnation(tmp_path, monkeypatch):
+def test_parent_reflog_recovers_the_old_incarnation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Recover the parent's rewritten boundary from its reflog fork point."""
     graph = make_graph(tmp_path, monkeypatch, "rewritten")
     ref = "refs/remotes/origin/old-parent"
@@ -123,7 +146,7 @@ def test_parent_reflog_recovers_the_old_incarnation(tmp_path, monkeypatch):
     )
 
 
-def test_equal_net_patches_do_not_establish_unique_boundary(graph):
+def test_equal_net_patches_do_not_establish_unique_boundary(graph: Graph) -> None:
     """Show that identical trees do not imply identical ownership boundaries."""
     extra = change(graph.repository, "extra", "parent.txt", "temporary\n")
     git(graph.repository, "revert", "--no-edit", extra)
@@ -137,7 +160,7 @@ def test_equal_net_patches_do_not_establish_unique_boundary(graph):
     ).stdout.splitlines() == [restored, extra]
 
 
-def test_discovery_detects_child_race(graph, cmd_mox):
+def test_discovery_detects_child_race(graph: Graph, cmd_mox: CmdMox) -> None:
     """Detect and refuse a concurrent child branch move discovered during gh."""
     before = snapshot(graph.repository)
 
@@ -148,13 +171,13 @@ def test_discovery_detects_child_race(graph, cmd_mox):
 
     expect_parent(cmd_mox, graph).runs(moved_during_gh)
     with pytest.raises(planner.PlanError, match="Child branch moved"):
-        planner.plan(graph.request())
+        planner.discover_and_plan(graph.request())
     assert oid(graph.repository, "refs/heads/child") == graph.c
     # Do not roll back another owner's concurrent change.
     assert snapshot(graph.repository)[0] != before[0]
 
 
-def test_discovery_detects_target_race(graph, cmd_mox):
+def test_discovery_detects_target_race(graph: Graph, cmd_mox: CmdMox) -> None:
     """Detect and refuse a concurrent target ref move discovered during gh."""
 
     def moved_during_gh(_invocation: Invocation) -> tuple[str, str, int]:
@@ -170,10 +193,10 @@ def test_discovery_detects_target_race(graph, cmd_mox):
 
     expect_parent(cmd_mox, graph).runs(moved_during_gh)
     with pytest.raises(planner.PlanError, match="Target ref moved"):
-        planner.plan(graph.request())
+        planner.discover_and_plan(graph.request())
 
 
-def test_documented_replay_command_matches_the_executable_planner():
+def test_documented_replay_command_matches_the_executable_planner() -> None:
     """Verify the skill's documented replay command matches the planner's argv."""
     skill = (ROOT / "skills/rebase/SKILL.md").read_text()
     blocks = re.findall(r"```bash\n(.*?)\n```", skill, re.DOTALL)
@@ -182,7 +205,7 @@ def test_documented_replay_command_matches_the_executable_planner():
     assert argv == [*planner.REBASE_PREFIX, "$TARGET", "$OLD_BASE", "$BRANCH"]
 
 
-def test_documented_metadata_query_matches_the_recorded_cli_command():
+def test_documented_metadata_query_matches_the_recorded_cli_command() -> None:
     """Verify the documented metadata query matches the recorded gh CLI command."""
     from rebase_test_support import MANIFEST, PARENT_PR, PARENT_REPOSITORY
 
@@ -201,7 +224,7 @@ def test_documented_metadata_query_matches_the_recorded_cli_command():
     assert resolved == recorded
 
 
-def test_weave_audit_uses_child_boundary_not_target_merge_base(graph):
+def test_weave_audit_uses_child_boundary_not_target_merge_base(graph: Graph) -> None:
     """Execute the documented path classification and exclude inherited parent work."""
     import os
     import subprocess

@@ -906,6 +906,40 @@ reason about without any side effect beyond reading the local repository, so
 that replay policy stays reviewable apart from the adapters that gather
 evidence.
 
+`discover_and_plan()` is the explicit composition of the two: it calls
+`discover()` and passes the resulting `Evidence` straight into `build_plan()`.
+It exists so that nothing query-shaped performs hidden discovery — a caller
+who already holds an `Evidence` snapshot calls `build_plan()` directly, and a
+caller who needs both steps calls `discover_and_plan()` and cannot mistake the
+result for a side-effect-free query. `main()` calls `discover_and_plan()`.
+
+### Process adapter injection
+
+Every process interaction — `git`, `gh`, and the evidence fetch — goes
+through an injected `Runner`, a `typing.Protocol` that runs one program in
+one repository and returns its standard output. `Subprocess` is the real
+adapter: a frozen dataclass bound to a single repository path, with no shell
+parsing and a 60-second timeout on every call.
+
+`discover()` and `build_plan()` both take an optional `run: Runner | None`
+parameter that defaults to `Subprocess(request.repository)`, so a caller can
+substitute a test double without patching module globals. `discover()` also
+takes injectable `new_operation_id` and `new_evidence_ref` callables, so
+tests can assert against deterministic identifiers instead of random UUIDs.
+
+### Preflight checks
+
+`preflight()` orchestrates two narrower checks and returns the child branch
+tip and target ref tip as frozen identities:
+
+- `_validate_identities()` rejects a malformed parent repository, a
+  non-positive parent PR number, or a branch name that is empty or
+  option-shaped, and runs `git check-ref-format` against the branch.
+- `_refuse_active_operation()` rejects a shallow clone, an in-flight Git
+  operation (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`, `REVERT_HEAD`, or `sequencer`), or a worktree carrying
+  staged, unstaged, or untracked work.
+
 ### Boundary provenance
 
 `choose_boundary()` accepts exactly two forms of evidence for `OLD_BASE`,
@@ -931,11 +965,14 @@ verify.
 
 ### Refusal conditions and exit contract
 
-Every unrecoverable evidence gap raises `PlanError`. `main()` catches it,
-writes `{"status": "blocked", "reason": ...}` as JSON on stderr, and exits
-with status 2. A successful run prints the indented JSON plan on stdout, with
-a `status` of `review-required` or `no-op-decision-required`; neither status
-is an authorization to replay.
+Every unrecoverable evidence gap raises `PlanError`, which carries a bounded
+`category` drawn from the module's `CATEGORY_*` constants (`identity`,
+`repository-state`, `metadata`, `recovery`, `boundary`, `range`, `race`,
+`process`, `unclassified`). `main()` catches it, writes
+`{"status": "blocked", "reason": ..., "category": ...}` as JSON on stderr,
+and exits with status 2. A successful run prints the indented JSON plan on
+stdout, with a `status` of `review-required` or `no-op-decision-required`;
+neither status is an authorization to replay.
 
 `trace()` writes bounded, structured JSON diagnostics to stderr, one line per
 event, each keyed by an `operation` identifier generated once per discovery
@@ -944,6 +981,15 @@ run. That same `operation` identifier is carried in the plan's own
 with its resulting plan. Diagnostics never carry repository contents, only
 identities the plan already reports, and stdout stays reserved for the plan
 JSON alone.
+
+The `phase()` context manager wraps each phase — `preflight`,
+`parent-metadata`, `landing-validation`, `parent-head-fetch`,
+`boundary-selection`, `range-validation`, and `identity-recheck` — emitting a
+`phase-started` diagnostic and a terminal `phase-finished` diagnostic. The
+terminal diagnostic carries an `outcome` of `ok` or `blocked`, an
+`elapsed_ms` duration, and, on failure, the `error_category` taken from the
+raised `PlanError`. A reviewer can therefore aggregate phase outcomes and
+timings without parsing human-readable reasons.
 
 ### Test strategy
 

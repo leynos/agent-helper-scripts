@@ -62,7 +62,7 @@ positional or heuristic reasoning; it accepts only two forms of proof:
    branch. If it is, the parent head itself is the boundary, with provenance
    `parent-pr-head`, and it is corroborated: the child's own retained history
    proves no inherited parent commit follows it.
-2. **Maintained receipt, only when corroborated by inherited history.** If the
+2. **Maintained receipt, when not corroborated by inherited history.** If the
    parent head is not an ancestor of the child — because the parent advanced
    or was rewritten after the child last incorporated it — the planner accepts
    a boundary only from a `refs/stack-bases/<branch>` receipt whose paired
