@@ -742,11 +742,20 @@ agent_tools_subagents:
         observation deadline. Use explicit `--repo "$repo"` and run IDs;
         never rely on interactive run selection or the current checkout.
       - For a PR, read `gh pr view` and `gh pr checks` to identify its current
-        head, base, and Actions run links. For an explicit commit, discover
-        runs with `gh run list --repo "$repo" --commit "$expected_sha"`.
+        head, base, and check links. `gh pr checks` reports check links, not
+        run identities. Parse each Actions link (`/actions/runs/<id>`) for its
+        run ID, deduplicate the IDs because many jobs share one run, and
+        confirm each candidate with `gh run view` before recording or watching
+        it. Classify links that are not Actions runs — external statuses,
+        deployments, CodeRabbit and similar apps — as non-Actions checks and
+        exclude them from run monitoring rather than treating them as runs.
+        For an explicit commit, discover runs with
+        `gh run list --repo "$repo" --commit "$expected_sha"`; this exact-commit
+        resolution stays authoritative for commit-scoped assignments.
         Inspect enough results to cover every requested workflow; the default
         result limit is not proof of completeness. An empty run list is not
-        success: report missing or not-yet-created runs at the deadline.
+        success: report missing or not-yet-created runs at the deadline. Only
+        verified run identities may enter the watch and evidence steps below.
       - Before watching, use `gh run view` JSON to record the workflow name,
         event, headSha, URL, run ID and attempt. Verify the expected commit
         SHA. Never substitute the latest run on a branch for the assigned

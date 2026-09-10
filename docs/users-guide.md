@@ -581,6 +581,30 @@ stateDiagram-v2
 status that follows. A verdict describes one hypothesis; a status describes
 the whole report.*
 
+`scrutineer` runs a summoned assignment in up to three modes: the
+deterministic local commit gates, an optional `coderabbit review --agent`
+pass run only when explicitly requested, and GitHub Actions monitoring. A
+monitoring-only assignment watches the requested runs without starting
+local gates or a new review; those activities are reported as
+`not-requested` rather than passed or silently skipped. A docs-only diff,
+where every changed path ends in `.md`, scopes the gate set to
+`make markdownlint` and `make nixie`.
+
+Actions monitoring correlates an explicit repository, expected commit
+SHA, run ID and attempt; PR-head, synthetic-merge and post-merge
+integration evidence are kept distinct, and the latest run on a branch is
+never substituted for the assigned candidate. Observation is bounded by a
+deadline and is read-only: `scrutineer` never reruns, cancels, dispatches,
+approves or merges, and it does not cancel hosted runs at the deadline.
+Only `status=completed` with `conclusion=success` counts as success;
+pending, cancelled, skipped and neutral states are preserved, and
+CLI, credential or API problems are reported as `infrastructure-error`
+rather than as a workflow failure. For a non-successful run, failed-step
+logs are captured per attempt into a private bundle under `/tmp`
+(`summary.md`, `run.json`, `watch.log`, `failed.log`), and missing,
+expired or inaccessible logs are reported explicitly rather than read as
+success. `scrutineer` never edits tracked files.
+
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
 `artisan` agents.

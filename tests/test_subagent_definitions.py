@@ -417,15 +417,16 @@ def test_scrutineer_report_marks_logs_as_canonical_evidence() -> None:
         "rather than re-running gates, or the delegation saves nothing"
     )
 
+
 @pytest.mark.parametrize(
     "capability",
-    (
+    [
         "deterministic commit gates",
         "CodeRabbit review monitoring",
         "GitHub Actions",
         "gh run watch",
         "summary bundle",
-    ),
+    ],
 )
 def test_scrutineer_description_advertises_monitoring(capability: str) -> None:
     """Agent selection must expose gates, review monitoring, and Actions watching."""
@@ -436,9 +437,10 @@ def test_scrutineer_description_advertises_monitoring(capability: str) -> None:
         f"Scrutineer's description must advertise {capability!r}"
     )
 
+
 @pytest.mark.parametrize(
     "required",
-    (
+    [
         'gh run watch "$run_id" --repo "$repo" --exit-status',
         "--interval 30",
         'gh run view "$run_id" --repo "$repo" --attempt "$attempt"',
@@ -447,7 +449,7 @@ def test_scrutineer_description_advertises_monitoring(capability: str) -> None:
         'gh run view --job "$job_id" --repo "$repo" --log',
         "watch_status=$?",
         "Never use `&&` to gate failure-log collection",
-    ),
+    ],
 )
 def test_scrutineer_actions_commands_preserve_failure_evidence(
     required: str,
@@ -459,11 +461,15 @@ def test_scrutineer_actions_commands_preserve_failure_evidence(
         f"Scrutineer's Actions instructions must retain {required!r}"
     )
 
+
 @pytest.mark.parametrize(
     "required",
-    (
+    [
         "expected commit SHA",
         "run ID and attempt",
+        "reports check links, not run identities",
+        "confirm each candidate with `gh run view` before recording",
+        "non-Actions checks",
         "Never substitute the latest run on a branch",
         "synthetic merge commit",
         "post-merge integration",
@@ -474,7 +480,7 @@ def test_scrutineer_actions_commands_preserve_failure_evidence(
         "monitoring-only",
         "Do not rerun, cancel, dispatch, approve, or merge",
         "infrastructure-error",
-    ),
+    ],
 )
 def test_scrutineer_actions_monitoring_is_candidate_bound_and_read_only(
     required: str,
@@ -486,9 +492,10 @@ def test_scrutineer_actions_monitoring_is_candidate_bound_and_read_only(
         f"Scrutineer's Actions safety contract must retain {required!r}"
     )
 
+
 @pytest.mark.parametrize(
     "required",
-    (
+    [
         "## GitHub Actions",
         "## Summary Bundle",
         "summary.md",
@@ -501,7 +508,7 @@ def test_scrutineer_actions_monitoring_is_candidate_bound_and_read_only(
         "missing, expired, or inaccessible logs",
         "not-requested",
         "Never overwrite an earlier attempt",
-    ),
+    ],
 )
 def test_scrutineer_actions_handoff_contains_summary_and_captured_logs(
     required: str,
@@ -512,6 +519,7 @@ def test_scrutineer_actions_handoff_contains_summary_and_captured_logs(
     assert required in instructions, (
         f"Scrutineer's Actions summary bundle must retain {required!r}"
     )
+
 
 def test_scrutineer_retains_local_gates_and_optional_coderabbit_review() -> None:
     """Actions monitoring must not weaken gate ownership or review prerequisites."""

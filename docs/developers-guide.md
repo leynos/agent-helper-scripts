@@ -419,7 +419,7 @@ subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`, `journeyman`,
 each subagent does and how downstream provisioning renders the manifest, see
 the `## Sub-agent definitions` section in
 [docs/users-guide.md](users-guide.md). This section covers the test-loader
-concerns only.
+concerns and, for the `scrutineer` subagent, its operating contract.
 
 The manifest expresses MCP access according to each provider's inheritance
 model. Claude Code provider blocks use named `mcpServers` allow-lists: every
@@ -475,6 +475,56 @@ Three test suites consume the helper:
 PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
 `[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
 dependency of any bootstrap script; only the manifest test helper imports it.
+
+
+### Scrutineer operating contract
+
+`scrutineer`'s `instructions` body in `agents/subagents.yml` is the
+authoritative source for this contract; it is pinned by
+`tests/test_subagent_definitions.py`. An assignment combines up to three
+independent scopes:
+
+- Deterministic local commit gates: `make check-fmt`, `lint`, `typecheck`,
+  `test`, `markdownlint`, `nixie`, plus `test-podman` when the change
+  surface touches an Ansible role, module, playbook, or Molecule scenario.
+- An optional `coderabbit review --agent` pass, gated on every applicable
+  deterministic gate above passing first.
+- GitHub Actions monitoring.
+
+A monitoring-only assignment starts neither of the other two scopes and
+records them as `not-requested` rather than passed or silently skipped.
+
+Actions monitoring requires an authenticated `gh` CLI. `gh run watch` does
+not support fine-grained PAT authentication, and the agent must never
+broaden permissions or change authentication to make watching work.
+
+Correlation is explicit: repository via `--repo OWNER/REPO`, expected
+commit SHA, run ID and attempt. Run identity is resolved by parsing
+`gh pr checks` Actions links and verifying each candidate with
+`gh run view`, or, for commit-scoped work, via
+`gh run list --commit`. `gh run watch` does not pin an attempt, so the
+latest attempt and candidate identity are rechecked before hand-off;
+superseded evidence is retained and reported as stale rather than
+silently transferred to the new attempt.
+
+Observation is bounded and read-only. An observation deadline stops only
+the local watcher; hosted runs are never cancelled. The assignment never
+reruns, dispatches, approves, merges, or edits a workflow.
+
+Only `status=completed` with `conclusion=success` counts as success. Every
+other conclusion, and any pending, missing, or inaccessible requested
+work, is preserved and never collapsed into an all-success claim. CLI,
+credential, permission, and API problems are classified
+`infrastructure-error`, distinct from a workflow failure; a nonzero
+`gh run watch` exit code is not by itself a verdict.
+
+Evidence is written to a private `mktemp` directory under `/tmp` created
+with `umask 077`, with a `run-<id>-attempt-<n>` subdirectory per run and
+attempt holding `run.json`, `watch.log`, `failed.log`, and
+`failed-log.stderr`, plus a root `summary.md` manifest. Failed-step log
+capture is never gated on watcher success with `&&`, and retrieval exit
+codes are recorded separately from the observed Actions conclusion. Logs
+stay private, and secrets are redacted from any excerpts.
 
 ### Skill manifest tooling dependencies
 
