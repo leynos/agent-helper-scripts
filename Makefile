@@ -67,14 +67,14 @@ check-home-phase-boundary:
 lint: syntax-check shell-syntax-check check-home-phase-boundary skill-manifest-check
 
 skill-frontmatter-lint:
-	@set -e -o pipefail; for skill_dir in $(SKILL_DIRS); do \
+	@set -euo pipefail; for skill_dir in $(SKILL_DIRS); do \
 		skill_file="$${skill_dir%/}/SKILL.md"; \
 		echo "yamllint $$skill_file frontmatter"; \
 		awk 'NR == 1 { if ($$0 != "---") exit 1; print; next } $$0 == "---" { found = 1; print; exit } { print } END { if (!found) exit 1 }' "$$skill_file" | $(YAMLLINT) -d '$(SKILL_YAMLLINT_CONFIG)' -; \
 	done
 
 skill-manifest-validate:
-	@set -e; for skill_dir in $(SKILL_DIRS); do \
+	@set -eu; for skill_dir in $(SKILL_DIRS); do \
 		echo "skills-ref validate $$skill_dir"; \
 		$(SKILLS_REF) validate "$$skill_dir"; \
 	done

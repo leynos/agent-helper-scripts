@@ -54,22 +54,27 @@ def test_shipped_skill_manifests_satisfy_the_contract() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_manifest_check_rejects_a_missing_name(tmp_path: Path) -> None:
-    """A strict loader cannot discover a skill whose manifest omits its name."""
-    skill_dir = tmp_path / "missing-name"
-    skill_dir.mkdir()
-    (skill_dir / "SKILL.md").write_text(
-        "---\n"
-        "description: A fixture that lacks the required discovery name.\n"
-        "---\n\n"
-        "# Missing name\n",
-        encoding="utf-8",
+@pytest.mark.parametrize(
+    ("case", "frontmatter"),
+    [
+        ("missing", "description: A fixture that lacks the required discovery name.\n"),
+        ("empty", 'name: ""\ndescription: A fixture whose discovery name is empty.\n'),
+    ],
+)
+def test_manifest_check_rejects_an_unusable_name(tmp_path: Path, case: str, frontmatter: str) -> None:
+    """A strict loader cannot discover a skill without a usable discovery name.
+
+    An absent `name` and an empty `name` fail discovery identically, so the
+    contract must reject both rather than only the absent case.
+    """
+    skill_dir = _write_manifest(
+        tmp_path / f"{case}-name",
+        f"---\n{frontmatter}---\n\n# Fixture\n",
     )
 
     result = _run_manifest_check(skill_dir)
 
-    assert result.returncode != 0
-    assert "Missing required field in frontmatter: name" in result.stdout + result.stderr
+    assert result.returncode != 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("manifest", SHIPPED_MANIFESTS, ids=lambda path: path.parent.name)
@@ -101,5 +106,40 @@ def test_frontmatter_lint_reports_an_early_failure(tmp_path: Path) -> None:
     )
 
     result = _run_make("skill-frontmatter-lint", broken, valid)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+
+
+def test_lint_runs_the_manifest_contract(tmp_path: Path) -> None:
+    """`make lint` fails on a malformed manifest, proving the targets are wired in.
+
+    The contract is only enforced because `lint` depends on
+    `skill-manifest-check`; without this test, dropping that prerequisite would
+    silently disable manifest validation while every other test still passed.
+    """
+    skill_dir = _write_manifest(
+        tmp_path / "unlintable",
+        "---\ndescription: A fixture that lacks the required discovery name.\n---\n\n# Fixture\n",
+    )
+
+    result = _run_make("lint", skill_dir)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+
+
+def test_frontmatter_lint_reports_an_unreadable_manifest(tmp_path: Path) -> None:
+    """A manifest that cannot be read fails the target rather than being skipped.
+
+    `awk` fails to read a missing `SKILL.md`, a distinct failure path from
+    `yamllint` rejecting parsed content, and one that only `pipefail` surfaces.
+    """
+    absent = tmp_path / "absent"
+    absent.mkdir()
+    valid = _write_manifest(
+        tmp_path / "z-valid",
+        "---\nname: z-valid\ndescription: A conformant trailing fixture.\n---\n\n# Valid\n",
+    )
+
+    result = _run_make("skill-frontmatter-lint", absent, valid)
 
     assert result.returncode != 0, result.stdout + result.stderr
