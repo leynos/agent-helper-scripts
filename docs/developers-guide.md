@@ -235,6 +235,10 @@ distinction visible when adding new bootstrap behaviour.
   exported.
 - Reapplies sparse checkout for `skills` when a managed clone already exists,
   so older sparse checkouts are repaired before copying skills.
+- Delivers the `vidai-mock` skill from the managed helper checkout. The
+  installer no longer clones the standalone `leynos/vidai-mock-skill`
+  repository: it was copied after the helper checkout's own skills, so the
+  older copy would have overwritten the shipped skill on every run.
 
 ## `clone_or_update_repo`
 

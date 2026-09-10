@@ -278,6 +278,33 @@ identifiable without opening it. Earlier plans used an opaque
 `debugging-plan-{timestamp}.md` name; see the
 [migration guide](migration-guide.md) for renaming them.
 
+## VidaiMock
+
+The [`vidai-mock`](../skills/vidai-mock/SKILL.md) skill covers VidaiMock, a
+local mock server for LLM provider APIs. A single process serves
+provider-shaped OpenAI, Anthropic, Gemini, Bedrock, and compatible endpoints
+on port 8100 with no API key and no network access, because the bundled
+providers and templates are compiled into the binary.
+
+Use it for LLM integration tests that must exercise streaming, tool calls,
+agentic loops, and failure handling without spending provider tokens. It
+reproduces the parts of a real provider that tests depend on: time to first
+token and token pacing, each provider's own streaming frame format, and
+chaos injection that returns provider-shaped error envelopes so retry and
+fallback logic engages the way it does in production.
+
+Start it with `vidaimock --host 127.0.0.1`, confirm `GET /health` reports
+`{"status":"ok"}`, then point the SDK under test at
+`http://localhost:8100/v1`. The skill documents the critical path, the run
+modes, provider and template configuration, the chaos controls, and the
+built-in diagnostic paths `/health`, `/status`, and `/metrics`.
+
+The skill targets `vidaimock` 0.3.1, and its commands were checked against
+that release. It ships from this repository, so `install-skills` delivers it
+with the other skills and no separate skill checkout is needed. See the
+[migration guide](migration-guide.md) if an earlier deployment installed the
+skill from its own repository.
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`

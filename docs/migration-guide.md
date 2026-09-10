@@ -121,3 +121,36 @@ maintained copy of the same name has two candidates for one skill name.
 Choose one authoritative version before rollout, compare the copies, and keep
 approved connection and identity settings in deployment configuration. Do not
 rely on installer ordering to combine two different copies.
+
+## VidaiMock skill
+
+This repository now ships the [`vidai-mock`](../skills/vidai-mock/SKILL.md)
+skill, which documents VidaiMock as a local mock server for LLM provider APIs.
+It replaces the standalone `leynos/vidai-mock-skill` checkout that
+`install-skills` used to clone and copy.
+
+Deployments that installed that standalone copy must remove it before the next
+`install-skills` run. Delete `~/.codex/skills/vidai-mock`,
+`~/.claude/skills/vidai-mock`, and the `~/git/vidai-mock-skill` checkout;
+otherwise a stale copy of the same skill name stays on the skill path. A
+reinstated checkout is no longer fetched, so the deletion is not undone by the
+installer.
+
+The shipped skill is verified against `vidaimock` 0.3.1 and covers behaviour
+the earlier copy did not:
+
+- The `benchmark`, `realistic`, and `debug` run modes, and where `--latency`
+  actually takes effect.
+- `--config-dir` and `--isolated` for overriding or replacing the bundled
+  provider and template set.
+- The built-in paths `GET /health`, `GET /status`, and `POST /error/{code}`,
+  alongside `GET /metrics`.
+- The `X-Mock-Status` header, the `?chaos_status=` query, the
+  `X-Vidai-Chaos-Disconnect` header, and the provider-shaped error envelopes
+  each of them returns.
+- Agentic loop termination through `has_tool_result()`, which is what lets an
+  ADK, LangGraph, or LangChain loop finish instead of calling the mock
+  forever.
+- Provider coverage beyond OpenAI and Anthropic: Gemini, Azure OpenAI,
+  Bedrock, Vertex AI, Cohere, Mistral, and Groq, plus the embeddings, images,
+  moderations, and Responses endpoints.
