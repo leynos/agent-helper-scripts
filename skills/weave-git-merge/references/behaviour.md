@@ -209,7 +209,9 @@ A parser or compiler remains the first cheap detector for malformed clean
 output. For a multi-commit rebase, run that detector through `git rebase
 --exec` after every replayed commit. For Rust, `rustfmt` provides a parser-level
 tripwire while `cargo check --workspace` is the stronger type-correctness gate
-when its cost is acceptable.
+when its cost is acceptable. Without a per-replay gate, Git records a
+clean-exit corrupt replay as a rewritten commit and
+hands it to the next replay as its current side.
 
 That structural gate does not detect the cfg-gated sibling replacement above.
 After the full operation, compare the pre-operation branch and target against
@@ -251,3 +253,6 @@ configuration is not repository consent for a long multi-commit replay. The
 main skill therefore defaults such operations to built-in Git merging with
 `zdiff3`. A tracked `.gitattributes` rule is an explicit repository opt-in and
 should be respected unless an authorized recovery says otherwise.
+`core.attributesFile` being absent from Git config means the default
+`$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes` path is
+consulted, so an absent setting is not an absent rule.

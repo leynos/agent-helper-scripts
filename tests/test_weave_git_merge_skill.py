@@ -465,3 +465,31 @@ def test_behaviour_reference_documents_observability_and_weave_check() -> None:
     assert "`weave_check` tool" in behaviour, (
         "the MCP equivalent must be discoverable by agents"
     )
+
+
+def test_skill_states_the_stage_trust_and_replay_transition_rules() -> None:
+    """The invariants the behavioural model encodes are stated in the skill."""
+    _, skill = _skill_frontmatter()
+
+    assert "A stage must both exist and parse before it is trusted" in skill, (
+        "stage validity must require existence and a passing parse together"
+    )
+    assert (
+        "never accept a structurally invalid result as a safe stage 2 for the "
+        "next replay"
+    ) in skill, "the replay transition rule must forbid laundering a corrupt result"
+    assert "outranks every attribute source for that path" in skill, (
+        "the path-specific `!merge` bypass must be explained by attribute precedence"
+    )
+
+
+def test_behaviour_reference_states_propagation_and_global_default_path() -> None:
+    """The reference makes replay propagation and the global default explicit."""
+    behaviour = _read(BEHAVIOUR_PATH)
+
+    assert "hands it to the next replay as its current side" in behaviour, (
+        "the reference must say how an unguarded corrupt replay propagates"
+    )
+    assert "an absent setting is not an absent rule" in behaviour, (
+        "an unset core.attributesFile must not be read as no global rule"
+    )
