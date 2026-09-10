@@ -51,27 +51,44 @@ incorrect component reuse when arrays reorder.
 **Proper solutions:**
 
 ```typescript
-// BAD
+// BAD: index key — React reuses the wrong row when the list reorders
 items.map((item, index) => <Item key={index} />)
 
-// GOOD: Use stable identifier
-items.map((item) => <Item key={item.id} />)
+// BAD: an ID minted during rendering — every render is a new key, so React
+// unmounts and remounts every row
+items.map((item) => <Item key={crypto.randomUUID()} />)
 
-// GOOD: Derive key from content (when no ID exists)
+// GOOD: the ID is part of the data, assigned when the record is created or
+// persisted — a database primary key, or a UUID minted before the insert
+type Todo = { id: string; title: string };
+
+function createTodo(title: string): Todo {
+  return { id: crypto.randomUUID(), title };
+}
+
+async function renderTodos() {
+  const todos = await api.listTodos();  // Rows already carry their own IDs
+  return todos.map((todo) => <Item key={todo.id} />);
+}
+
+// GOOD: No identifier of its own? Derive the key from fields that are stable
+// for the lifetime of the record, never from a value computed while rendering
 items.map((item) => <Item key={`${item.name}-${item.createdAt}`} />)
-
-// GOOD: Generate IDs at data creation time
-const itemsWithIds = rawItems.map((item, i) => ({
-  ...item,
-  _key: crypto.randomUUID()  // or nanoid()
-}));
 ```
+
+A key only has to be unique among its siblings and stable across renders. Mint
+IDs where the data is created or written to storage, not in the component body.
 
 **Acceptable suppression:** Static lists that never reorder (rare).
 
-### noConsoleLog
+### noConsole
 
-**Error:** `Don't use console.log`
+**Error:** `Don't use console.`
+
+**Why it matters:** This rule name supersedes the older `noConsoleLog`. It
+reports **every** `console.*` call, and nothing is exempt by default —
+`console.error` and `console.warn` are flagged too. Any method you intend to
+keep must be named in the `allow` option.
 
 **Proper solutions:**
 
@@ -80,13 +97,14 @@ const itemsWithIds = rawItems.map((item, i) => ({
 import { logger } from './logger';
 logger.debug('Processing', { itemCount: items.length });
 
-// For development-only logging
+// Development-only logging still needs a suppression with a reason
+// biome-ignore lint/suspicious/noConsole: dev-only branch, stripped from production builds
 if (import.meta.env.DEV) {
   console.log('Debug:', value);
 }
 
-// Use console.info/warn/error for intentional output
-console.error('Fatal error:', err);  // Allowed by default
+// console.error only passes once `allow` lists it (see configuration below)
+console.error('Fatal error:', err);
 ```
 
 **Configuration to allow specific console methods:**
@@ -121,8 +139,10 @@ if (value == null)
 // GOOD: Explicit checks
 if (value === null || value === undefined)
 
-// GOOD: Use nullish patterns
-if (value ?? defaultValue)
+// GOOD: Explicit nullish fallback — `false`, `0`, and `""` are preserved
+if (value === null || value === undefined) {
+  value = defaultValue;
+}
 
 // EXCEPTION: == null is a deliberate pattern for null|undefined
 // If you want this pattern, suppress with reason:

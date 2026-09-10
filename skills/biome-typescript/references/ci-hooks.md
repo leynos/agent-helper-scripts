@@ -94,11 +94,23 @@ jobs:
 
       - name: Lint changed files
         run: |
-          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx')
-          if [ -n "$FILES" ]; then
-            echo "$FILES" | xargs biome check
-          fi
+          git diff --name-only --diff-filter=ACMR -z \
+            "origin/${{ github.base_ref }}...HEAD" \
+            -- '*.ts' '*.tsx' '*.js' '*.jsx' \
+            | xargs -0 -r -- biome check
 ```
+
+Three details keep that pipeline safe:
+
+- `-z` separates paths with NUL bytes, so a filename containing a space or a
+  newline survives the pipe to `xargs` instead of being split on whitespace.
+- `--diff-filter=ACMR` keeps Added, Copied, Modified, and Renamed paths while
+  dropping Deleted ones, which no longer exist on disk and would otherwise make
+  Biome fail on a missing file.
+- `xargs -0 -r --` reads the NUL-delimited list and, unlike a bare `xargs`,
+  does not invoke Biome at all when the list is empty (a docs-only or
+  deleted-only change). `-r` is a GNU extension, already present on
+  `ubuntu-latest` runners.
 
 Or use Biome's built-in VCS integration:
 

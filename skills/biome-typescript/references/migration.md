@@ -22,7 +22,7 @@ Biome uses its own rule names. Common mappings:
 | ESLint                                       | Biome                                   |
 | -------------------------------------------- | --------------------------------------- |
 | `no-unused-vars`                             | `correctness/noUnusedVariables`         |
-| `no-console`                                 | `suspicious/noConsoleLog`               |
+| `no-console`                                 | `suspicious/noConsole`                  |
 | `eqeqeq`                                     | `suspicious/noDoubleEquals`             |
 | `prefer-const`                               | `style/useConst`                        |
 | `prefer-template`                            | `style/useTemplate`                     |
