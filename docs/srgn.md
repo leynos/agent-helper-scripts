@@ -503,11 +503,16 @@ srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
 
 ##### Function test refactor
 
+<!-- MD013 is disabled around this example: its replacement argument is one
+quoted shell word, so wrapping the line would change the command. -->
+
+<!-- markdownlint-disable MD013 -->
 ```sh
 srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
   '(?s)rejects_invalid_keyword_via_from_str\(\).*?\#\[test\]' \
-  -- 'rejects_invalid_keyword_via_from_str() {\n        assert!(...);\n    }\n\n    #[test]'
+  -- 'rejects_invalid_keyword_via_from_str() {\n        assert!("invalid".parse::<StepKeyword>().is_err());\n    }\n\n    #[test]'
 ```
+<!-- markdownlint-enable MD013 -->
 
 ## 🛠 When to Use
 
