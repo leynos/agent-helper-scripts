@@ -434,7 +434,9 @@ srgn --rs 'names-in-uses-declarations' '^old_api' -- 'new_api' src/
 Example:
 
 ```sh
-srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs "centralised in\n//! `validation::steps::resolve_keywords` ..." -- "centralized in\n//! `validation::steps::resolve_keywords` ..."
+srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
+  "centralised in\n//! `validation::steps::resolve_keywords` ..." \
+  -- "centralized in\n//! `validation::steps::resolve_keywords` ..."
 ```
 
 **Problem**: Backticks (`` `...` ``) are *shell command substitution*. Bash
@@ -504,7 +506,7 @@ srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
 ```sh
 srgn --glob crates/rstest-bdd-macros/src/step_keyword.rs \
   '(?s)rejects_invalid_keyword_via_from_str\(\).*?\#\[test\]' \
-  -- 'rejects_invalid_keyword_via_from_str() {\n        assert!("invalid".parse::<StepKeyword>().is_err());\n    }\n\n    #[test]'
+  -- 'rejects_invalid_keyword_via_from_str() {\n        assert!(...);\n    }\n\n    #[test]'
 ```
 
 ## 🛠 When to Use

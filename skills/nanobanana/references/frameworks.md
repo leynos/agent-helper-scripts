@@ -13,7 +13,9 @@ Formula:
 
 Example:
 
-`A tuxedo cat perched on a New York fire escape at dusk, medium-wide shot from street level, warm storefront spill light with cool evening sky, cinematic photoreal editorial style.`
+`A tuxedo cat perched on a New York fire escape at dusk, medium-wide shot
+from street level, warm storefront spill light with cool evening sky,
+cinematic photoreal editorial style.`
 
 ## 2. Structured Blueprint Prompt
 
@@ -117,7 +119,10 @@ Do not alter: [critical locked elements].
 
 Example:
 
-`Preserve subject identity, outfit, pose, and camera framing. Change only the background to a minimalist concrete studio wall. Match existing shadow direction and lens perspective. Do not alter skin tone, facial expression, or hand position.`
+`Preserve subject identity, outfit, pose, and camera framing. Change only the
+background to a minimalist concrete studio wall. Match existing shadow
+direction and lens perspective. Do not alter skin tone, facial expression,
+or hand position.`
 
 ## 5. Reference Role Assignment
 
@@ -131,7 +136,9 @@ Use this pattern when several images are provided.
 
 Prompt pattern:
 
-`Use Image A for facial identity, Image B for pose, and Image C for wardrobe materials. Place the subject in the environment style of Image D with the lighting palette of Image E.`
+`Use Image A for facial identity, Image B for pose, and Image C for wardrobe
+materials. Place the subject in the environment style of Image D with the
+lighting palette of Image E.`
 
 ## 6. Text Rendering Pattern
 

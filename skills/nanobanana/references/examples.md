@@ -63,7 +63,8 @@ Keep typography sharp and centered.
 Keep the person's facial identity exactly consistent with the reference image.
 Dress them in [wardrobe].
 Place them against [background].
-Shot on an 85mm lens with soft three-point studio lighting, chest-up framing, natural skin texture, subtle catchlights, professional editorial finish.
+Shot on an 85mm lens with soft three-point studio lighting, chest-up framing,
+natural skin texture, subtle catchlights, professional editorial finish.
 ```
 
 ### Character in a new scene

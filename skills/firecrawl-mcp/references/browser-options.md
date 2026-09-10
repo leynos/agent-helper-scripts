@@ -174,7 +174,7 @@ console.log(title);
 
 ## Common workflow: Authenticated scraping
 
-```
+```text
 1. Create session (ttl: 300, activityTtl: 120)
 2. Execute: agent-browser open https://app.example.com/login
 3. Execute: agent-browser snapshot

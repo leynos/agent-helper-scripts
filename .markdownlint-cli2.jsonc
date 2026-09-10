@@ -3,17 +3,27 @@
     "MD004": { "style": "dash" },
     "MD010": { "code_blocks": false },
     "MD013": {
-      "line_length": 260,
-      "code_block_line_length": 260,
+      "line_length": 80,
+      "code_block_line_length": 120,
       "tables": false,
       "headings": false
     },
+    // Deviates from the shared template, which enforces unique headings across
+    // the whole document. Here a heading legitimately repeats under a
+    // different parent: the code-review skill pairs a "Problem" and an
+    // "Improvement" heading beneath each example, and the visual-design-web
+    // reference repeats per-page-type sections. Only siblings must be unique.
     "MD024": { "siblings_only": true },
     "MD029": { "style": "ordered" },
+    // Deviates from the shared template. Agent-facing material under skills/
+    // uses <angle-bracketed> placeholders that must survive verbatim for the
+    // reader or model to fill in; MD033 reads them as inline HTML and would
+    // force them through escaping that the copy source would then carry.
     "MD033": false,
-    "MD036": false,
-    "MD040": false,
-    "MD041": false
+    // Deviates from the shared template. Skill reference documents lead into a
+    // block of examples with a bold label rather than promoting the label to a
+    // heading, which keeps those documents' tables of contents navigable.
+    "MD036": false
   },
   "ignores": [
     "**/.venv/**",

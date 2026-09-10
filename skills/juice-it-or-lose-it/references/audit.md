@@ -168,7 +168,7 @@ See `references/clarity.md`.
 
 When using this checklist for a structured review, produce something like:
 
-```
+```text
 Build: <name> @ <commit>
 Reviewed: <date>
 

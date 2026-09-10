@@ -63,7 +63,9 @@ refresh a stale table.
 
 If further work is required, please provide an AI agent prompt for the remaining work to be done to address these failures.
 
-Do not treat warnings as optional or aspirational. Where a change is out of scope for this PR, propose a GitHub issue unless one exists already. (Treat o11y, code safety, documentation and validation coverage as in scope).
+Do not treat warnings as optional or aspirational. Where a change is out of
+scope for this PR, propose a GitHub issue unless one exists already. (Treat
+o11y, code safety, documentation and validation coverage as in scope).
 
 <table rows here, with heading>
 ```
@@ -86,7 +88,9 @@ uncertain, and add the exact current head and relevant evidence alongside it:
 
 Use codegraph analysis to determine your answer.
 
-If this comment is now resolved, please mark it as such using the API. Otherwise, please provide an AI agent prompt for the remaining work to be done to address this comment.
+If this comment is now resolved, please mark it as such using the API.
+Otherwise, please provide an AI agent prompt for the remaining work to be
+done to address this comment.
 ```
 
 The request for codegraph analysis is not evidence that the analysis ran or

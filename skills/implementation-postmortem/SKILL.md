@@ -136,7 +136,7 @@ protocol), what would break that shouldn't?
 
 For each in-house library used:
 
-```
+```text
 ## [Library Name]
 
 ### Fit for Purpose
