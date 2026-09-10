@@ -1,4 +1,5 @@
 ---
+name: mutation-testing-rollout
 description: Roll out scheduled, informational mutation testing across an estate of repositories, triage the results into issues and killing tests, and keep the callers documented and drift-free.
 ---
 
@@ -34,9 +35,10 @@ zero.
 ## Per-repository adoption recipe
 
 1. **Verify eligibility.** The repository needs a healthy test suite that
-   passes in CI. No tests means every mutant survives as noise — defer
+   passes in CI. No tests mean every mutant survives as noise — defer
    until tests exist. Python repositories must be uv-managed (a hard
-   requirement of the mutmut workflow).
+   requirement of the mutmut workflow), and Rust repositories must carry
+   their workspace manifest at the repository root (see step 3).
 2. **Verify the baseline under the mutation runner's conditions, not
    CI's.** This is the single most common failure. Hazards found in
    practice:
@@ -56,7 +58,15 @@ zero.
    - Stateful test dependencies (embedded PostgreSQL) break on re-run;
      pin credentials/versions via the workflow's `setup-commands` input.
 3. **Write the caller.** Copy a proven caller (wireframe for Rust,
-   cmd-mox for Python) and adapt:
+   cmd-mox for Python) and adapt. The Rust caller assumes the workspace
+   manifest sits at the repository root, and the shared workflow cannot
+   be told otherwise: `mutation-cargo.yml` exposes no
+   `manifest-path`/`working-directory` input, and a full
+   `workflow_dispatch` always fans out a repository-root cargo-mutants
+   target. A Rust workspace whose manifest lives in a subdirectory (for
+   example `rust/Cargo.toml`) therefore has no working caller — enrol
+   only the root-manifest side and leave the subdirectory workspace out
+   until the shared workflow can target it:
    - `paths`: change-detection globs matching the repository's source
      layout.
    - `exclude-globs`: example code, test scaffolding, fixture crates, and
@@ -131,15 +141,26 @@ Link every kill site to its tracking issue (issue refs in PR titles and
 doc comments at the test), so the provenance survives the merge.
 
 Red-green verification traps: stale `.pyc` bytecode can fake a red-green
-cycle (`PYTHONDONTWRITEBYTECODE=1`); an ambient environment variable can
-turn a gate into a no-op — check what the gate actually ran.
+cycle, and `PYTHONDONTWRITEBYTECODE=1` only stops new bytecode being
+written — CPython still imports caches already on disk. Before trusting a
+cycle, delete existing bytecode (`find . -type d -name __pycache__
+-exec rm -rf {} +`, plus any stray `*.pyc`), set
+`PYTHONDONTWRITEBYTECODE=1`, and re-run. An ambient environment variable
+can also turn a gate into a no-op — check what the gate actually ran.
 
 ## Operating the estate: run sweeps
 
-Periodically sweep all repositories' runs (`gh api
-repos/<owner>/<repo>/actions/workflows`, then the runs endpoint). Do NOT
-classify by wall-clock duration — runner-queue wait routinely inflates a
-15-second no-op to an hour. The reliable signals are:
+Periodically sweep all repositories' runs (`gh api --paginate
+repos/<owner>/<repo>/actions/workflows`, then the
+`repos/<owner>/<repo>/actions/runs` endpoint). Page both to exhaustion —
+an unpaginated read returns only the first 30 items, so a truncated sweep
+silently misclassifies. Both endpoints answer with an envelope
+(`.workflows`/`.workflow_runs`), so aggregate every page before
+classifying: `--slurp` yields one outer array of those envelopes, while
+`--paginate --jq` alone prints one document per page rather than one
+array. `--slurp` rejects `--jq` and `--template`, so fold the pages in a
+second pass. Do NOT classify by wall-clock duration — runner-queue wait
+routinely inflates a 15-second no-op to an hour. The reliable signals are:
 `mutation_detect_has_changes` in the detect step's log (the mutmut
 workflow runs its gate *inside* the single mutants job, so a no-op still
 reports a green job), and the `mutants` job's conclusion (the cargo
@@ -177,5 +198,5 @@ and produce a survivor dataset — do not wait for the schedule.
   issue/PR numbers). The tracker outlives any one session and is the only
   reliable memory across an estate this size.
 - Spelling gates (typos, en-GB Oxford `-ize`) apply to generated prose
-  too; expect `summarising`/`serialises` to be rejected in favour of
-  `summarizing`/`serializes`.
+  too; expect `-ise` endings to be rejected, so write `summarize` and
+  `serialize`.

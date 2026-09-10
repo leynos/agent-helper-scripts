@@ -80,6 +80,20 @@ and [`cs rules-config`](../skills/codescene-cli/references/command-reference.md#
 Use [`codescene-health-rules`](../skills/codescene-health-rules/SKILL.md) to
 configure CodeScene rule weights, thresholds, and source directives.
 
+## Mutation-testing rollout
+
+Use [`mutation-testing-rollout`](../skills/mutation-testing-rollout/SKILL.md)
+to roll out scheduled, informational mutation testing across an estate of
+repositories and to operate it afterwards; the runs never gate pull requests.
+Invoke it to adopt mutation testing in a new repository, to triage the output
+of scheduled runs, or to run an estate-wide sweep.
+
+The skill documents the shared `mutation-cargo.yml` and `mutation-mutmut.yml`
+reusable workflows behind thin, SHA-pinned callers, the adoption recipe and
+its baseline hazards, the caller contract test, survivor triage, and run
+sweeps. Run `install-skills` to copy it into `${HOME}/.codex/skills` and
+`${HOME}/.claude/skills`; the `rust-entrypoint` home phase runs it too.
+
 ## Shared spelling tools
 
 Run `make spelling` in this checkout to generate and validate the estate-wide
