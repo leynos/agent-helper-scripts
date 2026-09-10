@@ -476,7 +476,6 @@ PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
 `[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
 dependency of any bootstrap script; only the manifest test helper imports it.
 
-
 ### Scrutineer operating contract
 
 `scrutineer`'s `instructions` body in `agents/subagents.yml` is the
