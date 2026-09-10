@@ -507,8 +507,13 @@ latest attempt and candidate identity are rechecked before hand-off;
 superseded evidence is retained and reported as stale rather than
 silently transferred to the new attempt.
 
-Observation is bounded and read-only. An observation deadline stops only
-the local watcher; hosted runs are never cancelled. The assignment never
+Observation is bounded and read-only. `gh run watch` blocks until the
+run completes, and neither `--exit-status` nor `--interval` bounds it,
+so the watcher is wrapped in `timeout`, using a `remaining_seconds`
+value derived from the observation deadline. A `timeout` exit status
+of `124` is recorded as a distinct `deadline-reached` watcher outcome,
+not a workflow failure. An observation deadline stops only the local
+watcher; hosted runs are never cancelled. The assignment never
 reruns, dispatches, approves, merges, or edits a workflow.
 
 Only `status=completed` with `conclusion=success` counts as success. Every
@@ -520,11 +525,17 @@ credential, permission, and API problems are classified
 
 Evidence is written to a private `mktemp` directory under `/tmp` created
 with `umask 077`, with a `run-<id>-attempt-<n>` subdirectory per run and
-attempt holding `run.json`, `watch.log`, `failed.log`, and
-`failed-log.stderr`, plus a root `summary.md` manifest. Failed-step log
-capture is never gated on watcher success with `&&`, and retrieval exit
-codes are recorded separately from the observed Actions conclusion. Logs
-stay private, and secrets are redacted from any excerpts.
+attempt holding `run.json` and `watch.log`. `failed.log` and
+`failed-log.stderr` are conditional: they are captured only for a run
+that has reached `status=completed` with a non-success conclusion. A
+successful, still-pending, missing, or inaccessible run legitimately
+has no failure-log artefacts. The root `summary.md` manifest records
+the reason for any expected artefact's absence, so an omission is
+never ambiguous between "not applicable" and "retrieval failed".
+Failed-step log capture is never gated on watcher success with `&&`,
+and retrieval exit codes are recorded separately from the observed
+Actions conclusion. Logs stay private, and secrets are redacted from
+any excerpts.
 
 ### Skill manifest tooling dependencies
 

@@ -768,19 +768,35 @@ agent_tools_subagents:
         run and attempt. Set `bundle_dir` to that subdirectory. Never
         overwrite an earlier attempt or another observer's evidence.
       - Watch each selected run with `gh run watch`, using a modest refresh
-        interval and the assignment's time budget. Capture both output
-        streams and preserve the exit status even under shell errexit:
+        interval and the assignment's time budget. `gh run watch` blocks until
+        the run completes; neither `--exit-status` nor `--interval` bounds it,
+        so a queued or long-running run would otherwise hold the assignment
+        past its deadline. Derive `remaining_seconds` from the established
+        observation deadline and bound the watcher with `timeout`. Capture both
+        output streams and preserve the exit status even under shell errexit:
 
         ```bash
+        remaining_seconds=$(( deadline_epoch - $(date +%s) ))
         watch_status=0
-        gh run watch "$run_id" --repo "$repo" --exit-status --interval 30 \
-          > "$bundle_dir/watch.log" 2>&1 || watch_status=$?
+        if [ "$remaining_seconds" -le 0 ]; then
+          watch_status=124
+        else
+          timeout "${remaining_seconds}s" \
+            gh run watch "$run_id" --repo "$repo" --exit-status --interval 30 \
+            > "$bundle_dir/watch.log" 2>&1 || watch_status=$?
+        fi
         ```
 
+      - `timeout` exits `124` when it stops the watcher, so treat
+        `watch_status=124` as the observation deadline being reached, not as a
+        workflow failure. Record it as a distinct `deadline-reached` watcher
+        outcome and leave the run's own status as observed. Reaching the
+        deadline stops only the local watcher; never cancel the hosted run.
       - Record the watch command, exit code, and observation timestamps.
         A watcher exit code alone is not a workflow verdict: authentication,
-        network, or API errors can also stop the watcher. On every exit,
-        including failure, capture an attempt-specific final snapshot:
+        network, or API errors can also stop the watcher. After the watcher
+        stops, on every exit — success, failure, or `deadline-reached` —
+        capture an attempt-specific final snapshot:
 
         ```bash
         view_status=0
@@ -848,6 +864,13 @@ agent_tools_subagents:
         workflow, event, expected and observed SHA, run ID, attempt, run URL,
         job URLs, status/conclusion, observation timestamps, command exit
         codes, and paths to `run.json`, `watch.log`, and captured failure logs.
+      - `run.json` and `watch.log` exist for every observed run and attempt.
+        `failed.log` and `failed-log.stderr` are conditional: they exist only
+        for a run that reached `status=completed` with a non-success
+        conclusion. A successful, still-pending, missing, or inaccessible run
+        legitimately has no failure-log artefact. Record in the manifest why
+        each expected artefact is absent, so an omission is never ambiguous
+        between not-applicable and retrieval-failed.
       - Return the bundle root and summary path to the summoning agent with
         a concise verdict, failed jobs/steps, decisive excerpts, and evidence
         gaps. Provide accessible file attachments when the summoning agent
