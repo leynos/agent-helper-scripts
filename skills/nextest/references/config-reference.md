@@ -37,6 +37,11 @@ is `profile.default`.
 | `threads-required` | int/string | `1` | Threads each test consumes |
 | `run-extra-args` | string[] | `[]` | Extra args to test binary |
 
+`global-timeout` is unset by default, so no global timeout is applied. The
+`30y` value in the embedded configuration below is an internal fallback that
+is effectively infinite (30 years, chosen to avoid duration overflows), not
+the documented user-facing default.
+
 ### Retry
 
 | Key | Type | Default | Description |

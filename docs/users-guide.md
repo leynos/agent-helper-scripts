@@ -305,6 +305,12 @@ with the other skills and no separate skill checkout is needed. See the
 [migration guide](migration-guide.md) if an earlier deployment installed the
 skill from its own repository.
 
+The `get-ai-tooling` helper, which runs only when `WITH_AI_TOOLING` is set,
+currently downloads v0.1.2, so a machine provisioned through the bootstrap
+runs an older release than the skill documents and some documented commands
+and flags may not be available. Install 0.3.1, for example with
+`cargo install vidaimock --version 0.3.1`, to match.
+
 ## Nextest
 
 The [`nextest`](../skills/nextest/SKILL.md) skill covers `cargo-nextest`, the
@@ -321,11 +327,12 @@ their slot number. It also covers the integrations that hang off the runner:
 Miri, `cargo llvm-cov`, `cargo-mutants`, and Criterion benchmarks.
 
 The skill targets `cargo-nextest` 0.9.143, and its commands were checked
-against that release. The bootstrap currently installs 0.9.133 through
-`CARGO_NEXTEST_VERSION`, so features the skill marks with a version — the
-`cargo nextest help` topics, the config JSON schemas, `junit.report-skipped`,
-and the relaxed filterset parsing — are newer than what an unmodified
-bootstrap provides. Raise that variable to 0.9.143 to use them.
+against that release. The `get-rust-tooling` bootstrap currently installs
+0.9.133 with `cargo binstall` at the pinned `CARGO_NEXTEST_VERSION`, so
+features the skill marks with a version — the `cargo nextest help` topics,
+the config JSON schemas, `junit.report-skipped`, and the relaxed filterset
+parsing — are newer than what an unmodified bootstrap provides. Raise that
+variable to 0.9.143 to use them.
 
 It ships from this repository, so `install-skills` delivers it with the other
 skills and no separate skill checkout is needed. See the

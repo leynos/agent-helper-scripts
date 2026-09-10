@@ -129,12 +129,13 @@ skill, which documents VidaiMock as a local mock server for LLM provider APIs.
 It replaces the standalone `leynos/vidai-mock-skill` checkout that
 `install-skills` used to clone and copy.
 
-Deployments that installed that standalone copy must remove it before the next
-`install-skills` run. Delete `~/.codex/skills/vidai-mock`,
-`~/.claude/skills/vidai-mock`, and the `~/git/vidai-mock-skill` checkout;
-otherwise a stale copy of the same skill name stays on the skill path. A
-reinstated checkout is no longer fetched, so the deletion is not undone by the
-installer.
+Deleting `~/.codex/skills/vidai-mock` and `~/.claude/skills/vidai-mock` is
+required before the next `install-skills` run: the installer never deletes,
+and `cp -a` merges into an existing directory, so files unique to the old
+standalone copy survive the copy and leave a hybrid skill tree. Deleting the
+`~/git/vidai-mock-skill` checkout is optional cleanup only, because the
+installer no longer reads that path. A reinstated checkout is no longer
+fetched, so deleting it is not undone by the installer.
 
 The shipped skill is verified against `vidaimock` 0.3.1 and covers behaviour
 the earlier copy did not:
@@ -155,6 +156,10 @@ the earlier copy did not:
   Bedrock, Vertex AI, Cohere, Mistral, and Groq, plus the embeddings, images,
   moderations, and Responses endpoints.
 
+The `get-ai-tooling` helper still downloads v0.1.2 rather than the 0.3.1
+release the skill documents, so some documented commands and flags may not
+be available until 0.3.1 is installed.
+
 ## Nextest skill
 
 This repository now ships the [`nextest`](../skills/nextest/SKILL.md) skill,
@@ -162,17 +167,18 @@ which documents `cargo-nextest` as the Rust test runner. It replaces the
 standalone `leynos/nextest-skill` checkout that `install-skills` used to clone
 and copy.
 
-As with the VidaiMock skill, the removal was required rather than tidy: the
-installer's `copy_skills` ran the external checkout after the helper
-checkout's own `skills` directory, so the standalone copy won on every run.
-Once this repository ships a `nextest` skill, leaving the clone in place would
-have made the shipped skill permanently uninstallable.
+As with the VidaiMock skill, removing the clone call in the installer was
+required rather than tidy: `copy_skills` ran the external checkout after the
+helper checkout's own `skills` directory, so the standalone copy won on every
+run while that call remained.
 
-Deployments that installed the standalone copy must remove it before the next
-`install-skills` run. Delete `~/.codex/skills/nextest`,
-`~/.claude/skills/nextest`, and the `~/git/nextest-skill` checkout; otherwise
-a stale copy of the same skill name stays on the skill path. A reinstated
-checkout is no longer fetched, so the deletion is not undone by the installer.
+Deleting `~/.codex/skills/nextest` and `~/.claude/skills/nextest` is required
+before the next `install-skills` run: the installer never deletes, and `cp -a`
+merges into an existing directory, so files unique to the old standalone copy
+survive the copy and leave a hybrid skill tree. Deleting the
+`~/git/nextest-skill` checkout is optional cleanup only, because the installer
+no longer reads that path. A reinstated checkout is no longer fetched, so
+deleting it is not undone by the installer.
 
 The shipped skill is verified against `cargo-nextest` 0.9.143 and covers
 behaviour the earlier copy did not:
@@ -190,6 +196,7 @@ behaviour the earlier copy did not:
 - The dynamic library search path reordering that follows Cargo 1.93 (0.9.143),
   which matters for archived and cross-compiled test runs.
 
-The skill marks every version-gated feature inline. The bootstrap still
-installs `cargo-nextest` 0.9.133 through `CARGO_NEXTEST_VERSION`, so those
-features are documented but not available until that variable is raised.
+The skill marks every version-gated feature inline. The `get-rust-tooling`
+bootstrap still installs `cargo-nextest` 0.9.133 through
+`CARGO_NEXTEST_VERSION` with `cargo binstall`, so those features are
+documented but not available until that variable is raised.

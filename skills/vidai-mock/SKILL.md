@@ -101,21 +101,24 @@ Follow this path before adding advanced behaviour.
 
 ### Run Modes
 
-`--mode` selects the timing profile:
+`--mode` is recorded and reported by `GET /status`, but in 0.3.1 it does not
+change delivery, content, timing, or logging:
 
-| Mode                  | Behaviour                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------- |
-| `benchmark` (default) | Emits chunks as fast as possible. Best for throughput tests.                           |
-| `realistic`           | Adds TTFT (`--latency`) before the first token, then paces tokens. Streaming-UX tests. |
-| `debug`               | Verbose logging for template and stream diagnosis.                                     |
+| Mode                  | Behaviour                                                        |
+| --------------------- | ---------------------------------------------------------------- |
+| `benchmark` (default) | Default profile. Streams trickle at roughly 20 ms per chunk.     |
+| `realistic`           | Identical delivery; only the mode reported by `/status` differs. |
+| `debug`               | Identical delivery; does not raise log verbosity.                |
 
 ```bash
-vidaimock --mode realistic --latency 300
+vidaimock --host 127.0.0.1 --mode realistic --latency 300
 ```
 
-Latency settings only shape delivery in `realistic` mode. A `--latency` value
-passed in `benchmark` mode still delays the response, but there is no
-token-by-token pacing to observe.
+`--latency` sets the base delay before the first token in every mode; chunks
+after the first are paced at a fixed interval of roughly 20 ms. So `benchmark`
+is not unpaced, and `realistic` adds no pacing the other modes lack. Setting the
+chaos trickle to `0` does not disable pacing either: `0` is replaced by the
+roughly 20 ms default.
 
 ### Configuration Precedence
 
@@ -129,12 +132,12 @@ Highest priority first:
 Global runtime settings live in `mock-server.toml`:
 
 ```toml
-host = "0.0.0.0"
+host = "0.0.0.0"  # the shipped default binds every interface; use 127.0.0.1 locally
 port = 8100
 log_level = "info"
 
 [latency]
-mode = "realistic"   # token-by-token pacing
+mode = "realistic"   # recorded and reported; does not change pacing
 base_ms = 150        # TTFT before the first token
 jitter_pct = 0.2     # ±20% timing variance
 
@@ -225,7 +228,7 @@ back to a bundled default. The equivalent environment variable is
 `VIDAIMOCK_ISOLATED=true`.
 
 ```bash
-vidaimock --config-dir ./my-config --isolated
+vidaimock --host 127.0.0.1 --config-dir ./my-config --isolated
 ```
 
 Use isolated mode for CI rigs, security review, and any surface you want
@@ -434,12 +437,11 @@ available whenever the metrics endpoint is enabled.
 Control verbosity with `RUST_LOG` or `log_level` in `mock-server.toml`.
 
 ```bash
-RUST_LOG=debug vidaimock
+RUST_LOG=debug vidaimock --host 127.0.0.1
 ```
 
 Use `debug` during template and protocol work, then reduce to `info` for
-routine CI runs. `--mode debug` is the equivalent for template and stream
-diagnosis.
+routine CI runs. `--mode debug` does not raise verbosity.
 
 ## Providers
 
@@ -467,10 +469,13 @@ bundled Tera template you can override.
 
 ## Running It
 
-- **Docker**: `docker run --rm -p 8100:8100 ghcr.io/vidaiuk/vidaimock:latest`,
-  or the published Compose file when you want mounted overrides.
+- **Docker**: `docker run --rm -p 127.0.0.1:8100:8100 ghcr.io/vidaiuk/vidaimock:0.3.1`,
+  or the published Compose file when you want mounted overrides. The container
+  binds `0.0.0.0` internally, so the loopback `-p` mapping is what restricts
+  exposure. For immutable pulls, pin the multi-arch index digest
+  `sha256:8eb48a3f3016aa0baf105737fc688a59980a267cbfa8c74c501fde915cc138b1`.
 - **Binary**: download an archive from the GitHub releases page and run
-  `./vidaimock`. Archives bundle `config/` and `examples/`.
+  `./vidaimock --host 127.0.0.1`. Archives bundle `config/` and `examples/`.
 - **Rust library**: add `vidaimock` as a dev-dependency and start a server
   in-process on an ephemeral port, which avoids port juggling and teardown in
   parallel tests.
@@ -503,8 +508,8 @@ bundled Tera template you can override.
 - Streaming does not appear incremental:
   - Confirm `"stream": true` in the request body.
   - Use `curl -N`, or a client that does not buffer SSE chunks.
-  - Check the run mode: `benchmark` emits chunks as fast as possible by
-    design.
+  - All run modes pace chunks at roughly 20 ms per chunk, so mode is not the
+    cause.
 - Tool-call parser failures:
   - Recheck the provider-specific tool schema and finish-state semantics.
   - Validate argument encoding expectations in the app under test.

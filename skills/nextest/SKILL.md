@@ -464,6 +464,9 @@ echo "DATABASE_URL=postgres://localhost/test" >> "$NEXTEST_ENV"
 | `NEXTEST_EXECUTION_MODE` | `"process-per-test"` |
 | `NEXTEST_ATTEMPT` | 1-indexed attempt number |
 | `NEXTEST_TEST_GROUP` | Group name or `"@global"` |
+| `NEXTEST_STRESS_CURRENT` | Current stress iteration (`"none"` outside stress mode) |
+| `NEXTEST_STRESS_TOTAL` | Total stress iterations (`"none"`, or `"unknown"` when no total is given) |
+| `NEXTEST_TEST_THREADS` | Thread count available to the test process and setup scripts |
 | `NEXTEST_BIN_EXE_<name>` | Path to binary target (integration tests) |
 | `NEXTEST_BINARY_ID` | Binary ID of the current test |
 | `NEXTEST_ATTEMPT_ID` | Globally unique attempt identifier |
@@ -476,15 +479,23 @@ compact (each test gets the smallest available slot).
 
 `NEXTEST_VERSION`, `NEXTEST_REQUIRED_VERSION`, `NEXTEST_RECOMMENDED_VERSION`,
 `NEXTEST_RUN_ID`, `NEXTEST_BINARY_ID` and `NEXTEST_WORKSPACE_ROOT` are also
-set during the **list** phase, not only the run phase, since 0.9.138. The
-remaining variables in the table above — attempt, stress, test-group, threads
-and `NEXTEST_BIN_EXE_*` — are still run-phase only, so a test that reads
-`NEXTEST_ATTEMPT` in a listing context sees nothing.
+set during the **list** phase, not only the run phase, since 0.9.138; as of
+0.9.143 the same is true of `NEXTEST_BIN_EXE_<name>`, alongside
+`CARGO_BIN_EXE_<name>` (which has been set in both phases since 0.9.130).
+`NEXTEST_ATTEMPT`, `NEXTEST_TEST_GROUP`, `NEXTEST_STRESS_CURRENT` and
+`NEXTEST_STRESS_TOTAL` remain run-phase only, so a test that reads
+`NEXTEST_ATTEMPT` in a listing context sees nothing. `NEXTEST_TEST_THREADS` is
+set for test processes and setup scripts, and is also read as the
+`--test-threads`/`-j` override.
 
 ### Environment safety
 
 Because nextest runs each test in its own process, calling `std::env::set_var`
-at the beginning of a test is safe in practice (before spawning threads).
+at the beginning of a test is safe provided no other thread concurrently reads
+or writes the environment — which is why such mutations must happen before
+spawning threads. On Rust edition 2024 the call is `unsafe` and must be
+wrapped in an `unsafe` block; pre-2024 editions permit the plain call, but the
+contract is unchanged.
 
 ---
 
