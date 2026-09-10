@@ -31,8 +31,9 @@ Feature: Scrutineer captures GitHub Actions evidence
   Scenario: A watcher outliving its budget is stopped by the deadline
     Given a run that completed with conclusion "failure"
     And the watcher hangs for 30 seconds
-    When the capture procedures run with 1 seconds of budget remaining
+    When the capture procedures run with 5 seconds of budget remaining
     Then the watcher status is recorded as 124
+    And the watcher was started
     And the procedures finish before the watcher would have
     And the attempt snapshot is captured
 

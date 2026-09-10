@@ -63,11 +63,14 @@ skip_if_unsupported()
 BASH = shutil.which("bash")
 TIMEOUT = shutil.which("timeout")
 
-if BASH is None:  # pragma: no cover - bash is a repository test prerequisite.
-    raise RuntimeError("bash is required to run the Scrutineer procedure tests")
-
-if TIMEOUT is None:  # pragma: no cover - coreutils is a test prerequisite.
-    raise RuntimeError("timeout is required to run the Scrutineer procedure tests")
+if BASH is None or TIMEOUT is None:  # pragma: no cover - environment guard.
+    # Skip rather than raise: a RuntimeError here aborts collection for the
+    # whole session, where these procedures are simply unobservable without a
+    # shell and GNU coreutils.
+    pytest.skip(
+        "bash and timeout are required to run the Scrutineer procedure tests",
+        allow_module_level=True,
+    )
 
 BASH_FENCE_RE = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
 
@@ -133,6 +136,10 @@ FAILED_STEP_LOG = (
 LOG_RETRIEVAL_ERROR = (
     "failed to get run log: log expired for this attempt (HTTP 410)\n"
 )
+# `timeout` kills the shim with SIGTERM before it can report to the journal,
+# so a marker written before the handler sleeps is the only durable evidence
+# that the watcher actually started.
+WATCHER_MARKER = "watcher-started.marker"
 
 scenarios("features/scrutineer_actions_capture.feature")
 
@@ -215,6 +222,7 @@ def _gh_handler(
     watch_delay: float,
     logs_exit: int,
     conclusion: str,
+    bundle_dir: Path,
 ) -> Callable[[Invocation], tuple[str, str, int]]:
     """Build a `gh` double covering the three documented invocations."""
     payload = RUN_VIEW_JSON | {"conclusion": conclusion}
@@ -222,6 +230,9 @@ def _gh_handler(
     def handler(invocation: Invocation) -> tuple[str, str, int]:
         args = invocation.args
         if args[:2] == ["run", "watch"]:
+            # Written before sleeping so it survives the SIGTERM that `timeout`
+            # sends, which is what stops the journal from witnessing the call.
+            (bundle_dir / WATCHER_MARKER).touch()
             if watch_delay:
                 time.sleep(watch_delay)
             return (f"✓ {REPOSITORY} Makefile gates\n", "", watch_exit)
@@ -364,6 +375,7 @@ def _run_procedures(capture: dict[str, typ.Any], budget: int) -> None:
                 watch_delay=capture["watch_delay"],
                 logs_exit=capture["logs_exit"],
                 conclusion=capture["conclusion"],
+                bundle_dir=bundle_dir,
             )
         )
         mox.replay()
@@ -463,22 +475,38 @@ def _assert_no_watcher(capture: dict[str, typ.Any]) -> None:
     assert watches == [], (
         "no watcher may start once the observation deadline has passed"
     )
+    assert not (capture["bundle_dir"] / WATCHER_MARKER).exists(), (
+        "the watcher double must never have been entered"
+    )
+
+
+@then("the watcher was started")
+def _assert_watcher_started(capture: dict[str, typ.Any]) -> None:
+    """Separate a bounded watcher from one that never ran.
+
+    Both report `watch_status=124`, so without this the scenario could pass on
+    the exhausted-budget path it is meant to be distinct from.
+    """
+    assert (capture["bundle_dir"] / WATCHER_MARKER).exists(), (
+        "the watcher must have started before the deadline stopped it"
+    )
 
 
 @then("the procedures finish before the watcher would have")
 def _assert_bounded(capture: dict[str, typ.Any]) -> None:
     """`gh run watch` has no timeout flag, so `timeout` must supply the bound.
 
-    The journal cannot witness this call: `timeout` kills the shim before it
-    reports back, which is exactly the behaviour under test. Elapsed time is the
-    available evidence that the watcher started and was then stopped.
+    Only the upper bound is asserted. A lower bound on elapsed time would be a
+    wall-clock race, and it is not what distinguishes this scenario anyway: the
+    watcher-started marker already separates "started, then stopped" from "never
+    started because the budget was spent".
     """
     elapsed = typ.cast("float", capture["elapsed"])
     delay = typ.cast("float", capture["watch_delay"])
 
-    assert 1 <= elapsed < delay, (
-        "the watcher must run until the deadline and then stop, but the "
-        f"procedures took {elapsed:.1f}s against a {delay:.0f}s watcher"
+    assert elapsed < delay, (
+        "the deadline must stop the watcher, but the procedures took "
+        f"{elapsed:.1f}s against a {delay:.0f}s watcher"
     )
 
 
