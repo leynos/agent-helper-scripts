@@ -1,0 +1,61 @@
+name: Temporary rebase fixture capture
+
+on:
+  push:
+    branches: [rebase-squash-boundary-tests]
+    paths: [.github/workflows/rebase-fixture-capture.yml]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Capture CLI responses and package wheels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json
+          import pathlib
+          import shutil
+          import subprocess
+          import tarfile
+          from datetime import datetime, timezone
+
+          out = pathlib.Path('/tmp/rebase-evidence')
+          out.mkdir()
+          selector = '{number, merged, merged_at, head_sha: .head.sha, head_ref: .head.ref, base_ref: .base.ref, base_repository: .base.repo.full_name, landed: .merge_commit_sha}'
+          commands = {
+              'merged-parent': ['gh', 'api', 'repos/leynos/agent-helper-scripts/pulls/50', '--jq', selector],
+              'associated-prs': ['gh', 'api', '--paginate', '--slurp', 'repos/leynos/agent-helper-scripts/commits/b74131edfeefb61033b85ac8850349f377d44fbe/pulls', '--jq', 'map(map({number, merged_at, head_sha: .head.sha, base_repository: .base.repo.full_name}))'],
+              'missing-parent': ['gh', 'api', 'repos/leynos/agent-helper-scripts/pulls/2147483647', '--jq', selector],
+          }
+          manifest = {'captured_at': datetime.now(timezone.utc).isoformat(), 'gh_version': subprocess.check_output(['gh', '--version'], text=True), 'workflow_run': '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}', 'commands': {}}
+          for name, argv in commands.items():
+              result = subprocess.run(argv, text=True, capture_output=True, timeout=60)
+              (out / f'{name}.stdout').write_text(result.stdout)
+              (out / f'{name}.stderr').write_text(result.stderr)
+              manifest['commands'][name] = {'argv': argv, 'exit_code': result.returncode}
+          (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          with tarfile.open(out / 'repository.tar.gz', 'w:gz') as archive:
+              for path in pathlib.Path('.').iterdir():
+                  if path.name != '.git':
+                      archive.add(path, arcname=path.name)
+          subprocess.run(['python', '-m', 'pip', 'download', '--only-binary=:all:', '--dest', str(out / 'wheels'), 'cmd-mox', 'cyclopts', 'pytest', 'hypothesis', 'cuprum', 'pyyaml', 'syrupy', 'ruff'], check=True, timeout=120)
+          shutil.copyfile(shutil.which('gh'), out / 'gh')
+          print(json.dumps(manifest, indent=2))
+      - uses: actions/upload-artifact@v6
+        with:
+          name: rebase-fixture-capture
+          path: /tmp/rebase-evidence
+          retention-days: 1
