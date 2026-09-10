@@ -3,9 +3,7 @@ name: code-review
 description: Conduct thorough, actionable code reviews that catch real problems without drowning in noise
 metadata:
   invocation: /review
-  aliases:
-    - cr
-    - review-pr
+  aliases: cr, review-pr
 ---
 
 # Code Review Skill

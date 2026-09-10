@@ -32,6 +32,7 @@ ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
 TEST_TARGETS := $(REPO_TESTS)
 SKILL_DIRS ?= $(sort $(dir $(wildcard skills/*/SKILL.md)))
 SKILLS_REF := uv run --group dev skills-ref
+YAMLLINT := uv run --group dev yamllint
 SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
 
 # Test targets:
@@ -66,10 +67,10 @@ check-home-phase-boundary:
 lint: syntax-check shell-syntax-check check-home-phase-boundary skill-manifest-check
 
 skill-frontmatter-lint:
-	@set -o pipefail; for skill_dir in $(SKILL_DIRS); do \
+	@set -e -o pipefail; for skill_dir in $(SKILL_DIRS); do \
 		skill_file="$${skill_dir%/}/SKILL.md"; \
 		echo "yamllint $$skill_file frontmatter"; \
-		awk 'NR == 1 { if ($$0 != "---") exit 1; print; next } $$0 == "---" { found = 1; print; exit } { print } END { if (!found) exit 1 }' "$$skill_file" | yamllint -d '$(SKILL_YAMLLINT_CONFIG)' -; \
+		awk 'NR == 1 { if ($$0 != "---") exit 1; print; next } $$0 == "---" { found = 1; print; exit } { print } END { if (!found) exit 1 }' "$$skill_file" | $(YAMLLINT) -d '$(SKILL_YAMLLINT_CONFIG)' -; \
 	done
 
 skill-manifest-validate:
