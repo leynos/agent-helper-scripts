@@ -226,7 +226,8 @@ distinction visible when adding new bootstrap behaviour.
 - Fetches the requested helper branch before copying hook files.
 - Copies repository hook files into `~/.claude/hooks`; it no longer registers
   any hook in Claude Code settings. The post-turn quality stop hook moved to
-  its own project: https://github.com/leynos/post-turn-quality-stop-hook.
+  its own project:
+  <https://github.com/leynos/post-turn-quality-stop-hook>.
 
 ### `install-skills`
 
@@ -382,8 +383,22 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
   - Use this before pushing; it mirrors what the GitHub Actions workflow
     executes.
 - `make lint`
-  - Runs `syntax-check`, `shell-syntax-check`, and
-    `check-home-phase-boundary`.
+  - Runs `syntax-check`, `shell-syntax-check`, `check-home-phase-boundary`,
+    and `skill-manifest-check`.
+- `make skill-manifest-check`
+  - Aggregate target; runs both `skill-frontmatter-lint` and
+    `skill-manifest-validate` below; wired into `make lint`.
+  - All three manifest targets read `SKILL_DIRS`, which defaults to every
+    `skills/*/SKILL.md` directory and can be overridden (for example
+    `make skill-manifest-check SKILL_DIRS=path/to/skill/`) to check a single
+    skill or a test fixture; the test suite relies on this.
+- `make skill-frontmatter-lint`
+  - Extracts the YAML frontmatter block of each `SKILL.md` with `awk` and
+    pipes it to `yamllint` using the inline `SKILL_YAMLLINT_CONFIG` (default
+    rules with `line-length` disabled).
+- `make skill-manifest-validate`
+  - Runs `skills-ref validate` over each skill directory to enforce the
+    Agent Skills manifest schema.
 - `make shell-syntax-check`
   - Runs `bash -n` over every shell script listed in `SHELL_SCRIPTS` to catch
     syntax errors without executing any code.
@@ -460,6 +475,21 @@ Three test suites consume the helper:
 PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
 `[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
 dependency of any bootstrap script; only the manifest test helper imports it.
+
+### Skill manifest tooling dependencies
+
+`skills-ref` and `yamllint` are also development-only dependencies in the
+`[dependency-groups] dev` array:
+
+- `skills-ref` is pinned by git URL to a specific commit, subdirectory
+  `skills-ref`; it provides the `skills-ref validate` command that enforces
+  the Agent Skills manifest schema. Invoke it via `uv run --group dev
+  skills-ref`.
+- `yamllint` is invoked via `uv run --group dev yamllint`. It is declared
+  explicitly because it was previously called as a bare binary and passed in
+  CI only because the GitHub ubuntu runner image happens to ship it, which
+  made the gate depend on the runner image rather than the declared
+  environment.
 
 ## Weave Git merge-driver boundary
 

@@ -30,12 +30,16 @@ TYPOS := uv tool run typos@$(TYPOS_VERSION)
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
 TEST_TARGETS := $(REPO_TESTS)
+SKILL_DIRS ?= $(sort $(dir $(wildcard skills/*/SKILL.md)))
+SKILLS_REF := uv run --group dev skills-ref
+YAMLLINT := uv run --group dev yamllint
+SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
 
 # Test targets:
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary spelling test-entrypoints test ci
+.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci
 
 all: ci
 
@@ -60,7 +64,22 @@ shell-syntax-check:
 check-home-phase-boundary:
 	@awk 'BEGIN { forbidden = "$(HOME_PHASE_BOUNDARY_PATTERN)" } /^[[:space:]]*#/ { next } $$0 ~ forbidden { printf "%s:%d:%s\n", FILENAME, FNR, $$0; found=1 } END { exit found ? 1 : 0 }' $(HOME_PHASE_SCRIPTS)
 
-lint: syntax-check shell-syntax-check check-home-phase-boundary
+lint: syntax-check shell-syntax-check check-home-phase-boundary skill-manifest-check
+
+skill-frontmatter-lint:
+	@set -euo pipefail; for skill_dir in $(SKILL_DIRS); do \
+		skill_file="$${skill_dir%/}/SKILL.md"; \
+		echo "yamllint $$skill_file frontmatter"; \
+		awk 'NR == 1 { if ($$0 != "---") exit 1; print; next } $$0 == "---" { found = 1; print; exit } { print } END { if (!found) exit 1 }' "$$skill_file" | $(YAMLLINT) -d '$(SKILL_YAMLLINT_CONFIG)' -; \
+	done
+
+skill-manifest-validate:
+	@set -eu; for skill_dir in $(SKILL_DIRS); do \
+		echo "skills-ref validate $$skill_dir"; \
+		$(SKILLS_REF) validate "$$skill_dir"; \
+	done
+
+skill-manifest-check: skill-frontmatter-lint skill-manifest-validate
 
 typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"

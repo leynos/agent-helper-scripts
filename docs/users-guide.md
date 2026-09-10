@@ -55,6 +55,21 @@ This repository no longer provides the post-turn quality stop hook. It has
 moved to its own project. For installation, configuration, and support see
 <https://github.com/leynos/post-turn-quality-stop-hook>.
 
+## Skills
+
+`install-skills` copies the `skills/` tree from the managed helper checkout
+into the user's agent skills directory.
+
+Each skill is a directory containing a `SKILL.md` whose YAML frontmatter
+carries a required `name` field. That `name` is the discovery name a strict
+loader uses; a manifest without it is not discoverable.
+
+Each shipped skill directory matches its manifest `name`, so a skill can be
+referred to by the same identifier on disk and at the point of discovery.
+
+`make lint` validates every shipped manifest, so a malformed or
+non-conformant manifest cannot be installed.
+
 ## CodeScene skills
 
 Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
