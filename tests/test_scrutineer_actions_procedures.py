@@ -1,18 +1,25 @@
 """Behavioural tests for the Actions capture procedures Scrutineer documents.
 
 The `scrutineer` entry in `agents/subagents.yml` embeds three fenced `bash`
-snippets: the bounded `gh run watch` call, the attempt-specific `gh run view`
-snapshot, and the `--log-failed` retrieval. Those snippets are the load-bearing
-part of the evidence contract, so these tests extract them from the manifest and
-execute them against a cmd-mox `gh` double rather than merely asserting that
-their text occurs.
+snippets: the deadline-bounded `gh run watch` call, the attempt-specific
+`gh run view` snapshot, and the `--log-failed` retrieval. Those snippets are the
+load-bearing part of the evidence contract, so these tests extract them from the
+manifest and execute them against a cmd-mox `gh` double rather than merely
+asserting that their text occurs.
 
 Extracting rather than restating matters: a test that pasted its own copy of the
 snippets would keep passing after the manifest drifted away from it, which is
 precisely the regression worth catching. The snippets run verbatim, so a change
-that breaks the contract breaks these tests.
+that breaks the contract breaks these scenarios.
 
-Two details of this boundary are easy to get wrong:
+The double replays representative real `gh` output. `RUN_VIEW_JSON` mirrors the
+shape `gh run view --json status,conclusion,headSha,attempt,jobs,url` returns,
+down to the `attempts/<n>` run URL and the nested `steps` array, and
+`FAILED_STEP_LOG` reproduces the tab-separated `job\tstep\ttimestamp message`
+form of `--log-failed`, including the literal `UNKNOWN STEP` attribution that
+GitHub genuinely emits and that the instructions warn against trusting.
+
+Three details of this boundary are easy to get wrong:
 
 - A cmd-mox shim reads its standard input, so the shell runs with
   `stdin=DEVNULL`. Inheriting pytest's stdin wedges the shim and the shell
@@ -45,6 +52,7 @@ from pathlib import Path
 import pytest
 from cmd_mox import CmdMox, EnvironmentManager, skip_if_unsupported
 from cmd_mox.ipc import Invocation
+from pytest_bdd import given, parsers, scenarios, then, when
 from subagent_manifest import load_subagent_entry
 
 if typ.TYPE_CHECKING:
@@ -64,20 +72,74 @@ if TIMEOUT is None:  # pragma: no cover - coreutils is a test prerequisite.
 BASH_FENCE_RE = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
 
 REPOSITORY = "octo/example"
-RUN_ID = "12345"
+RUN_ID = "34488075549"
 ATTEMPT = "2"
+JOB_ID = 102907385381
+HEAD_SHA = "28c3c64aea4664c17de9f94bd689f8c7c24e70bb"
+RUN_URL = f"https://github.com/{REPOSITORY}/actions/runs/{RUN_ID}/attempts/{ATTEMPT}"
+JOB_URL = f"https://github.com/{REPOSITORY}/actions/runs/{RUN_ID}/job/{JOB_ID}"
 
-# `gh run view --json ...` output for a run that completed unsuccessfully.
-FAILED_RUN_JSON = {
-    "status": "completed",
-    "conclusion": "failure",
-    "headSha": "0" * 40,
+# Shaped after real `gh run view --json status,conclusion,headSha,attempt,jobs,url`
+# output, including the nested per-step array and the `attempts/<n>` run URL.
+RUN_VIEW_JSON: dict[str, object] = {
     "attempt": int(ATTEMPT),
-    "jobs": [{"databaseId": 99, "name": "gates", "conclusion": "failure"}],
-    "url": f"https://github.com/{REPOSITORY}/actions/runs/{RUN_ID}",
+    "conclusion": "failure",
+    "headSha": HEAD_SHA,
+    "status": "completed",
+    "url": RUN_URL,
+    "jobs": [
+        {
+            "completedAt": "2026-09-10T14:18:10Z",
+            "conclusion": "failure",
+            "databaseId": JOB_ID,
+            "name": "Makefile gates",
+            "startedAt": "2026-09-10T14:17:37Z",
+            "status": "completed",
+            "url": JOB_URL,
+            "steps": [
+                {
+                    "completedAt": "2026-09-10T14:17:37Z",
+                    "conclusion": "success",
+                    "name": "Check out repository",
+                    "number": 2,
+                    "startedAt": "2026-09-10T14:17:36Z",
+                    "status": "completed",
+                },
+                {
+                    "completedAt": "2026-09-10T14:18:10Z",
+                    "conclusion": "failure",
+                    "name": "Run CI gate sequence",
+                    "number": 5,
+                    "startedAt": "2026-09-10T14:17:37Z",
+                    "status": "completed",
+                },
+            ],
+        }
+    ],
 }
-SUCCESSFUL_RUN_JSON = FAILED_RUN_JSON | {"conclusion": "success", "jobs": []}
-FAILED_STEP_LOG = "gates\tRun make test\tE   assert 1 == 2\n"
+
+# Real `--log-failed` output is tab separated as `job\tstep\ttimestamp message`,
+# and GitHub frequently attributes lines to `UNKNOWN STEP` rather than a real
+# step. The instructions warn against trusting that attribution, so the double
+# reproduces it rather than an idealized log.
+FAILED_STEP_LOG = (
+    "Makefile gates\tUNKNOWN STEP\t2026-09-10T14:17:31.5101381Z "
+    "Current runner version: '2.337.0'\n"
+    "Makefile gates\tRun CI gate sequence\t2026-09-10T14:18:09.8112340Z "
+    "E   assert 1 == 2\n"
+    "Makefile gates\tRun CI gate sequence\t2026-09-10T14:18:09.8112999Z "
+    "make: *** [Makefile:80: test] Error 1\n"
+)
+LOG_RETRIEVAL_ERROR = (
+    "failed to get run log: log expired for this attempt (HTTP 410)\n"
+)
+
+scenarios("features/scrutineer_actions_capture.feature")
+
+
+# --------------------------------------------------------------------------- #
+# Manifest extraction
+# --------------------------------------------------------------------------- #
 
 
 def _scrutineer_snippets() -> list[str]:
@@ -123,7 +185,7 @@ def _script(*, deadline_offset: int) -> str:
     ``set -u`` is deliberate: an unbound variable in a documented snippet is a
     defect in the manifest, not something the harness should paper over.
     """
-    return textwrap.dedent(
+    preamble = textwrap.dedent(
         f"""\
         set -u
         repo="{REPOSITORY}"
@@ -132,33 +194,40 @@ def _script(*, deadline_offset: int) -> str:
         bundle_dir="$BUNDLE_DIR"
         deadline_epoch=$(( $(date +%s) + ({deadline_offset}) ))
         """
-    ) + _capture_procedure() + textwrap.dedent(
+    )
+    report = textwrap.dedent(
         """
         printf 'watch_status=%s\\nview_status=%s\\nlogs_status=%s\\n' \\
           "$watch_status" "$view_status" "$logs_status"
         """
     )
+    return preamble + _capture_procedure() + report
+
+
+# --------------------------------------------------------------------------- #
+# The `gh` double and the shell harness
+# --------------------------------------------------------------------------- #
 
 
 def _gh_handler(
     *,
-    watch_exit: int = 0,
-    watch_delay: float = 0.0,
-    logs_exit: int = 0,
-    run_json: dict[str, object] | None = None,
+    watch_exit: int,
+    watch_delay: float,
+    logs_exit: int,
+    conclusion: str,
 ) -> Callable[[Invocation], tuple[str, str, int]]:
     """Build a `gh` double covering the three documented invocations."""
-    payload = FAILED_RUN_JSON if run_json is None else run_json
+    payload = RUN_VIEW_JSON | {"conclusion": conclusion}
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
         args = invocation.args
         if args[:2] == ["run", "watch"]:
             if watch_delay:
                 time.sleep(watch_delay)
-            return (f"* gates in {REPOSITORY}\n", "", watch_exit)
+            return (f"✓ {REPOSITORY} Makefile gates\n", "", watch_exit)
         if args[:2] == ["run", "view"] and "--log-failed" in args:
             if logs_exit:
-                return ("", "log expired for this attempt\n", logs_exit)
+                return ("", LOG_RETRIEVAL_ERROR, logs_exit)
             return (FAILED_STEP_LOG, "", 0)
         if args[:2] == ["run", "view"] and "--json" in args:
             return (json.dumps(payload), "", 0)
@@ -198,16 +267,105 @@ def _assert_gh_is_doubled(environment: dict[str, str], shim_dir: Path) -> None:
         raise AssertionError(message)
 
 
-def _run_procedure(
-    bundle_dir: Path,
-    *,
-    deadline_offset: int = 300,
-    **handler_options: object,
-) -> tuple[subprocess.CompletedProcess[str], list[Invocation]]:
-    """Execute the documented snippets against a cmd-mox `gh` double."""
+# --------------------------------------------------------------------------- #
+# Scenario state
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def capture(tmp_path: Path) -> dict[str, typ.Any]:
+    """Hold the run's configuration and, once executed, its evidence."""
+    return {
+        "bundle_dir": tmp_path,
+        "watch_exit": 0,
+        "watch_delay": 0.0,
+        "logs_exit": 0,
+        "conclusion": "failure",
+    }
+
+
+def _statuses(stdout: str) -> dict[str, int]:
+    """Parse the trailing ``name=value`` status report from the procedure."""
+    return {
+        key: int(value)
+        for key, _, value in (
+            line.partition("=") for line in stdout.splitlines() if "=" in line
+        )
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Steps
+# --------------------------------------------------------------------------- #
+
+
+@given("the manifest publishes the Actions capture procedures")
+def _manifest_publishes_procedures() -> None:
+    """The scenarios must exercise the manifest, not a private copy."""
+    snippets = _scrutineer_snippets()
+
+    assert len(snippets) == 3, (
+        "Scrutineer's instructions must document exactly the watch, snapshot, "
+        f"and failure-log snippets, found {len(snippets)}"
+    )
+    for needle in ("gh run watch", "--json status,conclusion", "--log-failed"):
+        completed = subprocess.run(  # noqa: S603 - absolute path, fixed arguments.
+            [BASH, "-n"],
+            input=_snippet_containing(needle),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        assert completed.returncode == 0, (
+            f"the documented snippet for {needle!r} is not valid Bash: "
+            f"{completed.stderr}"
+        )
+
+
+@given(parsers.parse('a run that completed with conclusion "{conclusion}"'))
+def _run_conclusion(capture: dict[str, typ.Any], conclusion: str) -> None:
+    """Set the conclusion the doubled snapshot reports."""
+    capture["conclusion"] = conclusion
+
+
+@given(parsers.parse("the watcher exits with status {status:d}"))
+def _watcher_exit(capture: dict[str, typ.Any], status: int) -> None:
+    """Set the exit status the doubled watcher returns."""
+    capture["watch_exit"] = status
+
+
+@given(parsers.parse("the watcher hangs for {seconds:d} seconds"))
+def _watcher_hangs(capture: dict[str, typ.Any], seconds: int) -> None:
+    """Make the doubled watcher outlive any plausible budget."""
+    capture["watch_delay"] = float(seconds)
+
+
+@given(parsers.parse("failed-step log retrieval exits with status {status:d}"))
+def _logs_exit(capture: dict[str, typ.Any], status: int) -> None:
+    """Set the exit status the doubled `--log-failed` retrieval returns."""
+    capture["logs_exit"] = status
+
+
+@when(
+    parsers.parse(
+        "the capture procedures run with {budget:d} seconds of budget remaining"
+    )
+)
+def _run_procedures(capture: dict[str, typ.Any], budget: int) -> None:
+    """Execute the documented snippets against the `gh` double."""
+    bundle_dir = typ.cast("Path", capture["bundle_dir"])
     manager = EnvironmentManager()
+    started = time.monotonic()
     with CmdMox(environment=manager) as mox:
-        mox.stub("gh").runs(_gh_handler(**handler_options))  # type: ignore[arg-type]
+        mox.stub("gh").runs(
+            _gh_handler(
+                watch_exit=capture["watch_exit"],
+                watch_delay=capture["watch_delay"],
+                logs_exit=capture["logs_exit"],
+                conclusion=capture["conclusion"],
+            )
+        )
         mox.replay()
         # Built after replay so cmd-mox's PATH and IPC socket are inherited.
         environment = _child_environment(bundle_dir)
@@ -215,179 +373,120 @@ def _run_procedure(
         assert shim_dir is not None, "cmd-mox must expose its shim directory"
         _assert_gh_is_doubled(environment, shim_dir)
         completed = subprocess.run(  # noqa: S603 - absolute path, fixed arguments.
-            [BASH, "-c", _script(deadline_offset=deadline_offset)],
+            [BASH, "-c", _script(deadline_offset=budget)],
             cwd=bundle_dir,
             text=True,
             capture_output=True,
             check=False,
-            timeout=60,
+            timeout=120,
             stdin=subprocess.DEVNULL,
             env=environment,
         )
-        journal = list(mox.journal)
-    return completed, journal
+        capture["journal"] = list(mox.journal)
+    capture["elapsed"] = time.monotonic() - started
+    capture["statuses"] = _statuses(completed.stdout)
+    capture["stderr"] = completed.stderr
 
 
-def _statuses(completed: subprocess.CompletedProcess[str]) -> dict[str, int]:
-    """Parse the trailing ``name=value`` status report from the procedure."""
-    return {
-        key: int(value)
-        for key, _, value in (
-            line.partition("=") for line in completed.stdout.splitlines() if "=" in line
-        )
-    }
-
-
-def _watch_invocations(journal: list[Invocation]) -> list[Invocation]:
-    """Return the `gh run watch` calls recorded by the double."""
-    return [call for call in journal if call.args[:2] == ["run", "watch"]]
-
-
-def test_manifest_documents_exactly_three_capture_snippets() -> None:
-    """The procedures under test must be the ones the manifest publishes."""
-    snippets = _scrutineer_snippets()
-
-    assert len(snippets) == 3, (
-        "Scrutineer's instructions must document exactly the watch, snapshot, "
-        f"and failure-log snippets, found {len(snippets)}"
+@then(parsers.parse("the watcher status is recorded as {status:d}"))
+def _assert_watch_status(capture: dict[str, typ.Any], status: int) -> None:
+    """The watcher's own outcome must survive verbatim."""
+    assert capture["statuses"]["watch_status"] == status, (
+        f"expected watch_status {status}, got {capture['statuses']}; "
+        f"stderr: {capture['stderr']}"
     )
 
 
-@pytest.mark.parametrize(
-    "needle",
-    ["gh run watch", "--json status,conclusion", "--log-failed"],
-)
-def test_documented_snippets_are_valid_bash(needle: str) -> None:
-    """A snippet the agent is told to run must at least parse as Bash."""
-    snippet = _snippet_containing(needle)
-
-    completed = subprocess.run(  # noqa: S603 - absolute path, fixed arguments.
-        [BASH, "-n"],
-        input=snippet,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=30,
-    )
-
-    assert completed.returncode == 0, (
-        f"the documented snippet for {needle!r} is not valid Bash: "
-        f"{completed.stderr}"
+@then(parsers.parse("the log retrieval status is recorded as {status:d}"))
+def _assert_logs_status(capture: dict[str, typ.Any], status: int) -> None:
+    """Retrieval failure is recorded on its own, not folded into the verdict."""
+    assert capture["statuses"]["logs_status"] == status, (
+        f"expected logs_status {status}, got {capture['statuses']}"
     )
 
 
-def test_watcher_failure_still_captures_metadata_and_failure_logs(
-    tmp_path: Path,
-) -> None:
-    """A failing watcher must not suppress the evidence the summoner needs."""
-    completed, _journal = _run_procedure(tmp_path, watch_exit=1)
-    statuses = _statuses(completed)
+@then("the attempt snapshot is captured")
+def _assert_snapshot(capture: dict[str, typ.Any]) -> None:
+    """`run.json` is unconditional evidence, whatever the watcher did."""
+    snapshot = json.loads((capture["bundle_dir"] / "run.json").read_text())
 
-    assert statuses["watch_status"] == 1, "the watcher's failure must be preserved"
-    assert statuses["view_status"] == 0, (
-        "the attempt snapshot must still be captured after a failing watcher"
+    assert capture["statuses"]["view_status"] == 0, (
+        "the snapshot call must succeed regardless of the watcher's outcome"
     )
-    assert statuses["logs_status"] == 0, (
-        "failure-log retrieval must not be gated on watcher success"
+    assert snapshot["status"] == "completed"
+    assert snapshot["attempt"] == int(ATTEMPT), (
+        "the snapshot must be pinned to the observed attempt"
     )
-    assert json.loads((tmp_path / "run.json").read_text())["conclusion"] == "failure"
-    assert FAILED_STEP_LOG in (tmp_path / "failed.log").read_text()
+    assert snapshot["url"] == RUN_URL
 
 
-def test_expired_deadline_skips_the_watcher_but_still_snapshots(
-    tmp_path: Path,
-) -> None:
-    """An already-spent budget must not start a watcher it cannot bound."""
-    completed, journal = _run_procedure(tmp_path, deadline_offset=-5)
-    statuses = _statuses(completed)
+@then(parsers.parse('the recorded conclusion is "{conclusion}"'))
+def _assert_conclusion(capture: dict[str, typ.Any], conclusion: str) -> None:
+    """The observed conclusion must not be rewritten by any later step."""
+    snapshot = json.loads((capture["bundle_dir"] / "run.json").read_text())
 
-    assert statuses["watch_status"] == 124, (
-        "an exhausted deadline must report the deadline-reached status"
-    )
-    assert _watch_invocations(journal) == [], (
-        "no watcher may start once the observation deadline has passed"
-    )
-    assert json.loads((tmp_path / "run.json").read_text())["status"] == "completed", (
-        "the attempt snapshot must be captured even when no watcher ran"
-    )
+    assert snapshot["conclusion"] == conclusion
 
 
-def test_slow_watcher_is_bounded_by_the_observation_deadline(
-    tmp_path: Path,
-) -> None:
-    """`gh run watch` has no timeout flag, so `timeout` must supply the bound."""
-    started = time.monotonic()
-    completed, _journal = _run_procedure(
-        tmp_path,
-        deadline_offset=1,
-        watch_delay=30.0,
-    )
-    elapsed = time.monotonic() - started
-    statuses = _statuses(completed)
+@then("the failed-step log is captured")
+def _assert_failed_log(capture: dict[str, typ.Any]) -> None:
+    """Failure-log collection is never gated on the watcher succeeding."""
+    failed_log = (capture["bundle_dir"] / "failed.log").read_text()
 
-    assert statuses["watch_status"] == 124, (
-        "a watcher outliving the deadline must report the deadline-reached "
-        "status rather than a workflow verdict"
+    assert capture["statuses"]["logs_status"] == 0
+    assert "E   assert 1 == 2" in failed_log, (
+        "the decisive failure line must reach the bundle"
     )
-    # The journal cannot witness this call: `timeout` kills the shim before it
-    # reports back, which is exactly the behaviour under test. Elapsed time is
-    # the available evidence that the watcher started and was then bounded.
-    assert 1 <= elapsed < 30, (
-        "the watcher must run until the deadline and then stop, but it ran for "
-        f"{elapsed:.1f}s"
-    )
-    assert json.loads((tmp_path / "run.json").read_text())["status"] == "completed", (
-        "the attempt snapshot must be captured after the deadline stops the watcher"
+    assert "UNKNOWN STEP" in failed_log, (
+        "real --log-failed output carries UNKNOWN STEP lines; the bundle must "
+        "preserve them rather than discard the surrounding context"
     )
 
 
-@pytest.mark.parametrize("watch_exit", [0, 1, 124, 143])
-def test_snapshot_capture_is_independent_of_the_watcher_outcome(
-    tmp_path: Path,
-    watch_exit: int,
-) -> None:
-    """No watcher exit status may suppress the attempt snapshot.
+@then("the retrieval error is preserved in the bundle")
+def _assert_retrieval_error(capture: dict[str, typ.Any]) -> None:
+    """A missing log is evidence in itself and must not be silently dropped."""
+    stderr_path = capture["bundle_dir"] / "failed-log.stderr"
 
-    The watcher's exit status forms a small closed set — success, workflow
-    failure, deadline, and signal — so these are enumerated rather than
-    generated. The invariant is that `view_status` is derived from the snapshot
-    call alone and never from `watch_status`.
-    """
-    completed, _journal = _run_procedure(tmp_path, watch_exit=watch_exit)
-    statuses = _statuses(completed)
-
-    assert statuses["watch_status"] == watch_exit, (
-        "the watcher's own exit status must be preserved verbatim"
-    )
-    assert statuses["view_status"] == 0, (
-        f"the snapshot must be captured after watcher exit {watch_exit}"
-    )
-    assert json.loads((tmp_path / "run.json").read_text())["status"] == "completed"
-
-
-def test_failure_log_retrieval_error_is_recorded_separately(tmp_path: Path) -> None:
-    """A missing log is a retrieval failure, not a change to the conclusion."""
-    completed, _journal = _run_procedure(tmp_path, watch_exit=1, logs_exit=1)
-    statuses = _statuses(completed)
-
-    assert statuses["logs_status"] == 1, (
-        "the log-retrieval exit code must be recorded on its own"
-    )
-    assert statuses["watch_status"] == 1, (
-        "log-retrieval failure must not overwrite the watcher's outcome"
-    )
-    assert json.loads((tmp_path / "run.json").read_text())["conclusion"] == "failure", (
-        "the observed conclusion must survive a failed log retrieval"
-    )
-    assert (tmp_path / "failed-log.stderr").read_text().strip(), (
+    assert stderr_path.read_text().strip(), (
         "the retrieval error must be preserved in the bundle"
     )
 
 
-def test_successful_run_records_clean_statuses(tmp_path: Path) -> None:
-    """A green run must not manufacture failure evidence."""
-    completed, _journal = _run_procedure(tmp_path, run_json=SUCCESSFUL_RUN_JSON)
-    statuses = _statuses(completed)
+@then("no watcher was started")
+def _assert_no_watcher(capture: dict[str, typ.Any]) -> None:
+    """An already-spent budget must not start a watcher it cannot bound."""
+    watches = [
+        call for call in capture["journal"] if call.args[:2] == ["run", "watch"]
+    ]
 
-    assert statuses == {"watch_status": 0, "view_status": 0, "logs_status": 0}
-    assert json.loads((tmp_path / "run.json").read_text())["conclusion"] == "success"
+    assert watches == [], (
+        "no watcher may start once the observation deadline has passed"
+    )
+
+
+@then("the procedures finish before the watcher would have")
+def _assert_bounded(capture: dict[str, typ.Any]) -> None:
+    """`gh run watch` has no timeout flag, so `timeout` must supply the bound.
+
+    The journal cannot witness this call: `timeout` kills the shim before it
+    reports back, which is exactly the behaviour under test. Elapsed time is the
+    available evidence that the watcher started and was then stopped.
+    """
+    elapsed = typ.cast("float", capture["elapsed"])
+    delay = typ.cast("float", capture["watch_delay"])
+
+    assert 1 <= elapsed < delay, (
+        "the watcher must run until the deadline and then stop, but the "
+        f"procedures took {elapsed:.1f}s against a {delay:.0f}s watcher"
+    )
+
+
+@then("every recorded status is zero")
+def _assert_clean(capture: dict[str, typ.Any]) -> None:
+    """A green run must not manufacture failure evidence."""
+    assert capture["statuses"] == {
+        "watch_status": 0,
+        "view_status": 0,
+        "logs_status": 0,
+    }
