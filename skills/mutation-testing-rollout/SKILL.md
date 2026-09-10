@@ -132,7 +132,8 @@ a proposed next step. Then work the issues as draft PRs:
   initializers (only functions, impls, and certain expression kinds) — a
   skip placed there changes nothing and the mutant resurfaces next run.
   Verify a suppression actually suppressed by re-running scoped
-  (`cargo mutants --file <f>` / `mutmut run <path>`).
+  (`cargo mutants --file <f>` / `mutmut run '<module>.*'`; mutmut's
+  argument is a mutant-name glob over the import path, not a file path).
 - **Dead code** — delete it; this is one of mutation testing's best
   yields.
 - **Untestable boundary** — document and move on.
