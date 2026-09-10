@@ -15,9 +15,6 @@ REPO_URL="https://github.com/leynos/agent-helper-scripts.git"
 REPO_DIR="${REPO_DIR:-${HELPER_TOOLS_REPO_DIR:-${HOME}/git/agent-helper-scripts}}"
 HELPER_TOOLS_REPO_BRANCH="${HELPER_TOOLS_REPO_BRANCH:-main}"
 
-NEXTEST_SKILL_REPO_URL="https://github.com/leynos/nextest-skill.git"
-NEXTEST_SKILL_REPO_DIR="${HOME}/git/nextest-skill"
-
 RUST_SKILL_REPO_URL="https://github.com/leynos/rust-skill.git"
 RUST_SKILL_REPO_DIR="${HOME}/git/rust-skill"
 
@@ -87,7 +84,6 @@ function clone_or_update_repo() {
 }
 
 clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills" "${HELPER_TOOLS_REPO_BRANCH}"
-clone_or_update_repo "${NEXTEST_SKILL_REPO_URL}" "${NEXTEST_SKILL_REPO_DIR}"
 clone_or_update_repo "${RUST_SKILL_REPO_URL}" "${RUST_SKILL_REPO_DIR}" "skills"
 
 # Purpose:
@@ -122,5 +118,4 @@ function copy_skills() {
 }
 
 copy_skills "${REPO_DIR}/skills"
-copy_skills "${NEXTEST_SKILL_REPO_DIR}"
 copy_skills "${RUST_SKILL_REPO_DIR}/skills"

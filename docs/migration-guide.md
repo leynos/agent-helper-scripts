@@ -154,3 +154,42 @@ the earlier copy did not:
 - Provider coverage beyond OpenAI and Anthropic: Gemini, Azure OpenAI,
   Bedrock, Vertex AI, Cohere, Mistral, and Groq, plus the embeddings, images,
   moderations, and Responses endpoints.
+
+## Nextest skill
+
+This repository now ships the [`nextest`](../skills/nextest/SKILL.md) skill,
+which documents `cargo-nextest` as the Rust test runner. It replaces the
+standalone `leynos/nextest-skill` checkout that `install-skills` used to clone
+and copy.
+
+As with the VidaiMock skill, the removal was required rather than tidy: the
+installer's `copy_skills` ran the external checkout after the helper
+checkout's own `skills` directory, so the standalone copy won on every run.
+Once this repository ships a `nextest` skill, leaving the clone in place would
+have made the shipped skill permanently uninstallable.
+
+Deployments that installed the standalone copy must remove it before the next
+`install-skills` run. Delete `~/.codex/skills/nextest`,
+`~/.claude/skills/nextest`, and the `~/git/nextest-skill` checkout; otherwise
+a stale copy of the same skill name stays on the skill path. A reinstated
+checkout is no longer fetched, so the deletion is not undone by the installer.
+
+The shipped skill is verified against `cargo-nextest` 0.9.143 and covers
+behaviour the earlier copy did not:
+
+- The version-gated surface added since 0.9.133: the `cargo nextest help`
+  topics and `cargo nextest self schema` config schemas (0.9.134–0.9.140),
+  and the `junit.report-skipped` setting (0.9.143).
+- The `--workspace-remap` validation change, which now requires both
+  `--cargo-metadata` and `--binaries-metadata` (0.9.138).
+- The filterset parsing relaxation that allows `not(...)`, `all()and(...)` and
+  `all()or(...)` without an intervening space (0.9.137).
+- The six `NEXTEST_*` variables that are now also set during the list phase
+  (0.9.138), and the user-config `platform` override semantics that now always
+  match the build target (0.9.134).
+- The dynamic library search path reordering that follows Cargo 1.93 (0.9.143),
+  which matters for archived and cross-compiled test runs.
+
+The skill marks every version-gated feature inline. The bootstrap still
+installs `cargo-nextest` 0.9.133 through `CARGO_NEXTEST_VERSION`, so those
+features are documented but not available until that variable is raised.

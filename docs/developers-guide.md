@@ -239,6 +239,10 @@ distinction visible when adding new bootstrap behaviour.
   installer no longer clones the standalone `leynos/vidai-mock-skill`
   repository: it was copied after the helper checkout's own skills, so the
   older copy would have overwritten the shipped skill on every run.
+- Delivers the `nextest` skill from the managed helper checkout for the same
+  reason. The `leynos/nextest-skill` clone was removed because its
+  `copy_skills` call also ran after the helper checkout's own skills, so the
+  external copy won on every run.
 
 ## `clone_or_update_repo`
 

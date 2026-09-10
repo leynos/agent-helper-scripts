@@ -305,6 +305,33 @@ with the other skills and no separate skill checkout is needed. See the
 [migration guide](migration-guide.md) if an earlier deployment installed the
 skill from its own repository.
 
+## Nextest
+
+The [`nextest`](../skills/nextest/SKILL.md) skill covers `cargo-nextest`, the
+Rust test runner that executes each test in its own process. It is the runner
+the Rust gates use, and the skill documents what that model changes: process
+isolation, per-test parallelism, and the failures that only appear once tests
+stop sharing one process.
+
+Use it when a Rust test run needs more than `cargo test` offers — sharding a
+suite across CI runners, archiving a build and running it elsewhere, retrying
+flaky tests, capping hung tests with timeouts, serializing tests that contend
+for a database through test groups, or assigning port numbers to tests from
+their slot number. It also covers the integrations that hang off the runner:
+Miri, `cargo llvm-cov`, `cargo-mutants`, and Criterion benchmarks.
+
+The skill targets `cargo-nextest` 0.9.143, and its commands were checked
+against that release. The bootstrap currently installs 0.9.133 through
+`CARGO_NEXTEST_VERSION`, so features the skill marks with a version — the
+`cargo nextest help` topics, the config JSON schemas, `junit.report-skipped`,
+and the relaxed filterset parsing — are newer than what an unmodified
+bootstrap provides. Raise that variable to 0.9.143 to use them.
+
+It ships from this repository, so `install-skills` delivers it with the other
+skills and no separate skill checkout is needed. See the
+[migration guide](migration-guide.md) if an earlier deployment installed the
+skill from its own repository.
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`

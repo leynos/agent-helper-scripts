@@ -12,8 +12,8 @@ caches.
 Start with the [users' guide](docs/users-guide.md) for the bootstrap model,
 common commands, environment-variable configuration, and the installed skill
 workflows, including CodeScene analysis, stacked pull requests, entity-aware
-merges, CodeRabbit reviews through the `comenq` queue, and local LLM mock
-testing with VidaiMock.
+merges, CodeRabbit reviews through the `comenq` queue, local LLM mock testing
+with VidaiMock, and Rust test execution with cargo-nextest.
 
 The main bootstrap entrypoint is [`rust-entrypoint`](rust-entrypoint). It
 dispatches to the system, home, or sequential compatibility flow through
