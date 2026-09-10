@@ -97,7 +97,7 @@ not a completed review or a promise of an unscheduled background check.
 5. Use a wyvern agent team to verify each finding against the current source
    before assigning repairs. Fix only still-valid issues; skip unnecessary
    changes with a brief evidence-backed reason. Explain a different remedy when
-   the finding is valid but its proposed implementation is wrong. Follow the
+   the finding is valid, but its proposed implementation is wrong. Follow the
    [delegation workflow](#delegate-verification-repair-and-validation); do not
    weaken a test, safety boundary, or required policy to satisfy a suggestion.
 6. Group duplicate reports by underlying defect for implementation, but reply to
