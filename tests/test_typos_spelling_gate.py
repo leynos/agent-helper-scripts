@@ -11,6 +11,7 @@ import pytest
 
 from typos_rollout_test_support import (
     LOCAL_DICTIONARY_PATH,
+    MISSPELLED_DRIFT_FORMS,
     REPOSITORY_ROOT,
     SHARED_DICTIONARY_PATH,
     deny_path_reads,
@@ -270,7 +271,8 @@ def test_generated_config_loads_in_pinned_typos(
     misspelled_receive = "rec" + "ieve"
     sample.write_text(
         f"We {PLAIN_BRITISH_ORGANIZE} {AMERICAN_COLOUR} output but analyse "
-        f"valid results. `{misspelled_article} {misspelled_receive}`\n",
+        f"valid results. `{misspelled_article} {misspelled_receive}`\n"
+        f"{' '.join(form for form, _correction in MISSPELLED_DRIFT_FORMS)}\n",
         encoding="utf-8",
     )
 
@@ -307,3 +309,7 @@ def test_generated_config_loads_in_pinned_typos(
     assert "analyse" not in corrections, "valid -yse spelling was rejected"
     assert misspelled_article in corrections, "inline-code typo was not reported"
     assert misspelled_receive in corrections, "inline-code typo was not reported"
+    for form, canonical in MISSPELLED_DRIFT_FORMS:
+        assert corrections.get(form) == [canonical], (
+            f"{form} did not resolve to the single canonical correction"
+        )

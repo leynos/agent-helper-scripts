@@ -13,6 +13,7 @@ from hypothesis import strategies as st
 from typos_rollout_test_support import (
     COMMITTED_CONFIG_PATH,
     LOCAL_DICTIONARY_PATH,
+    MISSPELLED_DRIFT_FORMS,
     SHARED_DICTIONARY_PATH,
     deny_path_reads,
     dictionary_text,
@@ -422,6 +423,26 @@ def test_shared_dictionary_preserves_generic_terms_without_american_artefacts(
     )
     assert mappings[PLAIN_BRITISH_POLYMERIZATION] == "polymerization", (
         "plain-British polymer spelling was not corrected"
+    )
+
+
+def test_shared_dictionary_corrects_ize_drift_misspellings(
+    rollout: types.ModuleType,
+) -> None:
+    """Common -ize drift forms gain one canonical mapping everywhere."""
+    mappings = rollout.generate_word_mappings(
+        rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    )
+    generated_words = tomllib.loads(COMMITTED_CONFIG_PATH.read_text(encoding="utf-8"))[
+        "default"
+    ]["extend-words"]
+    expected = dict(MISSPELLED_DRIFT_FORMS)
+
+    assert expected.items() <= mappings.items(), (
+        "shared dictionary omitted -ize drift corrections"
+    )
+    assert expected.items() <= generated_words.items(), (
+        "generated config omitted -ize drift corrections"
     )
 
 
