@@ -39,6 +39,12 @@ For a different target, substitute its exact fetched ref. Do not use a mutable
 local primary checkout as the implicit base for unattended work. Resolve the
 remote target to a commit first.
 
+Before a rebase, establish the exclusive `OLD_BASE` with the
+[rebase skill](../rebase/SKILL.md). For the semantic audit, set `BRANCH_BASE` to
+that accepted boundary. For an ordinary merge only, use `MERGE_BASE` instead.
+A target merge-base is not a squash-restack boundary; it can include inherited
+parent work that must not count as child-owned changes.
+
 A completed rebase creates a new candidate. Any gate, review, or merge-eligibility
 evidence tied to `OLD_HEAD` is stale for acceptance after the replay. Preserve
 it as historical evidence, record the new `HEAD`, and rerun the candidate-bound
@@ -285,12 +291,12 @@ fi
 Run this audit after every Weave-participating merge or rebase, even when the
 driver exits `0`, every per-replay structural gate passes, and the full test
 suite is green. Use the `OLD_HEAD`, `TARGET`, and `MERGE_BASE` recorded before
-the operation.
+the operation, plus the accepted `BRANCH_BASE` described above.
 
 First enumerate what the branch and target independently changed:
 
 ```bash
-git diff --name-only -z "$MERGE_BASE..$OLD_HEAD" > /tmp/weave-branch-paths.z
+git diff --name-only -z "$BRANCH_BASE..$OLD_HEAD" > /tmp/weave-branch-paths.z
 git diff --name-only -z "$MERGE_BASE..$TARGET" > /tmp/weave-target-paths.z
 ```
 
@@ -302,7 +308,7 @@ Then enforce these three checks:
    had no branch-side change to reconcile in that path.
 2. **Every deletion against the target in a branch-touched file is explained.**
    Read each deletion hunk in `git diff "$TARGET"..HEAD -- <path>` and map it
-   to an intended branch change from `git diff "$MERGE_BASE".."$OLD_HEAD" --
+   to an intended branch change from `git diff "$BRANCH_BASE".."$OLD_HEAD" --
    <path>` or to a named, reviewed conflict-resolution decision. An unexplained
    deletion is an andon event even if the file compiles and tests pass.
 3. **Look for newly repeated blocks.** Scan each resulting text file for a

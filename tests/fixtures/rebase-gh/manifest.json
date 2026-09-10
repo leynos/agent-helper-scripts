@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-09-10T12:51:01.071582+00:00",
+  "gh_version": "gh version 2.100.0 (2026-09-03)\nhttps://github.com/cli/cli/releases/tag/v2.100.0\n",
+  "workflow_run": "https://github.com/leynos/agent-helper-scripts/actions/runs/34479054741",
+  "commands": {
+    "merged-parent": {
+      "argv": [
+        "gh",
+        "api",
+        "repos/leynos/agent-helper-scripts/pulls/50",
+        "--jq",
+        "{number, merged, merged_at, head_sha: .head.sha, head_ref: .head.ref, base_ref: .base.ref, base_repository: .base.repo.full_name, landed: .merge_commit_sha}"
+      ],
+      "exit_code": 0
+    },
+    "missing-parent": {
+      "argv": [
+        "gh",
+        "api",
+        "repos/leynos/agent-helper-scripts/pulls/2147483647",
+        "--jq",
+        "{number, merged, merged_at, head_sha: .head.sha, head_ref: .head.ref, base_ref: .base.ref, base_repository: .base.repo.full_name, landed: .merge_commit_sha}"
+      ],
+      "exit_code": 1
+    }
+  }
+}

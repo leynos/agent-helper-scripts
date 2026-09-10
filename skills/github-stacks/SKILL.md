@@ -116,6 +116,23 @@ gh stack push                # --force-with-lease per branch
 gh stack top                 # return to where you were
 ```
 
+## Establish replay evidence before synchronization
+
+Before a command that may rewrite, publish or prune stack branches, apply the
+[rebase skill's boundary and acceptance checks](../rebase/SKILL.md). Record each
+layer's old head, exclusive inherited boundary, target and parent PR identity.
+Inspect the managed stack metadata before synchronization; do not bypass it
+with an ad-hoc rebase. A merged parent's squash SHA is a landing record, not
+the child's exclusive boundary. Preserve useful historical refs before pruning.
+
+Do not use `gh stack sync --prune` as a discovery command: it can rebase, push
+and remove evidence before the proposed ranges receive review. If the tool
+cannot expose a reviewable plan or preserve the required boundaries, stop
+rather than treating its successful exit as acceptance evidence. After replay,
+audit the exact old/new series and rerun candidate-bound gates before accepting
+or publishing the new stack. Prefer separated rebase and push operations when
+that separation is necessary to enforce the acceptance boundary.
+
 ## Keeping in sync
 
 `gh stack sync` in one command: fetch → reconcile the remote stack →
@@ -222,6 +239,7 @@ only — `link` never removes PRs from a stack.
 - Prefer `--auto`, `--yes`, and explicit branch-name arguments; `submit`
   (editor), `modify`, `switch`, and no-argument `checkout` need a TTY.
 - Run `gh stack view --json` to inspect stack state programmatically.
-- `sync` is safe to run unattended; it aborts cleanly on divergence.
+- `sync` aborts on divergence, but that does not prove replay ownership.
+  Establish the boundary, recovery and publication evidence above first.
 - Never `git push --force` stack branches by hand — use `gh stack push`,
   which applies per-branch `--force-with-lease`.
