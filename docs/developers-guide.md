@@ -293,6 +293,32 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
+
+### Markdown lint configuration
+
+`.markdownlint-cli2.jsonc` is reconciled against the shared
+`agent-template-python` configuration. Prose is limited to 80 columns and code
+blocks to 120; tables and headings stay exempt from the line-length rule
+because padding or reflowing them costs more than it gains. `MD040` and
+`MD041` are enabled, as in the template.
+
+Three rules remain disabled against the template, each with its rationale
+recorded beside the entry:
+
+- `MD024` with `siblings_only` — a heading repeats legitimately under different
+  parents, as in the code-review skill's paired "Problem" and "Improvement"
+  examples.
+- `MD033` — agent-facing material under `skills/` uses `<angle-bracketed>`
+  placeholders that must reach the reader verbatim rather than escaped.
+- `MD036` — skill reference documents lead into example blocks with a bold
+  label instead of promoting that label to a heading, which keeps their tables
+  of contents navigable.
+
+The `markdownlint` wrapper appends `**/*.md` when the caller names no path.
+`markdownlint-cli2` lints nothing when it receives neither a glob argument nor
+a `globs` key, yet still reports a clean pass, so the default glob is what
+keeps the gate from passing vacuously.
+
 ### Shared en-GB-oxendict spelling data
 
 The architecture and trade-offs are recorded in
@@ -391,10 +417,23 @@ family with competing candidates and misses the raise family entirely, so each
 recorded drift form now carries one canonical replacement for every consumer.
 
 - `make ci`
-  - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, `test`,
-    and `spelling`.
+  - Runs the full CI gate in sequence: `check-fmt`, `markdownlint`, `lint`,
+    `typecheck`, `test`, and `spelling`.
   - Use this before pushing; it mirrors what the GitHub Actions workflow
     executes.
+- `make markdownlint`
+  - Lints every Markdown file through the repository's own `markdownlint`
+    wrapper, which forwards `**/*.md` to `markdownlint-cli2` unless the caller
+    names paths of their own.
+  - Reads `.markdownlint-cli2.jsonc`; a consumer repository without one gets
+    the configuration the wrapper ships, so the same script works unchanged
+    where `get-markdown-tooling` installs it as `markdownlint`.
+- `make nixie`
+  - Validates every Mermaid diagram with `nixie`.
+  - Not part of `make ci`. `nixie` renders through an external Mermaid CLI
+    (`merman-cli`, or `mmdc` with Chromium), which the CI runner does not
+    provide; run it locally before pushing documentation that changes a
+    diagram.
 - `make lint`
   - Runs `syntax-check`, `shell-syntax-check`, `check-home-phase-boundary`,
     and `skill-manifest-check`.
@@ -907,6 +946,8 @@ validation sequence:
 - `make lint`
 - `make typecheck`
 - `make test`
+- `make markdownlint`
+- `make nixie` when a Mermaid diagram changed
 - targeted `bash -n` on changed shell scripts
 - targeted `shellcheck` on changed shell scripts
 - `git diff --check`

@@ -12,7 +12,10 @@
 # to every Markdown file in the tree.
 
 set -xeu
-MDLINT_BIN="${MDLINT_BIN:-${HOME}/.bun/bin/markdownlint-cli2}"
+# Prefer whichever markdownlint-cli2 is on PATH, so the script also works where
+# a package manager installed it; fall back to the bun global install, which is
+# how get-markdown-tooling provisions it.
+MDLINT_BIN="${MDLINT_BIN:-$(command -v markdownlint-cli2 || printf '%s/.bun/bin/markdownlint-cli2' "${HOME}")}"
 MDLINT_CONFIG_DIR="$(mktemp -d)"
 MDLINT_CONFIG="${MDLINT_CONFIG_DIR}/.markdownlint-cli2.jsonc"
 trap 'rm -rf "${MDLINT_CONFIG_DIR}"' EXIT

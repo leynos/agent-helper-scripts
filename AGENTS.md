@@ -13,6 +13,7 @@ Run the full sequence before committing:
 
 ```bash
 make check-fmt
+make markdownlint
 make lint
 make typecheck
 make test
@@ -20,6 +21,10 @@ make spelling
 ```
 
 `make ci` runs the same sequence and mirrors the GitHub Actions workflow.
+
+`make nixie` validates Mermaid diagrams and is not part of `make ci`: it needs
+a renderer the CI runner does not provide. Run it alongside the sequence above
+when a change touches a diagram.
 
 ## Changes under `skills/`
 
