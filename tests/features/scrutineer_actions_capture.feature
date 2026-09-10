@@ -52,6 +52,15 @@ Feature: Scrutineer captures GitHub Actions evidence
     When the capture procedures run with 300 seconds of budget remaining
     Then every recorded status is zero
     And the recorded conclusion is "success"
+    And no failure-log artefact is written
+    And the omission records status "completed" and conclusion "success"
+
+  Scenario: A run still pending at the deadline yields no failure log
+    Given a run that is still "in_progress"
+    When the capture procedures run with 300 seconds of budget remaining
+    Then the attempt snapshot is captured
+    And no failure-log artefact is written
+    And the omission records status "in_progress" and conclusion "unknown"
 
   Scenario Outline: The snapshot survives any watcher outcome
     Given a run that completed with conclusion "failure"

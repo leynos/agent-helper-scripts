@@ -607,8 +607,11 @@ Failed-step logs (`failed.log`) are captured only for a run that
 reaches `status=completed` with a non-success `conclusion`; a run still
 pending at the deadline is reported with the evidence gathered so far
 and its last known status, treated as neither success nor failure, and
-it has no failure-log artefact. Missing, expired or inaccessible logs
-are reported explicitly, with the reason, rather than read as success.
+it has no failure-log artefact. When capture does not apply, the
+bundle carries a short `failed-log.omitted` note recording the
+observed status and conclusion, so a missing failure log is never
+ambiguous. Missing, expired or inaccessible logs are reported
+explicitly, with the reason, rather than read as success.
 `scrutineer` never edits tracked files.
 
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,

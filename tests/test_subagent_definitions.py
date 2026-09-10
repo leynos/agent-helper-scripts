@@ -451,6 +451,10 @@ def test_scrutineer_description_advertises_monitoring(capability: str) -> None:
         'gh run view --job "$job_id" --repo "$repo" --log',
         "watch_status=$?",
         "Never use `&&` to gate failure-log collection",
+        'run_status=$(jq -r \'.status // "unknown"\'',
+        'if [ "$run_status" = "completed" ]',
+        '[ "$run_conclusion" != "success" ]',
+        "failed-log.omitted",
     ],
 )
 def test_scrutineer_actions_commands_preserve_failure_evidence(

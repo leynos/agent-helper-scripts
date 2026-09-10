@@ -824,17 +824,37 @@ agent_tools_subagents:
         permissions, or API prevent observation; do not broaden permissions
         or change authentication to make watching work. The CLI documents
         that `gh run watch` does not support fine-grained PAT authentication.
+        These procedures need an authenticated `gh` and `jq`; if either is
+        missing, classify the assignment `infrastructure-error` rather than
+        reporting an unobserved run as successful.
 
       Actions failure logs (mandatory on non-success):
       - After a completed non-successful run, capture its failed-step log
         using the recorded attempt, even when watching exited nonzero.
-        Never use `&&` to gate failure-log collection on watcher success:
+        Never use `&&` to gate failure-log collection on watcher success.
+        Gate it on the run's own outcome instead, read from the `run.json`
+        already captured rather than from a second API call: retrieve the
+        failed-step log only when `status` is `completed` and `conclusion` is
+        not `success`. A successful, still-pending, missing, or inaccessible
+        run must be left without failure-log artefacts, and the reason
+        recorded in `failed-log.omitted` so the omission is self-describing:
 
         ```bash
         logs_status=0
-        gh run view "$run_id" --repo "$repo" --attempt "$attempt" \
-          --log-failed > "$bundle_dir/failed.log" \
-          2> "$bundle_dir/failed-log.stderr" || logs_status=$?
+        run_status=$(jq -r '.status // "unknown"' "$bundle_dir/run.json" \
+          2>/dev/null) || run_status=unknown
+        run_conclusion=$(jq -r '.conclusion // "unknown"' \
+          "$bundle_dir/run.json" 2>/dev/null) || run_conclusion=unknown
+        if [ "$run_status" = "completed" ] \
+          && [ "$run_conclusion" != "success" ]; then
+          gh run view "$run_id" --repo "$repo" --attempt "$attempt" \
+            --log-failed > "$bundle_dir/failed.log" \
+            2> "$bundle_dir/failed-log.stderr" || logs_status=$?
+        else
+          printf 'no failed-step log: status=%s conclusion=%s\n' \
+            "$run_status" "$run_conclusion" \
+            > "$bundle_dir/failed-log.omitted"
+        fi
         ```
 
       - Record the retrieval exit code separately from the Actions conclusion.
@@ -868,9 +888,11 @@ agent_tools_subagents:
         `failed.log` and `failed-log.stderr` are conditional: they exist only
         for a run that reached `status=completed` with a non-success
         conclusion. A successful, still-pending, missing, or inaccessible run
-        legitimately has no failure-log artefact. Record in the manifest why
-        each expected artefact is absent, so an omission is never ambiguous
-        between not-applicable and retrieval-failed.
+        legitimately has no failure-log artefact and carries a
+        `failed-log.omitted` note giving the observed status and conclusion
+        instead. Record in the manifest why each expected artefact is absent,
+        so an omission is never ambiguous between not-applicable and
+        retrieval-failed.
       - Return the bundle root and summary path to the summoning agent with
         a concise verdict, failed jobs/steps, decisive excerpts, and evidence
         gaps. Provide accessible file attachments when the summoning agent

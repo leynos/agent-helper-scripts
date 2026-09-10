@@ -222,10 +222,17 @@ def _gh_handler(
     watch_delay: float,
     logs_exit: int,
     conclusion: str,
+    status: str,
     bundle_dir: Path,
 ) -> Callable[[Invocation], tuple[str, str, int]]:
-    """Build a `gh` double covering the three documented invocations."""
-    payload = RUN_VIEW_JSON | {"conclusion": conclusion}
+    """Build a `gh` double covering the three documented invocations.
+
+    A pending run reports no conclusion at all, which is why `conclusion` is
+    dropped rather than set to a placeholder when `status` is not `completed`.
+    """
+    payload = RUN_VIEW_JSON | {"conclusion": conclusion, "status": status}
+    if status != "completed":
+        payload = {k: v for k, v in payload.items() if k != "conclusion"}
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
         args = invocation.args
@@ -292,6 +299,7 @@ def capture(tmp_path: Path) -> dict[str, typ.Any]:
         "watch_delay": 0.0,
         "logs_exit": 0,
         "conclusion": "failure",
+        "status": "completed",
     }
 
 
@@ -340,6 +348,13 @@ def _run_conclusion(capture: dict[str, typ.Any], conclusion: str) -> None:
     capture["conclusion"] = conclusion
 
 
+@given(parsers.parse('a run that is still "{status}"'))
+def _run_pending(capture: dict[str, typ.Any], status: str) -> None:
+    """Set a non-terminal status, for which no conclusion exists yet."""
+    capture["status"] = status
+    capture["conclusion"] = ""
+
+
 @given(parsers.parse("the watcher exits with status {status:d}"))
 def _watcher_exit(capture: dict[str, typ.Any], status: int) -> None:
     """Set the exit status the doubled watcher returns."""
@@ -375,6 +390,7 @@ def _run_procedures(capture: dict[str, typ.Any], budget: int) -> None:
                 watch_delay=capture["watch_delay"],
                 logs_exit=capture["logs_exit"],
                 conclusion=capture["conclusion"],
+                status=capture["status"],
                 bundle_dir=bundle_dir,
             )
         )
@@ -425,7 +441,10 @@ def _assert_snapshot(capture: dict[str, typ.Any]) -> None:
     assert capture["statuses"]["view_status"] == 0, (
         "the snapshot call must succeed regardless of the watcher's outcome"
     )
-    assert snapshot["status"] == "completed"
+    assert snapshot["status"] == capture["status"], (
+        "the snapshot must report the run's observed status, including a "
+        "non-terminal one"
+    )
     assert snapshot["attempt"] == int(ATTEMPT), (
         "the snapshot must be pinned to the observed attempt"
     )
@@ -508,6 +527,36 @@ def _assert_bounded(capture: dict[str, typ.Any]) -> None:
         "the deadline must stop the watcher, but the procedures took "
         f"{elapsed:.1f}s against a {delay:.0f}s watcher"
     )
+
+
+@then("no failure-log artefact is written")
+def _assert_no_failure_artefacts(capture: dict[str, typ.Any]) -> None:
+    """Failure logs belong only to a run that completed unsuccessfully."""
+    bundle = typ.cast("Path", capture["bundle_dir"])
+
+    for name in ("failed.log", "failed-log.stderr"):
+        assert not (bundle / name).exists(), (
+            f"{name} must not exist for a run that did not complete "
+            "unsuccessfully; an empty artefact is indistinguishable from a "
+            "retrieval that returned nothing"
+        )
+
+
+@then(
+    parsers.parse(
+        'the omission records status "{status}" and conclusion "{conclusion}"'
+    )
+)
+def _assert_omission_recorded(
+    capture: dict[str, typ.Any],
+    status: str,
+    conclusion: str,
+) -> None:
+    """An absent artefact must say why, not merely be missing."""
+    note = (capture["bundle_dir"] / "failed-log.omitted").read_text()
+
+    assert f"status={status}" in note, note
+    assert f"conclusion={conclusion}" in note, note
 
 
 @then("every recorded status is zero")

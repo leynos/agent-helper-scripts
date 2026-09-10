@@ -493,9 +493,11 @@ independent scopes:
 A monitoring-only assignment starts neither of the other two scopes and
 records them as `not-requested` rather than passed or silently skipped.
 
-Actions monitoring requires an authenticated `gh` CLI. `gh run watch` does
-not support fine-grained PAT authentication, and the agent must never
-broaden permissions or change authentication to make watching work.
+Actions monitoring requires an authenticated `gh` CLI and `jq`.
+`gh run watch` does not support fine-grained PAT authentication, and the
+agent must never broaden permissions or change authentication to make
+watching work. A missing `gh` or `jq` is classified
+`infrastructure-error` rather than reported as a successful observation.
 
 Correlation is explicit: repository via `--repo OWNER/REPO`, expected
 commit SHA, run ID and attempt. Run identity is resolved by parsing
@@ -526,15 +528,19 @@ Evidence is written to a private `mktemp` directory under `/tmp` created
 with `umask 077`, with a `run-<id>-attempt-<n>` subdirectory per run and
 attempt holding `run.json` and `watch.log`. `failed.log` and
 `failed-log.stderr` are conditional: they are captured only for a run
-that has reached `status=completed` with a non-success conclusion. A
-successful, still-pending, missing, or inaccessible run legitimately
-has no failure-log artefacts. The root `summary.md` manifest records
-the reason for any expected artefact's absence, so an omission is
-never ambiguous between "not applicable" and "retrieval failed".
-Failed-step log capture is never gated on watcher success with `&&`,
-and retrieval exit codes are recorded separately from the observed
-Actions conclusion. Logs stay private, and secrets are redacted from
-any excerpts.
+that has reached `status=completed` with a non-success conclusion.
+The procedure enforces this condition itself, reading `status` and
+`conclusion` from the already-captured `run.json` with `jq` rather
+than making a second API call. A successful, still-pending, missing,
+or inaccessible run legitimately has no failure-log artefacts; the
+procedure instead writes a `failed-log.omitted` note recording the
+observed status and conclusion, so the omission is self-describing.
+The root `summary.md` manifest records the reason for any expected
+artefact's absence, so an omission is never ambiguous between "not
+applicable" and "retrieval failed". Failed-step log capture is never
+gated on watcher success with `&&`, and retrieval exit codes are
+recorded separately from the observed Actions conclusion. Logs stay
+private, and secrets are redacted from any excerpts.
 
 ### Skill manifest tooling dependencies
 
