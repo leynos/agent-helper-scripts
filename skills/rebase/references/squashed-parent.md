@@ -192,16 +192,16 @@ Never choose the newest, oldest, nearest, or best-looking candidate by default.
 ## Sources
 
 - Git upstream-rewrite recovery and explicit range transplantation:
-  https://git-scm.com/docs/git-rebase
+  [git-rebase](https://git-scm.com/docs/git-rebase)
 - Merge-base and fork-point behaviour and limitations:
-  https://git-scm.com/docs/git-merge-base
+  [git-merge-base](https://git-scm.com/docs/git-merge-base)
 - GitHub PR metadata and merge-commit field semantics:
-  https://docs.github.com/en/rest/pulls/pulls
+  [GitHub REST: pulls](https://docs.github.com/en/rest/pulls/pulls)
 - Recovering inactive PR heads:
-  https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/checking-out-pull-requests-locally
+  [Checking out pull requests locally](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/checking-out-pull-requests-locally)
 - Commit-to-PR associations:
-  https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit
+  [GitHub REST: commits](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit)
 - Patch IDs:
-  https://git-scm.com/docs/git-patch-id
+  [git-patch-id](https://git-scm.com/docs/git-patch-id)
 - Ref updates and expected-old checks:
-  https://git-scm.com/docs/git-update-ref
+  [git-update-ref](https://git-scm.com/docs/git-update-ref)

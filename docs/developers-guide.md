@@ -831,6 +831,165 @@ the shim and Git deadlock. Git also hands the driver repository-relative
 temporary paths, while handlers run in the pytest process, so `%A` must be
 resolved against the repository before writing.
 
+## Squash-restack replay boundary
+
+The `rebase` skill restacks a child branch after its parent PR has
+squash-merged. The user-facing summary lives in the
+"Squash-restack boundaries" section of the [users' guide](users-guide.md) and
+in `skills/rebase/SKILL.md`; this section covers what maintainers must preserve when changing the planner or its tests.
+See also [ADR 005](adr/005-squash-restack-replay-boundary.md) for the
+decision record behind this boundary model.
+
+### The boundary model
+
+A squash merge collapses the parent PR's original commits into one landing
+commit on the target. Restacking the child therefore depends on three
+distinct identities, and conflating any two of them corrupts the replay:
+
+- the original parent PR head — the last commit the child actually forked
+  from, or later inherited via a rebase onto the parent;
+- the parent's squash landing commit (`merge_commit_sha`) — a new commit on
+  the target that proves the parent PR integrated, but never existed in the
+  child's own history;
+- the last inherited commit to exclude, `OLD_BASE` — the exclusive replay
+  boundary. It is the parent head when that head is still an ancestor of the
+  child, not the first commit the child authored.
+
+None of the tempting shortcuts is sound as a boundary:
+
+- a target merge-base is only a topology fact about the current graph. If the
+  parent advanced or was rewritten after the child forked, the ordinary
+  merge-base can silently return an earlier, wrong commit, or several
+  candidates with no way to choose between them;
+- the squash SHA never appears in the child's own history, so it cannot bound
+  the child's own commit series; it is useful only as evidence that the
+  parent's work landed on the target;
+- the apparent first child commit depends on how many commits the parent
+  contributed before the child branched, which is not recoverable from the
+  child branch in isolation. Guessing it either drops genuine child commits
+  or replays inherited parent work as if it were the child's own.
+
+### `plan_restack.py`
+
+`skills/rebase/scripts/plan_restack.py` carries PEP 723 inline script
+metadata declaring `requires-python = ">=3.13"` and
+`dependencies = ["cyclopts>=4,<5"]`, so it runs directly under `uv run`
+without a separate project environment:
+
+```bash
+uv run "$SKILL_DIR/scripts/plan_restack.py" . \
+  --branch "$BRANCH" --target-ref "$TARGET_REF" \
+  --parent-repository "$PARENT_REPOSITORY" --parent-pr "$PARENT_PR"
+```
+
+The planner requires the `gh` CLI on `PATH` and network access to the
+github.com REST API and Git fetch endpoints; it does not accept a bundled
+GitHub client library as a substitute, and it fetches only from
+`https://github.com/<parent-repository>.git`, never another host.
+
+### Query/command split
+
+`discover()` is the only command-layer operation in the module: it is the
+sole function that runs `gh`, performs the private evidence fetch, or
+otherwise touches the network or a mutable ref. It fetches the parent PR's
+actual head (never the synthetic `refs/pull/N/merge` ref) into a fresh
+private `refs/agent-rebase/<uuid>/parent-head` ref and returns the result as
+an immutable `Evidence` snapshot — frozen commit identities, the validated
+`gh api` response, and the retained evidence ref.
+
+`build_plan()` consumes that snapshot and performs only local Git graph
+queries: ancestry checks, `rev-list`, and receipt lookups. It never runs
+`gh`, never fetches, and never rebases, pushes, prunes, or moves a branch or
+tracking ref. This split is a non-mutation contract, not merely a code
+organization preference: `build_plan()` must remain safe to call, re-call, or
+reason about without any side effect beyond reading the local repository, so
+that replay policy stays reviewable apart from the adapters that gather
+evidence.
+
+### Boundary provenance
+
+`choose_boundary()` accepts exactly two forms of evidence for `OLD_BASE`,
+recorded on the returned `Boundary`:
+
+- `parent-pr-head` — the fetched parent head is itself an ancestor of the
+  child branch, so it is directly usable as the boundary;
+- `maintained-receipt:<ref>` — a `refs/stack-bases/<branch>` receipt whose
+  paired `branch.<branch>.stackParent` config value names the same parent
+  repository and PR, used when the parent head is no longer inherited.
+
+`Boundary.corroborated` records whether preserved parent history proves that
+no inherited commit follows `old_base`. Only an inherited parent head can
+prove this from Git ancestry alone; a maintained receipt on a non-inherited
+parent history is an unverified claim, because nothing in the local graph
+shows that no later inherited commit exists beyond the receipted boundary.
+The plan carries this as the `boundary_corroborated` key. When it is
+`false`, `review_notes()` prepends an explicit warning that the receipt is
+uncorroborated and must be proven from preserved parent history or reflog
+before replay. A `false` value therefore keeps the plan review-required; it
+never becomes silent authorization to replay a receipt the graph cannot
+verify.
+
+### Refusal conditions and exit contract
+
+Every unrecoverable evidence gap raises `PlanError`. `main()` catches it,
+writes `{"status": "blocked", "reason": ...}` as JSON on stderr, and exits
+with status 2. A successful run prints the indented JSON plan on stdout, with
+a `status` of `review-required` or `no-op-decision-required`; neither status
+is an authorization to replay.
+
+`trace()` writes bounded, structured JSON diagnostics to stderr, one line per
+event, each keyed by an `operation` identifier generated once per discovery
+run. That same `operation` identifier is carried in the plan's own
+`operation` field, so a reviewer can correlate the diagnostics for one run
+with its resulting plan. Diagnostics never carry repository contents, only
+identities the plan already reports, and stdout stays reserved for the plan
+JSON alone.
+
+### Test strategy
+
+`tests/test_rebase_plan.py` and `tests/test_rebase_replay.py` exercise the
+real planner against real Git repositories built by
+`tests/rebase_test_support.py`, using real Git transport throughout. Only
+`gh` is mocked, through [`leynos/cmd-mox`](https://github.com/leynos/cmd-mox).
+
+Each test builds an `M-A-B-C-D` graph plus a squash-merged target in an
+isolated working repository and a bare stand-in remote. A repository-local
+`url.<file-uri>.insteadOf` rule rewrites the explicit
+`https://github.com/<parent-repository>.git` fetch URL to that bare
+repository, which exposes the parent head at `refs/pull/<PR>/head`.
+`GIT_ALLOW_PROTOCOL=file` is set for every test so that Git can only use the
+file transport, preventing accidental live network traffic even if the
+rewrite rule were ever missing or wrong.
+
+Fixtures under `tests/fixtures/rebase-gh/` were recorded from a real `gh
+2.100.0` run against `leynos/agent-helper-scripts#50` and a real 404 for a
+missing PR. `tests/fixtures/rebase-gh/manifest.json` records the exact argv,
+exit code, capture timestamp, and CLI version for each recorded command.
+Tests assert the mocked `gh` invocation's argv against this manifest rather
+than against the module's own constants, so a change that silently altered
+the real query would be caught even if the same mistake were also made in
+`PARENT_QUERY`. Tests never refresh these fixtures and never call the real
+`gh` or GitHub; see `tests/fixtures/rebase-gh/README.md` for the manual
+refresh procedure maintainers must follow instead.
+
+`tests/test_rebase_plan_properties.py` covers the range invariants across
+generated histories with Hypothesis. Because `build_plan()` needs no process
+or network access, these properties drive it directly with a hand-built
+`Evidence` snapshot and no `gh` double at all: for any bounded linear graph
+with an inherited parent head, the derived range must be exactly the child
+commits in order and must exclude every inherited parent commit and the
+landing commit. Keep that separation intact — a property test that needed a
+`gh` double would be a sign that discovery had leaked back into plan
+construction.
+
+### Running these tests locally
+
+```bash
+uv run --group dev python -m pytest \
+  tests/test_rebase_plan.py tests/test_rebase_replay.py \
+  tests/test_rebase_plan_properties.py -v
+```
+
 ## Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows, including

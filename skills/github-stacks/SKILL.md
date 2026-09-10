@@ -139,10 +139,15 @@ that separation is necessary to enforce the acceptance boundary.
 fast-forward trunk → cascading rebase (only if trunk moved) → push → sync PR
 state → link the stack → prune prompt (interactive terminals only). It never
 opens PRs (that is
-`submit`'s job). Safe in automation: a clean remote-ahead update (PRs added
-on GitHub on top of the local stack) is pulled down without prompting; a
-genuine divergence aborts the sync in non-interactive terminals without
-pushing anything.
+`submit`'s job). A clean remote-ahead update (PRs added on GitHub on top of
+the local stack) is pulled down without prompting; a genuine divergence aborts
+the sync in non-interactive terminals without pushing anything.
+
+That abort is a safety net against a diverged remote, not proof of replay
+ownership. It says nothing about which commits each layer owns, so it cannot
+detect a cascading rebase that replays inherited parent work or drops a child
+commit. Establish the replay evidence documented above before running `sync`
+unattended.
 
 After a bottom PR merges: `gh stack sync --prune` fast-forwards trunk,
 rebases the remainder, and deletes local branches for merged PRs.

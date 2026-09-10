@@ -6,6 +6,7 @@ import re
 import shlex
 
 import pytest
+from cmd_mox.ipc import Invocation
 from rebase_test_support import (
     ROOT,
     change,
@@ -20,6 +21,7 @@ from rebase_test_support import (
 
 @pytest.fixture
 def graph(tmp_path, monkeypatch):
+    """Build a fresh three-commit stacked-PR graph for each test."""
     return make_graph(tmp_path, monkeypatch)
 
 
@@ -50,6 +52,7 @@ def test_target_merge_base_replays_inherited_parent_work(graph):
 
 
 def test_initially_empty_commit_survives_explicit_replay(graph, cmd_mox):
+    """Preserve an already-empty commit through explicit replay."""
     git(graph.repository, "commit", "--allow-empty", "-m", "intentional empty")
     expect_parent(cmd_mox, graph)
     result = planner.plan(graph.request())
@@ -64,6 +67,7 @@ def test_initially_empty_commit_survives_explicit_replay(graph, cmd_mox):
 
 
 def test_newly_empty_child_commit_stops_instead_of_disappearing(graph, cmd_mox):
+    """Stop instead of silently dropping a commit that becomes empty on replay."""
     git(graph.repository, "switch", "main")
     target = change(
         graph.repository, "already applied C", "first.txt", "first child change\n"
@@ -79,6 +83,7 @@ def test_newly_empty_child_commit_stops_instead_of_disappearing(graph, cmd_mox):
 
 
 def test_target_revert_of_parent_is_not_resurrected(graph, cmd_mox):
+    """Do not resurrect parent content that the target has already reverted."""
     git(graph.repository, "switch", "main")
     target = change(graph.repository, "revert parent", "parent.txt", "base\n")
     git(graph.repository, "update-ref", "refs/remotes/origin/main", target)
@@ -91,6 +96,7 @@ def test_target_revert_of_parent_is_not_resurrected(graph, cmd_mox):
 
 
 def test_parent_reflog_recovers_the_old_incarnation(tmp_path, monkeypatch):
+    """Recover the parent's rewritten boundary from its reflog fork point."""
     graph = make_graph(tmp_path, monkeypatch, "rewritten")
     ref = "refs/remotes/origin/old-parent"
     git(graph.repository, "update-ref", "--create-reflog", ref, graph.b)
@@ -118,6 +124,7 @@ def test_parent_reflog_recovers_the_old_incarnation(tmp_path, monkeypatch):
 
 
 def test_equal_net_patches_do_not_establish_unique_boundary(graph):
+    """Show that identical trees do not imply identical ownership boundaries."""
     extra = change(graph.repository, "extra", "parent.txt", "temporary\n")
     git(graph.repository, "revert", "--no-edit", extra)
     restored = oid(graph.repository)
@@ -131,9 +138,11 @@ def test_equal_net_patches_do_not_establish_unique_boundary(graph):
 
 
 def test_discovery_detects_child_race(graph, cmd_mox):
+    """Detect and refuse a concurrent child branch move discovered during gh."""
     before = snapshot(graph.repository)
 
-    def moved_during_gh(_invocation):
+    def moved_during_gh(_invocation: Invocation) -> tuple[str, str, int]:
+        """Move the child branch ref while gh metadata is being fetched."""
         git(graph.repository, "update-ref", "refs/heads/child", graph.c, graph.d)
         return graph.capture(), "", 0
 
@@ -146,7 +155,10 @@ def test_discovery_detects_child_race(graph, cmd_mox):
 
 
 def test_discovery_detects_target_race(graph, cmd_mox):
-    def moved_during_gh(_invocation):
+    """Detect and refuse a concurrent target ref move discovered during gh."""
+
+    def moved_during_gh(_invocation: Invocation) -> tuple[str, str, int]:
+        """Move the target ref while gh metadata is being fetched."""
         git(
             graph.repository,
             "update-ref",
@@ -162,6 +174,7 @@ def test_discovery_detects_target_race(graph, cmd_mox):
 
 
 def test_documented_replay_command_matches_the_executable_planner():
+    """Verify the skill's documented replay command matches the planner's argv."""
     skill = (ROOT / "skills/rebase/SKILL.md").read_text()
     blocks = re.findall(r"```bash\n(.*?)\n```", skill, re.DOTALL)
     replay = next(block for block in blocks if "--onto" in block)
@@ -170,15 +183,22 @@ def test_documented_replay_command_matches_the_executable_planner():
 
 
 def test_documented_metadata_query_matches_the_recorded_cli_command():
-    from rebase_test_support import MANIFEST
+    """Verify the documented metadata query matches the recorded gh CLI command."""
+    from rebase_test_support import MANIFEST, PARENT_PR, PARENT_REPOSITORY
 
     reference = (ROOT / "skills/rebase/references/squashed-parent.md").read_text()
     blocks = re.findall(r"```bash\n(.*?)\n```", reference, re.DOTALL)
     metadata = next(block for block in blocks if "--jq" in block)
     argv = shlex.split(metadata.replace("\\\n", ""))
     recorded = MANIFEST["commands"]["merged-parent"]["argv"]
-    assert argv[:2] == recorded[:2]
-    assert argv[-2:] == recorded[-2:]
+    resolved = [
+        token.replace("$PARENT_REPOSITORY", PARENT_REPOSITORY).replace(
+            "$PARENT_PR", str(PARENT_PR)
+        )
+        for token in argv
+    ]
+    # Compare the whole argv, endpoint included, only after resolution.
+    assert resolved == recorded
 
 
 def test_weave_audit_uses_child_boundary_not_target_merge_base(graph):

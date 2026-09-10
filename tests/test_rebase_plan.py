@@ -20,10 +20,12 @@ from rebase_test_support import (
 
 @pytest.fixture
 def graph(tmp_path, monkeypatch):
+    """Build a fresh three-commit stacked-PR graph for each test."""
     return make_graph(tmp_path, monkeypatch)
 
 
 def test_deleted_parent_plan_replays_only_child_commits(graph, cmd_mox):
+    """Plan and replay only the child commits after the parent branch is deleted."""
     expect_parent(cmd_mox, graph)
     before = snapshot(graph.repository)
     result = planner.plan(graph.request())
@@ -58,6 +60,7 @@ def test_deleted_parent_plan_replays_only_child_commits(graph, cmd_mox):
 def test_noninherited_parent_refuses_a_unique_but_unproven_merge_base(
     tmp_path, monkeypatch, cmd_mox, mode
 ):
+    """Refuse to trust a merge-base match without a receipt when history moved."""
     graph = make_graph(tmp_path, monkeypatch, mode)
     expect_parent(cmd_mox, graph)
     before = snapshot(graph.repository)
@@ -72,6 +75,7 @@ def test_noninherited_parent_refuses_a_unique_but_unproven_merge_base(
 def test_maintained_receipt_recovers_noninherited_parent(
     tmp_path, monkeypatch, cmd_mox, mode
 ):
+    """Recover the correct boundary from a receipt when history has moved."""
     graph = make_graph(tmp_path, monkeypatch, mode)
     receipt = graph.receipt()
     expect_parent(cmd_mox, graph)
@@ -88,6 +92,7 @@ def test_maintained_receipt_recovers_noninherited_parent(
 
 @pytest.mark.parametrize("boundary", ["trunk", "c", "landed"])
 def test_stale_off_by_one_or_squash_receipt_is_rejected(graph, cmd_mox, boundary):
+    """Reject a receipt naming a stale, off-by-one, or squashed boundary."""
     receipt = graph.receipt(getattr(graph, boundary))
     expect_parent(cmd_mox, graph)
     before = snapshot(graph.repository)
@@ -97,6 +102,7 @@ def test_stale_off_by_one_or_squash_receipt_is_rejected(graph, cmd_mox, boundary
 
 
 def test_receipt_must_belong_to_the_identified_parent(graph, cmd_mox):
+    """Reject a receipt whose stackParent identity disagrees with branch config."""
     receipt = graph.receipt()
     git(graph.repository, "config", "branch.child.stackParent", "other/repo#50")
     expect_parent(cmd_mox, graph)
@@ -119,6 +125,7 @@ def test_receipt_must_belong_to_the_identified_parent(graph, cmd_mox):
     ],
 )
 def test_invalid_parent_metadata_fails_before_fetch(graph, cmd_mox, overrides, message):
+    """Reject invalid parent PR metadata before any git fetch occurs."""
     expect_parent(cmd_mox, graph, stdout=graph.capture(**overrides))
     before = snapshot(graph.repository)
     with pytest.raises(planner.PlanError, match=message):
@@ -129,12 +136,14 @@ def test_invalid_parent_metadata_fails_before_fetch(graph, cmd_mox, overrides, m
 
 @pytest.mark.parametrize("stdout", ["not json", "[]", "null"])
 def test_malformed_cli_output_is_not_treated_as_missing_history(graph, cmd_mox, stdout):
+    """Treat malformed gh CLI output as a metadata failure, not missing history."""
     expect_parent(cmd_mox, graph, stdout=stdout)
     with pytest.raises(planner.PlanError, match="metadata"):
         planner.plan(graph.request())
 
 
 def test_real_gh_404_preserves_diagnostic_and_never_fetches(graph, cmd_mox):
+    """Preserve the real gh 404 diagnostic and never attempt a fetch."""
     capture = MANIFEST["commands"]["missing-parent"]
     cmd_mox.mock("gh").with_args(*capture["argv"][1:]).returns(
         stdout=(FIXTURES / "missing-parent.stdout").read_text(),
@@ -149,6 +158,7 @@ def test_real_gh_404_preserves_diagnostic_and_never_fetches(graph, cmd_mox):
 
 
 def test_metadata_and_fetched_head_must_agree(graph, cmd_mox):
+    """Reject metadata whose head_sha disagrees with the fetched PR head."""
     expect_parent(cmd_mox, graph, stdout=graph.capture(head_sha=graph.a))
     before = snapshot(graph.repository)
     with pytest.raises(planner.PlanError, match="Fetched PR head disagrees"):
@@ -157,6 +167,7 @@ def test_metadata_and_fetched_head_must_agree(graph, cmd_mox):
 
 
 def test_parent_landing_must_be_on_target(graph, cmd_mox):
+    """Reject a parent landing commit that is not reachable from the target."""
     expect_parent(cmd_mox, graph)
     with pytest.raises(planner.PlanError, match="not reachable"):
         planner.plan(graph.request(target_ref=graph.trunk))
@@ -164,12 +175,14 @@ def test_parent_landing_must_be_on_target(graph, cmd_mox):
 
 
 def test_missing_landing_object_is_an_error_not_negative_ancestry(graph, cmd_mox):
+    """Treat a missing landing object as a git error, not negative ancestry."""
     expect_parent(cmd_mox, graph, stdout=graph.capture(landed="0" * 40))
     with pytest.raises(planner.PlanError, match="git exited"):
         planner.plan(graph.request())
 
 
 def test_missing_pr_head_does_not_fall_back_to_synthetic_merge_ref(graph, cmd_mox):
+    """Refuse to fall back to the synthetic merge ref when the PR head is missing."""
     git(graph.remote, "update-ref", "-d", "refs/pull/50/head")
     git(graph.remote, "update-ref", "refs/pull/50/merge", graph.b)
     expect_parent(cmd_mox, graph)
@@ -178,6 +191,7 @@ def test_missing_pr_head_does_not_fall_back_to_synthetic_merge_ref(graph, cmd_mo
 
 
 def test_shallow_checkout_stops_before_gh(graph):
+    """Stop on a shallow checkout before invoking gh."""
     (graph.repository / ".git/shallow").write_text(graph.trunk + "\n")
     with pytest.raises(planner.PlanError, match="Shallow history"):
         planner.plan(graph.request())
@@ -187,6 +201,7 @@ def test_shallow_checkout_stops_before_gh(graph):
     "state", ["untracked", "unstaged", "staged", "rebase", "sequencer"]
 )
 def test_occupied_checkout_stops_without_discarding_work(graph, state):
+    """Stop without discarding work when the checkout has other pending state."""
     if state in ("rebase", "sequencer"):
         (
             graph.repository
@@ -207,6 +222,7 @@ def test_occupied_checkout_stops_without_discarding_work(graph, state):
 
 
 def test_merge_containing_child_requires_another_procedure(graph, cmd_mox):
+    """Refuse to plan when the child branch history contains a merge commit."""
     git(graph.repository, "switch", "-c", "side", graph.b)
     from rebase_test_support import change
 
@@ -219,6 +235,7 @@ def test_merge_containing_child_requires_another_procedure(graph, cmd_mox):
 
 
 def test_empty_series_requires_a_noop_decision(graph, cmd_mox):
+    """Require an explicit no-op decision when the commit series is empty."""
     git(graph.repository, "reset", "--hard", graph.b)
     expect_parent(cmd_mox, graph)
     before = snapshot(graph.repository)
@@ -230,6 +247,7 @@ def test_empty_series_requires_a_noop_decision(graph, cmd_mox):
 
 
 def test_cli_main_emits_machine_readable_plan(graph, cmd_mox, capsys):
+    """Emit a machine-readable JSON plan from the CLI entry point."""
     expect_parent(cmd_mox, graph)
     planner.main(**dataclasses.asdict(graph.request()))
     result = json.loads(capsys.readouterr().out)

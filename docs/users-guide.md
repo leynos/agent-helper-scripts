@@ -427,6 +427,93 @@ skills and no separate skill checkout is needed. See the
 [migration guide](migration-guide.md) if an earlier deployment installed the
 skill from its own repository.
 
+## Squash-restack boundaries
+
+When a parent pull request is squash-merged, the child branch that was
+stacked on it still carries the parent's original commits. Restacking the
+child onto the new target requires an exclusive replay boundary
+(`OLD_BASE`): the last commit the child inherited from the parent. `OLD_BASE`
+is **not** the target merge-base, **not** the squash landing SHA, and **not**
+the apparent first child commit — the graph's ordinary merge-base is only a
+topology fact, and the squash commit is a landing record, not a boundary.
+Choosing the wrong boundary either silently drops the first genuine child
+commit or replays already-landed parent work back onto the target.
+
+The [`rebase` skill](../skills/rebase/SKILL.md) and its
+[squashed-parent reference](../skills/rebase/references/squashed-parent.md)
+document how to establish this boundary and audit a replay against it. See
+also the [Stacked pull requests](#stacked-pull-requests) and
+[Entity-aware Git merges](#entity-aware-git-merges) sections above for the
+surrounding stack and merge-driver context.
+
+### Planning a restack
+
+For a confirmed squash-merged parent with a known pull request identity, the
+skill bundles a planner, `skills/rebase/scripts/plan_restack.py`. It is a
+Cyclopts command-line tool run with `uv run`, and requires Python 3.13 or
+later and an authenticated `gh`:
+
+```bash
+uv run skills/rebase/scripts/plan_restack.py . \
+  --branch "$BRANCH" --target-ref "$TARGET_REF" \
+  --parent-repository "$PARENT_REPOSITORY" --parent-pr "$PARENT_PR" \
+  --boundary-ref "$BOUNDARY_REF"
+```
+
+The positional argument is the repository path (`.` for the current
+checkout). `--boundary-ref` is optional; supply it when a maintained
+`refs/stack-bases/<branch>` receipt exists, and omit it otherwise.
+
+The planner is strictly non-mutating. It never rebases, pushes, prunes, or
+moves a branch or tracking ref, and it never touches the index or working
+tree. It only reads Git and `gh` metadata and fetches the parent pull
+request's head into a private `refs/agent-rebase/…` evidence ref for later
+review and recovery.
+
+A successful run prints a JSON plan to standard output with
+`status: review-required`, or `status: no-op-decision-required` when the
+computed range is empty. That status is a request for human or agent review;
+it is never authorization to replay. The plan carries `boundary_evidence`
+(the provenance of the chosen `OLD_BASE`), `boundary_corroborated` (whether
+preserved parent history proves the boundary), `evidence_ref` (the private
+fetch ref), `commits` (the exact ordered commit list the plan proposes to
+replay), and `rebase_argv` (the exact proposed rebase command). A blocked run
+prints a `status: blocked` JSON object on standard error and exits with
+status 2; treat this, and any `gh` or fetch error, as a stop, not as a
+negative ancestry result.
+
+### What the operator still owns
+
+The planner narrows the evidence gathering; it does not discharge review.
+The operator (human or supervising agent) still owns:
+
+- Confirming the parent relationship and that the parent pull request was
+  actually squash-merged, not merged by another method.
+- Judging the freshness of any boundary receipt and the ownership of each
+  commit in the proposed range.
+- Applying worktree, merge-driver and acceptance policy, including the
+  [Weave driver-selection checks](../skills/weave-git-merge/SKILL.md) and the
+  repository's formatting, lint, type and test gates, before and after
+  replay.
+
+### Do not use `gh stack sync --prune` for discovery
+
+`gh stack sync --prune` must not be used as a way to discover the replay
+boundary. It can rebase, push and prune branches — destroying recovery
+evidence — before any proposed range has been reviewed. A clean `gh stack
+sync` exit is a safety net against a diverged remote, not proof of replay
+ownership: it says nothing about which commits each layer owns, so it cannot
+by itself confirm that no inherited parent commit remains in a cascading
+rebase. Establish and review the boundary evidence first.
+
+### Host restriction
+
+The bundled planner's fetch currently targets `github.com` explicitly, even
+when the child branch lives in a fork. Other GitHub hosts (for example
+GitHub Enterprise Server) are not supported by the planner and need the
+separately documented recovery path in the
+[squashed-parent reference](../skills/rebase/references/squashed-parent.md).
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`

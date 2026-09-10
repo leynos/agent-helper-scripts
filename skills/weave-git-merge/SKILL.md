@@ -40,10 +40,22 @@ local primary checkout as the implicit base for unattended work. Resolve the
 remote target to a commit first.
 
 Before a rebase, establish the exclusive `OLD_BASE` with the
-[rebase skill](../rebase/SKILL.md). For the semantic audit, set `BRANCH_BASE` to
-that accepted boundary. For an ordinary merge only, use `MERGE_BASE` instead.
-A target merge-base is not a squash-restack boundary; it can include inherited
-parent work that must not count as child-owned changes.
+[rebase skill](../rebase/SKILL.md), then bind the semantic audit to that
+accepted boundary:
+
+```bash
+BRANCH_BASE="$OLD_BASE"
+```
+
+For an ordinary merge only, bind it to the recorded merge-base instead:
+
+```bash
+BRANCH_BASE="$MERGE_BASE"
+```
+
+Assign `BRANCH_BASE` before any audit command below expands it. A target
+merge-base is not a squash-restack boundary; it can include inherited parent
+work that must not count as child-owned changes.
 
 A completed rebase creates a new candidate. Any gate, review, or merge-eligibility
 evidence tied to `OLD_HEAD` is stale for acceptance after the replay. Preserve

@@ -72,6 +72,9 @@ It queries `gh`, fetches only the PR head into a fresh private evidence ref, and
 prints JSON containing the frozen identities, exact commit list, evidence source,
 and proposed argv. It does not rebase, push, prune, update tracking branches,
 write `FETCH_HEAD`, or modify the index/worktree. Evidence refs remain for review.
+Bounded structured diagnostics go to standard error, keyed by the same
+`operation` identifier the plan carries; parse the plan from standard output
+alone and never merge the two streams.
 The fetch uses the explicit parent repository on github.com, including when the
 child lives in a fork; other GitHub hosts need a separately reviewed procedure.
 
@@ -86,8 +89,11 @@ If the current parent head is not inherited, the planner refuses to pick a
 merge-base even when only one exists. Review the advanced/rewritten-parent
 procedure in the reference. A maintained `refs/stack-bases/$BRANCH` receipt may
 be supplied with `--boundary-ref`; the matching
-`branch.$BRANCH.stackParent` must identify the same repository and PR. This still
-requires review of receipt freshness and ownership. Discovery does not search
+`branch.$BRANCH.stackParent` must identify the same repository and PR. Such a
+plan reports `boundary_corroborated: false`, because only inherited parent
+history can prove that no inherited commit follows the receipt. Prove that from
+preserved parent history or a reflog, and review receipt freshness and
+ownership, before replaying. Discovery does not search
 PR titles or silently choose among ambiguous commit-to-PR associations.
 
 ## Review the plan before mutation
