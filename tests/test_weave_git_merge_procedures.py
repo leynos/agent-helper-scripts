@@ -365,12 +365,12 @@ def test_conflicting_driver_leaves_all_three_index_stages_readable(
     )
 
 
-def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
-    diverged: tuple[Path, Path, Path],
-) -> None:
-    """`--exec` stops the rebase before a corrupt replay reaches later commits."""
-    repository, source, attributes = diverged
-    _select_scope(repository, "global", attributes)
+def _diverge_two_topic_commits(repository: Path, source: Path) -> None:
+    """Commit the base, then two topic commits, before diverging `main`.
+
+    Both topic commits touch `example.py`, so Git hands each of their replays
+    to the merge driver in turn.
+    """
     _git(repository, "commit", "--quiet", "-m", "base")
     _git(repository, "switch", "--quiet", "--create", "topic")
     source.write_text(TOPIC_SOURCE, encoding="utf-8")
@@ -382,6 +382,15 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
     source.write_text(MAIN_SOURCE, encoding="utf-8")
     _git(repository, "commit", "--quiet", "--all", "-m", "main change")
     _git(repository, "switch", "--quiet", "topic")
+
+
+def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """`--exec` stops the rebase before a corrupt replay reaches later commits."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge_two_topic_commits(repository, source)
 
     guard = f"{sys.executable} -m py_compile example.py"
     environment = EnvironmentManager()
@@ -402,6 +411,91 @@ def test_exec_guard_stops_a_multi_commit_rebase_at_the_first_bad_replay(
     )
 
     _abort(repository, "rebase")
+
+
+def test_a_corrupt_early_replay_becomes_the_ours_stage_of_the_next_replay(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A cleanly returned but corrupted replay feeds straight into the next one.
+
+    With no `--exec` guard, Git keeps replaying on top of whatever the driver
+    last wrote. The second replay's `%A` (current/ours) is therefore exactly
+    the first replay's corrupted `%A` output, not the original topic content.
+    """
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge_two_topic_commits(repository, source)
+
+    second_output = f'{MERGED_SOURCE}\n\ndef delta() -> str:\n    return "topic"\n'
+    captured: dict[str, str] = {}
+    calls = 0
+
+    def handler(invocation: Invocation) -> tuple[str, str, int]:
+        nonlocal calls
+        calls += 1
+        ancestor, current, _other, _marker_size, _pathname = invocation.args
+        if calls == 1:
+            (repository / current).write_text(CORRUPT_OUTPUT, encoding="utf-8")
+            return ("", "", 0)
+        # Read before writing: Git may reuse the same temporary path for `%A`
+        # across replays, so the prior content must be captured now.
+        captured["ours"] = (repository / current).read_text(encoding="utf-8")
+        captured["ancestor"] = (repository / ancestor).read_text(encoding="utf-8")
+        (repository / current).write_text(second_output, encoding="utf-8")
+        return ("", "", 0)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(handler)
+        mox.replay()
+        _wire_driver(repository, environment)
+        rebased = _git(repository, "rebase", "main", check=False)
+
+    assert spy.call_count == 2, "both replays must invoke the driver"
+    assert rebased.returncode == 0, (
+        f"a clean exit each time must let the rebase complete: {rebased.stderr}"
+    )
+    assert captured["ours"] == CORRUPT_OUTPUT, (
+        "the corrupt first replay must be exactly the ours input of the second "
+        "replay; the second invocation's `%A` must equal the first invocation's "
+        "written output"
+    )
+    assert captured["ancestor"] == TOPIC_SOURCE, (
+        "the second replay's ancestor must be the pre-corruption topic content, "
+        "as recorded before the first replay's original commit was rewritten"
+    )
+
+    rewritten_first = _git(repository, "show", "HEAD~1:example.py").stdout
+    assert rewritten_first == CORRUPT_OUTPUT, (
+        "Git must have recorded the corrupted first replay in the rewritten "
+        "intermediate commit"
+    )
+    assert source.read_text(encoding="utf-8") == second_output, (
+        "the working file at HEAD must hold the valid second replay's output"
+    )
+
+    assert spy.invocations[0].args[-1] == "example.py", (
+        "the first invocation's `%P` must name the conflicting path"
+    )
+    assert spy.invocations[1].args[-1] == "example.py", (
+        "the second invocation's `%P` must name the conflicting path"
+    )
+
+    copy = repository / "intermediate.py"
+    copy.write_text(rewritten_first, encoding="utf-8")
+    compiled = subprocess.run(  # noqa: S603 - interpreter path and fixed arguments.
+        [sys.executable, "-m", "py_compile", str(copy)],
+        cwd=repository,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    assert compiled.returncode != 0, (
+        "the intermediate replay is structurally broken; only a per-replay "
+        "guard such as `--exec` would have caught it before it became input "
+        "to the next replay"
+    )
 
 
 @pytest.mark.parametrize("scope", SCOPES)
