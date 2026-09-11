@@ -385,6 +385,11 @@ The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 `polymerization` occurrences when the previously empty repository became the
 97th candidate.
 
+The netsuke request of 11 September 2026 added nine `s`-to-`z` drift
+corrections for `otherwise`, `exercise` and `raise`. Typos reports the exercise
+family with competing candidates and misses the raise family entirely, so each
+recorded drift form now carries one canonical replacement for every consumer.
+
 - `make ci`
   - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, `test`,
     and `spelling`.

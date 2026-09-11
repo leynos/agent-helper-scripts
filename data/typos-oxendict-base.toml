@@ -170,7 +170,16 @@ accepted = [
 ]
 
 [words.corrections]
+exercize = "exercise"
+exercized = "exercised"
+exercizes = "exercises"
+exercizing = "exercising"
 organisational = "organizational"
+otherwize = "otherwise"
+raize = "raise"
+raized = "raised"
+raizes = "raises"
+raizing = "raising"
 
 [phrases.corrections]
 "hand-written" = "handwritten"
