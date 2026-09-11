@@ -47,7 +47,16 @@ NIXIE ?= nixie
 
 all: ci
 
-ci: check-fmt markdownlint lint typecheck test
+# Every gate `make ci` runs. CI supplies the Markdown gate with the
+# markdownlint-cli2 action, which brings its own linter, so the workflow sets
+# CI_SKIP_MARKDOWNLINT=1 rather than repeating the list and letting the two
+# drift apart when a gate is added here.
+CI_GATES := check-fmt markdownlint lint typecheck test
+ifeq ($(CI_SKIP_MARKDOWNLINT),1)
+CI_GATES := $(filter-out markdownlint,$(CI_GATES))
+endif
+
+ci: $(CI_GATES)
 	+$(MAKE) spelling
 
 # Fail early with an actionable message when a gate's CLI tool is absent.

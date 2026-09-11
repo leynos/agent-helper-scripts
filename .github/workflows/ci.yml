@@ -9,9 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MARKDOWNLINT_CLI2_VERSION: 0.22.1
-
 jobs:
   make-ci:
     name: Makefile gates
@@ -29,13 +26,17 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.0.1
 
-      # The exact version is pinned so a new release cannot change the gate
-      # under a passing PR. The dependency graph is not locked beyond that,
-      # matching the shared template this step mirrors. Mermaid validation
-      # (make nixie) needs a renderer this runner does not provide, so it stays
-      # a local-only gate.
-      - name: Install Markdown tooling
-        run: npm install --global "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
+      # Markdown is linted by the upstream action rather than an installation
+      # of our own: its release carries the linter's whole dependency graph, so
+      # nothing is resolved from the registry at run time. Dependabot manages
+      # this version alongside the other actions the workflow uses. Mermaid
+      # validation (make nixie) needs a renderer this runner does not provide,
+      # so it stays a local-only gate.
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v24.2.0
+        with:
+          globs: "**/*.md"
 
+      # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence
-        run: make ci
+        run: make ci CI_SKIP_MARKDOWNLINT=1

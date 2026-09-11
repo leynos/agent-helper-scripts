@@ -28,9 +28,10 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     """The CI entrypoint generates config and runs a pinned typos binary."""
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
-    assert "ci: check-fmt markdownlint lint typecheck test" in makefile, (
+    assert "CI_GATES := check-fmt markdownlint lint typecheck test" in makefile, (
         "CI prerequisites changed"
     )
+    assert "ci: $(CI_GATES)" in makefile, "CI ignores the declared gate sequence"
     assert "+$(MAKE) spelling" in makefile, "CI does not serialize spelling after tests"
     assert re.search(r"^TYPOS_VERSION\s*\?=\s*\S+", makefile, re.MULTILINE), (
         "Makefile does not pin typos"

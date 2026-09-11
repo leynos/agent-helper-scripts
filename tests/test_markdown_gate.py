@@ -31,6 +31,10 @@ DEVIATION_RULES: dict[str, object] = {
 
 DEFAULT_GLOB = "**/*.md"
 
+# The upstream action CI lints through. Its release carries the linter and its
+# dependency graph, and Dependabot manages the version with the other actions.
+MARKDOWNLINT_ACTION = "DavidAnson/markdownlint-cli2-action"
+
 
 def strip_jsonc_comments(text: str) -> str:
     """Remove the whole-line comments the configuration files keep.
@@ -202,27 +206,37 @@ def load_lint_config() -> dict[str, object]:
     return json.loads(strip_jsonc_comments(LINT_CONFIG.read_text(encoding="utf-8")))
 
 
-def makefile_target_prerequisites(target: str) -> list[str]:
-    """List the prerequisites declared for a Makefile target.
+def ci_gates(*assignments: str) -> list[str]:
+    """List the gates `make ci` runs, as make itself expands them.
 
     Parameters
     ----------
-    target
-        Target name to look up.
+    *assignments
+        Variable assignments to pass on make's command line.
 
     Returns
     -------
     list[str]
-        Whitespace-separated prerequisites of the target.
+        Whitespace-separated gate names, in the order make would run them.
 
     Raises
     ------
     AssertionError
-        If the Makefile does not declare the target.
+        If make fails or prints nothing the caller can parse.
+
+    Side Effects
+    ------------
+    Starts a subprocess in the repository root.
     """
-    makefile = MAKEFILE.read_text(encoding="utf-8")
-    match = re.search(rf"^{re.escape(target)}:([^\n]*)$", makefile, re.MULTILINE)
-    assert match, f"Makefile does not declare the {target} target"
+    completed = run_make(
+        "--no-print-directory",
+        "--eval=print-ci-gates: ; @echo [$(CI_GATES)]",
+        "print-ci-gates",
+        *assignments,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    match = re.fullmatch(r"\[(.*)\]\n", completed.stdout)
+    assert match, f"unexpected make output: {completed.stdout!r}"
     return match.group(1).split()
 
 
@@ -404,12 +418,42 @@ def test_makefile_declares_the_markdown_gates() -> None:
 
 def test_ci_runs_the_markdown_lint_gate_only() -> None:
     """CI gates Markdown lint; Mermaid validation stays local."""
-    prerequisites = makefile_target_prerequisites("ci")
+    gates = ci_gates()
 
-    assert "markdownlint" in prerequisites, prerequisites
-    assert "nixie" not in prerequisites, (
+    assert "markdownlint" in gates, gates
+    assert "nixie" not in gates, (
         "nixie needs a Mermaid renderer the CI runner does not provide"
     )
+
+
+def test_ci_target_runs_the_declared_gate_list() -> None:
+    """The `ci` target takes its prerequisites from the shared gate list.
+
+    Without this, the target could name its gates itself while the list above it
+    drifted, and the difference CI runs would no longer be the one the workflow
+    names.
+    """
+    makefile = MAKEFILE.read_text(encoding="utf-8")
+
+    assert re.search(r"^ci: \$\(CI_GATES\)$", makefile, re.MULTILINE), (
+        "the ci target no longer runs the declared gate list"
+    )
+
+
+def test_ci_skips_only_the_gate_the_action_supplies() -> None:
+    """CI runs every gate `make ci` runs, minus the one the action supplies.
+
+    The workflow names the gate it does not run rather than repeating the list,
+    so this pins the difference between the two sequences to exactly that gate:
+    a gate added to the Makefile still reaches CI.
+    """
+    gates = ci_gates()
+    in_ci = ci_gates("CI_SKIP_MARKDOWNLINT=1")
+
+    # A Makefile that stopped routing `ci` through the list would expand to
+    # nothing, which would make the comparison below pass on empty sequences.
+    assert "markdownlint" in gates, gates
+    assert in_ci == [gate for gate in gates if gate != "markdownlint"], in_ci
 
 
 def test_make_markdownlint_target_lints_the_tree(tmp_path: Path) -> None:
@@ -482,17 +526,28 @@ def test_lint_config_records_why_it_deviates() -> None:
         )
 
 
-def test_ci_workflow_installs_the_pinned_linter() -> None:
-    """The CI image installs the same linter the gate invokes, at a pinned version."""
+def test_ci_workflow_lints_through_the_pinned_action() -> None:
+    """CI lints Markdown with the upstream action, pinned, not an npm install.
+
+    The action's release carries the linter and its whole dependency graph, so
+    the version Dependabot manages is the version that runs. The ref must stay a
+    version tag rather than a branch, or a new release could change the gate
+    under a passing pull request.
+    """
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")
 
-    pinned = re.search(r"^  MARKDOWNLINT_CLI2_VERSION: (\S+)$", workflow, re.MULTILINE)
-    assert pinned, "the CI workflow does not pin markdownlint-cli2"
-    assert re.fullmatch(r"\d+\.\d+\.\d+", pinned.group(1)), pinned.group(1)
-    assert "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" in workflow, (
-        "the CI workflow does not install the pinned version it declares"
+    uses = re.search(rf"uses: {re.escape(MARKDOWNLINT_ACTION)}@(\S+)", workflow)
+    assert uses, f"the CI workflow does not use {MARKDOWNLINT_ACTION}"
+    assert re.fullmatch(r"v\d+(\.\d+\.\d+)?", uses.group(1)), uses.group(1)
+    assert "npm install" not in workflow, "CI still installs a linter of its own"
+    assert workflow.index("actions/checkout") < workflow.index(MARKDOWNLINT_ACTION), (
+        "the action lints the checked-out workspace, so checkout must come first"
     )
-    assert "run: make ci" in workflow, "CI does not run the gate sequence"
+    globs = re.search(r'globs: "([^"]*)"', workflow)
+    assert globs and globs.group(1) == DEFAULT_GLOB, globs
+    assert "make ci CI_SKIP_MARKDOWNLINT=1" in workflow, (
+        "CI does not run the gate sequence without the gate the action supplies"
+    )
 
 
 #: Argument chunks the widening property builds invocations from. Each chunk
