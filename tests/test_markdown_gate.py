@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import json
 import os
 from pathlib import Path
@@ -157,7 +158,11 @@ def run_lint_script(
     return record.read_text(encoding="utf-8").split()
 
 
-def run_make(*args: str, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run_make(
+    *args: str,
+    environment: dict[str, str] | None = None,
+    unset: Sequence[str] = (),
+) -> subprocess.CompletedProcess[str]:
     """Run make from the repository root.
 
     Parameters
@@ -166,6 +171,9 @@ def run_make(*args: str, environment: dict[str, str] | None = None) -> subproces
         Make arguments to pass after the executable name.
     environment
         Extra environment variables for the run.
+    unset
+        Names removed from the inherited environment first, so an override the
+        caller was itself invoked with cannot decide what the run observes.
 
     Returns
     -------
@@ -177,6 +185,8 @@ def run_make(*args: str, environment: dict[str, str] | None = None) -> subproces
     Starts a subprocess in the repository root.
     """
     run_environment = os.environ.copy()
+    for name in unset:
+        run_environment.pop(name, None)
     if environment:
         run_environment.update(environment)
     return subprocess.run(  # noqa: S603,S607 - controlled args, shell=False, repo-root make lookup.
@@ -206,6 +216,15 @@ def load_lint_config() -> dict[str, object]:
     return json.loads(strip_jsonc_comments(LINT_CONFIG.read_text(encoding="utf-8")))
 
 
+#: Names the gate probe clears before it starts make. CI passes
+#: CI_SKIP_MARKDOWNLINT on make's command line, and make exports a command-line
+#: definition to everything the gate sequence then runs, this suite included;
+#: MAKEFLAGS and MAKEOVERRIDES carry the same definition into a sub-make.
+#: Clearing them keeps these tests on the sequence they asked for rather than
+#: the one CI is running them from.
+GATE_OVERRIDES = ("CI_SKIP_MARKDOWNLINT", "MAKEFLAGS", "MAKEOVERRIDES")
+
+
 def ci_gates(*assignments: str) -> list[str]:
     """List the gates `make ci` runs, as make itself expands them.
 
@@ -233,6 +252,7 @@ def ci_gates(*assignments: str) -> list[str]:
         "--eval=print-ci-gates: ; @echo [$(CI_GATES)]",
         "print-ci-gates",
         *assignments,
+        unset=GATE_OVERRIDES,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     match = re.fullmatch(r"\[(.*)\]\n", completed.stdout)
