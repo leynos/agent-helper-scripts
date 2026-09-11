@@ -40,12 +40,20 @@ curl -s https://api.github.com/repos/biomejs/biome/releases/latest | jq -r '.tag
 
 ## Quick Start
 
-Install as dev dependency (always pin exact version):
+Install as dev dependency, pinned to the release these examples target:
 
 ```bash
-npm install --save-dev --save-exact @biomejs/biome@latest
+npm install --save-dev --save-exact @biomejs/biome@1.9.4
 npx biome init
 ```
+
+**Pin `1.9.4` while following this skill.** The `$schema` URL and the
+`files.include` / `files.ignore` settings below are 1.9.4 spellings: Biome 2.0
+replaced both keys with `files.includes` and moved `organizeImports` under
+`assist.actions.source.organizeImports`. `$schema` must always match the
+installed version, so run `biome migrate --write` and update `$schema` in the
+same commit as any upgrade of Biome itself; see
+[Version Discovery](#version-discovery).
 
 This creates `biome.json`. Immediately verify:
 
@@ -207,7 +215,7 @@ Apply different rules to specific file patterns:
       "linter": {
         "rules": {
           "suspicious": {
-            "noConsoleLog": "off"
+            "noConsole": "off"
           }
         }
       }
@@ -327,8 +335,32 @@ suppressions fail.
 
 ## TypeScript Integration
 
-Biome does **not** use `tsconfig.json` for path resolution by default. For
-monorepos or path aliases:
+Biome only reads `tsconfig.json` for import path resolution when the
+**nearest** `tsconfig.json` can supply `compilerOptions.baseUrl` or
+`compilerOptions.paths`. Support for both starts in **Biome 2.3**. The examples
+on this page pin 1.9.4, where an alias such as `@app/foo` is **not** resolved —
+use relative imports, or upgrade to 2.3 or newer before relying on an alias:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@app/*": ["./app/*"]
+    }
+  }
+}
+```
+
+With Biome 2.3 or newer, the nearest `tsconfig.json` is picked up without any
+Biome-side setting: `baseUrl` alone resolves bare specifiers from that
+directory (`import { foo } from "foo"` finds `src/foo.ts`), and `paths` adds
+explicit prefix mappings on top of it.
+
+JSX and globals configuration live under `javascript` and are independent of
+path resolution. The classic JSX runtime needs `React` declared as a global
+because it emits `React.createElement` calls:
 
 ```json
 {
@@ -339,7 +371,7 @@ monorepos or path aliases:
 }
 ```
 
-For JSX:
+For JSX with the automatic runtime, no global is required:
 
 ```json
 {

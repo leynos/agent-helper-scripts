@@ -1323,3 +1323,41 @@ Split-specific checks:
   changes.
 - Restore a warm `$HOME` into a fresh system layer, clear APT lists, then run
   the system phase when `apt-update-if-stale` changes.
+
+### Test helper: `tests/biome_typescript_pipeline_support.py`
+
+`tests/biome_typescript_pipeline_support.py` is shared plumbing for the tests
+of the changed-file pipeline documented in
+`skills/biome-typescript/references/ci-hooks.md`, the one part of the skill
+that runs in a shell. It exposes:
+
+- `git_environment()` — returns an environment that ignores the host's Git
+  configuration, so difftool, signing and identity settings cannot affect a
+  test.
+- `run_git(repository, *args, check=True)` — runs Git in a temporary
+  repository with captured output.
+- `run_body(block)` — extracts and dedents the `run: |` block scalar from a
+  workflow step.
+- `documented_pipeline()` — returns the changed-file pipeline exactly as the
+  skill documents it.
+- `PipelineRepository` — a frozen dataclass whose `write`, `remove`, `rename`
+  and `commit` methods change and record repository state, and whose `run`
+  executes the documented body under Bash with a stub `biome` first on `PATH`,
+  so no test requires Biome to be installed. Its `biome_calls` and `arguments`
+  describe the most recent run, whose stub log is cleared first so an assertion
+  cannot be satisfied by an earlier run's argument.
+- `pipeline` — a function-scoped fixture that builds a repository whose
+  `origin/main` precedes the feature branch.
+
+The tests run the documented `run:` body itself rather than a copy of it.
+`tests/conftest.py` re-exports the `pipeline` fixture, so a test module names
+it without importing the support module's other contents. Two modules consume
+it: `tests/test_biome_typescript_procedures.py` uses fixed filenames with one
+test per behaviour, covering spaces, newlines, renames, deleted paths, an
+empty change set and a failing Biome, while
+`tests/test_biome_typescript_procedures_properties.py` runs a Hypothesis
+property over generated path components, marked `slow`. The tests are
+POSIX-only: the documented command is POSIX shell relying on GNU `xargs -r`,
+which the skill names as an extension already present on its `ubuntu-latest`
+runner, so the tests that execute it skip on a host that is not POSIX. This is
+a deliberate scope, not a gap.
