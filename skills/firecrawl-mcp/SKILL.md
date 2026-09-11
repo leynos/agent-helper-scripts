@@ -24,7 +24,7 @@ assumes the MCP server is already connected and authenticated.
 The tool names and payloads in this skill are pinned to the **full profile of
 the Firecrawl hosted MCP endpoint**:
 
-```
+```text
 https://mcp.firecrawl.dev/v2/mcp
 ```
 
