@@ -528,6 +528,11 @@ that developers will actually run it. Optimize in this order:
    - `--workers` requires collection mode with `galaxy.yml`.
    - Use `shared_state: true` in scenario configs when using the native
      worker mode so the default scenario owns shared create/destroy lifecycle.
+   - Scope the fact cache per scenario in native worker mode. Every worker
+     inherits the same `MOLECULE_INSTANCE_SUFFIX`, so scenarios that declare
+     the same platform names write the same cache entries and can overwrite
+     each other's snapshots. Add `${MOLECULE_SCENARIO_NAME}` to
+     `fact_caching_connection`, or drop `fact_caching` for the mode.
    - Do not combine `--workers > 1` with `--destroy=never`.
    - Fall back to `molecule test --all`, which runs the same scenarios
      sequentially in the main process, when worker mode is unavailable or
