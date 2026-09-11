@@ -28,14 +28,32 @@ if typ.TYPE_CHECKING:
 
 
 class Operation(enum.StrEnum):
-    """Git operations the skill's stateful guidance distinguishes."""
+    """Git operations the skill's stateful guidance distinguishes.
+
+    Attributes
+    ----------
+    REBASE : Operation
+        Replaying commits one at a time.
+    MERGE : Operation
+        A single merge commit.
+    """
 
     REBASE = "rebase"
     MERGE = "merge"
 
 
 class Scope(enum.StrEnum):
-    """Attribute sources that can supply a `merge=weave` rule."""
+    """Attribute sources that can supply a `merge=weave` rule.
+
+    Attributes
+    ----------
+    TRACKED : Scope
+        Tracked `.gitattributes` committed to the repository.
+    CLONE_LOCAL : Scope
+        `.git/info/attributes` local to the clone.
+    GLOBAL : Scope
+        The global attributes file named by `core.attributesFile`.
+    """
 
     TRACKED = "tracked"
     CLONE_LOCAL = "clone-local"
@@ -43,7 +61,18 @@ class Scope(enum.StrEnum):
 
 
 class Bypass(enum.StrEnum):
-    """Bypasses the skill's scope matrix documents."""
+    """Bypasses the skill's scope matrix documents.
+
+    Attributes
+    ----------
+    NONE : Bypass
+        No bypass in effect.
+    DEV_NULL_ATTRIBUTES_FILE : Bypass
+        `git -c core.attributesFile=/dev/null ...`.
+    PATH_UNSET_MERGE : Bypass
+        A later, path-specific `path !merge` line in
+        `.git/info/attributes`.
+    """
 
     NONE = "none"
     # `git -c core.attributesFile=/dev/null ...`
@@ -74,6 +103,18 @@ def active_sources(sources: Iterable[Scope], bypass: Bypass) -> frozenset[Scope]
     tracked `.gitattributes` and `.git/info/attributes` still apply. A later
     path-specific `!merge` line in `.git/info/attributes` outranks every other
     source for that path, so no source can select Weave for it.
+
+    Parameters
+    ----------
+    sources : Iterable[Scope]
+        Attribute sources currently supplying `merge=weave` for the path.
+    bypass : Bypass
+        Bypass in effect, if any.
+
+    Returns
+    -------
+    frozenset[Scope]
+        Sources still able to select Weave under `bypass`.
     """
     selected = frozenset(sources)
     if bypass is Bypass.DEV_NULL_ATTRIBUTES_FILE:
@@ -88,6 +129,20 @@ def effective_merge_attribute(sources: Iterable[Scope], bypass: Bypass) -> str:
 
     `sources` names every scope currently supplying `merge=weave` for the
     path; an empty collection means no source selects Weave.
+
+    Parameters
+    ----------
+    sources : Iterable[Scope]
+        Every scope currently supplying `merge=weave` for the path; an
+        empty collection means no source selects Weave.
+    bypass : Bypass
+        Bypass in effect, if any.
+
+    Returns
+    -------
+    str
+        `weave` if a source still selects Weave under `bypass`,
+        otherwise `unspecified`.
     """
     return WEAVE if active_sources(sources, bypass) else UNSPECIFIED
 
@@ -100,6 +155,20 @@ def global_attributes_path(
     `git config --path --get core.attributesFile` prints nothing and exits
     non-zero when the setting is absent. That means the default path applies,
     not that no global rule exists.
+
+    Parameters
+    ----------
+    configured : str | None
+        Value of `core.attributesFile`, or `None` when unset.
+    xdg_config_home : str | None
+        Value of `$XDG_CONFIG_HOME`, or `None` when unset.
+    home : str
+        Value of `$HOME`.
+
+    Returns
+    -------
+    str
+        Path Git consults for global attributes.
     """
     if configured:
         return configured
@@ -114,9 +183,28 @@ def global_attributes_path(
 class ConflictCase:
     """One conflicted path with the per-stage facts an agent can observe.
 
-    `prior_unverified_replays` counts earlier replayed commits in the same
-    rebase whose results have not passed a structural gate. It is always zero
-    for a merge, which replays nothing.
+    Attributes
+    ----------
+    operation : Operation
+        Git operation producing the conflict.
+    base_present : bool
+        Whether a stage 1 (base) blob exists for the path.
+    base_parses : bool
+        Whether the stage 1 blob parses.
+    ours_parses : bool
+        Whether the stage 2 (ours) blob parses.
+    theirs_parses : bool
+        Whether the stage 3 (theirs) blob parses.
+    prior_unverified_replays : int
+        Count of earlier replayed commits in the same rebase whose
+        results have not passed a structural gate. Always zero for a
+        merge, which replays nothing.
+
+    Raises
+    ------
+    ValueError
+        If `prior_unverified_replays` is negative, or if `operation` is
+        `Operation.MERGE` and `prior_unverified_replays` is non-zero.
     """
 
     operation: Operation
@@ -141,7 +229,18 @@ THEIRS_STAGE: typ.Final = 3
 
 
 def existing_stages(case: ConflictCase) -> frozenset[int]:
-    """Return the index stages Git holds for the conflicted path."""
+    """Return the index stages Git holds for the conflicted path.
+
+    Parameters
+    ----------
+    case : ConflictCase
+        Conflicted path facts to inspect.
+
+    Returns
+    -------
+    frozenset[int]
+        Stages Git holds for the path.
+    """
     stages = {OURS_STAGE, THEIRS_STAGE}
     if case.base_present:
         stages.add(BASE_STAGE)
@@ -153,6 +252,16 @@ def parseable_stages(case: ConflictCase) -> frozenset[int]:
 
     Only stages that exist may be parsed; the skill says to run the stage
     commands only for stages that exist.
+
+    Parameters
+    ----------
+    case : ConflictCase
+        Conflicted path facts to inspect.
+
+    Returns
+    -------
+    frozenset[int]
+        Existing stages whose blobs parse.
     """
     parses = {
         BASE_STAGE: case.base_parses,
@@ -169,6 +278,16 @@ def trusted_stages(case: ConflictCase) -> frozenset[int]:
     stage 2 is additionally untrusted while any earlier replay is unverified,
     because it can already hold a silently corrupted earlier result. A
     parsing stage 3 never makes a non-parsing stage 2 safe.
+
+    Parameters
+    ----------
+    case : ConflictCase
+        Conflicted path facts to inspect.
+
+    Returns
+    -------
+    frozenset[int]
+        Stages an agent may treat as a trusted baseline.
     """
     trusted = set(parseable_stages(case))
     if case.operation is Operation.REBASE and case.prior_unverified_replays:
@@ -182,6 +301,18 @@ def resolution_may_continue(case: ConflictCase, resolved_parses: bool) -> bool:
     The resolved working file must parse, and stage 2 must be a trusted
     baseline: an earlier corrupt replay cannot be laundered by a clean later
     resolution built on top of it.
+
+    Parameters
+    ----------
+    case : ConflictCase
+        Conflicted path facts to inspect.
+    resolved_parses : bool
+        Whether the resolved working file parses.
+
+    Returns
+    -------
+    bool
+        Whether `git add` and `--continue` are permitted for the path.
     """
     return resolved_parses and OURS_STAGE in trusted_stages(case)
 
@@ -190,7 +321,17 @@ def resolution_may_continue(case: ConflictCase, resolved_parses: bool) -> bool:
 
 
 class DriverExit(enum.IntEnum):
-    """Weave driver exit statuses the skill interprets."""
+    """Weave driver exit statuses the skill interprets.
+
+    Attributes
+    ----------
+    CLEAN : DriverExit
+        The driver replayed the commit without conflict.
+    CONFLICT : DriverExit
+        The driver left conflict markers to resolve.
+    FAILURE : DriverExit
+        The driver failed outright.
+    """
 
     CLEAN = 0
     CONFLICT = 1
@@ -199,7 +340,15 @@ class DriverExit(enum.IntEnum):
 
 @dc.dataclass(frozen=True)
 class ReplayOutcome:
-    """What the driver did for one replayed commit."""
+    """What the driver did for one replayed commit.
+
+    Attributes
+    ----------
+    exit_code : DriverExit
+        Exit status the driver reported for this replay.
+    structurally_valid : bool
+        Whether the driver's produced result is structurally valid.
+    """
 
     exit_code: DriverExit
     structurally_valid: bool
@@ -213,6 +362,22 @@ class ReplayState:
     derived from a safe earlier result. `git_accepted` records whether Git
     recorded the result and moved on. `safe` is the andon verdict: whether
     the produced result may be accepted as the next commit's `ours` stage.
+
+    Attributes
+    ----------
+    index : int
+        Position of this replay within the fold, starting at 0.
+    ours_input_safe : bool
+        Whether the `ours` side Git handed the driver derived from a
+        safe earlier result.
+    outcome : ReplayOutcome
+        Driver's exit status and structural-validity verdict for this
+        replay.
+    git_accepted : bool
+        Whether Git recorded the result and moved on.
+    safe : bool
+        Andon verdict: whether the produced result may be accepted as
+        the next commit's `ours` stage.
     """
 
     index: int
@@ -237,6 +402,20 @@ def fold_replays(
     result is structurally valid, and the `ours` input it was built on was
     itself safe; a structurally invalid early result is therefore never
     accepted as a safe later `ours` stage.
+
+    Parameters
+    ----------
+    outcomes : Sequence[ReplayOutcome]
+        Per-commit driver results to fold, in replay order.
+    per_replay_guard : bool
+        Whether to stop folding at the first unsafe replay rather than
+        continuing until Git itself rejects one.
+
+    Returns
+    -------
+    tuple[ReplayState, ...]
+        Modelled state for each replay processed before the fold
+        stopped.
     """
     states: list[ReplayState] = []
     ours_input_safe = True
@@ -259,12 +438,34 @@ def fold_replays(
 
 
 def sequence_is_safe(states: Sequence[ReplayState]) -> bool:
-    """Return whether every replay Git accepted is also safe."""
+    """Return whether every replay Git accepted is also safe.
+
+    Parameters
+    ----------
+    states : Sequence[ReplayState]
+        Modelled replay states to check.
+
+    Returns
+    -------
+    bool
+        Whether every replay Git accepted is also safe.
+    """
     return all(state.safe for state in states if state.git_accepted)
 
 
 def safe_prefix_length(states: Sequence[ReplayState]) -> int:
-    """Return how many leading replays were accepted by Git and safe."""
+    """Return how many leading replays were accepted by Git and safe.
+
+    Parameters
+    ----------
+    states : Sequence[ReplayState]
+        Modelled replay states to check, in replay order.
+
+    Returns
+    -------
+    int
+        Count of leading replays accepted by Git and safe.
+    """
     count = 0
     for state in states:
         if not (state.git_accepted and state.safe):
