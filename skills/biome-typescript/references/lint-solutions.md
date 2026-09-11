@@ -72,12 +72,15 @@ async function renderTodos() {
 }
 
 // GOOD: No identifier of its own? Derive the key from fields that are stable
-// for the lifetime of the record, never from a value computed while rendering
+// for the lifetime of the record, never from a value computed while rendering,
+// and only while that combination stays unique among its siblings
 items.map((item) => <Item key={`${item.name}-${item.createdAt}`} />)
 ```
 
-A key only has to be unique among its siblings and stable across renders. Mint
-IDs where the data is created or written to storage, not in the component body.
+A key only has to be unique among its siblings and stable across renders. A
+composite key is safe only while its fields cannot collide, so prefer a
+persisted ID whenever one exists. Mint IDs where the data is created or
+written to storage, not in the component body.
 
 **Acceptable suppression:** Static lists that never reorder (rare).
 
@@ -87,8 +90,8 @@ IDs where the data is created or written to storage, not in the component body.
 
 **Why it matters:** This rule name supersedes the older `noConsoleLog`. It
 reports **every** `console.*` call, and nothing is exempt by default —
-`console.error` and `console.warn` are flagged too. Any method you intend to
-keep must be named in the `allow` option.
+`console.error` and `console.warn` are flagged too. Name every method to
+retain in the `allow` option.
 
 **Proper solutions:**
 
@@ -97,9 +100,10 @@ keep must be named in the `allow` option.
 import { logger } from './logger';
 logger.debug('Processing', { itemCount: items.length });
 
-// Development-only logging still needs a suppression with a reason
-// biome-ignore lint/suspicious/noConsole: dev-only branch, stripped from production builds
+// Development-only logging still needs a suppression, and `biome-ignore`
+// covers only the following line, so it belongs directly above the call
 if (import.meta.env.DEV) {
+  // biome-ignore lint/suspicious/noConsole: dev-only branch, stripped from production builds
   console.log('Debug:', value);
 }
 
