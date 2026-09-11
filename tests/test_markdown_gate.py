@@ -553,15 +553,15 @@ def test_ci_workflow_lints_through_the_pinned_action() -> None:
     """CI lints Markdown with the upstream action, pinned, not an npm install.
 
     The action's release carries the linter and its whole dependency graph, so
-    the version Dependabot manages is the version that runs. The ref must stay a
-    version tag rather than a branch, or a new release could change the gate
-    under a passing pull request.
+    the version Dependabot manages is the version that runs. The ref must be an
+    exact release tag: a branch, or a moving tag such as `v24`, could change the
+    gate under a passing pull request.
     """
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")
 
     uses = re.search(rf"uses: {re.escape(MARKDOWNLINT_ACTION)}@(\S+)", workflow)
     assert uses, f"the CI workflow does not use {MARKDOWNLINT_ACTION}"
-    assert re.fullmatch(r"v\d+(\.\d+\.\d+)?", uses.group(1)), uses.group(1)
+    assert re.fullmatch(r"v\d+\.\d+\.\d+", uses.group(1)), uses.group(1)
     assert "npm install" not in workflow, "CI still installs a linter of its own"
     assert workflow.index("actions/checkout") < workflow.index(MARKDOWNLINT_ACTION), (
         "the action lints the checked-out workspace, so checkout must come first"
