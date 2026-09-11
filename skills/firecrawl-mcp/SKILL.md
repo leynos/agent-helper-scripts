@@ -47,14 +47,15 @@ multi-source research.
 
 ## Tool inventory
 
-| Capability   | Tools                                             | Async?                      |
-| ------------ | ------------------------------------------------- | --------------------------- |
-| **Scrape**   | `firecrawl_scrape`                                | No                          |
-| **Search**   | `firecrawl_search`                                | No                          |
-| **Map**      | `firecrawl_map`                                   | No                          |
-| **Crawl**    | `firecrawl_crawl`, `firecrawl_check_crawl_status` | Yes — polled server-side    |
-| **Agent**    | `firecrawl_agent`, `firecrawl_agent_status`       | Yes — you poll              |
-| **Interact** | `firecrawl_interact`, `firecrawl_interact_stop`   | Session (one turn per call) |
+| Capability       | Tools                                           | Async?                                             |
+| ---------------- | ----------------------------------------------- | -------------------------------------------------- |
+| **Scrape**       | `firecrawl_scrape`                              | No                                                 |
+| **Search**       | `firecrawl_search`                              | No                                                 |
+| **Map**          | `firecrawl_map`                                 | No                                                 |
+| **Crawl**        | `firecrawl_crawl`                               | Yes — polled server-side                           |
+| **Crawl status** | `firecrawl_check_crawl_status`                  | No — client-invoked for timed-out or external jobs |
+| **Agent**        | `firecrawl_agent`, `firecrawl_agent_status`     | Yes — you poll                                     |
+| **Interact**     | `firecrawl_interact`, `firecrawl_interact_stop` | Session (one turn per call)                        |
 
 ## Choosing the right tool
 

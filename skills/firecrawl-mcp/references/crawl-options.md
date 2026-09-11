@@ -25,8 +25,8 @@ Complete parameter reference for `firecrawl_crawl` and
 ### Path filtering
 
 `includePaths` and `excludePaths` are arrays of **regular-expression strings**,
-not globs. They are matched against the URL pathname, so `^/docs/.*$` matches
-the docs section while `/docs/*` matches nothing.
+not globs, matched against the URL pathname. Patterns are compiled as Rust
+`regex` (RE2-style) syntax, so look-around and backreferences are rejected.
 
 | Parameter      | Type     | Description                                                                                      |
 | -------------- | -------- | ------------------------------------------------------------------------------------------------ |
@@ -34,8 +34,12 @@ the docs section while `/docs/*` matches nothing.
 | `excludePaths` | string[] | Skip URLs whose pathname matches one of these regexes (e.g. `["^/admin/.*$", "^/login$"]`)       |
 
 Anchor with `^` and `$` — an unanchored pattern is a substring match. The
-starting URL is itself tested against `includePaths`, so an include list that
-excludes the start URL returns zero pages.
+glob-shaped `/docs/*` therefore means "`/docs` followed by zero or more
+slashes", which matches any pathname that contains `/docs` rather than the docs
+section alone; `^/docs/.*$` is the form that pins the section.
+
+The starting URL is itself tested against `includePaths`, so an include list
+that excludes the start URL returns zero pages.
 
 Use path filtering to focus crawls on relevant sections and conserve credits.
 
@@ -155,10 +159,10 @@ A REST `POST /v2/crawl` returns a job handle immediately and does no polling:
 }
 ```
 
-That ID must then be polled — via `firecrawl_check_crawl_status` if you are
-back in MCP, or `GET /v2/crawl/{id}` if you are not. The MCP `firecrawl_crawl`
-tool wraps exactly this create-then-poll sequence, which is why the polling
-step disappears when you call it.
+That ID must then be polled — via `firecrawl_check_crawl_status` for an MCP
+caller, or `GET /v2/crawl/{id}` for a direct REST caller. The MCP
+`firecrawl_crawl` tool wraps exactly this create-then-poll sequence, which is
+why the polling step disappears for MCP callers.
 
 ## Map parameters
 
