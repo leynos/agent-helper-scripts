@@ -1,4 +1,4 @@
-# Migration Guide
+# v0.2.0 Migration Guide
 
 This guide records migrations that change how the helper scripts and skills
 in this repository behave, and what to do about work produced under the
@@ -216,3 +216,67 @@ route is unaffected provided one of the two resolves.
 
 `make markdownlint` is now part of `make ci`, so a consumer running `make ci`
 from this checkout lints Markdown as part of the gate sequence.
+
+## Squash-restack boundary evidence
+
+Moving from deriving a restack boundary ad hoc to requiring a maintained
+boundary receipt whenever a parent's current head is no longer an ancestor of
+the child branch.
+
+### Previous behaviour
+
+Restacking a child branch after a parent pull request merged commonly relied
+on whichever commit was closest to hand: the target merge-base, the parent's
+squash landing SHA, or a clean `gh stack sync` exit taken as acceptance that
+the cascading rebase had replayed only child-owned commits.
+
+None of these establish the exclusive replay boundary. The target merge-base
+is a topology fact, not a squash boundary, and can include inherited parent
+work. The squash SHA is a landing record on the target, not the boundary on
+the child. `gh stack sync` aborting cleanly on divergence is a safety net
+against a diverged remote; it says nothing about which commits each layer
+owns, so it does not establish replay ownership.
+
+### New requirement
+
+Whenever the parent pull request's current head is no longer an ancestor of
+the child branch — for example after the parent history was advanced,
+rebased, or otherwise rewritten — a maintained boundary receipt is now
+required before restacking:
+
+1. A `refs/stack-bases/<branch>` ref naming the exact exclusive boundary
+   commit.
+2. A matching `branch.<name>.stackParent` Git config value identifying the
+   same parent repository and pull request.
+
+The [`rebase` skill](../skills/rebase/SKILL.md) and its
+[squashed-parent reference](../skills/rebase/references/squashed-parent.md)
+describe how to create and validate this receipt, and the
+[users' guide](users-guide.md#squash-restack-boundaries) documents the
+bundled `plan_restack.py` planner that consumes it.
+
+### Habits that no longer hold
+
+- Deriving `OLD_BASE` from the target merge-base. Use the maintained receipt
+  or the recovery procedure in the squashed-parent reference instead.
+- Deriving `OLD_BASE` from the parent's squash landing SHA. The landing
+  commit proves the parent merged; it is not the child's replay boundary.
+- Treating a clean `gh stack sync` exit as acceptance evidence for a
+  cascading rebase. Establish and review the boundary evidence before
+  running `sync` unattended, and do not use `gh stack sync --prune` as a
+  discovery command.
+
+### `weave-git-merge` semantic audit binding
+
+In [`skills/weave-git-merge/SKILL.md`](../skills/weave-git-merge/SKILL.md),
+the semantic audit's `BRANCH_BASE` variable must now be bound explicitly
+before any audit command expands it, rather than left to default to
+`MERGE_BASE` in every case:
+
+- After a rebase, bind `BRANCH_BASE` to the accepted `OLD_BASE`.
+- For an ordinary merge, bind `BRANCH_BASE` to the recorded `MERGE_BASE`.
+
+Existing audit invocations that assumed `MERGE_BASE` applied uniformly need
+reviewing wherever they run after a squash restack, because a target
+merge-base can include inherited parent work that must not be counted as
+child-owned changes.

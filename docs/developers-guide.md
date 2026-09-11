@@ -831,6 +831,346 @@ the shim and Git deadlock. Git also hands the driver repository-relative
 temporary paths, while handlers run in the pytest process, so `%A` must be
 resolved against the repository before writing.
 
+## Squash-restack replay boundary
+
+The `rebase` skill restacks a child branch after its parent PR has
+squash-merged. The user-facing summary lives in the
+"Squash-restack boundaries" section of the [users' guide](users-guide.md) and
+in `skills/rebase/SKILL.md`; this section covers what maintainers must
+preserve when changing the planner or its tests.
+See also [ADR 005](adr/005-squash-restack-replay-boundary.md) for the
+decision record behind this boundary model.
+
+### The boundary model
+
+A squash merge collapses the parent PR's original commits into one landing
+commit on the target. Restacking the child therefore depends on three
+distinct identities, and conflating any two of them corrupts the replay:
+
+- the original parent PR head — the last commit the child actually forked
+  from, or later inherited via a rebase onto the parent;
+- the parent's squash landing commit (`merge_commit_sha`) — a new commit on
+  the target that proves the parent PR integrated, but never existed in the
+  child's own history;
+- the last inherited commit to exclude, `OLD_BASE` — the exclusive replay
+  boundary. It is the parent head when that head is still an ancestor of the
+  child, not the first commit the child authored.
+
+None of the tempting shortcuts is sound as a boundary:
+
+- a target merge-base is only a topology fact about the current graph. If the
+  parent advanced or was rewritten after the child forked, the ordinary
+  merge-base can silently return an earlier, wrong commit, or several
+  candidates with no way to choose between them;
+- the squash SHA never appears in the child's own history, so it cannot bound
+  the child's own commit series; it is useful only as evidence that the
+  parent's work landed on the target;
+- the apparent first child commit depends on how many commits the parent
+  contributed before the child branched, which is not recoverable from the
+  child branch in isolation. Guessing it either drops genuine child commits
+  or replays inherited parent work as if it were the child's own.
+
+### `plan_restack.py`
+
+`skills/rebase/scripts/plan_restack.py` carries PEP 723 inline script
+metadata declaring `requires-python = ">=3.13"` and
+`dependencies = ["cyclopts>=4,<5"]`, so it runs directly under `uv run`
+without a separate project environment:
+
+```bash
+uv run "$SKILL_DIR/scripts/plan_restack.py" . \
+  --branch "$BRANCH" --target-ref "$TARGET_REF" \
+  --parent-repository "$PARENT_REPOSITORY" --parent-pr "$PARENT_PR"
+```
+
+The planner requires the `gh` CLI on `PATH` and network access to the
+github.com REST API and Git fetch endpoints; it does not accept a bundled
+GitHub client library as a substitute, and it fetches only from
+`https://github.com/<parent-repository>.git`, never another host.
+
+### Module layers
+
+`plan_restack.py` is explicitly layered, with banner comments marking each
+layer in the source. The layers do not mix:
+
+- **Domain** — typed values and pure policy. The typed values are
+  `CommitId` (a `typing.NewType` over `str`), `ParentPullRequest` (whose
+  `__str__` renders the `owner/name#number` form used in plans and receipts,
+  and whose `matches_receipt_identity()` compares a recorded `stackParent`
+  value case-insensitively), `ParentEvidence`, `Evidence`, `ReceiptFacts`,
+  `BoundaryFacts`, `Boundary`, `RangeFacts`, `Identities`, `ErrorContext`,
+  and the frozen `ReplayPlan` dataclass (`status`, `operation`, `branch`,
+  `parent`, `old_head`, `target`, `boundary`, `parent_evidence`, `commits`,
+  `review`). `ReplayPlan` deliberately carries no Git command: rendering one
+  is an adapter concern, so replay policy never depends on Git's
+  command-line surface. The pure policy functions are `check_identities()`,
+  `select_boundary()`, `check_receipt_ref()`, `check_range()`,
+  `check_unmoved()`, `review_notes()`, and `plan_replay()`, which builds a
+  `ReplayPlan` from accepted domain values. None of these take a `Path`, run
+  a subprocess, parse GitHub CLI JSON, or use Cyclopts, so the whole policy
+  is testable without a repository.
+- **Adapters** — `Runner`, a `typing.Protocol` that runs one program in one
+  repository and returns its standard output; `Subprocess`, the real process
+  adapter; `GitGraph`, which turns Git queries into typed graph facts
+  (`boundary_facts()`, `range_facts()`, `identities()`,
+  `fetch_parent_head()`, and related helpers); `GitHubCli`, which runs and
+  validates `gh api`, returning the reported head and landing commit IDs;
+  and two rendering functions that sit outside the domain layer on purpose:
+  `rebase_argv(plan)`, which renders the proposed Git replay argv from the
+  module's `REBASE_PREFIX` constant (now referenced only from this adapter
+  layer), returning `None` when the plan proposes no replay; and
+  `render_document(plan)`, the serialization boundary that produces the
+  JSON dict the CLI prints, attaching `rebase_argv(plan)` under the
+  `rebase_argv` key.
+- **Command layer** — `discover()`, the only operation that runs `gh`,
+  fetches, or writes a ref.
+- **Read path** — `build_plan()`, which consumes an `Evidence` snapshot and
+  never invokes discovery, makes no network access, writes no ref, and mints
+  no identifier. It composes the domain and adapter layers by calling
+  `plan_replay()` to build a `ReplayPlan`, then `render_document()` to
+  produce the returned JSON dict.
+
+The CLI sits above all four: `main()` owns the operation identifier, calls
+`discover()` first and `build_plan()` second, and wraps both in an
+`operation_span()`.
+
+### Query/command split
+
+`discover()` is the only command-layer operation in the module: it is the
+sole function that runs `gh`, performs the private evidence fetch, or
+otherwise touches the network or a mutable ref. It fetches the parent PR's
+actual head (never the synthetic `refs/pull/N/merge` ref) into a fresh
+private `refs/agent-rebase/<uuid>/parent-head` ref and returns the result as
+an immutable `Evidence` snapshot: `operation`, `parent` (a
+`ParentPullRequest`), `old_head` and `target` (the frozen `CommitId` tips),
+and `parent_evidence` (a `ParentEvidence` carrying the fetched head, the
+validated landing commit, and the retained evidence ref). The raw `gh`
+metadata dict is not carried on `Evidence`; that representation stays inside
+`GitHubCli`.
+
+`build_plan()` consumes that snapshot and performs only local Git graph
+queries: ancestry checks, `rev-list`, and receipt lookups. It never runs
+`gh`, never fetches, and never rebases, pushes, prunes, or moves a branch or
+tracking ref. This split is a non-mutation contract, not merely a code
+organization preference: `build_plan()` must remain safe to call, re-call, or
+reason about without any side effect beyond reading the local repository, so
+that replay policy stays reviewable apart from the adapters that gather
+evidence.
+
+`discover_and_plan()` is the explicit composition of the two: it calls
+`discover()` and passes the resulting `Evidence` straight into `build_plan()`.
+It exists so that nothing query-shaped performs hidden discovery — a caller
+who already holds an `Evidence` snapshot calls `build_plan()` directly, and a
+caller who needs both steps calls `discover_and_plan()` and cannot mistake the
+result for a side-effect-free query. `main()` calls `discover()` and
+`build_plan()` directly rather than `discover_and_plan()`, so it can wrap
+both in one `operation_span()` and own the operation identifier passed to
+`discover()`.
+
+### Process adapter injection
+
+Every process interaction — `git`, `gh`, and the evidence fetch — goes
+through an injected `Runner`, a `typing.Protocol` that runs one program in
+one repository and returns its standard output. `Subprocess` is the real
+adapter: a frozen dataclass bound to a single repository path, with no shell
+parsing and a timeout on every call set by the module constant
+`PROCESS_TIMEOUT_SECONDS` (60 seconds).
+
+A non-zero exit raises `PlanError(f"{program} exited {code}",
+CATEGORY_PROCESS, detail=<stderr or stdout>)`; a timeout raises
+`f"{program} timed out after {PROCESS_TIMEOUT_SECONDS}s"`; a start failure
+raises `f"Cannot start {program}"`. All three carry the underlying exception
+or captured output on `PlanError.detail`, never in the bounded `reason`; see
+"Refusal conditions and exit contract" below for why that separation
+matters.
+
+`discover()` and `build_plan()` both take an optional `run: Runner | None`
+parameter that defaults to `Subprocess(request.repository)`, so a caller can
+substitute a test double without patching module globals. `discover()` also
+takes injectable `new_operation_id` and `new_evidence_ref` callables, so
+tests can assert against deterministic identifiers instead of random UUIDs.
+
+### Clock injection
+
+A `Clock` type alias (`Callable[[], float]`) is threaded as a keyword-only
+`clock` parameter through `phase()`, `operation_span()`, `discover()`,
+`build_plan()`, and `discover_and_plan()`, defaulting to `time.monotonic` at
+every layer. `main()` is the composition root: it binds the real
+`Subprocess`, the real clock, and calls `_new_operation_id()` there and
+nowhere below, so every layer beneath stays substitutable. Tests inject a
+fake clock to assert deterministic `elapsed_ms` values instead of timing
+real process calls.
+
+### Active-operation probe injection
+
+`GitGraph.exists` is an injectable `Callable[[Path], bool]` filesystem
+probe, defaulting to a module-level `_path_exists()` that calls
+`Path.exists()`. `_refuse_active_operation()` calls it indirectly through
+`GitGraph.path_exists(name, repository)`, which resolves the Git-directory
+path via `git_path()` and then converts any `OSError` the probe raises into
+`PlanError(f"Cannot determine whether {name} exists: {exc}",
+CATEGORY_PROCESS)` rather than treating a probe failure as "marker absent" —
+doing so would let discovery proceed over an in-flight Git operation.
+
+### Preflight checks
+
+`preflight()` orchestrates two narrower checks and returns the child branch
+tip and target ref tip as frozen identities:
+
+- `check_identities()` rejects a malformed parent repository, a
+  non-positive parent PR number, or a branch name that is empty or
+  option-shaped, and `preflight()` then runs `git check-ref-format` against
+  the branch.
+- `_refuse_active_operation()` rejects a shallow clone, an in-flight Git
+  operation (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`, `REVERT_HEAD`, or `sequencer`), or a worktree carrying
+  staged, unstaged, or untracked work.
+
+### Boundary provenance
+
+`select_boundary()` accepts exactly two forms of evidence for `OLD_BASE`,
+recorded on the returned `Boundary`:
+
+- `parent-pr-head` — the fetched parent head is itself an ancestor of the
+  child branch, so it is directly usable as the boundary;
+- `maintained-receipt:<ref>` — a `refs/stack-bases/<branch>` receipt whose
+  paired `branch.<branch>.stackParent` config value names the same parent
+  repository and PR, used when the parent head is no longer inherited.
+
+`Boundary.corroborated` records whether preserved parent history proves that
+no inherited commit follows `old_base`. Only an inherited parent head can
+prove this from Git ancestry alone; a maintained receipt on a non-inherited
+parent history is an unverified claim, because nothing in the local graph
+shows that no later inherited commit exists beyond the receipted boundary.
+The plan carries this as the `boundary_corroborated` key. When it is
+`false`, `review_notes()` prepends an explicit warning that the receipt is
+uncorroborated and must be proven from preserved parent history or reflog
+before replay. A `false` value therefore keeps the plan review-required; it
+never becomes silent authorization to replay a receipt the graph cannot
+verify.
+
+### Refusal conditions and exit contract
+
+Every unrecoverable evidence gap raises `PlanError`, which carries a bounded
+`category` drawn from the module's `CATEGORY_*` constants (`identity`,
+`repository-state`, `metadata`, `recovery`, `boundary`, `range`, `race`,
+`process`, `unclassified`). `PlanError.__init__(reason, category=...,
+*, detail=None)` separates a bounded `reason` from unbounded `detail`:
+`reason` must never embed subprocess output, credentials, or repository
+contents, while `detail` carries that unbounded text, such as a failing
+process's captured standard error. `str(exc)` is `reason` alone, or
+`"{reason}: {detail}"` when `detail` is present, so an operator reading a
+traceback still sees the full diagnostic. `PlanError` also carries a
+`context: ErrorContext | None` attribute, stamped by the innermost enclosing
+`phase()` that the error passed through. `ErrorContext` is a frozen
+dataclass of `operation` and `phase`; it is how `main()` learns the failing
+phase without ever parsing the message text.
+
+`main()` catches `PlanError` and writes a bounded, six-field blocked record
+to stderr via `blocked_record()`, then exits with status 2:
+
+- `status` — always the literal `"blocked"`;
+- `operation` — the run's correlation identifier, taken from the error's
+  `context` when present;
+- `phase` — the `PHASE_*` name the error was stamped with;
+- `outcome` — always the literal `"blocked"`;
+- `category` — the error's `CATEGORY_*` value;
+- `reason` — `exc.reason`, the bounded message, reported verbatim. This is
+  never `str(exc)` and never `exc.detail`.
+
+The record never carries command output, credentials, or repository
+contents, and stdout stays empty on a blocked run. A successful run prints
+the indented JSON plan on stdout, with a `status` of `review-required` or
+`no-op-decision-required`; neither status is an authorization to replay.
+
+`trace()` writes bounded, structured JSON diagnostics to stderr, one line per
+event, each keyed by an `operation` identifier generated once per run. That
+same `operation` identifier is carried in the plan's own `operation` field,
+so a reviewer can correlate the diagnostics for one run with its resulting
+plan. Diagnostics never carry repository contents, only identities the plan
+already reports, and stdout stays reserved for the plan JSON alone.
+
+Diagnostics form one `operation_span()` per run, emitting an
+`operation-started` and a terminal `operation-finished` record, with child
+`phase()` records nested inside it emitting `phase-started` and
+`phase-finished`. The bounded phase names are the `PHASE_*` constants:
+`operation`, `preflight`, `parent-metadata`, `landing-validation`,
+`parent-head-fetch`, `boundary-selection`, and `graph-planning`. The
+previously separate `range-validation` and `identity-recheck` phases are now
+one `graph-planning` phase in `build_plan()`, which computes the range and
+rechecks that the branch and target have not moved in the same phase.
+
+Every terminal record — `phase-finished` and `operation-finished` — carries
+`phase`, `outcome` (`ok` or `blocked`), and `elapsed_ms`; a failing record
+additionally carries `error_category` taken from the raised `PlanError`. A
+reviewer can therefore aggregate phase and operation outcomes and timings
+without parsing human-readable reasons.
+
+### Test strategy
+
+`tests/test_rebase_plan.py` and `tests/test_rebase_replay.py` exercise the
+real planner against real Git repositories built by
+`tests/rebase_test_support.py`, using real Git transport throughout. Only
+`gh` is mocked, through [`leynos/cmd-mox`](https://github.com/leynos/cmd-mox).
+`tests/test_rebase_plan.py` also pins the `PlanError.reason`/`detail` split:
+a blocked record excludes subprocess output entirely, while `str(exc)`
+still retains it for an operator reading a traceback, and phase durations
+come from an injected `clock` rather than real elapsed time.
+
+Each test builds an `M-A-B-C-D` graph plus a squash-merged target in an
+isolated working repository and a bare stand-in remote. A repository-local
+`url.<file-uri>.insteadOf` rule rewrites the explicit
+`https://github.com/<parent-repository>.git` fetch URL to that bare
+repository, which exposes the parent head at `refs/pull/<PR>/head`.
+`GIT_ALLOW_PROTOCOL=file` is set for every test so that Git can only use the
+file transport, preventing accidental live network traffic even if the
+rewrite rule were ever missing or wrong.
+
+Fixtures under `tests/fixtures/rebase-gh/` were recorded from a real `gh
+2.100.0` run against `leynos/agent-helper-scripts#50` and a real 404 for a
+missing PR. `tests/fixtures/rebase-gh/manifest.json` records the exact argv,
+exit code, capture timestamp, and CLI version for each recorded command.
+Tests assert the mocked `gh` invocation's argv against this manifest rather
+than against the module's own constants, so a change that silently altered
+the real query would be caught even if the same mistake were also made in
+`PARENT_QUERY`. Tests never refresh these fixtures and never call the real
+`gh` or GitHub; see `tests/fixtures/rebase-gh/README.md` for the manual
+refresh procedure maintainers must follow instead.
+
+`tests/test_rebase_plan_properties.py` covers the range invariants across
+generated histories with Hypothesis. Because `build_plan()` needs no process
+or network access, these properties drive it directly with a hand-built
+`Evidence` snapshot and no `gh` double at all: for any bounded linear graph
+with an inherited parent head, the derived range must be exactly the child
+commits in order and must exclude every inherited parent commit and the
+landing commit. Keep that separation intact — a property test that needed a
+`gh` double would be a sign that discovery had leaked back into plan
+construction.
+
+`tests/test_rebase_plan_domain.py` exercises the whole boundary and range
+policy as a domain: it builds no Git repository, runs no `gh`, and stands up
+no process double at all. It drives `check_identities()`,
+`select_boundary()`, `check_receipt_ref()`, `check_range()`,
+`check_unmoved()`, and `plan_replay()` directly against hand-built typed
+facts (`BoundaryFacts`, `ReceiptFacts`, `RangeFacts`, `Identities`). It also
+asserts that `ReplayPlan` carries no Git command at all — no field name
+containing `argv` or `command` — and that `rebase_argv()` renders the
+documented replay command from a `ReplayPlan`, or `None` for an empty range.
+This module is the practical proof that the domain layer is pure: a test in
+it that needed a process double would mean discovery had leaked back into
+the domain. Parametrized guards enforce that structurally: every documented
+domain symbol is parsed and asserted to reference no adapter concern, so a
+future `Path`, subprocess, or `REBASE_PREFIX` reference fails a test rather
+than merely contradicting this paragraph.
+
+### Running these tests locally
+
+```bash
+uv run --group dev python -m pytest \
+  tests/test_rebase_plan.py tests/test_rebase_replay.py \
+  tests/test_rebase_plan_properties.py tests/test_rebase_plan_domain.py -v
+```
+
 ## Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows, including

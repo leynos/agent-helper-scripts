@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = REPO_ROOT / "skills" / "hypothesis-debugging"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
 USERS_GUIDE_PATH = REPO_ROOT / "docs" / "users-guide.md"
-MIGRATION_GUIDE_PATH = REPO_ROOT / "docs" / "migration-guide.md"
+MIGRATION_GUIDE_PATH: Path = REPO_ROOT / "docs" / "v0-2-0-migration-guide.md"
 
 OUTPUT_SECTION_HEADING = "### 4. Output Document"
 PLAN_DIRECTORY = "docs/debugging/"
