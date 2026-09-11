@@ -58,6 +58,10 @@ the exact current base/head and source/test evidence alongside the template so
 that "now" has an identifiable candidate. Do not queue a full review merely to
 refresh a stale table.
 
+<!-- MD013 is disabled around the supplied templates: they are posted verbatim,
+so their long lines are not ours to wrap. -->
+
+<!-- markdownlint-disable MD013 -->
 ```text
 @coderabbitai Have the following failed checks now been resolved?
 
@@ -67,6 +71,7 @@ Do not treat warnings as optional or aspirational. Where a change is out of scop
 
 <table rows here, with heading>
 ```
+<!-- markdownlint-enable MD013 -->
 
 Retain a brief reason for each row that needs no further edit. Look for an
 existing issue before proposing a follow-up for genuinely out-of-scope work;
@@ -81,6 +86,7 @@ Reply in the existing finding's thread through the approved reply route, not as
 an unrelated top-level comment. Use this when inspection leaves the disposition
 uncertain, and add the exact current head and relevant evidence alongside it:
 
+<!-- markdownlint-disable MD013 -->
 ```text
 @coderabbitai Has this now been resolved in the latest commit?
 
@@ -88,6 +94,7 @@ Use codegraph analysis to determine your answer.
 
 If this comment is now resolved, please mark it as such using the API. Otherwise, please provide an AI agent prompt for the remaining work to be done to address this comment.
 ```
+<!-- markdownlint-enable MD013 -->
 
 The request for codegraph analysis is not evidence that the analysis ran or
 covered the current code. If the graph is empty, stale, unsupported, or

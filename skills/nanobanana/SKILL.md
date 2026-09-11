@@ -49,7 +49,8 @@ restarting from scratch.
 - If the first output is close, preserve the successful parts and request only
   the delta.
 - Example:
-  `Keep composition, subject identity, and wardrobe identical; shift lighting to golden hour and replace background with a foggy bridge.`
+  `Keep composition, subject identity, and wardrobe identical; shift
+  lighting to golden hour and replace background with a foggy bridge.`
 
 ## Local MCP Rules
 

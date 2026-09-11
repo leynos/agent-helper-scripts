@@ -16,7 +16,7 @@ source in both.
 ```sh
 npx --yes --package=lemmascript@0.5.22 -- lsc gen   --backend=dafny src/foo.ts   # generate artefacts
 npx --yes --package=lemmascript@0.5.22 -- lsc check --backend=dafny src/foo.ts   # gen + additions-only check + dafny verify
-npx --yes --package=lemmascript@0.5.22 -- lsc regen --backend=dafny src/foo.ts   # regenerate with three-way merge (Dafny only)
+npx --yes --package=lemmascript@0.5.22 -- lsc regen --backend=dafny src/foo.ts   # regenerate: three-way merge (Dafny)
 npx --yes --package=lemmascript@0.5.22 -- lsc extract src/foo.ts                 # dump Raw IR JSON (debugging)
 npx --yes --package=lemmascript@0.5.22 -- lsc info    src/foo.ts                 # JSON summary of verified functions
 ```
@@ -31,10 +31,10 @@ no build step.
 
 ### Dafny (two files per source)
 
-| File          | Generated?  | Purpose                                                                                                                                    |
-| ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `foo.ts`      | —           | TypeScript source with `//@` annotations                                                                                                   |
-| `foo.dfy.gen` | Yes         | Generated Dafny; merge base. **Never edit.**                                                                                               |
+| File          | Generated?  | Purpose                                                                                                                               |
+| ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `foo.ts`      | —           | TypeScript source with `//@` annotations                                                                                              |
+| `foo.dfy.gen` | Yes         | Generated Dafny; merge base. **Never edit.**                                                                                          |
 | `foo.dfy`     | Seeded once | Source of truth: the generated code plus proof additions (helper lemmas, ghost predicates, asserts, `modifies` clauses, spec bodies). |
 
 The diff `foo.dfy.gen` → `foo.dfy` must be **additions only**; `lsc check`

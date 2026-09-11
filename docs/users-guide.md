@@ -190,6 +190,38 @@ Phrase checking and harvesting skip tracked files that are not UTF-8. Other
 tracked-file read failures stop the operation and emit a bounded diagnostic, so
 an incomplete repository scan cannot appear successful.
 
+## Markdown linting
+
+`make markdownlint` lints every Markdown file by naming the `**/*.md` glob and
+reads this checkout's `.markdownlint-cli2.jsonc`. It is one of the gates
+`make ci` runs, in order: `check-fmt`, `markdownlint`, `lint`, `typecheck`,
+`test`, then `spelling`.
+
+`make nixie` validates Mermaid diagrams with `nixie`. It is deliberately not
+part of `make ci`, because it renders through an external Mermaid CLI
+(`merman-cli`, or `mmdc` with Chromium) that the CI runner does not provide.
+Run it locally when a change touches a diagram.
+
+CI delegates the Markdown gate to the pinned
+`DavidAnson/markdownlint-cli2-action` and therefore runs
+`make ci CI_SKIP_MARKDOWNLINT=1`; that variable filters the Markdown gate out
+of the gate list, which keeps the workflow and the Makefile in step rather
+than restating the list.
+
+`get-markdown-tooling` installs the `markdownlint` wrapper into consumer
+repositories. A bare invocation appends the `**/*.md` glob, so it cannot
+report a clean pass without having read a file. Explicit paths are honoured
+as given, and two argument forms are deliberately not treated as paths, so no
+glob is appended: a standalone `-`, which makes `markdownlint-cli2` read its
+file list from standard input, and the operand of `--config` or
+`--configPointer`, which names a configuration file. The wrapper uses the
+repository's `.markdownlint-cli2.jsonc` when present, and otherwise supplies
+a bundled default, so it works unchanged in a consumer repository that has
+none. It resolves the linter from `PATH`, falling back to the bun global
+install (`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
+
+Its rationale and rule set are in the [developers' guide](developers-guide.md).
+
 ## Stacked pull requests
 
 The `github-stacks` skill covers GitHub's native stacked pull requests through

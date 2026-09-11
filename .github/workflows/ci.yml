@@ -26,5 +26,17 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.0.1
 
+      # Markdown is linted by the upstream action rather than an installation
+      # of our own: its release carries the linter's whole dependency graph, so
+      # nothing is resolved from the registry at run time. Dependabot manages
+      # this version alongside the other actions the workflow uses. Mermaid
+      # validation (make nixie) needs a renderer this runner does not provide,
+      # so it stays a local-only gate.
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v24.2.0
+        with:
+          globs: "**/*.md"
+
+      # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence
-        run: make ci
+        run: make ci CI_SKIP_MARKDOWNLINT=1

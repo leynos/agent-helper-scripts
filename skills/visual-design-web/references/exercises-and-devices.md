@@ -28,7 +28,7 @@ ______________________________________________________________________
 A forcing function for clarity. Complete this card before any visual work
 begins.
 
-```
+```text
 PAGE THESIS CARD
 ────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ ______________________________________________________________________
 
 List every element on the page, then rank them from loudest to quietest.
 
-```
+```text
 HIERARCHY LADDER
 ────────────────────────────────────────────
 
@@ -191,7 +191,7 @@ ______________________________________________________________________
 Describe what happens as the user scrolls from the top of the page to the first
 full viewport below the fold.
 
-```
+```text
 FIRST-SCROLL NARRATIVE
 ────────────────────────────────────────────
 
@@ -223,7 +223,7 @@ ______________________________________________________________________
 
 For each image in the design, answer these questions in order:
 
-```
+```text
 1. Does this image carry information the user needs?
    → YES: Go to 2.
    → NO: It is decorative. Use alt="". Consider whether it earns its
@@ -258,7 +258,7 @@ ______________________________________________________________________
 
 For every animated element, answer:
 
-```
+```text
 MOTION JUSTIFICATION
 ────────────────────────────────────────────
 
@@ -294,7 +294,7 @@ ______________________________________________________________________
 When the design breaks a web convention (non-standard navigation, novel scroll
 behaviour, unusual form patterns, unfamiliar interaction models):
 
-```
+```text
 CONVENTION-BREAK JUSTIFICATION
 ────────────────────────────────────────────
 

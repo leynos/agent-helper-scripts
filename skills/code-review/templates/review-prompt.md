@@ -180,13 +180,13 @@ whether you recommend approval, changes requested, or needs discussion.>
 
 <Explanation of the problem and its consequences>
 
-```
+```text
 <Problematic code snippet>
 ```
 
 **Recommendation:**
 
-```
+```text
 <Suggested fix or approach>
 ```
 

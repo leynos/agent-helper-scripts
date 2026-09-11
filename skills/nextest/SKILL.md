@@ -288,7 +288,8 @@ new targets, at the cost of one `rustc` invocation.
 When running inside an agent sandbox (constrained CPU/memory):
 
 - Use `-j 2` or `-j 4` to limit parallelism
-- Set generous timeouts: `slow-timeout = { period = "120s", terminate-after = 3 }`
+- Set generous timeouts:
+  `slow-timeout = { period = "120s", terminate-after = 3 }`
 - Consider `--no-fail-fast` to gather all failures in one run
 - Use `--show-progress=counter` for non-interactive output
 - Set `NEXTEST_NO_INPUT_HANDLER=1` to disable terminal key handling
@@ -388,7 +389,7 @@ priority = -50         # Run late
 ## Reporter and Output Control
 
 | Option | Values | Default |
-|--------|--------|---------|
+| -------- | -------- | --------- |
 | `--failure-output` | `immediate`, `final`, `immediate-final`, `never` | `immediate` |
 | `--success-output` | `immediate`, `final`, `immediate-final`, `never` | `never` |
 | `--status-level` | `none`, `fail`, `retry`, `slow`, `leak`, `pass`, `skip`, `all` | `pass` |
@@ -448,7 +449,7 @@ echo "DATABASE_URL=postgres://localhost/test" >> "$NEXTEST_ENV"
 ### Nextest reads
 
 | Variable | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `NEXTEST_TEST_THREADS` | Override test thread count |
 | `NEXTEST_RETRIES` | Override retry count |
 | `NEXTEST_PROFILE` | Select profile |
@@ -458,7 +459,7 @@ echo "DATABASE_URL=postgres://localhost/test" >> "$NEXTEST_ENV"
 ### Nextest sets
 
 | Variable | Value |
-|----------|-------|
+| ---------- | ------- |
 | `NEXTEST` | Always `"1"` |
 | `NEXTEST_RUN_ID` | UUID for the run |
 | `NEXTEST_EXECUTION_MODE` | `"process-per-test"` |
@@ -620,4 +621,5 @@ this skill:
 
 - `references/config-reference.md` — Full configuration parameter reference
 - `references/filterset-dsl.md` — Complete filterset DSL reference
-- `references/ci-patterns.md` — CI/CD patterns for archiving, sharding, and GitHub Actions
+- `references/ci-patterns.md` — CI/CD patterns for archiving, sharding, and
+  GitHub Actions

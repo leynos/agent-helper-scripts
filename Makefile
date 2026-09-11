@@ -34,17 +34,40 @@ SKILL_DIRS ?= $(sort $(dir $(wildcard skills/*/SKILL.md)))
 SKILLS_REF := uv run --group dev skills-ref
 YAMLLINT := uv run --group dev yamllint
 SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
+# The Markdown gate calls the linter directly. The repository's own
+# `markdownlint` wrapper covers the case where nothing has installed
+# markdownlint-cli2, and the shared baseline this repository is moving to
+# provisions it globally.
+MDLINT ?= markdownlint-cli2
+NIXIE ?= nixie
 
 # Test targets:
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt fmt lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci
+.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci
 
 all: ci
 
-ci: check-fmt lint typecheck test
+# Every gate `make ci` runs. CI supplies the Markdown gate with the
+# markdownlint-cli2 action, which brings its own linter, so the workflow sets
+# CI_SKIP_MARKDOWNLINT=1 rather than repeating the list and letting the two
+# drift apart when a gate is added here.
+CI_GATES := check-fmt markdownlint lint typecheck test
+ifeq ($(CI_SKIP_MARKDOWNLINT),1)
+CI_GATES := $(filter-out markdownlint,$(CI_GATES))
+endif
+
+ci: $(CI_GATES)
 	+$(MAKE) spelling
+
+# Fail early with an actionable message when a gate's CLI tool is absent.
+define ensure-tool
+	@command -v $(1) >/dev/null 2>&1 || { \
+	  printf "Error: '%s' is required, but not installed\n" "$(1)" >&2; \
+	  exit 1; \
+	}
+endef
 
 clean:
 	@echo "clean: nothing to clean"
@@ -54,6 +77,16 @@ check-fmt:
 
 fmt:
 	@mdformat-all
+
+markdownlint:
+	$(call ensure-tool,$(MDLINT))
+	@$(MDLINT) '**/*.md'
+
+# Not part of `ci`: nixie renders through an external Mermaid CLI (merman-cli or
+# mmdc plus Chromium), which the CI runner does not provide.
+nixie:
+	$(call ensure-tool,$(NIXIE))
+	@$(NIXIE) --no-sandbox
 
 syntax-check:
 	@python3 -m py_compile $(PYTHON_SCRIPTS)

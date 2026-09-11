@@ -2,7 +2,7 @@
 
 ## Test Pyramid by Layer
 
-```
+```text
                     ┌─────────────────┐
                     │   E2E Tests     │  Few, slow, verify wiring
                     └────────┬────────┘

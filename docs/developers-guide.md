@@ -293,6 +293,49 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
+### Markdown lint configuration
+
+`.markdownlint-cli2.jsonc` is reconciled against the shared
+`agent-template-python` configuration. Prose is limited to 80 columns and code
+blocks to 120; tables and headings stay exempt from the line-length rule
+because padding or reflowing them costs more than it gains. `MD040` and
+`MD041` are enabled, as in the template.
+
+Three rules remain disabled against the template, each with its rationale
+recorded beside the entry:
+
+- `MD024` with `siblings_only` — a heading repeats legitimately under different
+  parents, as in the code-review skill's paired "Problem" and "Improvement"
+  examples.
+- `MD033` — agent-facing material under `skills/` uses `<angle-bracketed>`
+  placeholders that must reach the reader verbatim rather than escaped.
+- `MD036` — skill reference documents lead into example blocks with a bold
+  label instead of promoting that label to a heading, which keeps their tables
+  of contents navigable.
+
+`markdownlint-cli2` lints nothing when it receives neither a glob argument nor
+a `globs` key, yet still reports a clean pass, so `make markdownlint` names
+`**/*.md` explicitly rather than relying on a default.
+
+The `markdownlint` wrapper shipped for consumers appends that glob when the
+caller names no path. It treats two arguments as explicit targets rather than
+paths, so no glob is appended for either: a standalone `-`, which tells
+`markdownlint-cli2` to read the file list from standard input, and the operand
+of `--config` or `--configPointer`, which names a configuration file rather
+than a document to lint. The repository's own gate does not go through the
+wrapper: it calls `markdownlint-cli2` directly, because the shared baseline
+this repository is moving to provisions the binary globally, which is the case
+the wrapper exists to cover.
+
+CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
+rather than installing the linter by hand. The action's release carries
+`markdownlint-cli2` together with its whole dependency graph, so the pinned tag
+is what fixes every version it runs; nothing is resolved from npm at run time.
+That pin is deliberately Dependabot's job, since `.github/dependabot.yml`
+already tracks the `github-actions` ecosystem. CI therefore runs the same gate
+sequence with that one gate delegated — `make ci CI_SKIP_MARKDOWNLINT=1` —
+while a local `make ci` still runs it.
+
 ### Shared en-GB-oxendict spelling data
 
 The architecture and trade-offs are recorded in
@@ -391,10 +434,25 @@ family with competing candidates and misses the raise family entirely, so each
 recorded drift form now carries one canonical replacement for every consumer.
 
 - `make ci`
-  - Runs the full CI gate in sequence: `check-fmt`, `lint`, `typecheck`, `test`,
-    and `spelling`.
+  - Runs the full CI gate in sequence: `check-fmt`, `markdownlint`, `lint`,
+    `typecheck`, `test`, and `spelling`.
   - Use this before pushing; it mirrors what the GitHub Actions workflow
-    executes.
+    executes, except that the workflow runs the Markdown gate through the
+    `markdownlint-cli2` action and so passes `CI_SKIP_MARKDOWNLINT=1`.
+- `make markdownlint`
+  - Lints every Markdown file with `markdownlint-cli2`, naming the `**/*.md`
+    glob explicitly so the gate cannot pass without having read a file. The
+    repository's `markdownlint` wrapper is still shipped for consumers; this
+    target does not run it.
+  - Reads `.markdownlint-cli2.jsonc`. The wrapper ships its own configuration
+    for a consumer repository that has none, so the same script works unchanged
+    where `get-markdown-tooling` installs it as `markdownlint`.
+- `make nixie`
+  - Validates every Mermaid diagram with `nixie`.
+  - Not part of `make ci`. `nixie` renders through an external Mermaid CLI
+    (`merman-cli`, or `mmdc` with Chromium), which the CI runner does not
+    provide; run it locally before pushing documentation that changes a
+    diagram.
 - `make lint`
   - Runs `syntax-check`, `shell-syntax-check`, `check-home-phase-boundary`,
     and `skill-manifest-check`.
@@ -767,11 +825,11 @@ all must stay in step with the skill:
   moves the safe-prefix boundary. It is the search-based complement to the
   fixed-string contract tests and the real-Git procedure tests.
 
-When extending the procedures module, note two traps at this boundary. A cmd-mox shim
-reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and
-Git deadlock. Git also hands the driver repository-relative temporary paths,
-while handlers run in the pytest process, so `%A` must be resolved against the
-repository before writing.
+When extending the procedures module, note two traps at this boundary. A
+cmd-mox shim reads standard input, so Git must be run with `stdin=DEVNULL` or
+the shim and Git deadlock. Git also hands the driver repository-relative
+temporary paths, while handlers run in the pytest process, so `%A` must be
+resolved against the repository before writing.
 
 ## Workflow pins and Dependabot
 
@@ -907,6 +965,8 @@ validation sequence:
 - `make lint`
 - `make typecheck`
 - `make test`
+- `make markdownlint`
+- `make nixie` when a Mermaid diagram changed
 - targeted `bash -n` on changed shell scripts
 - targeted `shellcheck` on changed shell scripts
 - `git diff --check`

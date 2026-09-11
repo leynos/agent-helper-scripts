@@ -108,7 +108,7 @@ class Money:
 
 ### Project Structure
 
-```
+```text
 src/
 ├── __init__.py
 ├── domain/
@@ -309,7 +309,7 @@ func InitializeServer(cfg *config.Config) (*Server, error) {
 
 ### Package Organization
 
-```
+```text
 /
 ├── cmd/
 │   └── server/
@@ -429,7 +429,7 @@ impl Money {
 
 ### Module Organization
 
-```
+```text
 src/
 ├── main.rs
 ├── lib.rs

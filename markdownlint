@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
 
+# Lint Markdown with markdownlint-cli2.
+#
+# The repository's own .markdownlint-cli2.jsonc is used when it is present.
+# Otherwise a bundled default configuration is supplied, so the script also
+# works unchanged in consumer repositories that install it as `markdownlint`.
+#
+# markdownlint-cli2 lints nothing when it is given neither a glob argument nor
+# a "globs" key, which reads as a clean pass without any file having been
+# checked. To keep a bare invocation honest, callers that pass no path default
+# to every Markdown file in the tree.
+
 set -xeu
-MDLINT_BIN="${HOME}/.bun/bin/markdownlint-cli2"
+# Prefer whichever markdownlint-cli2 is on PATH, so the script also works where
+# a package manager installed it; fall back to the bun global install, which is
+# how get-markdown-tooling provisions it.
+MDLINT_BIN="${MDLINT_BIN:-$(command -v markdownlint-cli2 || printf '%s/.bun/bin/markdownlint-cli2' "${HOME}")}"
 MDLINT_CONFIG_DIR="$(mktemp -d)"
 MDLINT_CONFIG="${MDLINT_CONFIG_DIR}/.markdownlint-cli2.jsonc"
+trap 'rm -rf "${MDLINT_CONFIG_DIR}"' EXIT
 cat > "${MDLINT_CONFIG}" <<'__EOF'
 {
   // Ignore MD013 (line length) inside tables since reflowing
@@ -24,9 +39,39 @@ cat > "${MDLINT_CONFIG}" <<'__EOF'
 }
 __EOF
 
+# Options are everything from the first leading dash onwards; anything else is
+# a target the caller selected. Two exceptions keep that judgement honest: a
+# standalone `-` reads the file list from standard input, and the operand of
+# `--config`/`--configPointer` names a configuration file rather than a document
+# to lint. Only a genuinely target-less invocation is widened, so
+# `markdownlint --fix` fixes the tree instead of silently fixing nothing.
+has_target=0
+expect_operand=0
+for arg in "$@"; do
+  if ((expect_operand == 1)); then
+    expect_operand=0
+    continue
+  fi
+  case "${arg}" in
+  --config | --configPointer)
+    expect_operand=1
+    ;;
+  -)
+    has_target=1
+    ;;
+  -*)
+    ;;
+  *)
+    has_target=1
+    ;;
+  esac
+done
+if ((has_target == 0)); then
+  set -- "$@" '**/*.md'
+fi
+
 if [[ -f .markdownlint-cli2.jsonc ]]; then
   "${MDLINT_BIN}" "$@"
 else
   "${MDLINT_BIN}" --config "${MDLINT_CONFIG}" "$@"
 fi
-rm -rf "${MDLINT_CONFIG_DIR}"

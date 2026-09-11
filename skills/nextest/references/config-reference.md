@@ -29,7 +29,7 @@ is `profile.default`.
 ### Core Test Execution
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `inherits` | string | `"default"` | Profile to inherit from |
 | `default-filter` | filterset | `"all()"` | Default set of tests to run |
 | `global-timeout` | duration | none | Global timeout for entire run |
@@ -45,7 +45,7 @@ the documented user-facing default.
 ### Retry
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `retries` | int/object | `0` | Retry policy |
 
 Retry object forms:
@@ -59,7 +59,7 @@ retries = { backoff = "exponential", count = 4, delay = "2s", max-delay = "10s",
 ### Timeouts
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `slow-timeout` | duration/object | `60s` | Slow test threshold |
 | `leak-timeout` | duration/object | `200ms` | Leak detection threshold |
 
@@ -79,7 +79,7 @@ leak-timeout = { period = "500ms", result = "fail" }
 ### Reporter
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `status-level` | string | `"pass"` | Status levels to display during run |
 | `final-status-level` | string | `"flaky"` | Status levels in final summary |
 | `failure-output` | string | `"immediate"` | When to show failure output |
@@ -88,7 +88,7 @@ leak-timeout = { period = "500ms", result = "fail" }
 ### Failure Handling
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `fail-fast` | bool/object | `true` | Stop on first failure |
 
 ```toml
@@ -102,7 +102,7 @@ fail-fast = { max-fail = "all" }  # Equivalent to false
 ### Test Grouping
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| ----- | ------ | --------- | ------------- |
 | `test-group` | string | `"@global"` | Assign test to a group |
 
 ### JUnit

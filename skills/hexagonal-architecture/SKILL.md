@@ -93,7 +93,7 @@ patterns.
 
 Canonical layout (language-agnostic):
 
-```
+```text
 src/
 ├── domain/                 # Pure business logic
 │   ├── model/              # Entities, value objects, aggregates
@@ -116,7 +116,7 @@ src/
 
 Alternative flat structure for smaller projects:
 
-```
+```text
 src/
 ├── domain/
 ├── ports/
