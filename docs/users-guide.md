@@ -94,6 +94,27 @@ its baseline hazards, the caller contract test, survivor triage, and run
 sweeps. Run `install-skills` to copy it into `${HOME}/.codex/skills` and
 `${HOME}/.claude/skills`; the `rust-entrypoint` home phase runs it too.
 
+## Ansible testing
+
+Use [`ansible-testing`](../skills/ansible-testing/SKILL.md) for local-first
+Ansible testing of collections, roles, and modules: Molecule with Podman for
+role behaviour, and `ansible-test` for sanity, unit, and integration tests.
+For shared agent workspaces the skill's scheduling rules are:
+
+- Agents must not apply external parallelism to repository gates.
+- Agents must not run overlapping repository gates.
+- A repository may own bounded internal scenario parallelism through its own
+  documented test target and repository-defined concurrency controls, and
+  agents use that internal parallelism only when that repository's guidance
+  explicitly documents it.
+- All other scenario commands and overlapping gates stay sequential by
+  default.
+- `MOLECULE_INSTANCE_SUFFIX` and fact-cache isolation stay mandatory
+  regardless of the scheduling mode.
+
+The skill carries the full Molecule and native-worker rules, including the
+constraints that apply to native worker mode on CI or dedicated runners.
+
 ## Shared spelling tools
 
 Run `make spelling` in this checkout to generate and validate the estate-wide

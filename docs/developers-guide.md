@@ -846,6 +846,33 @@ as part of the full suite via `make test`. The test validates:
 - the triggers keep the daily schedule (`50 12 * * *`) and a plain
   `workflow_dispatch` with no inputs.
 
+## Ansible testing skill contract
+
+The `ansible-testing` skill documents local-first Ansible testing of
+collections, roles, and modules. The user-facing summary lives in the "Ansible
+testing" section of [docs/users-guide.md](users-guide.md); the skill at
+[skills/ansible-testing/SKILL.md](../skills/ansible-testing/SKILL.md) carries
+the full Molecule and native worker mode rules.
+
+The scheduling rules are restated in two places (the closing bullet of section
+3f and the closing bullet of item 7 in section 3g) and must stay word for word
+identical. `tests/test_ansible_testing_skill.py` pins them, failing on
+restatement drift, a users' guide rule loss, or a missing native worker mode
+constraint.
+
+This repository does not depend on Molecule. Molecule and `ansible-test` are
+what the skill documents for downstream Ansible projects that adopt it; the
+skill's install recipe pins `"molecule>=26.3.0"` because native worker mode
+(`--workers`) first shipped in that release.
+
+The skill fixes these constraints:
+
+- Native worker mode is upstream-experimental; CI or dedicated runners only.
+- Native worker mode requires `shared_state: true` and must not be combined
+  with `--destroy=never`.
+- The fact cache is scoped per scenario through `${MOLECULE_SCENARIO_NAME}`.
+- `molecule test --all` is the sequential fallback.
+
 ## Validation expectations
 
 When changing bootstrap behaviour in this repository, replay the usual

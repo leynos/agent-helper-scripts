@@ -145,9 +145,10 @@ python3.12 -m venv ~/.venv/ansible-dev
 source ~/.venv/ansible-dev/bin/activate
 
 pip install --upgrade pip
+# Molecule 26.3.0+ provides --workers (native parallel scenarios; see 3g item 7).
 pip install \
   ansible-core \
-  molecule \
+  "molecule>=26.3.0" \
   "molecule-plugins[podman]" \
   ansible-lint \
   pytest \
@@ -365,10 +366,10 @@ VM, make Podman resource names unique per run. Unsuffixed Molecule platform
 names become Podman container names, so two branches with `name: ubi9-init` can
 collide, reuse the wrong container, or destroy each other's test instance.
 
-Use the pattern from `dev-env-rocky`: generate a short
-`MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID
-in the Makefile, pass it to every scenario invocation, and append it to every
-Podman-backed platform name and shared cache path.
+Use the project test wrapper or Makefile to generate a short
+`MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID,
+pass it to every scenario invocation, and append it to every Podman-backed
+platform name and shared cache path.
 
 ```make
 .RECIPEPREFIX := >
@@ -423,9 +424,18 @@ Rules for new scenarios:
   variables; it does not run platform names through a shell.
 - Include the suffix in fact-cache directories, temporary host paths, and any
   other shared resource that can survive across Molecule steps.
-- Run Molecule scenarios sequentially in shared agent workspaces. Throughput
-  comes from per-agent suffix isolation, not from one agent spawning several
-  Podman scenarios at once.
+- Run Molecule scenarios sequentially in shared agent workspaces, with these
+  reconciliation rules:
+  - Agents must not apply external parallelism to repository gates.
+  - Agents must not run overlapping repository gates.
+  - A repository may own bounded internal scenario parallelism through its
+    own documented test target and repository-defined concurrency controls.
+  - Agents use that internal parallelism only when that repository's
+    guidance explicitly documents it.
+  - All other scenario commands and overlapping gates stay sequential by
+    default.
+  - `MOLECULE_INSTANCE_SUFFIX` and fact-cache isolation stay mandatory
+    regardless of the scheduling mode.
 
 ### 3g. Molecule performance guidance
 
@@ -504,18 +514,41 @@ that developers will actually run it. Optimize in this order:
      output if they become noisy.
 
 7. **Parallelize scenarios only on suitable runners**
-   - Prefer Molecule's native worker mode over background shell jobs:
+   - Treat native worker mode as a CI or dedicated-runner path. It
+     parallelizes Molecule scenarios, Podman-backed or otherwise, within a
+     single invocation, and prefers that mode over background shell jobs:
 
      ```bash
      molecule test --all --workers cpus-1
      ```
 
+   - Native worker mode is experimental: upstream documents it as such, and
+     `--workers` needs Molecule 26.3.0 or newer, so treat the flag and its
+     behaviour as subject to change.
    - `--workers` requires collection mode with `galaxy.yml`.
    - Use `shared_state: true` in scenario configs when using the native
      worker mode so the default scenario owns shared create/destroy lifecycle.
-   - Treat this as a CI or dedicated-runner optimization. In shared agent
-     workspaces, follow the host instructions and run gates sequentially.
+   - Scope the fact cache per scenario in native worker mode. Every worker
+     inherits the same `MOLECULE_INSTANCE_SUFFIX`, so scenarios that declare
+     the same platform names write the same cache entries and can overwrite
+     each other's snapshots. Add `${MOLECULE_SCENARIO_NAME}` to
+     `fact_caching_connection`, or drop `fact_caching` for the mode.
    - Do not combine `--workers > 1` with `--destroy=never`.
+   - Fall back to `molecule test --all`, which runs the same scenarios
+     sequentially in the main process, when worker mode is unavailable or
+     unsuitable.
+   - In a shared agent workspace, apply the reconciliation rules from section
+     3f, restated here in the same terms:
+     - Agents must not apply external parallelism to repository gates.
+     - Agents must not run overlapping repository gates.
+     - A repository may own bounded internal scenario parallelism through its
+       own documented test target and repository-defined concurrency controls.
+     - Agents use that internal parallelism only when that repository's
+       guidance explicitly documents it.
+     - All other scenario commands and overlapping gates stay sequential by
+       default.
+     - `MOLECULE_INSTANCE_SUFFIX` and fact-cache isolation stay mandatory
+       regardless of the scheduling mode.
 
 8. **Use Mitogen only as an explicit compatibility choice**
    - Mitogen can speed task execution for compatible Ansible versions, but it
@@ -847,7 +880,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Molecule + Podman driver
-        run: pip install ansible-core molecule "molecule-plugins[podman]" ansible-lint
+        run: pip install ansible-core "molecule>=26.3.0" "molecule-plugins[podman]" ansible-lint
 
       - name: Run Molecule
         run: molecule test
