@@ -15,6 +15,7 @@ from typos_rollout_test_support import (
     LOCAL_DICTIONARY_PATH,
     MISSPELLED_DRIFT_FORMS,
     SHARED_DICTIONARY_PATH,
+    USERS_GUIDE_PATH,
     deny_path_reads,
     dictionary_text,
     require_executable,
@@ -436,6 +437,7 @@ def test_shared_dictionary_corrects_ize_drift_misspellings(
     generated_words = tomllib.loads(COMMITTED_CONFIG_PATH.read_text(encoding="utf-8"))[
         "default"
     ]["extend-words"]
+    guide = USERS_GUIDE_PATH.read_text(encoding="utf-8")
     expected = dict(MISSPELLED_DRIFT_FORMS)
 
     assert expected.items() <= mappings.items(), (
@@ -443,6 +445,14 @@ def test_shared_dictionary_corrects_ize_drift_misspellings(
     )
     assert expected.items() <= generated_words.items(), (
         "generated config omitted -ize drift corrections"
+    )
+    undocumented = [
+        canonical
+        for form, canonical in MISSPELLED_DRIFT_FORMS
+        if f'"{form}" = "{canonical}"' not in guide
+    ]
+    assert undocumented == [], (
+        f"users' guide omitted drift corrections: {', '.join(undocumented)}"
     )
 
 

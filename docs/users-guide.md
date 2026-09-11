@@ -119,6 +119,27 @@ policy. `harvest` emits JSON Lines evidence for Oxford `-ize` and plain-British
 shared base; product names, quoted upstream terms, and deliberate fixtures
 belong in a consumer's `typos.local.toml`.
 
+The curated base also normalizes nine common drift forms that replace `s` with
+`z` in `otherwise`, `exercise` and `raise`. Each drifted form gains exactly one
+canonical replacement, so consumers receive a single correction instead of
+competing candidates:
+
+```toml
+"otherwize" = "otherwise"
+"exercize" = "exercise"
+"exercized" = "exercised"
+"exercizes" = "exercises"
+"exercizing" = "exercising"
+"raize" = "raise"
+"raized" = "raised"
+"raizes" = "raises"
+"raizing" = "raising"
+```
+
+Consumer repositories receive these mappings the next time they generate
+configuration from the shared base: the corrections are rendered into their
+tracked `typos.toml`, so no local overlay change is required.
+
 Inline code is checked by default so misspelled identifiers, flags, module
 paths and file names remain visible. Add exact identifier patterns to the
 local `[patterns] ignore` list when an upstream name is intentionally spelled

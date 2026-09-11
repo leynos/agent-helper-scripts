@@ -14,6 +14,7 @@ SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "typos_rollout.py"
 SHARED_DICTIONARY_PATH = REPOSITORY_ROOT / "data" / "typos-oxendict-base.toml"
 LOCAL_DICTIONARY_PATH = REPOSITORY_ROOT / "typos.local.toml"
 COMMITTED_CONFIG_PATH = REPOSITORY_ROOT / "typos.toml"
+USERS_GUIDE_PATH = REPOSITORY_ROOT / "docs" / "users-guide.md"
 #: `s`-to-`z` drift forms paired with the one canonical spelling each accepts.
 MISSPELLED_DRIFT_FORMS: tuple[tuple[str, str], ...] = (
     ("otherwi" + "ze", "otherwise"),
