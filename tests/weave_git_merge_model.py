@@ -310,7 +310,7 @@ def trusted_stages(case: ConflictCase) -> frozenset[int]:
     return frozenset(trusted)
 
 
-def resolution_may_continue(case: ConflictCase, resolved_parses: bool) -> bool:
+def resolution_may_continue(case: ConflictCase, *, resolved_parses: bool) -> bool:
     """Return whether `git add` and `--continue` are permitted for the path.
 
     The resolved working file must parse, and an existing stage 2 must be a

@@ -8,6 +8,7 @@ validity, and multi-commit replay transitions, without invoking Git.
 from __future__ import annotations
 
 import dataclasses as dc
+import itertools
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -258,7 +259,7 @@ def test_an_absent_stage_two_is_never_parsed_or_trusted(
     assert model.OURS_STAGE not in model.trusted_stages(deleted_here), (
         "an absent stage 2 was reported as trusted"
     )
-    assert model.resolution_may_continue(deleted_here, True) is True, (
+    assert model.resolution_may_continue(deleted_here, resolved_parses=True) is True, (
         "with no stage 2 to distrust, a parsing resolved file must be enough"
     )
 
@@ -280,9 +281,11 @@ def test_an_absent_stage_three_is_never_parsed_or_trusted(
         "an absent stage 3 was reported as trusted"
     )
     kept_there = dc.replace(case, theirs_present=True)
-    assert model.resolution_may_continue(
-        deleted_there, True
-    ) == model.resolution_may_continue(kept_there, True), (
+    continues_without = model.resolution_may_continue(
+        deleted_there, resolved_parses=True
+    )
+    continues_with = model.resolution_may_continue(kept_there, resolved_parses=True)
+    assert continues_without == continues_with, (
         "an absent stage 3 must not change whether stage 2 gates continuation"
     )
 
@@ -299,7 +302,7 @@ def test_a_parsing_stage_three_never_rescues_a_non_parsing_stage_two(
     assert model.OURS_STAGE not in model.trusted_stages(broken_case), (
         "a non-parsing stage 2 was trusted because stage 3 parsed"
     )
-    assert model.resolution_may_continue(broken_case, True) is False, (
+    assert model.resolution_may_continue(broken_case, resolved_parses=True) is False, (
         "continuation was allowed despite a non-parsing stage 2"
     )
 
@@ -326,7 +329,7 @@ def test_resolution_never_continues_on_a_non_parsing_resolved_file(
     case: model.ConflictCase,
 ) -> None:
     """A resolved file that fails to parse can never be continued."""
-    assert model.resolution_may_continue(case, False) is False, (
+    assert model.resolution_may_continue(case, resolved_parses=False) is False, (
         "continuation was allowed for a non-parsing resolved file"
     )
 
@@ -357,7 +360,7 @@ def test_ours_input_safe_tracks_the_previous_states_safety(
     assert states[0].ours_input_safe is True, (
         "the first replay's ours input was not treated as safe by definition"
     )
-    for previous, current in zip(states, states[1:]):
+    for previous, current in itertools.pairwise(states):
         assert current.ours_input_safe == previous.safe, (
             "a later state's ours-input safety diverged from the prior verdict"
         )
@@ -433,7 +436,7 @@ def test_the_fold_stops_after_a_replay_git_did_not_accept(
     """No replay follows one that Git left unmerged or failed."""
     states = model.fold_replays(sequence, per_replay_guard=per_replay_guard)
 
-    for previous, _current in zip(states, states[1:]):
+    for previous, _current in itertools.pairwise(states):
         assert previous.git_accepted, (
             "a state followed a replay that Git did not accept"
         )
