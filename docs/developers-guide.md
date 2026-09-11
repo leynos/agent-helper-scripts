@@ -419,7 +419,7 @@ subagents (`wyvern`, `scribe`, `alchemist`, `scrutineer`, `journeyman`,
 each subagent does and how downstream provisioning renders the manifest, see
 the `## Sub-agent definitions` section in
 [docs/users-guide.md](users-guide.md). This section covers the test-loader
-concerns only.
+concerns and, for the `scrutineer` subagent, its operating contract.
 
 The manifest expresses MCP access according to each provider's inheritance
 model. Claude Code provider blocks use named `mcpServers` allow-lists: every
@@ -475,6 +475,96 @@ Three test suites consume the helper:
 PyYAML is a development-only dependency, declared as `pyyaml>=6.0.3` in the
 `[dependency-groups] dev` array of `pyproject.toml`. It is not a runtime
 dependency of any bootstrap script; only the manifest test helper imports it.
+
+### Scrutineer operating contract
+
+`scrutineer`'s `instructions` body in `agents/subagents.yml` is the
+authoritative source for this contract; it is pinned by
+`tests/test_subagent_definitions.py`. An assignment combines up to three
+independent scopes:
+
+- Deterministic local commit gates: `make check-fmt`, `lint`, `typecheck`,
+  `test`, `markdownlint`, `nixie`, plus `test-podman` when the change
+  surface touches an Ansible role, module, playbook, or Molecule scenario.
+- An optional `coderabbit review --agent` pass, gated on every applicable
+  deterministic gate above passing first.
+- GitHub Actions monitoring.
+
+A monitoring-only assignment starts neither of the other two scopes and
+records them as `not-requested` rather than passed or silently skipped.
+
+Actions monitoring requires an authenticated `gh` CLI and `jq`.
+`gh run watch` does not support fine-grained PAT authentication, and the
+agent must never broaden permissions or change authentication to make
+watching work. A missing `gh` or `jq` is classified
+`infrastructure-error` rather than reported as a successful observation.
+
+Correlation is explicit: repository via `--repo OWNER/REPO`, expected
+commit SHA, run ID and attempt. Candidate resolution and verification
+are published, executable procedures rather than prose guidance.
+`gh pr checks` links are parsed into `candidate-runs.txt`, or
+`gh run list --commit` resolves commit-scoped work, and every candidate
+is confirmed with `gh run view` before it may enter the watch or
+evidence steps. Verification records one of three
+`candidate-identity.txt` states — `verified`, `pr-head-synthetic-merge`,
+or `sha-mismatch` — because a `pull_request` run reports the PR head
+as its `headSha` while GitHub actually builds a synthetic merge of
+that head into the base. `gh run watch` does not pin an attempt, so the
+latest attempt and candidate identity are rechecked before hand-off;
+superseded evidence is retained and reported as stale rather than
+silently transferred to the new attempt.
+
+Observation is bounded and read-only. `gh run watch` blocks until the
+run completes, and neither `--exit-status` nor `--interval` bounds it,
+so the watcher is wrapped in `timeout`, using a `remaining_seconds`
+value derived from the observation deadline. A `timeout` exit status
+of `124` is recorded as a distinct `deadline-reached` watcher outcome,
+not a workflow failure. An observation deadline stops only the local
+watcher; hosted runs are never cancelled. The assignment never
+reruns, dispatches, approves, merges, or edits a workflow.
+
+Only `status=completed` with `conclusion=success` counts as success. Every
+other conclusion, and any pending, missing, or inaccessible requested
+work, is preserved and never collapsed into an all-success claim. CLI,
+credential, permission, and API problems are classified
+`infrastructure-error`, distinct from a workflow failure; a nonzero
+`gh run watch` exit code is not by itself a verdict.
+
+Evidence is written to a private `mktemp` directory under `/tmp` created
+with `umask 077`, with a `run-<id>-attempt-<n>` subdirectory per run and
+attempt. Resolution and verification add their own artefacts to that
+bundle: `pr.json` and `candidate-runs.txt` for PR-scoped resolution,
+with `non-actions-checks.txt` recording checks that are not Actions
+runs; `run-list.json` and `candidate-runs.txt` for commit-scoped
+resolution, with `candidates.missing` written only when no runs were
+found for the commit; and `candidate.json` plus
+`candidate-identity.txt` for verification. The bundle also holds
+`run.json` and `watch.log` for the watch itself, `recheck.json` from
+the attempt recheck before hand-off, with `attempt.superseded`
+written only when the latest attempt differs from the one the
+evidence covers. `failed.log` and `failed-log.stderr` are conditional:
+they are captured only for a run that has reached `status=completed`
+with a non-success conclusion. The procedure enforces this condition
+itself, reading `status` and `conclusion` from the already-captured
+`run.json` with `jq` rather than making a second API call. A
+successful, still-pending, missing, or inaccessible run legitimately
+has no failure-log artefacts; the procedure instead writes a
+`failed-log.omitted` note recording the observed status and
+conclusion, so the omission is self-describing. The root `summary.md`
+manifest records the reason for any expected artefact's absence, so
+an omission is never ambiguous between "not applicable" and
+"retrieval failed". Failed-step log capture is never gated on watcher
+success with `&&`, and retrieval exit codes are recorded separately
+from the observed Actions conclusion. Logs stay private, and secrets
+are redacted from any excerpts.
+
+`agents/subagents.yml` is the single authoritative copy of these
+procedures. `tests/test_scrutineer_actions_discovery.py` and
+`tests/test_scrutineer_actions_procedures.py` extract the `bash`
+snippets from the manifest's `instructions` body and execute them
+against a `gh` double that validates repository, run ID, attempt,
+commit SHA, and required flags, so the tests cannot drift from the
+published contract.
 
 ### Skill manifest tooling dependencies
 

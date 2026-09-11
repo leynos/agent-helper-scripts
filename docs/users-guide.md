@@ -595,6 +595,43 @@ stateDiagram-v2
 status that follows. A verdict describes one hypothesis; a status describes
 the whole report.*
 
+`scrutineer` runs a summoned assignment in up to three modes: the
+deterministic local commit gates, an optional `coderabbit review --agent`
+pass run only when explicitly requested, and GitHub Actions monitoring. A
+monitoring-only assignment watches the requested runs without starting
+local gates or a new review; those activities are reported as
+`not-requested` rather than passed or silently skipped. A docs-only diff,
+where every changed path ends in `.md`, scopes the gate set to
+`make markdownlint` and `make nixie`.
+
+Actions monitoring correlates an explicit repository, expected commit
+SHA, run ID and attempt; PR-head, synthetic-merge and post-merge
+integration evidence are kept distinct, and the latest run on a branch is
+never substituted for the assigned candidate. Candidates are resolved
+from the pull request's own check links or from an exact commit; checks
+that are not Actions runs are classified separately rather than
+monitored, and every candidate is verified before it is watched. A
+deadline bounds the watcher itself, and reaching it stops only local
+observation:
+`scrutineer` never reruns, cancels, dispatches, approves or merges, and
+it does not cancel hosted runs when the deadline is reached.
+Only `status=completed` with `conclusion=success` counts as success;
+pending, cancelled, skipped and neutral states are preserved, and
+CLI, credential or API problems are reported as `infrastructure-error`
+rather than as a workflow failure. Every observed run and attempt
+contributes run metadata and watcher output (`run.json`, `watch.log`)
+to a private bundle under `/tmp`, alongside a root `summary.md`.
+Failed-step logs (`failed.log`) are captured only for a run that
+reaches `status=completed` with a non-success `conclusion`; a run still
+pending at the deadline is reported with the evidence gathered so far
+and its last known status, treated as neither success nor failure, and
+it has no failure-log artefact. When capture does not apply, the
+bundle carries a short `failed-log.omitted` note recording the
+observed status and conclusion, so a missing failure log is never
+ambiguous. Missing, expired or inaccessible logs are reported
+explicitly, with the reason, rather than read as success.
+`scrutineer` never edits tracked files.
+
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
 `artisan` agents.
