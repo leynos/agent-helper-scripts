@@ -39,7 +39,7 @@ slashes", which matches any pathname that contains `/docs` rather than the docs
 section alone; `^/docs/.*$` is the form that pins the section.
 
 The starting URL is itself tested against `includePaths`, so an include list
-that excludes the start URL returns zero pages.
+that excludes the start URL may return zero pages.
 
 Use path filtering to focus crawls on relevant sections and conserve credits.
 
