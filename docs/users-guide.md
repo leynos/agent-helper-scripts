@@ -292,6 +292,67 @@ identifiable without opening it. Earlier plans used an opaque
 `debugging-plan-{timestamp}.md` name; see the
 [migration guide](migration-guide.md) for renaming them.
 
+## VidaiMock
+
+The [`vidai-mock`](../skills/vidai-mock/SKILL.md) skill covers VidaiMock, a
+local mock server for LLM provider APIs. A single process serves
+provider-shaped OpenAI, Anthropic, Gemini, Bedrock, and compatible endpoints
+on port 8100 with no API key and no network access, because the bundled
+providers and templates are compiled into the binary.
+
+Use it for LLM integration tests that must exercise streaming, tool calls,
+agentic loops, and failure handling without spending provider tokens. It
+reproduces the parts of a real provider that tests depend on: time to first
+token and token pacing, each provider's own streaming frame format, and
+chaos injection that returns provider-shaped error envelopes so retry and
+fallback logic engages the way it does in production.
+
+Start it with `vidaimock --host 127.0.0.1`, confirm `GET /health` reports
+`{"status":"ok"}`, then point the SDK under test at
+`http://localhost:8100/v1`. The skill documents the critical path, the run
+modes, provider and template configuration, the chaos controls, and the
+built-in diagnostic paths `/health`, `/status`, and `/metrics`.
+
+The skill targets `vidaimock` 0.3.1, and its commands were checked against
+that release. It ships from this repository, so `install-skills` delivers it
+with the other skills and no separate skill checkout is needed. See the
+[migration guide](migration-guide.md) if an earlier deployment installed the
+skill from its own repository.
+
+The `get-ai-tooling` helper, which runs only when `WITH_AI_TOOLING` is set,
+currently downloads v0.1.2, so a machine provisioned through the bootstrap
+runs an older release than the skill documents and some documented commands
+and flags may not be available. Install 0.3.1, for example with
+`cargo install vidaimock --version 0.3.1`, to match.
+
+## Nextest
+
+The [`nextest`](../skills/nextest/SKILL.md) skill covers `cargo-nextest`, the
+Rust test runner that executes each test in its own process. It is the runner
+the Rust gates use, and the skill documents what that model changes: process
+isolation, per-test parallelism, and the failures that only appear once tests
+stop sharing one process.
+
+Use it when a Rust test run needs more than `cargo test` offers — sharding a
+suite across CI runners, archiving a build and running it elsewhere, retrying
+flaky tests, capping hung tests with timeouts, serializing tests that contend
+for a database through test groups, or assigning port numbers to tests from
+their slot number. It also covers the integrations that hang off the runner:
+Miri, `cargo llvm-cov`, `cargo-mutants`, and Criterion benchmarks.
+
+The skill targets `cargo-nextest` 0.9.143, and its commands were checked
+against that release. The `get-rust-tooling` bootstrap currently installs
+0.9.133 with `cargo binstall` at the pinned `CARGO_NEXTEST_VERSION`, so
+features the skill marks with a version — the `cargo nextest help` topics,
+the config JSON schemas, `junit.report-skipped`, and the relaxed filterset
+parsing — are newer than what an unmodified bootstrap provides. Raise that
+variable to 0.9.143 to use them.
+
+It ships from this repository, so `install-skills` delivers it with the other
+skills and no separate skill checkout is needed. See the
+[migration guide](migration-guide.md) if an earlier deployment installed the
+skill from its own repository.
+
 ## Common settings
 
 ### `RUST_ENTRYPOINT_PHASE`
