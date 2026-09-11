@@ -836,7 +836,8 @@ resolved against the repository before writing.
 The `rebase` skill restacks a child branch after its parent PR has
 squash-merged. The user-facing summary lives in the
 "Squash-restack boundaries" section of the [users' guide](users-guide.md) and
-in `skills/rebase/SKILL.md`; this section covers what maintainers must preserve when changing the planner or its tests.
+in `skills/rebase/SKILL.md`; this section covers what maintainers must
+preserve when changing the planner or its tests.
 See also [ADR 005](adr/005-squash-restack-replay-boundary.md) for the
 decision record behind this boundary model.
 

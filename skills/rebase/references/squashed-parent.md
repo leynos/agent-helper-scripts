@@ -82,14 +82,21 @@ or a small set of boundary candidates can resolve the question.
 
 Once the parent PR is identified, capture its metadata:
 
+<!-- markdownlint-disable MD013 -->
+<!-- The --jq argument is verbatim: a contract test compares this command
+     against the recorded gh argv, so wrapping it would falsify the docs. -->
+
 ```bash
 gh api "repos/$PARENT_REPOSITORY/pulls/$PARENT_PR" \
   --jq '{number, merged, merged_at, head_sha: .head.sha, head_ref: .head.ref, base_ref: .base.ref, base_repository: .base.repo.full_name, landed: .merge_commit_sha}'
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 Check the repository and PR number against the requested identity.
-Require `merged: true` and a non-null merge timestamp. For a confirmed squash merge, `merge_commit_sha`
-identifies the new squash commit, not the original parent head. Before merge,
+Require `merged: true` and a non-null merge timestamp. For a confirmed squash
+merge, `merge_commit_sha` identifies the new squash commit, not the original
+parent head. Before merge,
 that API field can instead identify a synthetic test merge. A single-parent
 integration commit alone does not distinguish squash merge from rebase merge.
 

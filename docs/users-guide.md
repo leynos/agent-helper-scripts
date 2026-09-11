@@ -390,8 +390,8 @@ built-in diagnostic paths `/health`, `/status`, and `/metrics`.
 The skill targets `vidaimock` 0.3.1, and its commands were checked against
 that release. It ships from this repository, so `install-skills` delivers it
 with the other skills and no separate skill checkout is needed. See the
-[migration guide](v0-2-0-migration-guide.md) if an earlier deployment installed the
-skill from its own repository.
+[migration guide](v0-2-0-migration-guide.md) if an earlier deployment
+installed the skill from its own repository.
 
 The `get-ai-tooling` helper, which runs only when `WITH_AI_TOOLING` is set,
 currently downloads v0.1.2, so a machine provisioned through the bootstrap
@@ -424,8 +424,8 @@ variable to 0.9.143 to use them.
 
 It ships from this repository, so `install-skills` delivers it with the other
 skills and no separate skill checkout is needed. See the
-[migration guide](v0-2-0-migration-guide.md) if an earlier deployment installed the
-skill from its own repository.
+[migration guide](v0-2-0-migration-guide.md) if an earlier deployment
+installed the skill from its own repository.
 
 ## Squash-restack boundaries
 
