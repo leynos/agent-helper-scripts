@@ -10,7 +10,7 @@ alias).
 ## Predicates
 
 | Predicate | Description | Default matcher |
-|-----------|-------------|-----------------|
+| ----------- | ------------- | ----------------- |
 | `all()` | All tests | — |
 | `none()` | No tests | — |
 | `test(m)` | Tests matching `m` | Contains (`~`) |
@@ -26,7 +26,7 @@ alias).
 ## Name Matchers
 
 | Prefix | Type | Example |
-|--------|------|---------|
+| -------- | ------ | --------- |
 | (none) | Default for predicate | `test(foo)` |
 | `=` | Exact match | `test(=my_mod::my_test)` |
 | `~` | Contains | `package(~serde)` |

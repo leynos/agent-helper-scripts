@@ -319,7 +319,9 @@ curl -sS http://localhost:8100/v1/chat/completions \
     "tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}],
     "messages": [
       {"role": "user", "content": "Weather in London?"},
-      {"role": "assistant", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}]},
+      {"role": "assistant", "tool_calls": [
+        {"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}
+      ]},
       {"role": "tool", "tool_call_id": "c1", "content": "15C cloudy"}
     ]
   }'

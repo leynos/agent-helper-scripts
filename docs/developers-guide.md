@@ -293,7 +293,6 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
-
 ### Markdown lint configuration
 
 `.markdownlint-cli2.jsonc` is reconciled against the shared
