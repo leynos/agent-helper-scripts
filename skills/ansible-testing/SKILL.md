@@ -257,7 +257,10 @@ provisioner:
       # if the image does not ship it.
       gathering: smart
       fact_caching: jsonfile
-      fact_caching_connection: ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}
+      # The instance suffix separates branch runs; the scenario name keeps
+      # native worker mode's concurrent scenarios from sharing a cache file.
+      fact_caching_connection: >-
+        ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}-${MOLECULE_SCENARIO_NAME}
       fact_caching_timeout: 3600
       callbacks_enabled: timer, profile_tasks
       retry_files_enabled: false
@@ -386,8 +389,8 @@ molecule:
 >   molecule test -s default
 ```
 
-In `molecule.yml`, suffix every platform and any persistent test cache with
-that variable:
+In `molecule.yml`, suffix every platform with that variable, and include both
+it and `${MOLECULE_SCENARIO_NAME}` in any persistent test cache:
 
 ```yaml
 platforms:
@@ -401,7 +404,7 @@ provisioner:
     defaults:
       fact_caching: jsonfile
       fact_caching_connection: >-
-        ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}
+        ${MOLECULE_PROJECT_DIRECTORY}/.cache/facts-${MOLECULE_INSTANCE_SUFFIX}-${MOLECULE_SCENARIO_NAME}
 ```
 
 For focused manual runs, set the suffix explicitly:
@@ -468,7 +471,9 @@ that developers will actually run it. Optimize in this order:
    - Set `ANSIBLE_COLLECTIONS_PATH`, `ANSIBLE_ROLES_PATH`, and
      `fact_caching_connection` under a project-local `.cache/` directory.
    - Include `MOLECULE_INSTANCE_SUFFIX` in `fact_caching_connection` on shared
-     hosts so concurrent branch runs do not reuse each other's facts.
+     hosts so concurrent branch runs do not reuse each other's facts, and add
+     `${MOLECULE_SCENARIO_NAME}` so concurrent worker-mode scenarios do not
+     either.
    - Add `.cache/` to `.gitignore`; the cache is local state, not source.
    - Do not write playbooks that depend on cache files existing. A cache miss
      must only make the run slower, not change behaviour.
@@ -532,7 +537,8 @@ that developers will actually run it. Optimize in this order:
      inherits the same `MOLECULE_INSTANCE_SUFFIX`, so scenarios that declare
      the same platform names write the same cache entries and can overwrite
      each other's snapshots. Add `${MOLECULE_SCENARIO_NAME}` to
-     `fact_caching_connection`, or drop `fact_caching` for the mode.
+     `fact_caching_connection` in every `molecule.yml`, as the examples above
+     do, or drop `fact_caching` for the mode.
    - Do not combine `--workers > 1` with `--destroy=never`.
    - Fall back to `molecule test --all`, which runs the same scenarios
      sequentially in the main process, when worker mode is unavailable or

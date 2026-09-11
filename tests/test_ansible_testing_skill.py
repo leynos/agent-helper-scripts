@@ -5,8 +5,9 @@ section 3f ("Molecule test isolation on shared hosts") and as the closing bullet
 of item 7 in section 3g ("Molecule performance guidance"). The two restatements
 are only useful while the terms match, so the wording is part of the contract
 rather than an incidental detail. These tests detect drift between the skill and
-the rules the shared-workspace guidance relies on. They do not prove that an
-agent follows the skill.
+the rules the shared-workspace guidance relies on, including the fact-cache
+isolation the example scenario configuration itself must apply. They do not
+prove that an agent follows the skill.
 """
 
 from __future__ import annotations
@@ -85,6 +86,13 @@ WORKER_MODE_REQUIREMENTS = {
     ),
 }
 
+INSTANCE_SUFFIX_VAR = "${MOLECULE_INSTANCE_SUFFIX}"
+SCENARIO_NAME_VAR = "${MOLECULE_SCENARIO_NAME}"
+FACT_CACHING_CONNECTION_RE = re.compile(
+    r"^\s*fact_caching_connection:\s*(?:>-\s*\n\s*)?(?P<path>\S+)\s*$",
+    re.MULTILINE,
+)
+
 MISSING_ISOLATION_RULES = (
     "the section 3f restatement must state the six scheduling rules in order"
 )
@@ -94,6 +102,9 @@ MISSING_PERFORMANCE_RULES = (
 USERS_GUIDE_MISSING = "must contain the `## Ansible testing` heading"
 USER_GUIDE_RULE_MISSING = "the users' guide must restate the scheduling rule"
 WORKER_MODE_MISSING = "the skill must document the native worker mode constraint"
+FACT_CACHE_PATH_MISSING = (
+    "every fact_caching_connection path must keep concurrent runs apart"
+)
 
 
 def _read(path: Path) -> str:
@@ -159,6 +170,30 @@ def _rule_block(section: str, intro: str) -> list[str]:
     return [" ".join(item.split()) for item in items]
 
 
+def _fact_cache_paths(skill: str) -> list[str]:
+    """Return every fact cache path the skill's example configurations set.
+
+    Both plain and folded YAML scalars are read, so the assertion holds however
+    the examples are wrapped.
+    """
+    return [
+        match.group("path") for match in FACT_CACHING_CONNECTION_RE.finditer(skill)
+    ]
+
+
+def _assert_fact_cache_isolation(skill: str) -> None:
+    """Every example cache path must separate concurrent runs, not just branches."""
+    paths = _fact_cache_paths(skill)
+    assert paths, (
+        "the skill must show at least one fact_caching_connection example"
+    )
+    for path in paths:
+        for variable in (INSTANCE_SUFFIX_VAR, SCENARIO_NAME_VAR):
+            assert variable in path, (
+                f"{FACT_CACHE_PATH_MISSING}: `{path}` must carry `{variable}`"
+            )
+
+
 def _validate_scheduling_contract(skill: str, users_guide: str) -> None:
     """Validate the scheduling rules and both of their restatements."""
     isolation_rules = _rule_block(
@@ -179,6 +214,8 @@ def _validate_scheduling_contract(skill: str, users_guide: str) -> None:
         assert required_text in normalized_skill, (
             f"{WORKER_MODE_MISSING} on {concept}: `{required_text}`"
         )
+
+    _assert_fact_cache_isolation(skill)
 
     assert skill.count(MOLECULE_FLOOR_PIN) >= MOLECULE_FLOOR_SITES, (
         "every install site, including the CI workflow, must pin the Molecule "
@@ -252,6 +289,25 @@ def test_internal_parallelism_stays_conditional_on_repository_guidance() -> None
         "the permission must be immediately qualified by its documentation "
         "condition"
     )
+
+
+def test_example_configs_scope_the_fact_cache_per_instance_and_scenario() -> None:
+    """The shipped examples must not let concurrent runs share a cache file.
+
+    A scenario-scoped path is what lets native worker mode run scenarios with
+    `gather_facts` enabled without one worker overwriting another's cache.
+    """
+    _assert_fact_cache_isolation(_read(SKILL_PATH))
+
+
+def test_contract_rejects_shared_fact_cache_path() -> None:
+    """Dropping the scenario component from an example path must fail."""
+    skill = _read(SKILL_PATH)
+    mutated = skill.replace(f"-{SCENARIO_NAME_VAR}", "", 1)
+    assert mutated != skill, "test fixture must contain a scenario-scoped cache path"
+
+    with pytest.raises(AssertionError, match=re.escape(FACT_CACHE_PATH_MISSING)):
+        _assert_fact_cache_isolation(mutated)
 
 
 def test_contract_rejects_weakened_external_parallelism_prohibition() -> None:
