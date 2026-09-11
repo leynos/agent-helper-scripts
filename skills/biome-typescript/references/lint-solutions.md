@@ -66,8 +66,9 @@ function createTodo(title: string): Todo {
   return { id: crypto.randomUUID(), title };
 }
 
-async function renderTodos() {
-  const todos = await api.listTodos();  // Rows already carry their own IDs
+// Loading is a separate concern from rendering: the rows arrive from storage
+// already carrying their IDs, so the component only maps them to keys
+function TodoList({ todos }: { todos: readonly Todo[] }) {
   return todos.map((todo) => <Item key={todo.id} />);
 }
 
