@@ -145,9 +145,10 @@ python3.12 -m venv ~/.venv/ansible-dev
 source ~/.venv/ansible-dev/bin/activate
 
 pip install --upgrade pip
+# Molecule 26.3.0+ provides --workers (native parallel scenarios; see 3g item 7).
 pip install \
   ansible-core \
-  molecule \
+  "molecule>=26.3.0" \
   "molecule-plugins[podman]" \
   ansible-lint \
   pytest \
@@ -521,10 +522,16 @@ that developers will actually run it. Optimize in this order:
      molecule test --all --workers cpus-1
      ```
 
+   - Native worker mode is experimental: upstream documents it as such, and
+     `--workers` needs Molecule 26.3.0 or newer, so treat the flag and its
+     behaviour as subject to change.
    - `--workers` requires collection mode with `galaxy.yml`.
    - Use `shared_state: true` in scenario configs when using the native
      worker mode so the default scenario owns shared create/destroy lifecycle.
    - Do not combine `--workers > 1` with `--destroy=never`.
+   - Fall back to `molecule test --all`, which runs the same scenarios
+     sequentially in the main process, when worker mode is unavailable or
+     unsuitable.
    - In a shared agent workspace, apply the reconciliation rules from section
      3f, restated here in the same terms:
      - Agents must not apply external parallelism to repository gates.
@@ -868,7 +875,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Molecule + Podman driver
-        run: pip install ansible-core molecule "molecule-plugins[podman]" ansible-lint
+        run: pip install ansible-core "molecule>=26.3.0" "molecule-plugins[podman]" ansible-lint
 
       - name: Run Molecule
         run: molecule test
