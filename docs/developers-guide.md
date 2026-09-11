@@ -825,11 +825,11 @@ all must stay in step with the skill:
   moves the safe-prefix boundary. It is the search-based complement to the
   fixed-string contract tests and the real-Git procedure tests.
 
-When extending the procedures module, note two traps at this boundary. A cmd-mox shim
-reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and
-Git deadlock. Git also hands the driver repository-relative temporary paths,
-while handlers run in the pytest process, so `%A` must be resolved against the
-repository before writing.
+When extending the procedures module, note two traps at this boundary. A
+cmd-mox shim reads standard input, so Git must be run with `stdin=DEVNULL` or
+the shim and Git deadlock. Git also hands the driver repository-relative
+temporary paths, while handlers run in the pytest process, so `%A` must be
+resolved against the repository before writing.
 
 ## Workflow pins and Dependabot
 
