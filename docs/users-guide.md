@@ -453,6 +453,19 @@ skill bundles a planner, `skills/rebase/scripts/plan_restack.py`. It is a
 Cyclopts command-line tool run with `uv run`, and requires Python 3.13 or
 later and an authenticated `gh`:
 
+In the common case, no maintained `refs/stack-bases/<branch>` receipt exists
+and the parent head is still inherited, so `--boundary-ref` is left off
+entirely:
+
+```bash
+uv run skills/rebase/scripts/plan_restack.py . \
+  --branch "$BRANCH" --target-ref "$TARGET_REF" \
+  --parent-repository "$PARENT_REPOSITORY" --parent-pr "$PARENT_PR"
+```
+
+When a maintained `refs/stack-bases/<branch>` receipt exists, pass it via
+`--boundary-ref`:
+
 ```bash
 uv run skills/rebase/scripts/plan_restack.py . \
   --branch "$BRANCH" --target-ref "$TARGET_REF" \
@@ -461,14 +474,17 @@ uv run skills/rebase/scripts/plan_restack.py . \
 ```
 
 The positional argument is the repository path (`.` for the current
-checkout). `--boundary-ref` is optional; supply it when a maintained
-`refs/stack-bases/<branch>` receipt exists, and omit it otherwise.
+checkout). `--boundary-ref` is optional: either pass it with a receipt's
+value, or leave the whole flag off. An empty value is not the same as
+omitting it — the planner rejects an empty `--boundary-ref` rather than
+treating it as absent.
 
-The planner is strictly non-mutating. It never rebases, pushes, prunes, or
-moves a branch or tracking ref, and it never touches the index or working
-tree. It only reads Git and `gh` metadata and fetches the parent pull
-request's head into a private `refs/agent-rebase/…` evidence ref for later
-review and recovery.
+The planner leaves branches, tracking refs, the index, and the working tree
+unchanged: it never rebases, pushes, or prunes. Discovery does write one
+thing, deliberately: it fetches the parent pull request's head into a
+private `refs/agent-rebase/…` evidence ref, retained for later review and
+recovery. The read path, `build_plan()`, performs no ref writes and no
+network access at all.
 
 A successful run prints a JSON plan to standard output with
 `status: review-required`, or `status: no-op-decision-required` when the

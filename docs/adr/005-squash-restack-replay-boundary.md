@@ -150,10 +150,13 @@ never an authorization to replay.
   `ParentPullRequest`, `Evidence`, `BoundaryFacts`, `Boundary`, `RangeFacts`,
   and related types) and the pure policy functions that read them
   (`check_identities()`, `select_boundary()`, `check_range()`,
-  `check_unmoved()`, `render_plan()`, and others); none of these touch a
-  `Path`, run a subprocess, parse `gh` JSON, or use Cyclopts. An adapters
-  layer (`Subprocess`, `GitGraph`, `GitHubCli`) turns process calls and `gh`
-  output into those typed facts. `discover()` is the sole command-layer
+  `check_unmoved()`, `plan_replay()`, and others); none of these touch a
+  `Path`, run a subprocess, parse `gh` JSON, or use Cyclopts. The replay
+  decision `plan_replay()` returns carries no Git command at all: rendering
+  one is an adapter concern, so `REBASE_PREFIX` is referenced only by
+  `rebase_argv()` and the plan is serialized by `render_document()`. An
+  adapters layer (`Subprocess`, `GitGraph`, `GitHubCli`) turns process calls
+  and `gh` output into those typed facts. `discover()` is the sole command-layer
   operation atop the adapters, and `build_plan()` is the read path that
   consumes its `Evidence` snapshot without performing further discovery.
   `tests/test_rebase_plan_domain.py` exercises the whole boundary and range
@@ -173,8 +176,10 @@ never an authorization to replay.
   `reason` — with exit status 2 and empty stdout; it never carries command
   output, credentials, or repository contents.
 - Maintainers must keep this document,
-  `skills/rebase/references/squashed-parent.md`, and the "Squash-restack
+  `skills/rebase/references/squashed-parent.md`, the "Squash-restack
   replay boundary" section of
-  [docs/developers-guide.md](../developers-guide.md) in step: a change to the
+  [docs/developers-guide.md](../developers-guide.md), and the
+  "Squash-restack boundaries" section of
+  [docs/users-guide.md](../users-guide.md) in step: a change to the
   boundary rules in `plan_restack.py` without a corresponding update to all
-  three is a documentation regression even if the tests still pass.
+  four is a documentation regression even if the tests still pass.

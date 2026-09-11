@@ -69,6 +69,9 @@ OID_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 RECEIPT_PREFIX = "refs/stack-bases/"
 
+#: Wall-clock ceiling for any single process this planner runs.
+PROCESS_TIMEOUT_SECONDS = 60
+
 #: Bounded failure categories. Diagnostics report one of these rather than free
 #: text, so failures aggregate without parsing messages written for humans.
 CATEGORY_IDENTITY = "identity"
@@ -105,6 +108,10 @@ STATUS_BLOCKED = "blocked"
 #: A resolved, full-length Git commit object ID.
 CommitId = typ.NewType("CommitId", str)
 
+#: Monotonic time source, injectable so diagnostics stay testable. Only
+#: differences between two readings are ever used.
+type Clock = typ.Callable[[], float]
+
 
 @dataclasses.dataclass(frozen=True)
 class ErrorContext:
@@ -127,10 +134,16 @@ class PlanError(RuntimeError):
 
     Parameters
     ----------
-    message : str
-        Human-readable reason, reported verbatim as the blocked ``reason``.
+    reason : str
+        Bounded, human-readable reason. This is what the blocked record
+        reports, so it must never embed subprocess output, credentials, or
+        repository contents.
     category : str
         One of the bounded ``CATEGORY_*`` constants.
+    detail : str | None
+        Unbounded diagnostic text, such as a failing process's standard error.
+        It is appended to ``str(exc)`` for an operator reading a traceback, and
+        is deliberately excluded from :func:`blocked_record`.
 
     Attributes
     ----------
@@ -139,9 +152,17 @@ class PlanError(RuntimeError):
         the refusal happened without parsing the message.
     """
 
-    def __init__(self, message: str, category: str = CATEGORY_UNCLASSIFIED) -> None:
-        super().__init__(message)
+    def __init__(
+        self,
+        reason: str,
+        category: str = CATEGORY_UNCLASSIFIED,
+        *,
+        detail: str | None = None,
+    ) -> None:
+        super().__init__(reason if detail is None else f"{reason}: {detail}")
+        self.reason = reason
         self.category = category
+        self.detail = detail
         self.context: ErrorContext | None = None
 
 
@@ -543,16 +564,61 @@ def review_notes(boundary: Boundary) -> list[str]:
     return notes
 
 
-def render_plan(
+@dataclasses.dataclass(frozen=True)
+class ReplayPlan:
+    """The reviewable replay decision, in domain terms and no tool's terms.
+
+    This records which commits belong to the replay and what remains unproven.
+    It deliberately holds no Git command: rendering one is an adapter concern,
+    so the policy stays independent of the tool that would carry it out.
+
+    Parameters
+    ----------
+    status : str
+        ``review-required`` or ``no-op-decision-required``. Never an
+        authorization to replay.
+    operation : str
+        Identifier correlating this plan with the diagnostics that produced it.
+    branch : str
+        Local child branch the plan applies to.
+    parent : ParentPullRequest
+        The squash-merged parent the boundary was derived from.
+    old_head : CommitId
+        Child branch tip the plan was derived from.
+    target : CommitId
+        Commit the replay would land on.
+    boundary : Boundary
+        The accepted exclusive boundary and its provenance.
+    parent_evidence : ParentEvidence
+        The recovered parent head, its landing commit, and the retained ref.
+    commits : tuple[CommitId, ...]
+        Accepted replay commits, oldest first. May be empty.
+    review : tuple[str, ...]
+        Obligations this plan does not discharge.
+    """
+
+    status: str
+    operation: str
+    branch: str
+    parent: ParentPullRequest
+    old_head: CommitId
+    target: CommitId
+    boundary: Boundary
+    parent_evidence: ParentEvidence
+    commits: tuple[CommitId, ...]
+    review: tuple[str, ...]
+
+
+def plan_replay(
     branch: str,
     evidence: Evidence,
     boundary: Boundary,
     commits: tuple[CommitId, ...],
-) -> dict[str, object]:
-    """Render the reviewable plan document from accepted domain values.
+) -> ReplayPlan:
+    """Decide the reviewable replay from accepted domain values.
 
-    Pure: this reads typed values and never queries a repository. The status is
-    a request for review, never an authorization to replay.
+    Pure: this reads typed values, never queries a repository, and never
+    renders a command for any particular tool.
 
     Parameters
     ----------
@@ -567,34 +633,21 @@ def render_plan(
 
     Returns
     -------
-    dict[str, object]
-        A ``review-required`` or ``no-op-decision-required`` plan.
+    ReplayPlan
+        The decision, in domain terms.
     """
-    parent_evidence = evidence.parent_evidence
-    return {
-        "status": STATUS_REVIEW_REQUIRED if commits else STATUS_NO_OP,
-        "operation": evidence.operation,
-        "branch": branch,
-        "old_head": evidence.old_head,
-        "target": evidence.target,
-        "old_base": boundary.old_base,
-        "parent_head": parent_evidence.head,
-        "landed": parent_evidence.landed,
-        "parent_pr": str(evidence.parent),
-        "boundary_evidence": boundary.evidence,
-        "boundary_corroborated": boundary.corroborated,
-        "evidence_ref": parent_evidence.evidence_ref,
-        "commits": list(commits),
-        "rebase_argv": [
-            *REBASE_PREFIX,
-            evidence.target,
-            boundary.old_base,
-            branch,
-        ]
-        if commits
-        else None,
-        "review": review_notes(boundary),
-    }
+    return ReplayPlan(
+        status=STATUS_REVIEW_REQUIRED if commits else STATUS_NO_OP,
+        operation=evidence.operation,
+        branch=branch,
+        parent=evidence.parent,
+        old_head=evidence.old_head,
+        target=evidence.target,
+        boundary=boundary,
+        parent_evidence=evidence.parent_evidence,
+        commits=commits,
+        review=tuple(review_notes(boundary)),
+    )
 
 
 # --------------------------------------------------------------------------
@@ -627,7 +680,9 @@ def trace(operation: str, event: str, **fields: object) -> None:
 
 
 @contextlib.contextmanager
-def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
+def phase(
+    operation: str, name: str, *, clock: Clock = time.monotonic, **fields: object
+) -> Iterator[None]:
     """Time one phase, record its outcome, and stamp refusals with their phase.
 
     Every phase emits the same bounded fields, so outcomes and durations
@@ -641,6 +696,8 @@ def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
         Identifier correlating diagnostics from one run.
     name : str
         One of the bounded ``PHASE_*`` constants.
+    clock : Clock
+        Monotonic time source; defaults to :func:`time.monotonic`.
     **fields : object
         Additional bounded identities recorded on the start event.
 
@@ -653,11 +710,11 @@ def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
     PlanError
         Re-raised unchanged, apart from the stamped context.
     """
-    started = time.monotonic()
+    started = clock()
     trace(operation, "phase-started", phase=name, **fields)
 
     def elapsed_ms() -> int:
-        return round((time.monotonic() - started) * 1000)
+        return round((clock() - started) * 1000)
 
     try:
         yield
@@ -684,7 +741,9 @@ def phase(operation: str, name: str, **fields: object) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def operation_span(operation: str, branch: str) -> Iterator[None]:
+def operation_span(
+    operation: str, branch: str, *, clock: Clock = time.monotonic
+) -> Iterator[None]:
     """Wrap one restack-planning operation, recording its terminal outcome.
 
     Parameters
@@ -693,6 +752,8 @@ def operation_span(operation: str, branch: str) -> Iterator[None]:
         Identifier correlating every diagnostic from this run.
     branch : str
         Child branch being planned, recorded on the start event.
+    clock : Clock
+        Monotonic time source; defaults to :func:`time.monotonic`.
 
     Yields
     ------
@@ -704,11 +765,11 @@ def operation_span(operation: str, branch: str) -> Iterator[None]:
         Re-raised unchanged, apart from a fallback context for a refusal that
         escaped without passing through any phase.
     """
-    started = time.monotonic()
+    started = clock()
     trace(operation, "operation-started", phase=PHASE_OPERATION, branch=branch)
 
     def elapsed_ms() -> int:
-        return round((time.monotonic() - started) * 1000)
+        return round((clock() - started) * 1000)
 
     try:
         yield
@@ -737,8 +798,10 @@ def operation_span(operation: str, branch: str) -> Iterator[None]:
 def blocked_record(exc: PlanError, operation: str) -> dict[str, str]:
     """Render the terminal blocked result as a bounded, structured record.
 
-    The record carries only fixed labels and the human-readable reason. It never
-    carries command output, credentials, or repository contents.
+    The record carries only fixed labels and the bounded reason. A failing
+    process contributes its executable name and exit status, never its output:
+    that lives on ``PlanError.detail``, which this deliberately omits. So the
+    record never carries command output, credentials, or repository contents.
 
     Parameters
     ----------
@@ -759,7 +822,7 @@ def blocked_record(exc: PlanError, operation: str) -> dict[str, str]:
         "phase": context.phase,
         "outcome": OUTCOME_BLOCKED,
         "category": exc.category,
-        "reason": str(exc),
+        "reason": exc.reason,
     }
 
 
@@ -846,14 +909,25 @@ class Subprocess:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=60,
+                timeout=PROCESS_TIMEOUT_SECONDS,
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise PlanError(f"Cannot run {program}: {exc}", CATEGORY_PROCESS) from exc
-        if result.returncode not in allowed:
-            detail = result.stderr.strip() or result.stdout.strip()
+        except subprocess.TimeoutExpired as exc:
             raise PlanError(
-                f"{program} exited {result.returncode}: {detail}", CATEGORY_PROCESS
+                f"{program} timed out after {PROCESS_TIMEOUT_SECONDS}s",
+                CATEGORY_PROCESS,
+                detail=str(exc),
+            ) from exc
+        except OSError as exc:
+            raise PlanError(
+                f"Cannot start {program}", CATEGORY_PROCESS, detail=str(exc)
+            ) from exc
+        if result.returncode not in allowed:
+            # The reason stays bounded to the executable and its exit status.
+            # The output goes in `detail`, which the blocked record excludes.
+            raise PlanError(
+                f"{program} exited {result.returncode}",
+                CATEGORY_PROCESS,
+                detail=result.stderr.strip() or result.stdout.strip(),
             )
         return result.stdout.strip()
 
@@ -1241,6 +1315,63 @@ class GitHubCli:
         return str(metadata["head_sha"]), str(metadata["landed"])
 
 
+def rebase_argv(plan: ReplayPlan) -> list[str] | None:
+    """Render the proposed Git replay command for a plan.
+
+    This is an adapter: it turns a domain decision into one tool's argv. It
+    sits outside the domain layer deliberately, so replay policy never depends
+    on Git's command-line surface.
+
+    Parameters
+    ----------
+    plan : ReplayPlan
+        The decision to render a command for.
+
+    Returns
+    -------
+    list[str] | None
+        The proposed argv, or None when the plan proposes no replay.
+    """
+    if not plan.commits:
+        return None
+    return [*REBASE_PREFIX, plan.target, plan.boundary.old_base, plan.branch]
+
+
+def render_document(plan: ReplayPlan) -> dict[str, object]:
+    """Render the plan as the JSON document the CLI prints.
+
+    This is the serialization boundary: it names the wire fields and attaches
+    the tool-specific argv from :func:`rebase_argv`.
+
+    Parameters
+    ----------
+    plan : ReplayPlan
+        The decision to serialize.
+
+    Returns
+    -------
+    dict[str, object]
+        The document written to standard output on a successful run.
+    """
+    return {
+        "status": plan.status,
+        "operation": plan.operation,
+        "branch": plan.branch,
+        "old_head": plan.old_head,
+        "target": plan.target,
+        "old_base": plan.boundary.old_base,
+        "parent_head": plan.parent_evidence.head,
+        "landed": plan.parent_evidence.landed,
+        "parent_pr": str(plan.parent),
+        "boundary_evidence": plan.boundary.evidence,
+        "boundary_corroborated": plan.boundary.corroborated,
+        "evidence_ref": plan.parent_evidence.evidence_ref,
+        "commits": list(plan.commits),
+        "rebase_argv": rebase_argv(plan),
+        "review": list(plan.review),
+    }
+
+
 # --------------------------------------------------------------------------
 # Request and preflight
 # --------------------------------------------------------------------------
@@ -1370,6 +1501,7 @@ def discover(
     operation: str | None = None,
     new_operation_id: Callable[[], str] = _new_operation_id,
     new_evidence_ref: Callable[[], str] = _new_evidence_ref,
+    clock: Clock = time.monotonic,
 ) -> Evidence:
     """Gather and freeze every external observation the plan depends on.
 
@@ -1393,6 +1525,8 @@ def discover(
         Supplies ``operation`` when it is not given.
     new_evidence_ref : Callable[[], str]
         Supplies the private ref name the fetched parent head is written to.
+    clock : Clock
+        Monotonic time source for phase durations.
 
     Returns
     -------
@@ -1411,18 +1545,18 @@ def discover(
     operation = new_operation_id() if operation is None else operation
     parent = request.parent
 
-    with phase(operation, PHASE_PREFLIGHT, branch=request.branch):
+    with phase(operation, PHASE_PREFLIGHT, branch=request.branch, clock=clock):
         identities = preflight(graph, request)
-    with phase(operation, PHASE_PARENT_METADATA, parent_pr=str(parent)):
+    with phase(operation, PHASE_PARENT_METADATA, parent_pr=str(parent), clock=clock):
         reported_head, reported_landed = cli.parent_metadata(parent)
-    with phase(operation, PHASE_LANDING_VALIDATION):
+    with phase(operation, PHASE_LANDING_VALIDATION, clock=clock):
         landed = graph.commit(reported_landed)
         if not graph.is_ancestor(landed, identities.target):
             raise PlanError(
                 "Parent landing commit is not reachable from the target",
                 CATEGORY_METADATA,
             )
-    with phase(operation, PHASE_PARENT_HEAD_FETCH):
+    with phase(operation, PHASE_PARENT_HEAD_FETCH, clock=clock):
         evidence_ref = new_evidence_ref()
         parent_head = graph.fetch_parent_head(parent, evidence_ref)
         if parent_head != reported_head:
@@ -1450,7 +1584,11 @@ def discover(
 
 
 def build_plan(
-    request: Request, evidence: Evidence, run: Runner | None = None
+    request: Request,
+    evidence: Evidence,
+    run: Runner | None = None,
+    *,
+    clock: Clock = time.monotonic,
 ) -> dict[str, object]:
     """Derive an explicit replay range from frozen evidence, never run a rebase.
 
@@ -1472,6 +1610,8 @@ def build_plan(
     run : Runner | None
         Process adapter; defaults to a :class:`Subprocess` bound to
         ``request.repository``.
+    clock : Clock
+        Monotonic time source for phase durations.
 
     Returns
     -------
@@ -1489,7 +1629,7 @@ def build_plan(
     graph = GitGraph(run)
     operation = evidence.operation
 
-    with phase(operation, PHASE_BOUNDARY_SELECTION):
+    with phase(operation, PHASE_BOUNDARY_SELECTION, clock=clock):
         facts = graph.boundary_facts(
             evidence.parent_evidence.head,
             evidence.old_head,
@@ -1505,23 +1645,27 @@ def build_plan(
         evidence=boundary.evidence,
         corroborated=boundary.corroborated,
     )
-    with phase(operation, PHASE_GRAPH_PLANNING):
+    with phase(operation, PHASE_GRAPH_PLANNING, clock=clock):
         commits = check_range(graph.range_facts(boundary.old_base, evidence.old_head))
         check_unmoved(evidence, graph.identities(request.branch, request.target_ref))
 
-    plan = render_plan(request.branch, evidence, boundary, commits)
+    plan = plan_replay(request.branch, evidence, boundary, commits)
     trace(
         operation,
         "plan-built",
         phase=PHASE_GRAPH_PLANNING,
-        status=plan["status"],
+        status=plan.status,
         commits=len(commits),
     )
-    return plan
+    return render_document(plan)
 
 
 def discover_and_plan(
-    request: Request, run: Runner | None = None, *, operation: str | None = None
+    request: Request,
+    run: Runner | None = None,
+    *,
+    operation: str | None = None,
+    clock: Clock = time.monotonic,
 ) -> dict[str, object]:
     """Run discovery, then derive the reviewable plan from that snapshot.
 
@@ -1539,6 +1683,8 @@ def discover_and_plan(
         ``request.repository``.
     operation : str | None
         Diagnostic correlation identifier; generated when not supplied.
+    clock : Clock
+        Monotonic time source for phase durations.
 
     Returns
     -------
@@ -1552,8 +1698,8 @@ def discover_and_plan(
         evidence cannot establish a safe, reviewable replay range.
     """
     run = Subprocess(request.repository) if run is None else run
-    evidence = discover(request, run, operation=operation)
-    return build_plan(request, evidence, run)
+    evidence = discover(request, run, operation=operation, clock=clock)
+    return build_plan(request, evidence, run, clock=clock)
 
 
 # --------------------------------------------------------------------------
@@ -1615,12 +1761,15 @@ def main(
         parent_pr,
         boundary_ref,
     )
+    # Composition root: the real adapters and time source are bound here, and
+    # nowhere below, so every layer beneath stays substitutable.
     run = Subprocess(request.repository)
+    clock: Clock = time.monotonic
     operation = _new_operation_id()
     try:
-        with operation_span(operation, request.branch):
-            evidence = discover(request, run, operation=operation)
-            result = build_plan(request, evidence, run)
+        with operation_span(operation, request.branch, clock=clock):
+            evidence = discover(request, run, operation=operation, clock=clock)
+            result = build_plan(request, evidence, run, clock=clock)
     except PlanError as exc:
         print(json.dumps(blocked_record(exc, operation)), file=sys.stderr)
         raise SystemExit(2) from exc

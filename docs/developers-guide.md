@@ -897,24 +897,37 @@ layer in the source. The layers do not mix:
   `__str__` renders the `owner/name#number` form used in plans and receipts,
   and whose `matches_receipt_identity()` compares a recorded `stackParent`
   value case-insensitively), `ParentEvidence`, `Evidence`, `ReceiptFacts`,
-  `BoundaryFacts`, `Boundary`, `RangeFacts`, `Identities`, and
-  `ErrorContext`. The pure policy functions are `check_identities()`,
+  `BoundaryFacts`, `Boundary`, `RangeFacts`, `Identities`, `ErrorContext`,
+  and the frozen `ReplayPlan` dataclass (`status`, `operation`, `branch`,
+  `parent`, `old_head`, `target`, `boundary`, `parent_evidence`, `commits`,
+  `review`). `ReplayPlan` deliberately carries no Git command: rendering one
+  is an adapter concern, so replay policy never depends on Git's
+  command-line surface. The pure policy functions are `check_identities()`,
   `select_boundary()`, `check_receipt_ref()`, `check_range()`,
-  `check_unmoved()`, `review_notes()`, and `render_plan()`. None of these
-  take a `Path`, run a subprocess, parse GitHub CLI JSON, or use Cyclopts, so
-  the whole policy is testable without a repository.
+  `check_unmoved()`, `review_notes()`, and `plan_replay()`, which builds a
+  `ReplayPlan` from accepted domain values. None of these take a `Path`, run
+  a subprocess, parse GitHub CLI JSON, or use Cyclopts, so the whole policy
+  is testable without a repository.
 - **Adapters** — `Runner`, a `typing.Protocol` that runs one program in one
   repository and returns its standard output; `Subprocess`, the real process
   adapter; `GitGraph`, which turns Git queries into typed graph facts
   (`boundary_facts()`, `range_facts()`, `identities()`,
-  `fetch_parent_head()`, and related helpers); and `GitHubCli`, which runs
-  and validates `gh api`, returning the reported head and landing commit
-  IDs.
+  `fetch_parent_head()`, and related helpers); `GitHubCli`, which runs and
+  validates `gh api`, returning the reported head and landing commit IDs;
+  and two rendering functions that sit outside the domain layer on purpose:
+  `rebase_argv(plan)`, which renders the proposed Git replay argv from the
+  module's `REBASE_PREFIX` constant (now referenced only from this adapter
+  layer), returning `None` when the plan proposes no replay; and
+  `render_document(plan)`, the serialization boundary that produces the
+  JSON dict the CLI prints, attaching `rebase_argv(plan)` under the
+  `rebase_argv` key.
 - **Command layer** — `discover()`, the only operation that runs `gh`,
   fetches, or writes a ref.
 - **Read path** — `build_plan()`, which consumes an `Evidence` snapshot and
   never invokes discovery, makes no network access, writes no ref, and mints
-  no identifier.
+  no identifier. It composes the domain and adapter layers by calling
+  `plan_replay()` to build a `ReplayPlan`, then `render_document()` to
+  produce the returned JSON dict.
 
 The CLI sits above all four: `main()` owns the operation identifier, calls
 `discover()` first and `build_plan()` second, and wraps both in an
@@ -959,13 +972,44 @@ Every process interaction — `git`, `gh`, and the evidence fetch — goes
 through an injected `Runner`, a `typing.Protocol` that runs one program in
 one repository and returns its standard output. `Subprocess` is the real
 adapter: a frozen dataclass bound to a single repository path, with no shell
-parsing and a 60-second timeout on every call.
+parsing and a timeout on every call set by the module constant
+`PROCESS_TIMEOUT_SECONDS` (60 seconds).
+
+A non-zero exit raises `PlanError(f"{program} exited {code}",
+CATEGORY_PROCESS, detail=<stderr or stdout>)`; a timeout raises
+`f"{program} timed out after {PROCESS_TIMEOUT_SECONDS}s"`; a start failure
+raises `f"Cannot start {program}"`. All three carry the underlying exception
+or captured output on `PlanError.detail`, never in the bounded `reason`; see
+"Refusal conditions and exit contract" below for why that separation
+matters.
 
 `discover()` and `build_plan()` both take an optional `run: Runner | None`
 parameter that defaults to `Subprocess(request.repository)`, so a caller can
 substitute a test double without patching module globals. `discover()` also
 takes injectable `new_operation_id` and `new_evidence_ref` callables, so
 tests can assert against deterministic identifiers instead of random UUIDs.
+
+### Clock injection
+
+A `Clock` type alias (`Callable[[], float]`) is threaded as a keyword-only
+`clock` parameter through `phase()`, `operation_span()`, `discover()`,
+`build_plan()`, and `discover_and_plan()`, defaulting to `time.monotonic` at
+every layer. `main()` is the composition root: it binds the real
+`Subprocess`, the real clock, and calls `_new_operation_id()` there and
+nowhere below, so every layer beneath stays substitutable. Tests inject a
+fake clock to assert deterministic `elapsed_ms` values instead of timing
+real process calls.
+
+### Active-operation probe injection
+
+`GitGraph.exists` is an injectable `Callable[[Path], bool]` filesystem
+probe, defaulting to a module-level `_path_exists()` that calls
+`Path.exists()`. `_refuse_active_operation()` calls it indirectly through
+`GitGraph.path_exists(name, repository)`, which resolves the Git-directory
+path via `git_path()` and then converts any `OSError` the probe raises into
+`PlanError(f"Cannot determine whether {name} exists: {exc}",
+CATEGORY_PROCESS)` rather than treating a probe failure as "marker absent" —
+doing so would let discovery proceed over an in-flight Git operation.
 
 ### Preflight checks
 
@@ -1009,11 +1053,17 @@ verify.
 Every unrecoverable evidence gap raises `PlanError`, which carries a bounded
 `category` drawn from the module's `CATEGORY_*` constants (`identity`,
 `repository-state`, `metadata`, `recovery`, `boundary`, `range`, `race`,
-`process`, `unclassified`). `PlanError` also carries a `context:
-ErrorContext | None` attribute, stamped by the innermost enclosing `phase()`
-that the error passed through. `ErrorContext` is a frozen dataclass of
-`operation` and `phase`; it is how `main()` learns the failing phase without
-ever parsing the message text.
+`process`, `unclassified`). `PlanError.__init__(reason, category=...,
+*, detail=None)` separates a bounded `reason` from unbounded `detail`:
+`reason` must never embed subprocess output, credentials, or repository
+contents, while `detail` carries that unbounded text, such as a failing
+process's captured standard error. `str(exc)` is `reason` alone, or
+`"{reason}: {detail}"` when `detail` is present, so an operator reading a
+traceback still sees the full diagnostic. `PlanError` also carries a
+`context: ErrorContext | None` attribute, stamped by the innermost enclosing
+`phase()` that the error passed through. `ErrorContext` is a frozen
+dataclass of `operation` and `phase`; it is how `main()` learns the failing
+phase without ever parsing the message text.
 
 `main()` catches `PlanError` and writes a bounded, six-field blocked record
 to stderr via `blocked_record()`, then exits with status 2:
@@ -1024,7 +1074,8 @@ to stderr via `blocked_record()`, then exits with status 2:
 - `phase` — the `PHASE_*` name the error was stamped with;
 - `outcome` — always the literal `"blocked"`;
 - `category` — the error's `CATEGORY_*` value;
-- `reason` — the human-readable message, reported verbatim.
+- `reason` — `exc.reason`, the bounded message, reported verbatim. This is
+  never `str(exc)` and never `exc.detail`.
 
 The record never carries command output, credentials, or repository
 contents, and stdout stays empty on a blocked run. A successful run prints
@@ -1060,6 +1111,10 @@ without parsing human-readable reasons.
 real planner against real Git repositories built by
 `tests/rebase_test_support.py`, using real Git transport throughout. Only
 `gh` is mocked, through [`leynos/cmd-mox`](https://github.com/leynos/cmd-mox).
+`tests/test_rebase_plan.py` also pins the `PlanError.reason`/`detail` split:
+a blocked record excludes subprocess output entirely, while `str(exc)`
+still retains it for an operator reading a traceback, and phase durations
+come from an injected `clock` rather than real elapsed time.
 
 Each test builds an `M-A-B-C-D` graph plus a squash-merged target in an
 isolated working repository and a bare stand-in remote. A repository-local
@@ -1095,11 +1150,17 @@ construction.
 policy as a domain: it builds no Git repository, runs no `gh`, and stands up
 no process double at all. It drives `check_identities()`,
 `select_boundary()`, `check_receipt_ref()`, `check_range()`,
-`check_unmoved()`, and `render_plan()` directly against hand-built typed
-facts (`BoundaryFacts`, `ReceiptFacts`, `RangeFacts`, `Identities`). This
-module is the practical proof that the domain layer is pure: a test in it
-that needed a process double would mean discovery had leaked back into the
-domain.
+`check_unmoved()`, and `plan_replay()` directly against hand-built typed
+facts (`BoundaryFacts`, `ReceiptFacts`, `RangeFacts`, `Identities`). It also
+asserts that `ReplayPlan` carries no Git command at all — no field name
+containing `argv` or `command` — and that `rebase_argv()` renders the
+documented replay command from a `ReplayPlan`, or `None` for an empty range.
+This module is the practical proof that the domain layer is pure: a test in
+it that needed a process double would mean discovery had leaked back into
+the domain. Parametrized guards enforce that structurally: every documented
+domain symbol is parsed and asserted to reference no adapter concern, so a
+future `Path`, subprocess, or `REBASE_PREFIX` reference fails a test rather
+than merely contradicting this paragraph.
 
 ### Running these tests locally
 

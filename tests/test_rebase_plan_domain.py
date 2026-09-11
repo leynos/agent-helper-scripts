@@ -8,7 +8,11 @@ process double would mean discovery had leaked back into the domain layer.
 
 from __future__ import annotations
 
+import ast
 import dataclasses
+import inspect
+import json
+import textwrap
 
 import pytest
 from rebase_test_support import planner
@@ -219,37 +223,88 @@ def test_moved_identities_are_refused_as_a_race(
     assert excinfo.value.category == planner.CATEGORY_RACE
 
 
-def test_rendered_plan_reports_review_required_and_the_proposed_argv() -> None:
-    """A non-empty range renders a review-required plan with an explicit argv."""
+def test_plan_replay_reports_review_required_for_a_non_empty_range() -> None:
+    """A non-empty range is a decision the domain reports as review-required."""
     boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
-    plan = planner.render_plan("child", _evidence(), boundary, (RECEIPT_COMMIT,))
-    assert plan["status"] == planner.STATUS_REVIEW_REQUIRED
-    assert plan["boundary_corroborated"] is True
-    assert plan["parent_pr"] == "leynos/agent-helper-scripts#50"
-    assert plan["rebase_argv"][-3:] == [OTHER, PARENT_HEAD, "child"]
-    assert plan["rebase_argv"][: len(planner.REBASE_PREFIX)] == list(
-        planner.REBASE_PREFIX
-    )
+    plan = planner.plan_replay("child", _evidence(), boundary, (RECEIPT_COMMIT,))
+    assert plan.status == planner.STATUS_REVIEW_REQUIRED
+    assert plan.commits == (RECEIPT_COMMIT,)
+    assert plan.boundary is boundary
+    assert plan.parent == PARENT
 
 
-def test_rendered_plan_reports_a_no_op_decision_for_an_empty_range() -> None:
+def test_plan_replay_reports_a_no_op_decision_for_an_empty_range() -> None:
     """An empty range is a decision for the operator, never a silent success."""
     boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
-    plan = planner.render_plan("child", _evidence(), boundary, ())
-    assert plan["status"] == planner.STATUS_NO_OP
-    assert plan["commits"] == []
-    assert plan["rebase_argv"] is None
+    plan = planner.plan_replay("child", _evidence(), boundary, ())
+    assert plan.status == planner.STATUS_NO_OP
+    assert plan.commits == ()
 
 
-def test_rendered_plan_never_claims_authorization() -> None:
+def test_plan_replay_never_claims_authorization() -> None:
     """Neither successful status is an authorization; both demand review."""
     boundary = planner.Boundary(RECEIPT_COMMIT, "maintained-receipt:refs/x", False)
-    plan = planner.render_plan("child", _evidence(), boundary, (OTHER,))
-    assert plan["status"] in {planner.STATUS_REVIEW_REQUIRED, planner.STATUS_NO_OP}
-    assert plan["boundary_corroborated"] is False
-    assert plan["review"][0].startswith("The receipt is uncorroborated"), (
-        "an uncorroborated boundary must stay review-blocking in the rendered plan"
+    plan = planner.plan_replay("child", _evidence(), boundary, (OTHER,))
+    assert plan.status in {planner.STATUS_REVIEW_REQUIRED, planner.STATUS_NO_OP}
+    assert plan.boundary.corroborated is False
+    assert plan.review[0].startswith("The receipt is uncorroborated"), (
+        "an uncorroborated boundary must stay review-blocking in the decision"
     )
+
+
+def test_plan_replay_holds_no_git_command() -> None:
+    """The domain decision names no tool; rendering an argv is an adapter job."""
+    boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
+    plan = planner.plan_replay("child", _evidence(), boundary, (RECEIPT_COMMIT,))
+    assert not any("argv" in field.name for field in dataclasses.fields(plan)), (
+        "a replay decision must not carry a command line for any particular tool"
+    )
+    assert "git" not in json.dumps(dataclasses.asdict(plan), default=str), (
+        "no Git executable or option may appear anywhere in the domain decision"
+    )
+
+
+def test_rebase_argv_renders_the_documented_replay_command() -> None:
+    """The adapter turns the decision into exactly the documented argv."""
+    boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
+    plan = planner.plan_replay("child", _evidence(), boundary, (RECEIPT_COMMIT,))
+    argv = planner.rebase_argv(plan)
+    assert argv[: len(planner.REBASE_PREFIX)] == list(planner.REBASE_PREFIX)
+    assert argv[-3:] == [OTHER, PARENT_HEAD, "child"]
+
+
+def test_rebase_argv_proposes_nothing_for_an_empty_range() -> None:
+    """An empty range must propose no rebase command at all."""
+    boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
+    plan = planner.plan_replay("child", _evidence(), boundary, ())
+    assert planner.rebase_argv(plan) is None
+
+
+def test_render_document_serializes_the_documented_wire_fields() -> None:
+    """The serialization boundary names every field the CLI contract promises."""
+    boundary = planner.Boundary(PARENT_HEAD, "parent-pr-head", True)
+    plan = planner.plan_replay("child", _evidence(), boundary, (RECEIPT_COMMIT,))
+    document = planner.render_document(plan)
+    assert set(document) == {
+        "status",
+        "operation",
+        "branch",
+        "old_head",
+        "target",
+        "old_base",
+        "parent_head",
+        "landed",
+        "parent_pr",
+        "boundary_evidence",
+        "boundary_corroborated",
+        "evidence_ref",
+        "commits",
+        "rebase_argv",
+        "review",
+    }
+    assert document["parent_pr"] == "leynos/agent-helper-scripts#50"
+    assert document["rebase_argv"][-3:] == [OTHER, PARENT_HEAD, "child"]
+    assert document["commits"] == [RECEIPT_COMMIT]
 
 
 @pytest.mark.parametrize(
@@ -267,3 +322,64 @@ def test_domain_values_are_immutable(value: object, field: str) -> None:
     """Evidence a plan was derived from cannot be edited after the fact."""
     with pytest.raises(dataclasses.FrozenInstanceError):
         setattr(value, field, "mutated")
+
+
+#: Every symbol the module documents as domain policy or a domain value.
+DOMAIN_SYMBOLS = (
+    "ErrorContext",
+    "ParentPullRequest",
+    "ParentEvidence",
+    "Evidence",
+    "ReceiptFacts",
+    "BoundaryFacts",
+    "Boundary",
+    "RangeFacts",
+    "Identities",
+    "ReplayPlan",
+    "check_identities",
+    "select_boundary",
+    "check_receipt_ref",
+    "check_range",
+    "check_unmoved",
+    "review_notes",
+    "plan_replay",
+)
+
+#: Names that would mean an adapter concern had leaked into the domain.
+FORBIDDEN_IN_DOMAIN = frozenset(
+    {
+        "Path",
+        "subprocess",
+        "os",
+        "open",
+        "json",
+        "cyclopts",
+        "REBASE_PREFIX",
+        "Runner",
+        "Subprocess",
+        "GitGraph",
+        "GitHubCli",
+        "Request",
+    }
+)
+
+
+@pytest.mark.parametrize("symbol", DOMAIN_SYMBOLS)
+def test_domain_symbol_references_no_adapter_concern(symbol: str) -> None:
+    """Domain policy must not name a filesystem, process, or tool concern."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(getattr(planner, symbol))))
+    referenced = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+        node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+    }
+    # Annotations are strings under `from __future__ import annotations`, but
+    # ast still parses them as expressions here, so this covers them too.
+    leaked = referenced & FORBIDDEN_IN_DOMAIN
+    assert not leaked, f"{symbol} references adapter concerns: {sorted(leaked)}"
+
+
+def test_replay_plan_carries_no_tool_specific_command() -> None:
+    """The replay decision must stay free of any particular tool's argv."""
+    fields = {field.name for field in dataclasses.fields(planner.ReplayPlan)}
+    assert not {name for name in fields if "argv" in name or "command" in name}, (
+        "rendering a command is an adapter job, not part of the decision"
+    )

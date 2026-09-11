@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 import typing as typ
 from pathlib import Path
 
@@ -213,12 +214,36 @@ def test_real_gh_404_preserves_diagnostic_and_never_fetches(
     assert not git(graph.repository, "for-each-ref", "refs/agent-rebase").stdout
 
 
+def _evidence_refs(repository: Path) -> dict[str, str]:
+    """Return every retained evidence ref and the commit it names."""
+    listing = git(
+        repository,
+        "for-each-ref",
+        "--format=%(refname) %(objectname)",
+        "refs/agent-rebase",
+    ).stdout
+    return dict(line.split(" ", 1) for line in listing.splitlines())
+
+
 def test_metadata_and_fetched_head_must_agree(graph: Graph, cmd_mox: CmdMox) -> None:
     """Reject metadata whose head_sha disagrees with the fetched PR head."""
     expect_parent(cmd_mox, graph, stdout=graph.capture(head_sha=graph.a))
     before = snapshot(graph.repository)
-    with pytest.raises(planner.PlanError, match="Fetched PR head disagrees"):
+    with pytest.raises(planner.PlanError, match="Fetched PR head disagrees") as excinfo:
         planner.discover_and_plan(graph.request())
+
+    # snapshot() covers heads, remotes and stack-bases, so it is silent about
+    # refs/agent-rebase. The refusal tells the operator to retain that ref, so
+    # assert the named ref survives rather than trusting the snapshot.
+    retained = _evidence_refs(graph.repository)
+    named = re.search(r"retain (refs/agent-rebase/\S+)", str(excinfo.value))
+    assert named, "the refusal must name the evidence ref it asks be retained"
+    assert named.group(1) in retained, (
+        "the fetched parent head must survive the refusal for recovery"
+    )
+    assert retained[named.group(1)] == graph.parent, (
+        "the retained ref must still point at the commit that was fetched"
+    )
     assert snapshot(graph.repository) == before
 
 
@@ -657,3 +682,70 @@ def test_cli_blocked_record_identifies_the_preflight_phase(
     assert blocked["category"] == planner.CATEGORY_REPOSITORY_STATE
     assert {record["operation"] for record in records} == {blocked["operation"]}
     assert not git(graph.repository, "for-each-ref", "refs/agent-rebase").stdout
+
+
+def test_blocked_record_excludes_subprocess_output(
+    graph: Graph, cmd_mox: CmdMox, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A failing process contributes its name and status, never its output."""
+    capture = MANIFEST["commands"]["missing-parent"]
+    stderr = (FIXTURES / "missing-parent.stderr").read_text()
+    cmd_mox.mock("gh").with_args(*capture["argv"][1:]).returns(
+        stdout=(FIXTURES / "missing-parent.stdout").read_text(),
+        stderr=stderr,
+        exit_code=capture["exit_code"],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        planner.main(**dataclasses.asdict(graph.request(parent_pr=2147483647)))
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    blocked = _records(captured.err)[-1]
+    assert blocked["reason"] == "gh exited 1", (
+        "the bounded reason must name the executable and exit status only"
+    )
+    assert blocked["category"] == planner.CATEGORY_PROCESS
+    # The real 404 body is preserved for an operator reading the exception, but
+    # must never reach the record that the CLI emits.
+    assert "Not Found" in stderr, "the fixture must actually carry a diagnostic"
+    assert "Not Found" not in json.dumps(blocked), (
+        "no subprocess output may appear anywhere in the blocked record"
+    )
+    assert "HTTP 404" not in json.dumps(blocked)
+
+
+def test_plan_error_keeps_the_diagnostic_for_an_operator(graph: Graph) -> None:
+    """`str(exc)` still carries the detail a human needs to diagnose a failure."""
+    exc = planner.PlanError(
+        "gh exited 1", planner.CATEGORY_PROCESS, detail="gh: Not Found (HTTP 404)"
+    )
+    assert exc.reason == "gh exited 1", "the bounded reason excludes the detail"
+    assert exc.detail == "gh: Not Found (HTTP 404)"
+    assert str(exc) == "gh exited 1: gh: Not Found (HTTP 404)", (
+        "an operator reading a traceback must still see the real diagnostic"
+    )
+    assert planner.blocked_record(exc, "op")["reason"] == "gh exited 1"
+
+
+def test_phase_durations_come_from_the_injected_clock(
+    graph: Graph, cmd_mox: CmdMox, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Diagnostic durations are computed from an injected, substitutable clock."""
+    ticks = iter(range(0, 1000))
+
+    def clock() -> float:
+        return next(ticks) / 2  # half-second steps, so every phase reports 500ms
+
+    expect_parent(cmd_mox, graph)
+    planner.discover_and_plan(graph.request(), clock=clock)
+
+    finished = [
+        record
+        for record in _records(capsys.readouterr().err)
+        if record["event"] == "phase-finished"
+    ]
+    assert finished, "the run must emit phase records"
+    assert {record["elapsed_ms"] for record in finished} == {500}, (
+        "durations must come from the injected clock, not the wall clock"
+    )
