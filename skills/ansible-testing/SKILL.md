@@ -366,10 +366,10 @@ VM, make Podman resource names unique per run. Unsuffixed Molecule platform
 names become Podman container names, so two branches with `name: ubi9-init` can
 collide, reuse the wrong container, or destroy each other's test instance.
 
-Use the pattern from `dev-env-rocky`: generate a short
-`MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID
-in the Makefile, pass it to every scenario invocation, and append it to every
-Podman-backed platform name and shared cache path.
+Use the project test wrapper or Makefile to generate a short
+`MOLECULE_INSTANCE_SUFFIX` from the user, current branch or directory, and PID,
+pass it to every scenario invocation, and append it to every Podman-backed
+platform name and shared cache path.
 
 ```make
 .RECIPEPREFIX := >
