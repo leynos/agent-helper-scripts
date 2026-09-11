@@ -200,3 +200,19 @@ The skill marks every version-gated feature inline. The `get-rust-tooling`
 bootstrap still installs `cargo-nextest` 0.9.133 through
 `CARGO_NEXTEST_VERSION` with `cargo binstall`, so those features are
 documented but not available until that variable is raised.
+
+## Markdown lint gate
+
+A bare `markdownlint` invocation previously forwarded its arguments with no
+glob, so `markdownlint-cli2` linted zero files and reported a clean pass. It
+now lints every Markdown file in the tree. A consumer repository whose CI or
+hooks called it with no arguments will start reporting violations it never
+saw; those violations are real and need fixing, or a rule change in that
+repository's own configuration.
+
+The wrapper prefers `markdownlint-cli2` on `PATH` and falls back to the bun
+global install, so a consumer that previously relied on one provisioning
+route is unaffected provided one of the two resolves.
+
+`make markdownlint` is now part of `make ci`, so a consumer running `make ci`
+from this checkout lints Markdown as part of the gate sequence.
