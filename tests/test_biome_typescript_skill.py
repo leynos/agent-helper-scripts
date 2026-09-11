@@ -40,6 +40,17 @@ DOCUMENTATION_PATHS = (
 )
 
 JSON_FENCE = re.compile(r"^```json\n(.*?)^```$", re.DOTALL | re.MULTILINE)
+LEVEL_TWO_HEADING = re.compile(r"^## .*$", re.MULTILINE)
+
+# The documented install command, matched as a command rather than as a
+# version token that could appear anywhere in the document.
+INSTALL_COMMAND = re.compile(
+    rf"npm install --save-dev --save-exact @biomejs/biome@{re.escape(PINNED_VERSION)}\b"
+)
+
+# Read from the raw block so a commented (JSONC) example, which Biome 1.9.4
+# accepts, is checked instead of raising a parse error.
+SCHEMA_DECLARATION = re.compile(r'"\$schema"\s*:\s*"([^"]+)"')
 
 
 def _read(path: Path) -> str:
@@ -73,11 +84,25 @@ def _parsed_json_blocks(path: Path) -> list[object]:
     return parsed
 
 
+def _section_containing(document: str, fragment: str) -> str:
+    """Return the level-2 section that contains a fragment of a document."""
+    index = document.index(fragment)
+    headings = list(LEVEL_TWO_HEADING.finditer(document))
+    start = max(
+        (match.start() for match in headings if match.start() <= index), default=0
+    )
+    end = next(
+        (match.start() for match in headings if match.start() > index), len(document)
+    )
+    return document[start:end]
+
+
 def test_install_command_pins_the_documented_release() -> None:
-    """The quick start installs the release the examples target."""
-    assert f"@biomejs/biome@{PINNED_VERSION}" in _read(SKILL_PATH), (
-        "the install line must pin the release the configuration examples use, "
-        "because they rely on that release's key spellings"
+    """The quick start runs an install command pinned to the documented release."""
+    assert INSTALL_COMMAND.search(_read(SKILL_PATH)), (
+        f"the quick start must run the documented install command pinned to "
+        f"{PINNED_VERSION}, because the configuration examples rely on that "
+        "release's key spellings"
     )
 
 
@@ -85,24 +110,24 @@ def test_every_declared_schema_matches_the_pinned_release() -> None:
     """A `$schema` URL drifting from the pin invalidates editor validation."""
     declared = []
     for path in DOCUMENTATION_PATHS:
-        for block in _json_blocks(path):
-            if '"$schema"' not in block:
-                continue
-            # A block declaring a schema must be valid JSON to be usable.
-            declared.append((path, json.loads(block)["$schema"]))
+        for index, block in enumerate(_json_blocks(path), start=1):
+            declared.extend(
+                (path, index, url) for url in SCHEMA_DECLARATION.findall(block)
+            )
 
     assert declared, "the skill must declare a $schema URL"
-    for path, url in declared:
+    for path, index, url in declared:
         assert url == PINNED_SCHEMA, (
-            f"{_relative(path)} declares {url}, but the skill pins Biome "
-            f"{PINNED_VERSION}; $schema must always match the installed version"
+            f"{_relative(path)} block {index} declares {url}, but the skill pins "
+            f"Biome {PINNED_VERSION}; $schema must always match the installed "
+            "version"
         )
 
 
 def test_configuration_blocks_use_the_1_9_file_keys() -> None:
     """`files.include`/`files.ignore` are 1.9 spellings; `includes` is 2.0."""
-    seen = 0
     accepted = {"include", "ignore", "ignoreUnknown", "maxSize"}
+    documented_includes = 0
     for path in DOCUMENTATION_PATHS:
         for parsed in _parsed_json_blocks(path):
             if not isinstance(parsed, dict):
@@ -110,14 +135,18 @@ def test_configuration_blocks_use_the_1_9_file_keys() -> None:
             files = parsed.get("files")
             if not isinstance(files, dict):
                 continue
-            seen += 1
             unexpected = set(files) - accepted
             assert not unexpected, (
                 f"{_relative(path)} configures files.{sorted(unexpected)}, which "
                 f"Biome {PINNED_VERSION} does not accept; Biome 2.0 renamed the "
                 "keys to files.includes"
             )
-    assert seen, "the skill must show at least one files.include example"
+            documented_includes += "include" in files
+
+    assert documented_includes, (
+        "the skill must document a files.include example, because that key "
+        "spelling is what the 1.9.4 pin rests on"
+    )
 
 
 def test_configuration_blocks_avoid_the_pre_rename_console_rule() -> None:
@@ -185,12 +214,17 @@ def test_no_console_allow_option_names_the_retained_methods() -> None:
         )
 
 
-def test_nullish_guidance_preserves_falsy_values() -> None:
-    """Nullish coalescing is not equivalent: it discards false, 0, and ""."""
+def test_nullish_guidance_rejects_the_conditional_misuse() -> None:
+    """`??` is not rejected outright; using it as a condition is.
+
+    `value ?? defaultValue` preserves `false`, `0`, and `""`, so the operator
+    itself is sound. The defect is testing the coalesced value: the branch then
+    runs only when that value is truthy, so a falsy default is never applied.
+    """
     solutions = _read(LINT_SOLUTIONS_PATH)
-    assert "value ?? defaultValue" not in solutions, (
-        "the nullish-coalescing fallback is not equivalent to a null check, "
-        "because it replaces every falsy value rather than only nullish ones"
+    assert not re.search(r"\bif\s*\(\s*value\s*\?\?\s*defaultValue\s*\)", solutions), (
+        "`if (value ?? defaultValue)` is not equivalent to a null check, because "
+        "the branch runs only when the coalesced value is truthy"
     )
     assert "value === null || value === undefined" in solutions, (
         "the explicit null and undefined check must be shown"
@@ -214,17 +248,21 @@ def test_react_key_guidance_requires_identifiers_from_the_data() -> None:
 def test_tsconfig_guidance_names_the_version_that_adds_path_support() -> None:
     """baseUrl and paths support is version-gated, and the example must say so."""
     skill = _read(SKILL_PATH)
-    assert PATH_RESOLUTION_VERSION in skill, (
-        "the TypeScript integration section must name the release that added "
-        "nearest-tsconfig baseUrl and paths resolution"
-    )
-
-    tsconfig_blocks = [block for block in _json_blocks(SKILL_PATH) if "tsconfig.json" in block]
+    tsconfig_blocks = [
+        block for block in _json_blocks(SKILL_PATH) if "tsconfig.json" in block
+    ]
     assert tsconfig_blocks, "the skill must show an applicable tsconfig.json example"
+
     example = tsconfig_blocks[-1]
     assert '"baseUrl"' in example and '"paths"' in example, (
         "the tsconfig example must show both baseUrl and paths, because the "
         "two work together"
+    )
+    assert PATH_RESOLUTION_VERSION in _section_containing(skill, example), (
+        f"the section holding the example must name {PATH_RESOLUTION_VERSION}, "
+        "the release that added nearest-tsconfig baseUrl and paths resolution; "
+        "naming it elsewhere does not tell the reader whether this example "
+        "applies to the pinned version"
     )
 
 
