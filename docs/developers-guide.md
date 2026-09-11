@@ -718,8 +718,8 @@ for the authoritative, current trigger list rather than duplicating it here.
 
 ### Why this matters here
 
-Two test modules hold this boundary in place, and both must stay in step with
-the skill:
+Three test modules and one support module hold this boundary in place, and
+all must stay in step with the skill:
 
 - `tests/test_weave_git_merge_skill.py` asserts the documented wording, so a
   command or heading cannot be reworded out of the skill unnoticed.
@@ -740,9 +740,34 @@ the skill:
   double stands in for any driver with a given exit status, so the suite
   needs no Weave installation and asserts nothing about Weave's own merge
   quality. Its spy call counts are what prove Git invoked the driver before a
-  bypass and stopped invoking it after.
+  bypass and stopped invoking it after. It also covers a two-commit chained
+  replay in which a clean-exit corrupt first replay is captured verbatim as
+  the second replay's `%A` input.
+- `tests/weave_git_merge_model.py`: a pure-Python model of the skill's
+  stateful rules, using the `Operation`, `Scope`, `Bypass`, and `DriverExit`
+  enums, that never calls Git. Attribute-scope fallback (`active_sources`,
+  `effective_merge_attribute`, `global_attributes_path`, and the
+  `DOCUMENTED_BYPASS` map) encodes that `core.attributesFile=/dev/null`
+  disables only the global source, a later path-specific `!merge` line
+  outranks every source, and an absent `core.attributesFile` still means a
+  default global path applies. Stage validity (`ConflictCase`,
+  `existing_stages`, `parseable_stages`, `trusted_stages`,
+  `resolution_may_continue`) encodes that a stage must exist and parse to be
+  trusted and that stage 2 is untrusted during a rebase with unverified
+  earlier replays. Multi-commit replay transitions (`ReplayOutcome`,
+  `ReplayState`, `fold_replays`, `sequence_is_safe`, `safe_prefix_length`)
+  encode that commit N's `ours` derives from commit N-1's result and a
+  clean-exit structurally invalid result is never accepted as a safe later
+  `ours`. The model is a transcription of the skill wording, so a rule
+  change in the skill must be mirrored in the model.
+- `tests/test_weave_git_merge_properties.py`: Hypothesis properties over the
+  model, covering both operation types, all three scopes, valid and invalid
+  index-stage combinations, and replay sequences of two or more transitions,
+  including an ordering property in which moving the single invalid replay
+  moves the safe-prefix boundary. It is the search-based complement to the
+  fixed-string contract tests and the real-Git procedure tests.
 
-When extending that module, note two traps at this boundary. A cmd-mox shim
+When extending the procedures module, note two traps at this boundary. A cmd-mox shim
 reads standard input, so Git must be run with `stdin=DEVNULL` or the shim and
 Git deadlock. Git also hands the driver repository-relative temporary paths,
 while handlers run in the pytest process, so `%A` must be resolved against the

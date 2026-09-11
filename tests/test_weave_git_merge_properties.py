@@ -367,7 +367,16 @@ def test_git_acceptance_is_exit_code_only(
         assert state.git_accepted == expected_accepted, (
             "git_accepted disagreed with the driver's exit code"
         )
-    for previous, current in zip(states, states[1:]):
+
+
+@given(sequence=REPLAY_SEQUENCES, per_replay_guard=st.booleans())
+def test_the_fold_stops_after_a_replay_git_did_not_accept(
+    sequence: list[model.ReplayOutcome], per_replay_guard: bool
+) -> None:
+    """No replay follows one that Git left unmerged or failed."""
+    states = model.fold_replays(sequence, per_replay_guard=per_replay_guard)
+
+    for previous, _current in zip(states, states[1:]):
         assert previous.git_accepted, (
             "a state followed a replay that Git did not accept"
         )
