@@ -209,6 +209,8 @@ git show :3:path/to/file.py | python -c \
 Run only the stage commands for stages that exist. A parsing stage 3 does not
 make a non-parsing stage 2 safe: during a multi-commit rebase, stage 2 can
 already contain an earlier silently corrupted replay.
+A stage must both exist and parse before it is trusted as a baseline, and the
+resolved working file must parse before `git add` records the resolution.
 
 During rebase, do not attach branch names to stages 2 and 3 from memory;
 identify them from their content and the rebase operation.
@@ -231,7 +233,10 @@ continue the Git operation.
 
 A cleanly returned but corrupted early replay becomes an input to later
 replays. In a later conflict it may appear as stage 2, so reconstruction damage
-can compound before an end-of-rebase test ever runs.
+can compound before an end-of-rebase test ever runs. Each replayed commit's
+stage 2 derives from the previous replay's accepted result. The transition rule
+is therefore strict: even when the next replay's own output parses,
+never accept a structurally invalid result as a safe stage 2 for the next replay.
 
 For agents, a per-replay guard is the default whenever Weave participates in a
 multi-commit rebase. Use `git rebase --exec` with the repository's cheapest
@@ -476,7 +481,10 @@ Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
 it preserves unrelated repository merge rules. It is suitable when
 `weave setup --global` supplied the `merge=weave` rule and no higher-precedence
 source selects Weave. For tracked or clone-local setup, use the corresponding
-matrix row above; `/dev/null` alone cannot override those rules.
+matrix row above; `/dev/null` alone cannot override those rules. A later
+path-specific `!merge` line in `.git/info/attributes`
+outranks every attribute source for that path, which is why it is the bypass
+for tracked and clone-local rules.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and
