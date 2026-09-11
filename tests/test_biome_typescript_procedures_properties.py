@@ -10,14 +10,16 @@ likely to think of, and the ones a shell pipeline is most likely to mangle.
 Git and Bash do the work, so each example costs a few processes. The example
 count stays modest and the repository is shared across the examples of one
 run, which is deliberate rather than incidental: every example adds a path to
-the same change set, so the pipeline is exercised against an argument list
-that grows as the property runs.
+the same change set, so each invocation must carry every path added before it.
+The stub's log is cleared at the start of each run, so the assertion below
+speaks about the invocation it follows and not about an earlier one.
 
 Paths Git cannot track are out of scope, because they would fail the setup
-rather than the invariant. NUL bytes and `/` can never appear in a path
-component, and `\\` and `:` are not valid on every filesystem this repository
-may be checked out on, so generating them would make the property depend on
-where it runs.
+rather than the invariant: NUL bytes and `/` can never appear in a path
+component. Nothing else is excluded. The command under test is the POSIX shell
+pipeline the skill documents for its `ubuntu-latest` runner, and the tests
+that execute it are POSIX-only, so a filename that only a different platform
+rejects is still a case worth generating.
 
 No test requires Biome to be installed.
 """
@@ -50,8 +52,8 @@ PATH_STEMS = st.text(
     deadline=None,
     # The `pipeline` fixture is function scoped but deliberately not reset
     # between generated examples: each example adds one path to the same change
-    # set, so the pipeline is exercised against a growing argument list rather
-    # than a single path. Rebuilding the repository per example would only make
+    # set, so the pipeline is invoked with every path added so far rather than
+    # with a single path. Rebuilding the repository per example would only make
     # the same assertion slower.
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )

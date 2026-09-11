@@ -8,6 +8,12 @@ repository, and standing in a stub `biome` for the real one all live here
 rather than in either module.
 
 No test requires Biome to be installed.
+
+These tests are POSIX-only. The documented command is POSIX shell relying on
+GNU `xargs -r`, which the skill names as an extension already present on its
+`ubuntu-latest` runner, so the tests that execute it are marked POSIX-only and
+skip on a host that is not POSIX. Filenames a POSIX filesystem accepts are
+therefore in scope even where another platform rejects them.
 """
 
 from __future__ import annotations
@@ -29,11 +35,25 @@ if typ.TYPE_CHECKING:
 GIT = shutil.which("git")
 BASH = shutil.which("bash")
 
-if GIT is None:  # pragma: no cover - Git is a repository test prerequisite.
-    raise RuntimeError("git is required to run the Biome procedure tests")
+#: The documented command is POSIX shell relying on GNU `xargs -r`, a flag the
+#: skill names as an extension already present on its `ubuntu-latest` runner.
+#: The tests that execute it are therefore marked POSIX-only rather than written
+#: to be portable to a host where the documented command would not run.
+POSIX_ONLY_REASON = (
+    "the documented changed-file pipeline is POSIX shell relying on GNU "
+    "xargs -r, as the skill states for the ubuntu-latest runner it targets"
+)
 
-if BASH is None:  # pragma: no cover - Bash runs the documented step.
-    raise RuntimeError("bash is required to run the Biome procedure tests")
+
+def require_pipeline_tools() -> None:
+    """Skip where the documented command cannot run; require Git and Bash."""
+    if os.name != "posix":  # pragma: no cover - POSIX is where tests run.
+        pytest.skip(POSIX_ONLY_REASON)
+    for name, path in (("git", GIT), ("bash", BASH)):
+        if path is None:  # pragma: no cover - the suite's own prerequisite.
+            raise RuntimeError(
+                f"{name} is required to run the Biome procedure tests"
+            )
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -52,16 +72,14 @@ SUPPORTED_EXTENSIONS: tuple[str, ...] = (".ts", ".tsx", ".js", ".jsx")
 
 #: Characters a generated path component may carry: printable ASCII plus the
 #: whitespace characters, because a shell pipeline is most likely to split on
-#: whitespace and to interpret a shell metacharacter. NUL and `/` cannot appear
-#: in a path component at all; `\` and `:` are left out because they are not
-#: valid in a path on every filesystem this repository may be checked out on,
-#: so generating them would make a test depend on where it runs.
+#: whitespace and to interpret a shell metacharacter. NUL and `/` are the only
+#: characters left out, because neither can appear in a path component at all.
 PATH_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789"
     " \t\n"
-    "!\"#$%&'()*+,-.;<=>?@[]^_`{|}~"
+    "!\"#$%&'()*+,-.:;<=>?@[\\]^_`{|}~"
 )
 
 # Records separate one stub invocation from the next. Both separators are
@@ -187,7 +205,14 @@ class PipelineRepository:
         run_git(self.repository, "commit", "--quiet", "--message", message)
 
     def run(self, *, biome_status: int = 0) -> subprocess.CompletedProcess[str]:
-        """Run the documented pipeline with the stub Biome first on `PATH`."""
+        """Run the documented pipeline with the stub Biome first on `PATH`.
+
+        The stub's log is cleared first, so `biome_calls` and `arguments`
+        describe this invocation rather than every invocation the fixture has
+        made. A test that runs the pipeline repeatedly therefore cannot satisfy
+        an assertion with an argument an earlier run happened to record.
+        """
+        self.log_path.unlink(missing_ok=True)
         environment = git_environment()
         environment["PATH"] = os.pathsep.join(
             (str(self.stub_directory), environment["PATH"])
@@ -205,7 +230,7 @@ class PipelineRepository:
         )
 
     def biome_calls(self) -> list[list[str]]:
-        """Return each stubbed Biome invocation as its argument list."""
+        """Return the last run's Biome invocations as argument lists."""
         if not self.log_path.exists():
             return []
         records = self.log_path.read_text(encoding="utf-8").split(RECORD_SEPARATOR)
@@ -216,13 +241,14 @@ class PipelineRepository:
         ]
 
     def arguments(self) -> set[str]:
-        """Return every argument passed to Biome across all invocations."""
+        """Return every argument the last run passed to Biome."""
         return {argument for call in self.biome_calls() for argument in call}
 
 
 @pytest.fixture(name="pipeline")
 def pipeline_fixture(tmp_path: Path) -> Iterator[PipelineRepository]:
     """Build a repository whose `origin/main` precedes the feature branch."""
+    require_pipeline_tools()
     repository = tmp_path / "repository"
     repository.mkdir()
     stub_directory = tmp_path / "stub-bin"

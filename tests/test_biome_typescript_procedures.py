@@ -13,7 +13,10 @@ recognize. The same invariant across generated filenames is checked by
 against, and the extraction of the documented step, come from
 `biome_typescript_pipeline_support.py`.
 
-No test requires Biome to be installed.
+No test requires Biome to be installed. The documented command is POSIX shell,
+so the tests that execute it are POSIX-only: the `pipeline` fixture skips a
+host that is not POSIX, and `biome_typescript_pipeline_support.py` records the
+scope.
 """
 
 from __future__ import annotations
