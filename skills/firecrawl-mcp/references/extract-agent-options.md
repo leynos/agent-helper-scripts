@@ -1,22 +1,68 @@
-# Extract and Agent Options Reference
+# Structured Extraction and Agent Options Reference
 
-Complete parameter reference for `firecrawl_extract`, `firecrawl_agent`, and
-`firecrawl_agent_status`.
+Complete parameter reference for the two supported ways of getting structured
+data out of the Firecrawl MCP surface: `firecrawl_scrape` with JSON format for
+known URLs, and `firecrawl_agent` for multi-source research.
 
-## Extract (`firecrawl_extract`)
+## Choosing between them
 
-Server-side LLM extraction of structured data from one or more URLs.
+|                        | `firecrawl_scrape` with JSON format | `firecrawl_agent`                            |
+| ---------------------- | ----------------------------------- | -------------------------------------------- |
+| Input                  | One known URL per call              | A prompt, optionally seeded with URLs        |
+| Schema location        | Top-level `jsonOptions.schema`      | Top-level `schema`                           |
+| Prompt location        | Top-level `jsonOptions.prompt`      | Top-level `prompt`                           |
+| Also returns markdown? | Yes (add `"markdown"` to `formats`) | No                                           |
+| Enables web search     | No                                  | Yes (the agent searches on its own)          |
+| Cost model             | 1 credit/page + 4 credits for JSON  | Varies by research scope                     |
+| Best for               | Uniform fields from known pages     | Unknown URLs, or data spanning several sites |
+
+`firecrawl_extract` is **not** a supported tool. The server retains it only as
+a hidden deprecated entry point (`canList: false`) that is absent from
+`tools/list` and returns an error directing callers to the two rows above. Do
+not call it, and do not treat an old example that uses it as authoritative.
+
+______________________________________________________________________
+
+## Known-URL extraction (`firecrawl_scrape` with JSON)
+
+Structured extraction from a single known URL. Pass `formats: ["json"]` and a
+top-level `jsonOptions` object holding the `prompt` and `schema`.
 
 ### Parameters
 
-| Parameter            | Type     | Description                                          |
-| -------------------- | -------- | ---------------------------------------------------- |
-| `urls`               | string[] | *required* — URLs to extract from                    |
-| `prompt`             | string   | Natural language description of what to extract      |
-| `schema`             | object   | JSON Schema defining the desired output structure    |
-| `allowExternalLinks` | boolean  | Allow the extractor to follow links to other domains |
-| `enableWebSearch`    | boolean  | Allow the extractor to search the web for context    |
-| `includeSubdomains`  | boolean  | Include subdomains when extracting                   |
+| Parameter            | Type   | Description                                                    |
+| -------------------- | ------ | -------------------------------------------------------------- |
+| `formats`            | array  | Use `["json"]`, or add other formats to fetch them in one call |
+| `jsonOptions.prompt` | string | Natural-language description of what to extract                |
+| `jsonOptions.schema` | object | JSON Schema defining the desired output structure              |
+
+`jsonOptions` sits **beside** `formats`, not inside it. Passing the prompt or
+schema as an entry of the `formats` array is rejected by the MCP schema.
+
+### Example
+
+```json
+{
+  "name": "firecrawl_scrape",
+  "arguments": {
+    "url": "https://store.example.com/product/widget-a",
+    "formats": ["markdown", "json"],
+    "jsonOptions": {
+      "prompt": "Extract product details",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "price": { "type": "number", "description": "Price in USD" },
+          "in_stock": { "type": "boolean" },
+          "description": { "type": "string" }
+        },
+        "required": ["name", "price"]
+      }
+    }
+  }
+}
+```
 
 ### Schema design
 
@@ -61,8 +107,14 @@ Omit `schema` and provide only `prompt`:
 
 ```json
 {
-  "urls": ["https://example.com/pricing"],
-  "prompt": "Extract all pricing tiers with their names and monthly costs"
+  "name": "firecrawl_scrape",
+  "arguments": {
+    "url": "https://example.com/pricing",
+    "formats": ["json"],
+    "jsonOptions": {
+      "prompt": "Extract all pricing tiers with their names and monthly costs"
+    }
+  }
 }
 ```
 
@@ -70,39 +122,40 @@ The LLM chooses the structure. Useful for exploratory extraction, but the
 output shape is unpredictable. Prefer providing a schema for production
 workflows.
 
-### Extract vs scrape with JSON format
+### Several known URLs
 
-|                        | `firecrawl_extract`            | `firecrawl_scrape` with JSON format            |
-| ---------------------- | ------------------------------ | ---------------------------------------------- |
-| Input                  | Multiple URLs                  | Single URL                                     |
-| Also returns markdown? | No                             | Yes (if both formats requested)                |
-| Schema location        | Top-level `schema` param       | Inside formats array                           |
-| Enables web search     | Yes (`enableWebSearch`)        | No                                             |
-| Best for               | Uniform data across many pages | Single-page extraction alongside other formats |
-
-### Example: Extract from multiple product pages
+Make one `firecrawl_scrape` call per URL, reusing the same `jsonOptions`. There
+is no MCP tool that takes a URL array; for a genuine bulk operation, use the
+Firecrawl batch endpoint outside MCP.
 
 ```json
 {
-  "name": "firecrawl_extract",
+  "name": "firecrawl_scrape",
   "arguments": {
-    "urls": [
-      "https://store.example.com/product/widget-a",
-      "https://store.example.com/product/widget-b",
-      "https://store.example.com/product/widget-c"
-    ],
-    "prompt": "Extract product details",
-    "schema": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "price": { "type": "number", "description": "Price in USD" },
-        "in_stock": { "type": "boolean" },
-        "description": { "type": "string" }
-      },
-      "required": ["name", "price"]
-    }
+    "url": "https://store.example.com/product/widget-b",
+    "formats": ["json"],
+    "jsonOptions": { "prompt": "Extract product details", "schema": { } }
   }
+}
+```
+
+### REST equivalent
+
+The MCP server translates the payload above into the REST scrape body, where
+the same settings are nested **inside** the formats array. This REST form is
+documented for callers using the HTTP API directly — it is not what an MCP
+client should send:
+
+```json
+{
+  "url": "https://store.example.com/product/widget-a",
+  "formats": [
+    {
+      "type": "json",
+      "prompt": "Extract product details",
+      "schema": { "type": "object" }
+    }
+  ]
 }
 ```
 
@@ -122,6 +175,10 @@ independently.
 | `urls`    | string[] | Optional — specific URLs to focus on                  |
 | `schema`  | object   | Optional — JSON Schema for structured output          |
 
+Unlike scrape's JSON mode, the agent takes `prompt` and `schema` as top-level
+parameters; there is no `jsonOptions` wrapper and no `urls`-free equivalent on
+`firecrawl_scrape`.
+
 ### When to use the agent
 
 - **Complex, multi-source research:** "Compare pricing across three SaaS
@@ -134,7 +191,7 @@ independently.
 
 ### When NOT to use the agent
 
-- **Single known URL:** Use `firecrawl_scrape` or `firecrawl_extract`.
+- **Single known URL:** Use `firecrawl_scrape` with `formats: ["json"]`.
 - **Simple searches:** Use `firecrawl_search` with `scrapeOptions`.
 - **Predictable, structured sites:** Map-then-scrape or crawl is faster
   and cheaper.
@@ -161,7 +218,9 @@ if needed.
 
 ### Async workflow
 
-The agent is asynchronous — exactly like crawl.
+The agent is asynchronous — unlike `firecrawl_crawl`, which polls server-side
+and returns its own final result, the agent returns only a job ID that you must
+poll yourself.
 
 1. Call `firecrawl_agent` → receive a job ID
 2. Poll `firecrawl_agent_status` with the ID

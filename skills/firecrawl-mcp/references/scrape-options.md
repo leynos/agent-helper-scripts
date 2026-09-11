@@ -51,53 +51,65 @@ corresponding language and timezone settings.
 
 ## Output formats
 
-| Format       | Key in response | Notes                                                              |
-| ------------ | --------------- | ------------------------------------------------------------------ |
-| `markdown`   | `markdown`      | Clean markdown. Default and recommended for LLM consumption        |
-| `summary`    | `summary`       | AI-generated summary of the page                                   |
-| `html`       | `html`          | Cleaned HTML (boilerplate removed)                                 |
-| `rawHtml`    | `rawHtml`       | Unmodified HTML as received. Large — use sparingly                 |
-| `screenshot` | `screenshot`    | URL to screenshot image. Expires after 24 hours                    |
-| `links`      | `links`         | Array of links found on the page                                   |
-| `json`       | `json`          | Structured extraction (requires schema or prompt — see below)      |
-| `images`     | `images`        | Array of image URLs from the page                                  |
-| `branding`   | `branding`      | Brand identity extraction (colours, fonts, typography, components) |
+| Format           | Key in response  | Notes                                                                            |
+| ---------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `markdown`       | `markdown`       | Clean markdown. Default and recommended for LLM consumption                      |
+| `summary`        | `summary`        | AI-generated summary of the page                                                 |
+| `html`           | `html`           | Cleaned HTML (boilerplate removed)                                               |
+| `rawHtml`        | `rawHtml`        | Unmodified HTML as received. Large — use sparingly                               |
+| `screenshot`     | `screenshot`     | URL to screenshot image. Expires after 24 hours                                  |
+| `links`          | `links`          | Array of links found on the page                                                 |
+| `json`           | `json`           | Structured extraction (configured by `jsonOptions` — see below)                  |
+| `changeTracking` | `changeTracking` | Comparison against the previous scrape of the same URL                           |
+| `branding`       | `branding`       | Brand identity extraction (colours, fonts, typography, components)               |
+| `query`          | `query`          | Answer driven by `queryOptions` (prompt plus a `directQuote` or `freeform` mode) |
+| `audio`          | `audio`          | Audio extracted from supported video URLs, as a signed URL                       |
 
 Multiple formats can be requested in a single call. The page is fetched once.
 
+This list is the `formats` enum of the MCP tool. `images` is **not** a scrape
+format on this surface — image results come from `firecrawl_search` source
+types instead.
+
 ### JSON format (structured extraction via scrape)
 
-To use JSON extraction within a scrape call, pass a format object instead of a
-string:
+On the MCP surface, `formats` holds plain strings and the extraction settings
+go in a separate top-level `jsonOptions` object:
 
 ```json
 {
-  "formats": [
-    "markdown",
-    {
-      "type": "json",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "price": { "type": "number" }
-        },
-        "required": ["title"]
-      }
+  "formats": ["markdown", "json"],
+  "jsonOptions": {
+    "prompt": "Extract the page title and price",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "price": { "type": "number" }
+      },
+      "required": ["title"]
     }
-  ]
+  }
 }
 ```
 
-Alternatively, omit `schema` and provide `prompt` for freeform extraction:
+| Field                | Type   | Description                                       |
+| -------------------- | ------ | ------------------------------------------------- |
+| `jsonOptions.prompt` | string | Natural-language description of what to extract   |
+| `jsonOptions.schema` | object | JSON Schema defining the desired output structure |
+
+Alternatively, omit `schema` and provide only `prompt` for freeform extraction:
 
 ```json
 {
-  "formats": [
-    { "type": "json", "prompt": "Extract all product names and prices" }
-  ]
+  "formats": ["json"],
+  "jsonOptions": { "prompt": "Extract all product names and prices" }
 }
 ```
+
+`jsonOptions` is a sibling of `formats`, not an element of it. Format objects
+such as `{ "type": "json", "schema": ... }` are rejected by the MCP tool schema
+— that nesting belongs to the REST API body, which the server builds for you.
 
 JSON mode adds **4 credits per page** on top of the base scrape cost.
 
@@ -123,15 +135,20 @@ tools that need to match a site's visual identity.
 Actions let you interact with a page before scraping. Each action is an object
 in the `actions` array, executed in sequence.
 
-| Action type  | Parameters                                          | Purpose                                                                |
-| ------------ | --------------------------------------------------- | ---------------------------------------------------------------------- |
-| `wait`       | `milliseconds`                                      | Pause execution. Use before/after other actions to let the page settle |
-| `click`      | `selector`                                          | Click an element matching the CSS selector                             |
-| `write`      | `text`                                              | Type text into the currently focused element                           |
-| `press`      | `key`                                               | Press a keyboard key (e.g. `"Tab"`, `"Enter"`)                         |
-| `screenshot` | `full_page` (bool)                                  | Take a screenshot at this point in the action sequence                 |
-| `scroll`     | `direction` (`"up"` or `"down"`), `amount` (pixels) | Scroll the page                                                        |
-| `scrape`     | —                                                   | Scrape the page at this point (captures intermediate state)            |
+| Action type         | Parameters                                          | Purpose                                                                |
+| ------------------- | --------------------------------------------------- | ---------------------------------------------------------------------- |
+| `wait`              | `milliseconds`                                      | Pause execution. Use before/after other actions to let the page settle |
+| `click`             | `selector`                                          | Click an element matching the CSS selector                             |
+| `write`             | `text`                                              | Type text into the currently focused element                           |
+| `press`             | `key`                                               | Press a keyboard key (e.g. `"Tab"`, `"Enter"`)                         |
+| `screenshot`        | `fullPage` (bool)                                   | Take a screenshot at this point in the action sequence                 |
+| `scroll`            | `direction` (`"up"` or `"down"`), `amount` (pixels) | Scroll the page                                                        |
+| `scrape`            | —                                                   | Scrape the page at this point (captures intermediate state)            |
+| `executeJavascript` | `script`                                            | Run a JavaScript snippet in the page                                   |
+| `generatePDF`       | —                                                   | Render the current page to a PDF                                       |
+
+The screenshot action takes `fullPage`, not `full_page` — the server ignores or
+rejects the snake_case spelling, and the capture stays viewport-sized.
 
 **Always include `wait` actions** before and after actions that trigger page
 navigation or content loading. Pages need time to render.
@@ -149,10 +166,15 @@ navigation or content loading. Pages need time to render.
     { "type": "write", "text": "p4ssw0rd" },
     { "type": "click", "selector": "button[type='submit']" },
     { "type": "wait", "milliseconds": 2000 },
-    { "type": "screenshot", "full_page": true }
+    { "type": "screenshot", "fullPage": true }
   ]
 }
 ```
+
+In safe mode only `wait`, `screenshot`, `scroll`, and `scrape` actions are
+accepted; `click`, `write`, `press`, `executeJavascript`, and `generatePDF` are
+rejected by the schema. Use `firecrawl_interact` when a locked-down deployment
+still needs to drive the page.
 
 The final page state (after all actions complete) is what gets scraped.
 Screenshots taken via actions are returned in `data.actions.screenshots`.

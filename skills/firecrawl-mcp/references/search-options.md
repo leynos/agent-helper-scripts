@@ -4,17 +4,20 @@ Complete parameter reference for `firecrawl_search`.
 
 ## Parameters
 
-| Parameter       | Type     | Default    | Description                                                                        |
-| --------------- | -------- | ---------- | ---------------------------------------------------------------------------------- |
-| `query`         | string   | *required* | The search query                                                                   |
-| `limit`         | integer  | —          | Maximum results to return. Applies **per source type** when using multiple sources |
-| `location`      | string   | —          | Geographic location for results (e.g. `"United States"`, `"United Kingdom"`)       |
-| `tbs`           | string   | —          | Time-based filter (see below)                                                      |
-| `filter`        | string   | —          | Additional search filter                                                           |
-| `sources`       | string[] | `["web"]`  | Source types to search (see below)                                                 |
-| `categories`    | string[] | —          | Category filters (see below)                                                       |
-| `scrapeOptions` | object   | —          | Options for scraping each result page (see below)                                  |
-| `enterprise`    | string[] | —          | Enterprise options: `"default"`, `"anon"`, `"zdr"`                                 |
+| Parameter       | Type     | Default             | Description                                                                        |
+| --------------- | -------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `query`         | string   | *required*          | The search query                                                                   |
+| `limit`         | integer  | —                   | Maximum results to return. Applies **per source type** when using multiple sources |
+| `location`      | string   | —                   | Geographic location for results (e.g. `"United States"`, `"United Kingdom"`)       |
+| `tbs`           | string   | —                   | Time-based filter (see below)                                                      |
+| `filter`        | string   | —                   | Additional search filter                                                           |
+| `sources`       | object[] | `[{"type": "web"}]` | Source types to search, as objects with a `type` field (see below)                 |
+| `categories`    | string[] | —                   | Category filters (see below)                                                       |
+| `scrapeOptions` | object   | —                   | Options for scraping each result page (see below)                                  |
+| `enterprise`    | string[] | —                   | Enterprise options: `"default"`, `"anon"`, `"zdr"`                                 |
+
+The default shown for `sources` is the API's behaviour when the field is
+omitted; the MCP schema leaves `sources` optional rather than filling it in.
 
 ## Time-based filtering (`tbs`)
 
@@ -31,15 +34,23 @@ Use time filters when freshness matters. For news, CVEs, or recent events,
 
 ## Source types (`sources`)
 
-| Source   | Returns                                                         |
-| -------- | --------------------------------------------------------------- |
-| `web`    | Standard web search results (URL, title, description, position) |
-| `news`   | News-focused results (URL, title, snippet, date, position)      |
-| `images` | Image results (imageUrl, dimensions, source URL, position)      |
+Each entry is an object with a `type` field — a plain string array fails MCP
+tool validation.
 
-Combine sources in a single call: `sources: ["web", "news"]`. When using
-multiple sources, `limit` applies independently to each — so `limit: 5` with
-two sources returns up to 10 results total.
+| Entry                  | Returns                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `{ "type": "web" }`    | Standard web search results (URL, title, description, position) |
+| `{ "type": "news" }`   | News-focused results (URL, title, snippet, date, position)      |
+| `{ "type": "images" }` | Image results (imageUrl, dimensions, source URL, position)      |
+
+Combine sources in a single call:
+
+```json
+{ "sources": [{ "type": "web" }, { "type": "news" }] }
+```
+
+When using multiple sources, `limit` applies independently to each — so
+`limit: 5` with two sources returns up to 10 results total.
 
 If you need different `limit` values or different `scrapeOptions` per source
 type, make separate calls.
