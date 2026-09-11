@@ -34,9 +34,11 @@ SKILL_DIRS ?= $(sort $(dir $(wildcard skills/*/SKILL.md)))
 SKILLS_REF := uv run --group dev skills-ref
 YAMLLINT := uv run --group dev yamllint
 SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
-# MDLINT is the repository's own wrapper script rather than the bare binary, so
-# the Markdown gate exercises the same entry point consumers install.
-MDLINT ?= ./markdownlint
+# The Markdown gate calls the linter directly. The repository's own
+# `markdownlint` wrapper covers the case where nothing has installed
+# markdownlint-cli2, and the shared baseline this repository is moving to
+# provisions it globally.
+MDLINT ?= markdownlint-cli2
 NIXIE ?= nixie
 
 # Test targets:

@@ -314,14 +314,19 @@ recorded beside the entry:
   label instead of promoting that label to a heading, which keeps their tables
   of contents navigable.
 
-The `markdownlint` wrapper appends `**/*.md` when the caller names no path.
 `markdownlint-cli2` lints nothing when it receives neither a glob argument nor
-a `globs` key, yet still reports a clean pass, so the default glob is what
-keeps the gate from passing vacuously. The wrapper treats two arguments as
-explicit targets rather than paths, so no glob is appended for either: a
-standalone `-`, which tells `markdownlint-cli2` to read the file list from
-standard input, and the operand of `--config` or `--configPointer`, which names
-a configuration file rather than a document to lint.
+a `globs` key, yet still reports a clean pass, so `make markdownlint` names
+`**/*.md` explicitly rather than relying on a default.
+
+The `markdownlint` wrapper shipped for consumers appends that glob when the
+caller names no path. It treats two arguments as explicit targets rather than
+paths, so no glob is appended for either: a standalone `-`, which tells
+`markdownlint-cli2` to read the file list from standard input, and the operand
+of `--config` or `--configPointer`, which names a configuration file rather
+than a document to lint. The repository's own gate does not go through the
+wrapper: it calls `markdownlint-cli2` directly, because the shared baseline
+this repository is moving to provisions the binary globally, which is the case
+the wrapper exists to cover.
 
 CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
 rather than installing the linter by hand. The action's release carries
@@ -436,11 +441,12 @@ recorded drift form now carries one canonical replacement for every consumer.
     executes, except that the workflow runs the Markdown gate through the
     `markdownlint-cli2` action and so passes `CI_SKIP_MARKDOWNLINT=1`.
 - `make markdownlint`
-  - Lints every Markdown file through the repository's own `markdownlint`
-    wrapper, which forwards `**/*.md` to `markdownlint-cli2` unless the caller
-    names paths of their own.
-  - Reads `.markdownlint-cli2.jsonc`; a consumer repository without one gets
-    the configuration the wrapper ships, so the same script works unchanged
+  - Lints every Markdown file with `markdownlint-cli2`, naming the `**/*.md`
+    glob explicitly so the gate cannot pass without having read a file. The
+    repository's `markdownlint` wrapper is still shipped for consumers; this
+    target does not run it.
+  - Reads `.markdownlint-cli2.jsonc`. The wrapper ships its own configuration
+    for a consumer repository that has none, so the same script works unchanged
     where `get-markdown-tooling` installs it as `markdownlint`.
 - `make nixie`
   - Validates every Mermaid diagram with `nixie`.

@@ -431,9 +431,12 @@ def test_makefile_declares_the_markdown_gates() -> None:
     # `markdownlint` is also a file at the repository root, so without .PHONY
     # make treats the target as up to date and never lints anything.
     assert {"markdownlint", "nixie"} <= set(phony), phony
-    assert re.search(r"^MDLINT\s*\?=\s*\./markdownlint\s*$", makefile, re.MULTILINE), (
-        "the Makefile does not dogfood the repository's own lint script"
-    )
+    # The gate calls the linter the shared baseline provisions rather than the
+    # repository's own `markdownlint` wrapper, which only covers the case where
+    # markdownlint-cli2 is not installed.
+    assert re.search(
+        r"^MDLINT\s*\?=\s*markdownlint-cli2\s*$", makefile, re.MULTILINE
+    ), "the Makefile does not call markdownlint-cli2 directly"
 
 
 def test_ci_runs_the_markdown_lint_gate_only() -> None:
