@@ -43,6 +43,8 @@ _MERGE_CONFLICT_CASES = st.builds(
     ours_parses=st.booleans(),
     theirs_parses=st.booleans(),
     prior_unverified_replays=st.just(0),
+    ours_present=st.booleans(),
+    theirs_present=st.booleans(),
 )
 _REBASE_CONFLICT_CASES = st.builds(
     model.ConflictCase,
@@ -52,6 +54,8 @@ _REBASE_CONFLICT_CASES = st.builds(
     ours_parses=st.booleans(),
     theirs_parses=st.booleans(),
     prior_unverified_replays=st.integers(min_value=0, max_value=5),
+    ours_present=st.booleans(),
+    theirs_present=st.booleans(),
 )
 CONFLICT_CASES = st.one_of(_MERGE_CONFLICT_CASES, _REBASE_CONFLICT_CASES)
 
@@ -224,12 +228,63 @@ def test_base_absence_hides_stage_one_everywhere(case: model.ConflictCase) -> No
 
 
 @given(case=CONFLICT_CASES)
-def test_stages_two_and_three_always_exist(case: model.ConflictCase) -> None:
-    """Every conflicted path always has stage 2 and stage 3 index entries."""
+def test_stages_two_and_three_exist_only_when_their_side_kept_the_path(
+    case: model.ConflictCase,
+) -> None:
+    """Stages 2 and 3 exist exactly when their side did not delete the path."""
     existing = model.existing_stages(case)
 
-    assert model.OURS_STAGE in existing, "stage 2 was missing from a conflict case"
-    assert model.THEIRS_STAGE in existing, "stage 3 was missing from a conflict case"
+    assert (model.OURS_STAGE in existing) == case.ours_present, (
+        "stage 2 existence disagreed with whether the current side kept the path"
+    )
+    assert (model.THEIRS_STAGE in existing) == case.theirs_present, (
+        "stage 3 existence disagreed with whether the other side kept the path"
+    )
+
+
+@given(case=CONFLICT_CASES)
+def test_an_absent_stage_two_is_never_parsed_or_trusted(
+    case: model.ConflictCase,
+) -> None:
+    """A modify/delete conflict with no stage 2 exposes no stage 2 anywhere."""
+    deleted_here = dc.replace(case, ours_present=False)
+
+    assert model.OURS_STAGE not in model.existing_stages(deleted_here), (
+        "an absent stage 2 was reported as existing"
+    )
+    assert model.OURS_STAGE not in model.parseable_stages(deleted_here), (
+        "an absent stage 2 was reported as parseable"
+    )
+    assert model.OURS_STAGE not in model.trusted_stages(deleted_here), (
+        "an absent stage 2 was reported as trusted"
+    )
+    assert model.resolution_may_continue(deleted_here, True) is True, (
+        "with no stage 2 to distrust, a parsing resolved file must be enough"
+    )
+
+
+@given(case=CONFLICT_CASES)
+def test_an_absent_stage_three_is_never_parsed_or_trusted(
+    case: model.ConflictCase,
+) -> None:
+    """A modify/delete conflict with no stage 3 exposes no stage 3 anywhere."""
+    deleted_there = dc.replace(case, theirs_present=False)
+
+    assert model.THEIRS_STAGE not in model.existing_stages(deleted_there), (
+        "an absent stage 3 was reported as existing"
+    )
+    assert model.THEIRS_STAGE not in model.parseable_stages(deleted_there), (
+        "an absent stage 3 was reported as parseable"
+    )
+    assert model.THEIRS_STAGE not in model.trusted_stages(deleted_there), (
+        "an absent stage 3 was reported as trusted"
+    )
+    kept_there = dc.replace(case, theirs_present=True)
+    assert model.resolution_may_continue(
+        deleted_there, True
+    ) == model.resolution_may_continue(kept_there, True), (
+        "an absent stage 3 must not change whether stage 2 gates continuation"
+    )
 
 
 @given(case=CONFLICT_CASES, theirs_parses=st.booleans())
@@ -237,7 +292,9 @@ def test_a_parsing_stage_three_never_rescues_a_non_parsing_stage_two(
     case: model.ConflictCase, theirs_parses: bool
 ) -> None:
     """Stage 2 is untrustworthy on its own merits, regardless of stage 3."""
-    broken_case = dc.replace(case, ours_parses=False, theirs_parses=theirs_parses)
+    broken_case = dc.replace(
+        case, ours_present=True, ours_parses=False, theirs_parses=theirs_parses
+    )
 
     assert model.OURS_STAGE not in model.trusted_stages(broken_case), (
         "a non-parsing stage 2 was trusted because stage 3 parsed"
@@ -259,9 +316,9 @@ def test_stage_two_trust_depends_on_prior_unverified_replays(
             "stage 2 was trusted despite unverified prior rebase replays"
         )
     else:
-        assert (model.OURS_STAGE in trusted) == case.ours_parses, (
-            "stage 2 trust disagreed with whether it parses"
-        )
+        assert (model.OURS_STAGE in trusted) == (
+            case.ours_present and case.ours_parses
+        ), "stage 2 trust disagreed with whether it exists and parses"
 
 
 @given(case=CONFLICT_CASES)

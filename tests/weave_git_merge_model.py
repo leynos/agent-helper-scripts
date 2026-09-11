@@ -195,6 +195,12 @@ class ConflictCase:
         Whether the stage 2 (ours) blob parses.
     theirs_parses : bool
         Whether the stage 3 (theirs) blob parses.
+    ours_present : bool
+        Whether a stage 2 (ours) blob exists for the path. It is absent when
+        the path was deleted on the current side of a modify/delete conflict.
+    theirs_present : bool
+        Whether a stage 3 (theirs) blob exists for the path. It is absent when
+        the path was deleted on the other side of a modify/delete conflict.
     prior_unverified_replays : int
         Count of earlier replayed commits in the same rebase whose
         results have not passed a structural gate. Always zero for a
@@ -213,6 +219,8 @@ class ConflictCase:
     ours_parses: bool
     theirs_parses: bool
     prior_unverified_replays: int = 0
+    ours_present: bool = True
+    theirs_present: bool = True
 
     def __post_init__(self) -> None:
         if self.prior_unverified_replays < 0:
@@ -231,6 +239,11 @@ THEIRS_STAGE: typ.Final = 3
 def existing_stages(case: ConflictCase) -> frozenset[int]:
     """Return the index stages Git holds for the conflicted path.
 
+    Stage 1 is absent when the sides share no ancestor blob. Stage 2 or
+    stage 3 is absent when that side deleted the path (a modify/delete
+    conflict). The skill says to run the stage commands only for stages that
+    exist.
+
     Parameters
     ----------
     case : ConflictCase
@@ -241,10 +254,12 @@ def existing_stages(case: ConflictCase) -> frozenset[int]:
     frozenset[int]
         Stages Git holds for the path.
     """
-    stages = {OURS_STAGE, THEIRS_STAGE}
-    if case.base_present:
-        stages.add(BASE_STAGE)
-    return frozenset(stages)
+    present = {
+        BASE_STAGE: case.base_present,
+        OURS_STAGE: case.ours_present,
+        THEIRS_STAGE: case.theirs_present,
+    }
+    return frozenset(stage for stage, held in present.items() if held)
 
 
 def parseable_stages(case: ConflictCase) -> frozenset[int]:
@@ -298,9 +313,11 @@ def trusted_stages(case: ConflictCase) -> frozenset[int]:
 def resolution_may_continue(case: ConflictCase, resolved_parses: bool) -> bool:
     """Return whether `git add` and `--continue` are permitted for the path.
 
-    The resolved working file must parse, and stage 2 must be a trusted
-    baseline: an earlier corrupt replay cannot be laundered by a clean later
-    resolution built on top of it.
+    The resolved working file must parse, and an existing stage 2 must be a
+    trusted baseline: an earlier corrupt replay cannot be laundered by a clean
+    later resolution built on top of it. When stage 2 is absent (the current
+    side deleted the path) there is no baseline to trust or distrust, so only
+    the resolved file's parse decides.
 
     Parameters
     ----------
@@ -314,7 +331,11 @@ def resolution_may_continue(case: ConflictCase, resolved_parses: bool) -> bool:
     bool
         Whether `git add` and `--continue` are permitted for the path.
     """
-    return resolved_parses and OURS_STAGE in trusted_stages(case)
+    if not resolved_parses:
+        return False
+    if OURS_STAGE not in existing_stages(case):
+        return True
+    return OURS_STAGE in trusted_stages(case)
 
 
 # --- Multi-commit replay transitions --------------------------------------
