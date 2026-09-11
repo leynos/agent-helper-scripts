@@ -76,9 +76,19 @@ positional or heuristic reasoning; it accepts only two forms of proof:
 
 In every other case — no receipt, a malformed receipt, a receipt naming an
 unrelated parent, or a receipt that is not an ancestor of the child — the
-planner raises `PlanError`, which the CLI reports as
-`{"status": "blocked", "reason": ...}` on stderr with exit status 2. A
-successful plan is always `review-required` or `no-op-decision-required`,
+planner raises `PlanError`. A blocked CLI run writes one bounded JSON record
+to stderr, exits with status 2, and leaves stdout empty. The record carries
+exactly six fields:
+
+- `status` — always the literal `"blocked"`;
+- `operation` — the correlation identifier every diagnostic for the run
+  shares;
+- `phase` — the bounded `PHASE_*` name the refusal was stamped with;
+- `outcome` — always the literal `"blocked"`;
+- `category` — the bounded `CATEGORY_*` failure class;
+- `reason` — the human-readable message, reported verbatim.
+
+A successful plan is always `review-required` or `no-op-decision-required`,
 never an authorization to replay.
 
 ### Alternatives considered
