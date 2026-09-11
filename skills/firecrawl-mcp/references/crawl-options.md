@@ -24,12 +24,28 @@ Complete parameter reference for `firecrawl_crawl` and
 
 ### Path filtering
 
-| Parameter      | Type     | Description                                                                 |
-| -------------- | -------- | --------------------------------------------------------------------------- |
-| `includePaths` | string[] | Only crawl URLs matching these glob patterns (e.g. `["/docs/*", "/api/*"]`) |
-| `excludePaths` | string[] | Skip URLs matching these glob patterns (e.g. `["/admin/*", "/login"]`)      |
+`includePaths` and `excludePaths` are arrays of **regular-expression strings**,
+not globs, matched against the URL pathname. Patterns are compiled as Rust
+`regex` (RE2-style) syntax, so look-around and backreferences are rejected.
+
+| Parameter      | Type     | Description                                                                                      |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `includePaths` | string[] | Only crawl URLs whose pathname matches one of these regexes (e.g. `["^/docs/.*$", "^/api/.*$"]`) |
+| `excludePaths` | string[] | Skip URLs whose pathname matches one of these regexes (e.g. `["^/admin/.*$", "^/login$"]`)       |
+
+Anchor with `^` and `$` — an unanchored pattern is a substring match. The
+glob-shaped `/docs/*` therefore means "`/docs` followed by zero or more
+slashes", which matches any pathname that contains `/docs` rather than the docs
+section alone; `^/docs/.*$` is the form that pins the section.
+
+The starting URL is itself tested against `includePaths`, so an include list
+that excludes the start URL may return zero pages.
 
 Use path filtering to focus crawls on relevant sections and conserve credits.
+
+Matching against the full URL including the query string (`regexOnFullURL`) is
+available on the REST crawl body but is not exposed by the MCP
+`firecrawl_crawl` schema.
 
 ### Sitemap
 
@@ -59,11 +75,11 @@ to **every page** the crawler visits:
 }
 ```
 
-## Async workflow
+## Completion: the MCP tool polls for you
 
-Crawl is asynchronous. The call returns immediately with a job ID.
-
-### Starting a crawl
+Calling `firecrawl_crawl` starts the job **and** polls it server-side until it
+reaches a terminal state. The response it returns is the final crawl status and
+the collected page data — not a pending job handle.
 
 ```json
 {
@@ -77,33 +93,9 @@ Crawl is asynchronous. The call returns immediately with a job ID.
 }
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "url": "https://api.firecrawl.dev/v2/crawl/550e8400-..."
-}
-```
-
-### Polling status
-
-```json
-{
-  "name": "firecrawl_check_crawl_status",
-  "arguments": {
-    "id": "550e8400-e29b-41d4-a716-446655440000"
-  }
-}
-```
-
-**Poll every 15–30 seconds.** The status field will be one of:
-
-- `scraping` — still in progress; the response includes `total` and
-  `completed` counts for progress estimation
-- `completed` — results available in the `data` array
-- `failed` — an error occurred
+**Do not poll after a normal crawl call.** There is no job to chase: the tool
+has already waited the job out. Terminal statuses are `completed`, `failed`, and
+`cancelled`.
 
 ### Completed response
 
@@ -125,6 +117,53 @@ Response:
 If the result set is large, the response may include a `next` URL for
 pagination.
 
+## Checking status: timed-out or externally started jobs
+
+`firecrawl_check_crawl_status` reads an existing crawl by ID. It is the right
+tool in exactly two situations:
+
+1. **The MCP call returned before completion.** If the client timed out or the
+   transport dropped mid-poll, poll with the crawl ID to collect the result.
+2. **The job was started outside MCP** — for example, by a direct REST call to
+   `POST /v2/crawl`.
+
+```json
+{
+  "name": "firecrawl_check_crawl_status",
+  "arguments": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+**Poll every 15–30 seconds.** The status field will be one of:
+
+- `scraping` — still in progress; the response includes `total` and
+  `completed` counts for progress estimation
+- `completed` — results available in the `data` array
+- `failed` — an error occurred
+- `cancelled` — the job was stopped before finishing
+
+### REST job creation (not an MCP workflow)
+
+Everything below is the plain HTTP API, documented so the two paths are not
+confused. MCP clients never need it.
+
+A REST `POST /v2/crawl` returns a job handle immediately and does no polling:
+
+```json
+{
+  "success": true,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://api.firecrawl.dev/v2/crawl/550e8400-..."
+}
+```
+
+That ID must then be polled — via `firecrawl_check_crawl_status` for an MCP
+caller, or `GET /v2/crawl/{id}` for a direct REST caller. The MCP
+`firecrawl_crawl` tool wraps exactly this create-then-poll sequence, which is
+why the polling step disappears for MCP callers.
+
 ## Map parameters
 
 `firecrawl_map` is the lightweight counterpart to crawl. It discovers URLs
@@ -133,11 +172,15 @@ without scraping them.
 | Parameter               | Type    | Default     | Description                                       |
 | ----------------------- | ------- | ----------- | ------------------------------------------------- |
 | `url`                   | string  | *required*  | Base URL to map                                   |
-| `search`                | string  | —           | Filter URLs by relevance to this search term      |
+| `search`                | string  | —           | Order URLs by relevance to this search term       |
 | `sitemap`               | string  | `"include"` | Same as crawl: `"include"`, `"skip"`, or `"only"` |
-| `includeSubdomains`     | boolean | `false`     | Include subdomain URLs                            |
+| `includeSubdomains`     | boolean | `true`      | Include subdomain URLs                            |
 | `limit`                 | integer | —           | Maximum URLs to return                            |
-| `ignoreQueryParameters` | boolean | `false`     | Deduplicate URLs differing only by query string   |
+| `ignoreQueryParameters` | boolean | `true`      | Drop URLs differing only by query string          |
+
+Both boolean defaults are `true`: a bare `firecrawl_map` call already spans
+subdomains and collapses query-parameter duplicates. Pass `false` explicitly to
+narrow the subdomain scope or to keep per-query-string URLs.
 
 Map costs **1 credit per call** regardless of how many URLs it returns, making
 it very efficient for reconnaissance.
