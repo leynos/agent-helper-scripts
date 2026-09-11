@@ -858,17 +858,40 @@ class Subprocess:
         return result.stdout.strip()
 
 
+def _path_exists(path: Path) -> bool:
+    """Report whether a path exists, as the default filesystem probe.
+
+    Parameters
+    ----------
+    path : Path
+        Path to probe.
+
+    Returns
+    -------
+    bool
+        True when the path exists.
+    """
+    return path.exists()
+
+
 @dataclasses.dataclass(frozen=True)
 class GitGraph:
     """Turns Git queries into typed graph facts for the domain layer.
+
+    Filesystem access lives here rather than in policy, so the domain layer
+    never touches a :class:`~pathlib.Path`.
 
     Parameters
     ----------
     run : Runner
         Process adapter bound to the repository.
+    exists : Callable[[Path], bool]
+        Filesystem probe, injectable so a caller can substitute one. Defaults
+        to :func:`_path_exists`.
     """
 
     run: Runner
+    exists: Callable[[Path], bool] = _path_exists
 
     def git(self, *args: str) -> str:
         """Run a Git query or the narrowly scoped evidence fetch.
@@ -967,6 +990,37 @@ class GitGraph:
         """
         path = Path(self.git("rev-parse", "--git-path", name))
         return path if path.is_absolute() else repository / path
+
+    def path_exists(self, name: str, repository: Path) -> bool:
+        """Report whether a Git-directory entry exists, never guessing on failure.
+
+        A filesystem error is a refusal, not an answer: treating it as "marker
+        absent" would let discovery proceed over an in-flight Git operation.
+
+        Parameters
+        ----------
+        name : str
+            Name relative to the Git directory.
+        repository : Path
+            Repository root, used to absolutize a relative answer.
+
+        Returns
+        -------
+        bool
+            True when the entry exists.
+
+        Raises
+        ------
+        PlanError
+            Categorized as a process failure when the probe itself fails.
+        """
+        path = self.git_path(name, repository)
+        try:
+            return self.exists(path)
+        except OSError as exc:
+            raise PlanError(
+                f"Cannot determine whether {name} exists: {exc}", CATEGORY_PROCESS
+            ) from exc
 
     def is_shallow(self) -> bool:
         """Report whether the repository has incomplete history.
@@ -1265,7 +1319,7 @@ def _refuse_active_operation(graph: GitGraph, repository: Path) -> None:
         "REVERT_HEAD",
         "sequencer",
     ):
-        if graph.git_path(name, repository).exists():
+        if graph.path_exists(name, repository):
             raise PlanError(
                 f"An active Git operation exists: {name}", CATEGORY_REPOSITORY_STATE
             )

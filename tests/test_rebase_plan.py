@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import typing as typ
+from pathlib import Path
 
 import pytest
 from rebase_test_support import (
@@ -21,8 +22,6 @@ from rebase_test_support import (
 )
 
 if typ.TYPE_CHECKING:
-    from pathlib import Path
-
     from cmd_mox import CmdMox
 
 
@@ -453,37 +452,72 @@ def test_graph_policy_failure_closes_its_phase_as_blocked(
     assert _finished(records, "boundary-selection")["outcome"] == planner.OUTCOME_OK
 
 
-def test_successful_run_closes_every_phase_and_the_operation_span(
+SPAN_EVENTS = frozenset(
+    {"operation-started", "phase-started", "phase-finished", "operation-finished"}
+)
+
+EXPECTED_SEQUENCE = [
+    ("operation-started", "operation"),
+    ("phase-started", "preflight"),
+    ("phase-finished", "preflight"),
+    ("phase-started", "parent-metadata"),
+    ("phase-finished", "parent-metadata"),
+    ("phase-started", "landing-validation"),
+    ("phase-finished", "landing-validation"),
+    ("phase-started", "parent-head-fetch"),
+    ("phase-finished", "parent-head-fetch"),
+    ("phase-started", "boundary-selection"),
+    ("phase-finished", "boundary-selection"),
+    ("phase-started", "graph-planning"),
+    ("phase-finished", "graph-planning"),
+    ("operation-finished", "operation"),
+]
+
+
+def test_successful_run_emits_the_complete_ordered_diagnostic_span(
     graph: Graph,
     cmd_mox: CmdMox,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Every phase and the operation span report ok with a bounded duration."""
+    """A successful CLI run emits every span record, in order, under one ID."""
     expect_parent(cmd_mox, graph)
     planner.main(**dataclasses.asdict(graph.request()))
 
     captured = capsys.readouterr()
-    assert json.loads(captured.out)["status"] == planner.STATUS_REVIEW_REQUIRED
+    plan = json.loads(captured.out)
     records = _records(captured.err)
-    for name in (
-        "preflight",
-        "parent-metadata",
-        "landing-validation",
-        "parent-head-fetch",
-        "boundary-selection",
-        "graph-planning",
-    ):
-        finished = _finished(records, name)
-        assert finished["outcome"] == planner.OUTCOME_OK, f"{name} must close as ok"
-        assert isinstance(finished["elapsed_ms"], int), f"{name} must be timed"
-        assert "error_category" not in finished, (
-            f"{name} succeeded, so it must report no error category"
-        )
 
-    span = next(record for record in records if record["event"] == "operation-finished")
-    assert span["outcome"] == planner.OUTCOME_OK
-    assert span["phase"] == planner.PHASE_OPERATION
-    assert isinstance(span["elapsed_ms"], int)
+    assert plan["status"] == planner.STATUS_REVIEW_REQUIRED
+
+    operations = {record["operation"] for record in records}
+    assert len(operations) == 1, "one run must emit exactly one operation identifier"
+    operation = operations.pop()
+    assert operation, "the operation identifier must be non-empty"
+    assert operation == plan["operation"], (
+        "the plan must be correlatable with the diagnostics that produced it"
+    )
+
+    sequence = [
+        (record["event"], record["phase"])
+        for record in records
+        if record["event"] in SPAN_EVENTS
+    ]
+    assert sequence == EXPECTED_SEQUENCE, (
+        "the span must open, run each phase in order, and close"
+    )
+
+    for record in records:
+        if record["event"] not in {"phase-finished", "operation-finished"}:
+            continue
+        label = record["phase"]
+        assert record["outcome"] == planner.OUTCOME_OK, f"{label} must close as ok"
+        assert isinstance(record["elapsed_ms"], int), f"{label} must be timed"
+        assert not isinstance(record["elapsed_ms"], bool), (
+            f"{label} must report a duration, not a flag"
+        )
+        assert "error_category" not in record, (
+            f"{label} succeeded, so it must report no error category"
+        )
 
 
 def test_build_plan_never_invokes_the_discovery_command_layer(
@@ -542,3 +576,84 @@ def test_build_plan_is_repeatable_on_one_snapshot(
     first = planner.build_plan(graph.request(), evidence)
     second = planner.build_plan(graph.request(), evidence)
     assert first == second, "the read path must be free of run-to-run state"
+
+
+def test_active_operation_marker_is_refused_as_repository_state(
+    graph: Graph, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An in-flight Git operation keeps its existing repository-state refusal."""
+    (graph.repository / ".git" / "rebase-merge").mkdir()
+    run = planner.Subprocess(graph.repository)
+    with pytest.raises(planner.PlanError, match="An active Git operation exists") as ei:
+        planner.preflight(planner.GitGraph(run), graph.request())
+
+    assert ei.value.category == planner.CATEGORY_REPOSITORY_STATE, (
+        "the injected probe must not change how an existing marker is classified"
+    )
+    assert capsys.readouterr().out == ""
+
+
+def test_failing_filesystem_probe_refuses_instead_of_assuming_absent(
+    graph: Graph,
+) -> None:
+    """A probe that errors must never be read as 'no marker is present'."""
+
+    def unreadable(path: Path) -> bool:
+        raise PermissionError(13, "Permission denied")
+
+    run = planner.Subprocess(graph.repository)
+    graph_adapter = planner.GitGraph(run, exists=unreadable)
+    with pytest.raises(planner.PlanError, match="Cannot determine whether") as ei:
+        planner.preflight(graph_adapter, graph.request())
+
+    assert ei.value.category == planner.CATEGORY_PROCESS, (
+        "a filesystem failure is a process-boundary failure, not repository state"
+    )
+    assert "Permission denied" in str(ei.value)
+
+
+def test_probe_reporting_absent_lets_a_clean_checkout_proceed(graph: Graph) -> None:
+    """The injected probe is genuinely consulted, not bypassed."""
+    probed: list[Path] = []
+
+    def absent(path: Path) -> bool:
+        probed.append(path)
+        return False
+
+    run = planner.Subprocess(graph.repository)
+    identities = planner.preflight(
+        planner.GitGraph(run, exists=absent), graph.request()
+    )
+
+    assert identities.branch_head == graph.d
+    assert [path.name for path in probed] == [
+        "rebase-merge",
+        "rebase-apply",
+        "MERGE_HEAD",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "sequencer",
+    ], "every documented marker must be probed, in order"
+
+
+def test_cli_blocked_record_identifies_the_preflight_phase(
+    graph: Graph, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A preflight refusal names its phase and still leaves stdout empty."""
+    (graph.repository / ".git" / "sequencer").mkdir()
+    with pytest.raises(SystemExit) as excinfo:
+        planner.main(**dataclasses.asdict(graph.request()))
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == "", "a blocked run must leave stdout empty"
+    records = _records(captured.err)
+    blocked = records[-1]
+    assert blocked["status"] == planner.STATUS_BLOCKED
+    assert blocked["phase"] == planner.PHASE_PREFLIGHT, (
+        "the phase must be stamped by the enclosing phase, not inferred"
+    )
+    assert blocked["outcome"] == planner.OUTCOME_BLOCKED
+    assert blocked["category"] == planner.CATEGORY_REPOSITORY_STATE
+    assert {record["operation"] for record in records} == {blocked["operation"]}
+    assert not git(graph.repository, "for-each-ref", "refs/agent-rebase").stdout
