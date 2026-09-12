@@ -1217,6 +1217,7 @@ extend-ignore-re = [
 "kernelizers" = "kernelizers"
 "kernelizes" = "kernelizes"
 "kernelizing" = "kernelizing"
+"labeled" = "labeled"
 "legitimisable" = "legitimizable"
 "legitimisably" = "legitimizably"
 "legitimisation" = "legitimization"

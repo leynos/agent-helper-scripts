@@ -12,6 +12,7 @@ accepted = [
   "analyzer",
   "edn",
   "ises",
+  "labeled",
   "mold",
 ]
 
