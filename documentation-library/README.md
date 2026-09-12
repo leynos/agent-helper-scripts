@@ -16,6 +16,11 @@ of one repository. Names that recur but are always repository-specific
 (`users-guide.md`, `developers-guide.md`, `roadmap.md`, `contents.md`,
 `repository-layout.md`, execution plans, and audits) were excluded.
 
+One document, the v2a front-end stack, was added after the initial survey at
+the maintainer's request. Its third copy lives in `axinite-mockup`, which the
+estate inventory does not list, so a copy held only by an off-inventory
+repository can be missed by the survey method described here.
+
 For each qualifying document the distinct content variants were identified and
 compared against a base edition:
 
@@ -89,8 +94,12 @@ those copies.
 
 ### Front end
 
+`v2a` is the estate's shared front-end model and stack; the remaining
+front-end documents describe parts of it in depth.
+
 | Document | Copies | Variants |
 | --- | --- | --- |
+| [v2a front-end stack](v2a-front-end-stack.md) | 3 | 3 |
 | [Tailwind CSS v4 LLM Development Guidelines](tailwind-v4-guide.md) | 5 | 5 |
 | [Tailwind CSS v4 (May 2025)](tailwind-v3-v4-migration-guide.md) | 5 | 5 |
 | [daisyUI 5](daisyui-v5-guide.md) | 5 | 5 |
