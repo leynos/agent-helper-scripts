@@ -78,14 +78,16 @@ Repositories that adopt this documentation style should keep a small set of
 high-value documents with clearly separated audiences and responsibilities.
 These document types are complementary: the contents file helps readers find
 material, the user's guide explains how to use the project, the developer's
-guide explains how to work on the project, the design document explains why the
+guide explains how to work on the project, the migration guide carries a
+reader across one release boundary, the design document explains why the
 system is shaped the way it is, and the repository layout document explains
 where important things live. For discoverability, use canonical filenames
 unless a stronger repository-specific constraint applies: `docs/contents.md`,
 `docs/users-guide.md`, `docs/developers-guide.md`,
 `docs/repository-layout.md`, and `docs/documentation-style-guide.md`, plus a
 primary design document under `docs/*-design.md`, for example
-`docs/query-planner-design.md`.
+`docs/query-planner-design.md`, and one migration guide per release that
+changes observable behaviour.
 
 ### Contents file
 
@@ -135,6 +137,130 @@ this means operators, end users, or integrators.
   otherwise overload the guide.
 - Exclude maintainer-only concerns such as internal layering debates, future
   refactor plans, or enforcement tooling unless they directly affect users.
+- **Empathy.** Follow the example set by the Netsuke user's guide: open by
+  naming the exact release and stating plainly when it is an early-adopter
+  release whose interfaces may change, so a reader can decide whether to pin
+  the version. Phrase headings as imperative statements of the reader's task,
+  for example "Run the first build", "Author a manifest", and "Interpret
+  failures". Answer the question a reader is about to ask at the point they
+  ask it, cover a complete setup for every supported platform rather than
+  assuming one, and state honestly where a feature is unimplemented in the
+  current release.
+- **Accessibility.** Treat accessibility as two related concerns. Document the
+  project's accessible behaviour as a first-class topic: how accessible output
+  is selected, by flag and by environment variable; that meaning is never
+  carried by colour or glyph alone, so semantic text labels are always
+  present; and how output streams are separated so redirection and assistive
+  technology behave predictably. Apply the same care to the document itself:
+  expand acronyms, use descriptive link text, give tables headers, and
+  describe diagrams.
+- **Comprehensiveness.** Cover the whole user-facing surface in one place, in
+  the order a reader meets it: install, first run, the model, authoring, the
+  command-line interface, configuration, diagnostics, output control, network
+  access, failure interpretation, the safety boundary, complete worked
+  examples, and where to look next. Place reference material beside the
+  feature it governs. State the safety and privacy boundary explicitly,
+  including what the project deliberately does not record.
+- **Tested correctness.** Make every fenced example in a user-facing document
+  executable and exercised by the test suite. Precede each fence immediately
+  with a marker comment carrying a stable identifier, written
+  `<!-- tested-example: <identifier> -->`. Load the examples from the
+  published document with a shared loader, rather than a copied fixture, so
+  the tests exercise the shipped text; fail the build on an unmarked fence, an
+  unterminated fence, a missing identifier, or a duplicate identifier. Share
+  that loader between integration tests and behaviour-driven scenarios, so a
+  documented example becomes a contract the implementation must satisfy and
+  cannot drift from the behaviour it claims.
+
+### Migration guide
+
+Use a migration guide, named
+`docs/v<major>-<minor>-<patch>-migration-guide.md` with dots written as
+dashes, for a release that changes observable behaviour. A repository
+vendoring a library's guide prefixes the filename with the library name, for
+example `docs/rstest-bdd-v0-5-0-migration-guide.md`.
+
+- Cover exactly one step, from the previous release to the named release. A
+  guide is never a cumulative "upgrade from any earlier version" document. A
+  reader crossing several releases follows the guides in sequence, one per
+  release. Keep each guide small enough to review against a single changelog
+  and correct forever; a cumulative document decays as later releases change
+  the ground it already described.
+- Skip the guide only when a release changes nothing observable. A tiny
+  release that does change observable behaviour still gets its own guide,
+  however short.
+- Title the guide with both endpoints, for example
+  `# Migration guide: v0.8.0 to v0.9.0`.
+- Sequence the guide's sections in this order:
+  - **Who should read this:** state which callers are affected and
+    summarize what changes.
+  - **Impact at a glance:** a table classifying every item by obligation.
+  - **Numbered task sections:** one section per required or recommended
+    change, in the order the reader should perform them.
+  - **What does not need to change:** an explicit statement of unaffected
+    behaviour, even when short.
+  - **Migration checklist:** a Markdown task list so a reader can track
+    progress.
+  - **Common errors and fixes:** the exact diagnostic text a reader will
+    encounter, paired with its fix.
+- Classify every impact-table item by obligation, using this vocabulary:
+  Required, Required if called, Review if enabled, Recommended, Optional. Do
+  not interleave required work with optional adoption in the same list.
+- Show a mechanical change as a Before and After pair of fenced code blocks,
+  not as a prose description.
+- Quote the exact diagnostic text a reader will encounter, so pasting a
+  compiler or runtime error into a search finds the fix.
+- Write the checklist with Markdown task-list syntax (`- [ ]`) so a reader can
+  track progress.
+- Link rationale to the accepted ADR or RFC that decided it rather than
+  restating the reasoning.
+- Hold the guide's examples to the same tested-correctness rule the user's
+  guide follows, rather than restating that rule here.
+
+#### Migration guide skeleton
+
+````markdown
+# Migration guide: v0.8.0 to v0.9.0
+
+## Who should read this
+
+<Which callers are affected and what changes.>
+
+## Impact at a glance
+
+| Priority | Area   | What to do |
+| -------- | ------ | ---------- |
+| Required | <Area> | <Action>   |
+
+_Table 1: Obligations when moving from v0.8.0 to v0.9.0._
+
+## 1. <First required change>
+
+### Before
+
+```rust,no_run
+<old code>
+```
+
+### After
+
+```rust,no_run
+<new code>
+```
+
+## What does not need to change
+
+<Explicit statement of unaffected behaviour.>
+
+## Migration checklist
+
+- [ ] <Checklist item>
+
+## Common errors and fixes
+
+- **Error:** `<exact diagnostic text>`
+  - **Fix:** <remedy>
+````
 
 ### Developer's guide
 
