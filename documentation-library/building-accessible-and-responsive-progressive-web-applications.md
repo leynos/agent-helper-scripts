@@ -1072,25 +1072,27 @@ application. It runs a series of automated checks against a given URL and
 generates a report with scores and actionable recommendations across several key
 categories.[^15]
 
-#### PWA-Specific Audits
+#### Checking Installability with Chrome DevTools
 
-The Lighthouse "Progressive Web App" category specifically checks for the
-technical requirements of a PWA. The audits are grouped into subcategories :
+Lighthouse 9 removed its dedicated "Progressive Web App" audit category, so
+passing a Lighthouse score is no longer how installability is verified.
+Instead, use the Chrome DevTools **Application** panel: its **Manifest**
+section lists the parsed manifest fields (`name`/`short_name`, `icons`,
+`start_url`, `display`, and so on) and surfaces any installability errors,
+such as a missing required icon size or a manifest that fails to load. The
+same panel confirms whether the page is served over HTTPS and whether an
+active service worker is currently controlling the page, both of which are
+required for the browser to consider the PWA installable.
 
-- **Fast and Reliable:** Verifies that the PWA loads quickly on slow networks
-    and that both the current page and the manifest's `start_url` respond with
-    a status code of 200 when offline.
+#### Testing Offline Reliability
 
-- **Installable:** Checks that the page is served over HTTPS, registers a
-    service worker that controls the page, and has a web app manifest that
-    meets the minimum installability requirements.
-
-- **PWA Optimized:** Audits for best practices such as redirecting HTTP
-    traffic to HTTPS, configuring a custom splash screen and theme colour in
-    the manifest, and having a valid viewport tag.
-
-Passing these audits is a prerequisite for a PWA to be considered installable
-by Chrome and other browsers.
+Offline reliability is checked separately from installability, either
+manually or with DevTools. In the **Application** panel's **Service
+Workers** section, confirm that a service worker has registered and
+activated; then use the **Network** panel's offline mode (or disconnect the
+network) and reload the page to verify that the current page, and the
+manifest's `start_url`, still respond rather than showing the browser's
+default offline error page.
 
 #### Holistic Quality Audits
 
@@ -1161,26 +1163,26 @@ This checklist provides a structured framework for conducting a comprehensive
 quality assurance review of a PWA, combining automated checks with essential
 manual testing procedures.
 
-| **Category**           | **Check**                                                                     | **Method** | **Key Tool/Technique**               |
-| ---------------------- | ----------------------------------------------------------------------------- | ---------- | ------------------------------------ |
-| **PWA Installability** | Manifest has `name`/`short_name`, `icons` (192, 512), `start_url`, `display`. | Automated  | Lighthouse PWA Audit                 |
-| **PWA Installability** | Site is served over HTTPS.                                                    | Automated  | Lighthouse PWA Audit                 |
-| **PWA Installability** | Registers a service worker.                                                   | Automated  | Lighthouse PWA Audit                 |
-| **PWA Reliability**    | `start_url` responds with a 200 status code when offline.                     | Automated  | Lighthouse PWA Audit                 |
-| **PWA Reliability**    | Page provides a custom offline fallback experience.                           | Manual     | DevTools Offline Mode                |
-| **Perceivable**        | All non-decorative images have descriptive `alt` text.                        | Manual     | Code Review, Screen Reader           |
-| **Perceivable**        | Colour contrast for text and UI components meets WCAG AA levels.              | Automated  | Lighthouse, DevTools Inspector       |
-| **Perceivable**        | Content reflows to a single column at 320px width without horizontal scroll.  | Manual     | Browser Resizing                     |
-| **Operable**           | All interactive functionality is operable with a keyboard.                    | Manual     | Keyboard-Only Testing                |
-| **Operable**           | A visible focus indicator is always present for the active element.           | Manual     | Keyboard-Only Testing                |
-| **Operable**           | Focus order is logical and follows the visual layout.                         | Manual     | Keyboard-Only Testing                |
-| **Operable**           | No keyboard traps exist, especially in modals or complex widgets.             | Manual     | Keyboard-Only Testing                |
-| **Operable**           | Focus is correctly managed on client-side route changes.                      | Manual     | Keyboard and Screen Reader           |
-| **Understandable**     | Page `title` is updated on every client-side route change.                    | Manual     | Browser Tab, Screen Reader           |
-| **Understandable**     | A logical heading structure (`<h1>`-`<h6>`) is used.                          | Manual     | Code Review, Screen Reader           |
-| **Understandable**     | Dynamic content changes and status messages are announced to screen readers.  | Manual     | Screen Reader Testing                |
-| **Robust**             | HTML is well-formed and uses semantic elements where appropriate.             | Manual     | Code Review, W3C Validator           |
-| **Robust**             | ARIA roles, states, and properties are used correctly on custom components.   | Manual     | Code Review, Accessibility Inspector |
+| **Category**           | **Check**                                                                     | **Method** | **Key Tool/Technique**                 |
+| ---------------------- | ----------------------------------------------------------------------------- | ---------- | -------------------------------------- |
+| **PWA Installability** | Manifest has `name`/`short_name`, `icons` (192, 512), `start_url`, `display`. | Manual     | DevTools Application, Manifest         |
+| **PWA Installability** | Site is served over HTTPS.                                                    | Manual     | DevTools Application, Manifest         |
+| **PWA Installability** | Registers a service worker.                                                   | Manual     | DevTools Application, Service Workers  |
+| **PWA Reliability**    | `start_url` responds when offline.                                            | Manual     | DevTools Service Workers, Offline Mode |
+| **PWA Reliability**    | Page provides a custom offline fallback experience.                           | Manual     | DevTools Offline Mode                  |
+| **Perceivable**        | All non-decorative images have descriptive `alt` text.                        | Manual     | Code Review, Screen Reader             |
+| **Perceivable**        | Colour contrast for text and UI components meets WCAG AA levels.              | Automated  | Lighthouse, DevTools Inspector         |
+| **Perceivable**        | Content reflows to a single column at 320px width without horizontal scroll.  | Manual     | Browser Resizing                       |
+| **Operable**           | All interactive functionality is operable with a keyboard.                    | Manual     | Keyboard-Only Testing                  |
+| **Operable**           | A visible focus indicator is always present for the active element.           | Manual     | Keyboard-Only Testing                  |
+| **Operable**           | Focus order is logical and follows the visual layout.                         | Manual     | Keyboard-Only Testing                  |
+| **Operable**           | No keyboard traps exist, especially in modals or complex widgets.             | Manual     | Keyboard-Only Testing                  |
+| **Operable**           | Focus is correctly managed on client-side route changes.                      | Manual     | Keyboard and Screen Reader             |
+| **Understandable**     | Page `title` is updated on every client-side route change.                    | Manual     | Browser Tab, Screen Reader             |
+| **Understandable**     | A logical heading structure (`<h1>`-`<h6>`) is used.                          | Manual     | Code Review, Screen Reader             |
+| **Understandable**     | Dynamic content changes and status messages are announced to screen readers.  | Manual     | Screen Reader Testing                  |
+| **Robust**             | HTML is well-formed and uses semantic elements where appropriate.             | Manual     | Code Review, W3C Validator             |
+| **Robust**             | ARIA roles, states, and properties are used correctly on custom components.   | Manual     | Code Review, Accessibility Inspector   |
 
 ### 6.3 Deployment and Beyond
 

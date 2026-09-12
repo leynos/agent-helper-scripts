@@ -19,7 +19,8 @@ distinct and complementary purpose in a layered system.
 
 - **The Behavioural Layer: Radix UI.** At the foundation of every interactive
   component lies Radix UI. It provides a set of unstyled, "headless" primitives
-  that deliver complex behaviours and full WAI-ARIA compliance out of the box.
+  that deliver complex behaviours, following WAI-ARIA authoring practices and
+  handling many accessibility details out of the box.
   By abstracting away the intricate logic of accessibility—including focus
   management, keyboard navigation, and ARIA attribute wiring—Radix establishes
   a robust and reliable behavioural contract for all components.[^1]
@@ -557,7 +558,11 @@ A critical pattern for maintaining UI consistency is cache invalidation. After
 a successful mutation, the `onSuccess` callback is used to call
 `queryClient.invalidateQueries`. This marks the relevant cached data as stale,
 and Tanstack Query will automatically refetch it in the background to ensure
-the UI reflects the latest server state.[^3]
+the UI reflects the latest server state.[^3] By default, `invalidateQueries`
+uses `refetchType: 'active'`: only queries with active observers refetch
+immediately, while other matching queries are simply marked stale and refetch
+the next time they are used. Passing `refetchType: 'all'` forces an immediate
+refetch of every matching query, active or not.
 
 #### Defining the API Contract
 
@@ -877,16 +882,22 @@ user settings.
 
     //... props interface defined here...
 
-    export const UserSettingsModalView = ({ /* props */ }) => (
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay />
-        <AlertDialog.Content>
-          <AlertDialog.Title>{/* title text */}</AlertDialog.Title>
-          <Form.Root>
-            {/* Form fields will go here */}
-          </Form.Root>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
+    export const UserSettingsModalView = ({
+      open,
+      onOpenChange,
+      /* other props */
+    }) => (
+      <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay />
+          <AlertDialog.Content>
+            <AlertDialog.Title>{/* title text */}</AlertDialog.Title>
+            <Form.Root>
+              {/* Form fields will go here */}
+            </Form.Root>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     );
 
     ```

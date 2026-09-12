@@ -32,7 +32,7 @@ short, it provides:
 **py-pglite** achieves this by running a WebAssembly-based Postgres engine
 under the hood (PGlite) inside a Node.js
 runtime([2](https://void.abn.is/a-python-project-postgresql-and-wasm/)).
-(You’ll need Node.js 18+ installed, as the first run will fetch the PGlite WASM
+(Node.js 18+ must be installed; the first run fetches the PGlite WASM
 package.) Once installed with `pip install py-pglite[sqlalchemy]`, it
 integrates with PyTest to make database testing almost seamless.
 
@@ -140,11 +140,20 @@ async def test_async_insert_and_query():
     # Start a PGlite instance manually and get connection details
     from py_pglite import PGliteConfig, PGliteManager
 
-    config = PGliteConfig(tcp_port=54321, tcp_host="127.0.0.1")  # use TCP mode on a free port
-    async with PGliteManager(config) as pg_manager:  # start the Postgres WASM instance
+    import os
+
+    # Derive a unique port per pytest-xdist worker to avoid collisions.
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+    tcp_port = 54321 + int(worker_id.replace("gw", "") or 0)
+    config = PGliteConfig(tcp_port=tcp_port, tcp_host="127.0.0.1")  # use TCP mode
+    with PGliteManager(config) as pg_manager:  # start the Postgres WASM instance
         # Build an AsyncEngine using asyncpg driver
         pg_url = f"postgresql+asyncpg://postgres:postgres@{config.tcp_host}:{config.tcp_port}/postgres"
-        async_engine = create_async_engine(pg_url, future=True)
+        async_engine = create_async_engine(
+            pg_url,
+            future=True,
+            connect_args={"server_settings": {}, "ssl": False},
+        )
         async with async_engine.begin() as conn:
             # (Optionally, run Alembic migrations here or create tables)
             await conn.run_sync(Base.metadata.create_all)
@@ -239,10 +248,13 @@ and reuse the database for speed, but ensure each test starts from a known empty
 state**([3](https://hoop.dev/blog/the-simplest-way-to-make-postgresql-pytest-work-like-it-should/)).
 
 When a shared py-pglite instance is also shared across `pytest-xdist` workers,
-guard schema resets with a lock (for example a file lock or a module-level
-`asyncio.Lock` acquired around the drop/recreate step). Without this, one
-worker can drop the schema while another is mid-migration, producing
-intermittent, hard-to-reproduce failures.
+guard schema resets with an inter-process file lock acquired around the whole
+drop-and-recreate sequence, or give each worker a separate database or
+schema. A module-level `asyncio.Lock` does not help here: `pytest-xdist`
+workers are separate OS processes, each with its own Python interpreter and
+event loop, so an `asyncio.Lock` in one process is invisible to the others.
+Without process-level coordination, one worker can drop the schema while
+another is mid-migration, producing intermittent, hard-to-reproduce failures.
 
 ## Applying Alembic Migrations in Tests
 
@@ -259,7 +271,7 @@ the test setup as follows:
   another fixture that depends on it:
 
 ```python
-import alembic
+from alembic import command
 from alembic.config import Config
 
 
@@ -268,7 +280,7 @@ def migrated_engine(pglite_engine):
     # Point Alembic to the test DB URL
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", str(pglite_engine.url))
-    alembic.command.upgrade(alembic_cfg, "head")
+    command.upgrade(alembic_cfg, "head")
     yield pglite_engine
     # (Optionally, downgrade or clean after tests)
 ```
@@ -322,20 +334,27 @@ test database** instead of the production database. Approaches include:
   from that engine. For example:
 
 ```python
+import pytest
 from fastapi.testclient import TestClient
 from myapp.main import app, get_db  # the FastAPI app and the original dependency
 from sqlalchemy.orm import Session
 
 
-def test_create_user_api(pglite_engine):
+@pytest.fixture
+def client(pglite_engine):
     # Override get_db to use pglite_engine
     def override_get_db():
         with Session(pglite_engine) as session:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
 
-    client = TestClient(app)
+
+def test_create_user_api(client):
     resp = client.post("/users/", json={"name": "Bob", "email": "[email protected]"})
     assert resp.status_code == 200
     # ... further assertions ...
@@ -345,7 +364,8 @@ In this snippet, a new Session bound to the `pglite_engine` is injected for each
 request.[^py-pglite-guide] The test client calls the override, using the
 in-memory Postgres. The API is therefore exercised against the ephemeral DB and
 **no data goes to the real database**. After the test, remove the override if
-needed (FastAPI’s `TestClient` typically resets overrides when disposed).
+needed. `app.dependency_overrides` is a plain dict attached to the application
+object, so it persists across tests unless removed explicitly.
 
 - **Flask or others:** If an application uses a global SQLAlchemy `db` object
   or sessionmaker, configure it for tests. For instance, create a PyTest

@@ -42,7 +42,7 @@ as a guiding philosophy and a benchmark for the architecture detailed in this
 report, outlining the tangible user-facing benefits that this approach aims to
 deliver.[^1]
 
-1. **No spinners: your work at your fingertips.** The most immediate and
+1. **No spinners: work at the user's fingertips.** The most immediate and
    perceptible benefit of a local-first architecture is its speed. Because all
    operations read from and write to a local database on the device, the user
    interface can respond instantly to user input. There is no need to wait for
@@ -51,7 +51,7 @@ deliver.[^1]
    cloud-centric applications, creating a fluid and responsive user
    experience.[^1] Data synchronization with other devices or collaborators
    occurs quietly and asynchronously in the background.
-2. **Your work is not trapped on one device.** While the primary copy of the
+2. **Users' work is not trapped on one device.** While the primary copy of the
    data resides locally, a core tenet of modern computing is the ability to
    access information from multiple devices. Local-first applications achieve
    this by ensuring that data is seamlessly synchronized across all of a user's
@@ -63,7 +63,7 @@ deliver.[^1]
    data without interruption. When a network connection becomes available, the
    application opportunistically synchronizes any local changes with the server
    and pulls down updates from other clients.[^1]
-4. **Seamless collaboration with your colleagues.** Local-first architecture
+4. **Seamless collaboration with colleagues.** Local-first architecture
    does not sacrifice the collaborative capabilities that have made cloud
    applications indispensable. The goal is to support real-time, multi-user
    collaboration that is on par with, or even superior to, existing cloud-based
@@ -84,7 +84,7 @@ deliver.[^1]
    via a server, it can be end-to-end encrypted. This ensures that the server
    operator cannot access the content of the user's data, only store the
    encrypted blobs.[^1]
-7. **You retain ultimate ownership and control.** Perhaps the most profound
+7. **Users retain ultimate ownership and control.** Perhaps the most profound
    philosophical shift is the restoration of data ownership to the user.
    Because the data resides in files on their local device, users have ultimate
    agency. They can back it up, move it, manipulate it with other tools, or
@@ -139,7 +139,7 @@ disciplined separation of these two state types.
   cache of this remote data. It is inherently asynchronous, as it must be
   fetched over a network. It is also shared, meaning other users or processes
   can change it without the client's direct knowledge, causing the local cache
-  to become "stale".[^3] In the context of our local-first architecture, this
+  to become "stale".[^3] In the context of this local-first architecture, this
   "server state" is mirrored and persisted on the client's device, becoming the
   primary data source that the application interacts with, but its lifecycle
   and synchronization challenges remain.
@@ -192,7 +192,7 @@ libraries that are purpose-built for their respective domains.
   global client state an application needs, often reducing it to just a few UI
   flags.[^6]
 
-This deliberate separation forms the cornerstone of our local-first
+This deliberate separation forms the cornerstone of this local-first
 architecture. It allows each library to perform the task for which it was
 designed, resulting in a system that is more performant, less complex, and
 easier to maintain at scale.
@@ -207,12 +207,11 @@ easier to maintain at scale.
 
 ## Mastering Client State with Zustand
 
-### Core Concepts: The ,`create`, API
+### Core Concepts: The `create` API
 
 Zustand's API is intentionally minimalist, centred around a single function:
 `create`. This function takes a "creator" function as an argument, which
 defines the initial state and the actions that can modify it.[^10] The
-
 `create` function returns a custom hook that can be used to access the store
 from any component in the application.
 
@@ -222,7 +221,6 @@ merging by default. This means developers can update a single property of an
 object without needing to manually spread the rest of the state (`{...state}`),
 reducing boilerplate and a common source of errors.[^10] Furthermore, the
 creator function also receives a
-
 `get` function, which allows actions to access the current state, enabling
 complex logic where the next state depends on the current one.[^10]
 
@@ -362,8 +360,8 @@ export default useSettingsStore;
 ```
 
 This simple example provides a gentle introduction to the concept of state
-persistence, which will be explored in much greater depth when we discuss
-persisting the server state cache in Section 6.
+persistence, which is explored in much greater depth when this report
+discusses persisting the server state cache in Section 6.
 
 ## Server State Synchronization with Tanstack Query
 
@@ -418,7 +416,7 @@ cached query and are often a point of confusion.
 (300,000 ms). This means that if a user navigates away from a page, the data
 for that page will be kept in the cache for 5 minutes. If they navigate back
 within that window, the data will be instantly available. After 5 minutes of
-inactivity, the data is deleted from the cache. As we will see in Section 6,
+inactivity, the data is deleted from the cache. As Section 6 shows,
 this setting has critical implications for building a local-first application,
 as the default value is insufficient for offline persistence.
 
@@ -695,7 +693,7 @@ imperative approach that manually synchronizes two separate state containers.
 
 A core ideal of local-first software is that the network is optional. To
 achieve this, the application's state must be persisted locally on the user's
-device. For our architecture, this means persisting the in-memory cache managed
+device. For this architecture, this means persisting the in-memory cache managed
 by Tanstack Query to a durable storage layer. This transforms the cache from a
 transient, session-based optimization into a robust, local database that
 enables full offline functionality.
@@ -795,7 +793,7 @@ import { createIDBPersister } from './lib/idbPersister';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+      gcTime: Infinity, // preserve offline data indefinitely
     },
   },
 });
@@ -803,14 +801,21 @@ const queryClient = new QueryClient({
 // 2. Create the IndexedDB persister
 const persister = createIDBPersister();
 
+// 3. Register a default mutationFn so paused mutations can be resumed
+//    after a page reload, when the in-memory function reference is lost
+queryClient.setMutationDefaults(['todos', 'mutate'], {
+  mutationFn: ({ id, data }) => api.updateTodo(id, data),
+});
+
 function App() {
   return (
-    // 3. Use PersistQueryClientProvider
+    // 4. Use PersistQueryClientProvider
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister }}
+      persistOptions={{ persister, maxAge: Infinity }}
+      onSuccess={() => queryClient.resumePausedMutations()}
     >
-      {/* The rest of your application */}
+      {/* The rest of the application */}
     </PersistQueryClientProvider>
   );
 }
@@ -823,12 +828,17 @@ Tanstack Query has a built-in `onlineManager` that tracks the network status of
 the application. By default, it operates in an "online" mode. If the
 application goes offline, any attempt to execute a mutation will be paused. The
 mutation will be held in a pending state and will automatically be fired as
-soon as network connectivity is restored.[^29] This default behaviour works
-seamlessly with the persistence layer. A user can perform multiple actions
-while offline; these actions are queued up as paused mutations, and the UI can
-be updated optimistically (as described in the next section). When the user
-comes back online, Tanstack Query will automatically execute the queued
-mutations, synchronizing the local changes with the server.[^26]
+soon as network connectivity is restored.[^29] This works seamlessly with the
+persistence layer for mutations that resume within the same page session. A
+user can perform multiple actions while offline; these actions are queued up
+as paused mutations, and the UI can be updated optimistically (as described in
+the next section). When the user comes back online, Tanstack Query will
+automatically execute the queued mutations, synchronizing the local changes
+with the server.[^26] If the page is reloaded while mutations are still
+paused, resumption is not automatic: the mutation must have a default
+`mutationFn` registered via `setMutationDefaults`, and
+`queryClient.resumePausedMutations()` must be called explicitly, typically
+from the persister's `onSuccess` callback.
 
 ______________________________________________________________________
 
@@ -919,7 +929,7 @@ self.addEventListener('message', (event: MessageEvent) => {
 self.addEventListener('fetch', (event: FetchEvent) => {
   const url = new URL(event.request.url);
 
-  // Keep this predicate tight: you do *not* want to hijack your entire site.
+  // Keep this predicate tight: it must not hijack the entire site.
   const isTile = url.pathname.includes('/tiles/');
   if (!isTile) return;
 
@@ -933,14 +943,14 @@ self.addEventListener('fetch', (event: FetchEvent) => {
       if (fresh.ok) await cache.put(event.request, fresh.clone());
       return fresh;
     } catch {
-      // Offline and not cached: choose your failure mode (empty tile, 404, etc.)
+      // Offline and not cached: choose an appropriate failure mode (empty tile, 404, etc.)
       return new Response('', { status: 503 });
     }
   })());
 });
 ```
 
-When you want "purge bundle X", you can either:
+To purge bundle X, either:
 
 - delete a whole cache by name, or
 - track per-URL membership in IndexedDB (metadata only) and selectively delete
@@ -948,13 +958,13 @@ When you want "purge bundle X", you can either:
 
 #### Option B (control-first): IndexedDB / Dexie for Tiles
 
-Use IndexedDB when you need explicit control over eviction, accounting, or
-non-HTTP sources. Dexie makes this approach ergonomic by giving you a "small
-SQLite" mental model over IndexedDB.
+IndexedDB is useful when explicit control over eviction, accounting, or
+non-HTTP sources is needed. Dexie makes this approach ergonomic, providing a
+"small SQLite" mental model over IndexedDB.
 
-You store tile blobs keyed by `{bundleId, z, x, y}` (or a compound key), and
-you teach your map library how to read from that store before falling back to
-the network.
+Tile blobs are stored keyed by `{bundleId, z, x, y}` (or a compound key), and
+the map library is taught to read from that store before falling back to the
+network.
 
 An illustrative Dexie schema:
 
@@ -984,9 +994,9 @@ class AppDB extends Dexie {
 }
 ```
 
-MapLibre in particular supports custom protocols; you can wire
-`app://bundle/z/x/y` to an IndexedDB lookup and return an `ArrayBuffer`. This
-route buys you deterministic storage and predictable purging, at the cost of
+MapLibre in particular supports custom protocols; `app://bundle/z/x/y` can be
+wired to an IndexedDB lookup that returns an `ArrayBuffer`. This route
+provides deterministic storage and predictable purging, at the cost of
 more bespoke integration code.
 
 ### Computing Tile URLs from Bounds
@@ -998,12 +1008,12 @@ For slippy-map/WebMercator tiles:
 
 ```ts
 const lon2tileX = (lon: number, z: number) =>
-  Math.floor(((lon + 180) / 360) * (1 << z));
+  Math.floor(((lon + 180) / 360) * (2 ** z));
 
 const lat2tileY = (lat: number, z: number) => {
   const rad = (lat * Math.PI) / 180;
   const n = Math.log(Math.tan(Math.PI / 4 + rad / 2));
-  return Math.floor((1 - n / Math.PI) / 2 * (1 << z));
+  return Math.floor((1 - n / Math.PI) / 2 * (2 ** z));
 };
 
 export function enumerateTiles(
@@ -1011,6 +1021,13 @@ export function enumerateTiles(
   zMin: number,
   zMax: number
 ) {
+  if (!Number.isInteger(zMin) || !Number.isInteger(zMax)) {
+    throw new RangeError('zMin and zMax must be integers');
+  }
+  if (zMin < 0 || zMax < zMin) {
+    throw new RangeError('zMin must be >= 0 and zMax must be >= zMin');
+  }
+
   const [minLng, minLat, maxLng, maxLat] = bounds;
 
   const tiles: Array<{ z: number; x: number; y: number }> = [];
@@ -1030,14 +1047,14 @@ export function enumerateTiles(
 }
 ```
 
-In practice you will also:
+In practice, it is also necessary to:
 
 - cap bundle size (hard limits, user-configured limits, "Wi-Fi only" toggles),
 - download with bounded concurrency and cancellation,
 - show progress based on tiles completed / bytes completed,
 - handle quota errors and "persistent storage" requests
   (`navigator.storage.persist()`), and
-- version bundles so you can invalidate old caches cleanly when the basemap
+- version bundles so old caches can be invalidated cleanly when the basemap
   style changes.
 
 ______________________________________________________________________
@@ -1045,13 +1062,13 @@ ______________________________________________________________________
 ## Durable Offline Writes: An Outbox (Because Reality Dislikes Perfect Networks)
 
 TanStack Query's paused-offline-mutation behaviour covers a surprising amount
-of ground. However, you often still want an explicit **durable outbox** when:
+of ground. However, an explicit **durable outbox** is often still wanted when:
 
-- you need pending writes to survive refreshes and restarts,
-- you want richer retry/backoff logic than “try again when online”,
-- you want to group multiple client actions into a single server transaction,
+- pending writes need to survive refreshes and restarts,
+- richer retry/backoff logic than "try again when online" is wanted,
+- multiple client actions need to be grouped into a single server transaction,
   or
-- you want an audit trail of "what did we try to send?".
+- an audit trail of "what was attempted?" is wanted.
 
 This is the "Query as the authoritative local view, outbox as sync
 bookkeeping" approach.
@@ -1100,7 +1117,7 @@ A straightforward sync loop:
   - on success: mark `done`, invalidate/refresh relevant queries,
   - on failure: increment attempt count, mark `failed` or requeue with backoff.
 
-Because the outbox uses durable storage, you can run this loop from:
+Because the outbox uses durable storage, this loop can run from:
 
 - the app runtime,
 - a service worker (Background Sync when supported), or
@@ -1121,12 +1138,12 @@ distinct characteristics is essential for designing an efficient and responsive
 data synchronization layer.
 
 - **REST (Representational State Transfer):** Built on top of HTTP, REST is a
-  stateless, request-response protocol. Each interaction involves the client
-  sending a request and the server sending a response, after which the
-  connection is closed. This model is simple, scalable, and well-supported by
-  web infrastructure. It is ideal for standard CRUD (Create, Read, Update,
-  Delete) operations, such as fetching the initial state of a resource or
-  submitting a form.[^31]
+  stateless, request-response protocol. Each interaction is a discrete
+  request-response exchange, although the underlying connection may remain
+  open and be reused for later requests (as with HTTP keep-alive). This model
+  is simple, scalable, and well-supported by web infrastructure. It is ideal
+  for standard CRUD (Create, Read, Update, Delete) operations, such as
+  fetching the initial state of a resource or submitting a form.[^31]
 - **WebSockets:** The WebSocket protocol provides a stateful, persistent, and
   bidirectional (full-duplex) communication channel over a single TCP
   connection. Once the initial handshake is complete, the connection remains
@@ -1312,8 +1329,9 @@ function TodoSocketBridge() {
       // Directly update the cache for the specific todo
       queryClient.setQueryData(['todos', 'detail', newTodo.id], newTodo);
 
-      // Also update the list cache to include/update the new todo
-      queryClient.setQueryData(['todos', 'list'], (oldData = []) => {
+      // Also update every cached list variant (e.g. filtered views) that
+      // shares the 'todos', 'list' prefix, not just the unfiltered key
+      queryClient.setQueriesData({ queryKey: ['todos', 'list'] }, (oldData = []) => {
         const exists = oldData.some(todo => todo.id === newTodo.id);
         if (exists) {
           return oldData.map(todo => (todo.id === newTodo.id ? newTodo : todo));
@@ -1338,7 +1356,7 @@ application features involve complex, multi-step processes, intricate user
 flows, or behaviours with a finite number of well-defined states. For these
 scenarios, a more robust solution is needed to prevent bugs and manage
 complexity. This is where XState, a library for creating and managing state
-machines and statecharts, becomes an invaluable addition to our
+machines and statecharts, becomes an invaluable addition to this
 architecture.[^44]
 
 ### Introducing XState: Beyond State Management to State Orchestration
@@ -1352,7 +1370,7 @@ complex behaviour.[^47]
 
 The core concepts include[^47]:
 
-- **States:** A finite set of explicit conditions your application or component
+- **States:** A finite set of explicit conditions an application or component
   can be in (e.g., `idle`, `loading`, `success`, `error`). A machine can only
   be in one state at a time, which eliminates impossible states and reduces
   bugs.[^48]
@@ -1398,7 +1416,7 @@ complex components or features that benefit from the rigour of a state machine.
 
 ### Best Practices for Seamless Integration with Tanstack Query
 
-Integrating XState into our architecture with Tanstack Query follows the same
+Integrating XState into this architecture with Tanstack Query follows the same
 core principle: **Tanstack Query owns the server state**.[^54] The state
 machine should not duplicate this state but rather react to it.
 
@@ -1410,7 +1428,7 @@ source of events.
    single source of truth for the data itself, as well as its asynchronous
    lifecycle (`isPending`, `isSuccess`, `isError`).
 2. **Feed Query State into the Machine:** Use a `useEffect` hook to observe the
-   state of `useQuery` and send corresponding events to your XState machine.
+   state of `useQuery` and send corresponding events to the XState machine.
 3. **Machine Manages UI State:** The machine transitions based on these events,
    controlling what the user sees (e.g., a loading spinner, the data, or an
    error message with a retry button).
@@ -1569,15 +1587,15 @@ However, some requirements change the game:
 - **Strong guarantees about convergence** (every replica ends up identical)
   without user mediation.
 
-When those show up, you should consider purpose-built local-first databases and
+When those show up, purpose-built local-first databases and
 sync engines:
 
 - **RxDB:** a browser/Node database on top of IndexedDB/SQLite with
   replication and conflict handling. It can integrate with Query, but in
-  practice it starts to _own_ your server state lifecycle.
+  practice it starts to _own_ the application's server state lifecycle.
 - **ElectricSQL (+ local SQLite):** a Postgres-centric approach that syncs
-  into a local replica (often with CRDT-based merge semantics). It pushes you
-  towards a database-first architecture.
+  into a local replica (often with CRDT-based merge semantics). It pushes
+  applications towards a database-first architecture.
 - **Replicache / CRDT toolkits (Automerge, Yjs):** best suited to
   collaborative editing. They can feel like overkill until the day they are not.
 
@@ -1595,7 +1613,7 @@ evolution, providing a higher-level abstraction specifically designed for
 local-first and real-time applications.[^17]
 
 Tanstack DB builds directly on top of Tanstack Query, extending it with a set
-of primitives that formalize the patterns we have manually constructed in this
+of primitives that formalize the patterns manually constructed earlier in this
 guide[^43]:
 
 - **Collections:** A formal local store primitive that acts as the client-side
@@ -1855,7 +1873,7 @@ August 20, 2025,
 [https://electric-sql.com/blog/2025/07/29/local-first-sync-with-tanstack-db](https://electric-sql.com/blog/2025/07/29/local-first-sync-with-tanstack-db)
 
 [^44] XState | Stately, accessed on August 21, 2025,
-[https://stately.ai/docs/xstate](https://stately.ai/docs/xstate)[^45]
+[https://stately.ai/docs/xstate](https://stately.ai/docs/xstate); also
 statelyai/xstate: Actor-based state management & orchestration for complex app
 logic. - GitHub, accessed on August 21, 2025,
 [https://github.com/statelyai/xstate](https://github.com/statelyai/xstate)
