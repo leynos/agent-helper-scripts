@@ -195,9 +195,26 @@ ignore = [
   'HashiCorp',
   'currentColor',
   '\{COLOR\}',
-  # Inline code spans quoting CSS identifiers, CLI flags, Rust attribute
-  # arguments, generic parameters, and deliberately misspelt example names.
-  '`[^`\n]*(?:color|center|flavor|artifact|Ser|iamge_id)[^`\n]*`',
+  '\{color\}',
+  # CSS custom properties and colour functions whose identifiers carry the US
+  # spelling, for example `--color-primary`, `--tw-color-red-500`, and
+  # `color-mix()`. Only the identifier is exempt, not the span around it.
+  '--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*',
+  '\bcolor-(?:mix|contrast)\b',
+  # Web application manifest members.
+  '\b(?:background|theme)_color\b',
+  # Tailwind and daisyUI alignment class names.
+  '\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\b',
+  # The `tokio` runtime-flavour attribute argument.
+  '\bflavor = ',
+  # `act` command-line options for artefact export.
+  '\bartifact-(?:name|server-path)\b',
+  # A generic parameter in the Wireframe application-factory signature.
+  '\bAppFactory<Ser\b',
+  # A deliberately misspelt identifier in a diagnostics example.
+  '\bvar\.iamge_id\b',
+  # The US spelling quoted as an example of an API that keeps it.
+  '`color`',
 ]
 
 [files]
