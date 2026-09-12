@@ -18,8 +18,8 @@ for common UI components. This guide covers version 5.3.x.
    the CSS file if it's a node dependency.
 3. daisyUI 5 can be installed using `npm i -D daisyui@latest` and then adding
    `@plugin "daisyui";` to the CSS file
-4. daisyUI is suggested to be installed as a dependency but if you really want
-   to use it from CDN, you can use Tailwind CSS and daisyUI CDN files:
+4. daisyUI is suggested to be installed as a dependency but to use it from a
+   CDN instead, use Tailwind CSS and daisyUI CDN files:
 
 ```html
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
@@ -36,28 +36,28 @@ for common UI components. This guide covers version 5.3.x.
 
 ## daisyUI 5 usage rules
 
-1. We can give styles to a HTML element by adding daisyUI class names to it. By
-   adding a component class name, part class names (if there's any available
-   for that component), and modifier class names (if there's any available for
-   that component)
+1. Styles are applied to an HTML element by adding daisyUI class names to it.
+   By adding a component class name, part class names (if there's any
+   available for that component), and modifier class names (if there's any
+   available for that component)
 2. Components can be customized using Tailwind CSS utility classes if the
    customization is not possible using the existing daisyUI classes. For example
    `btn px-10` sets a custom horizontal padding to a `btn`
 3. If customization of daisyUI styles using Tailwind CSS utility classes didn't
-   work because of CSS specificity issues, you can use the `!` at the end of
-   the Tailwind CSS utility class to override the existing styles. For example,
+   work because of CSS specificity issues, use the `!` at the end of the
+   Tailwind CSS utility class to override the existing styles. For example,
    `btn bg-red-500!` forcefully sets a custom background colour on a `btn`.
    This is a last resort solution and should be used sparingly.
 4. If a specific component or something similar to it doesn't exist in daisyUI,
-   you can create your own component using Tailwind CSS utility
+   create a custom component using Tailwind CSS utility
 5. when using Tailwind CSS `flex` and `grid` for layout, it should be
    responsive using Tailwind CSS responsive utility prefixes.
 6. Only allowed class names are existing daisyUI class names or Tailwind CSS
    utility classes.
-7. Ideally, you won't need to write any custom CSS. Using daisyUI class names
+7. Ideally, no custom CSS will need to be written. Using daisyUI class names
    or Tailwind CSS utility classes is preferred.
-8. suggested - if you need placeholder images, use
-   <https://picsum.photos/200/300> with the size you want
+8. suggested - if placeholder images are needed, use
+   <https://picsum.photos/200/300> with the size required
 9. suggested - when designing , don't add a custom font unless it's necessary
 10. don't add `bg-base-100 text-base-content` to body unless it's necessary
 11. For design decisions, use Refactoring UI book best practices
@@ -133,12 +133,12 @@ disabled
 
 ### daisyUI colour names
 
-- `primary`: Primary brand colour: the main colour of your brand.
+- `primary`: Primary brand colour: the main colour of the brand.
 - `primary-content`: Foreground content colour to use on the primary colour.
-- `secondary`: Secondary brand colour: the optional secondary colour of your
+- `secondary`: Secondary brand colour: the optional secondary colour of the
   brand.
 - `secondary-content`: Foreground content colour to use on the secondary colour.
-- `accent`: Accent brand colour: the optional accent colour of your brand.
+- `accent`: Accent brand colour: the optional accent colour of the brand.
 - `accent-content`: Foreground content colour to use on the accent colour.
 - `neutral`: Neutral dark colour for non-saturated parts of the UI.
 - `neutral-content`: Foreground content colour to use on the neutral colour.
@@ -219,17 +219,17 @@ this:
   /* preferred values for --radius-* : 0rem, 0.25rem, 0.5rem, 1rem, 2rem */
 
   --size-selector: 0.25rem; /* base size of selectors (checkbox, toggle, badge).
-    Value must be 0.25rem unless we intentionally want bigger selectors. In so it
-    can be 0.28125 or 0.3125. If we intentionally want smaller selectors, it can
+    Value must be 0.25rem unless bigger selectors are intended. In so it
+    can be 0.28125 or 0.3125. If smaller selectors are intended, it can
     be 0.21875 or 0.1875 */
   --size-field: 0.25rem; /* base size of fields (button, input, select, tab).
-    Value must be 0.25rem unless we intentionally want bigger fields. In so it
-    can be 0.28125 or 0.3125. If we intentionally want smaller fields, it can be
+    Value must be 0.25rem unless bigger fields are intended. In so it
+    can be 0.28125 or 0.3125. If smaller fields are intended, it can be
     0.21875 or 0.1875 */
 
-  --border: 1px; /* border size. Value must be 1px unless we intentionally want
-    thicker borders. In so it can be 1.5px or 2px. If we intentionally want
-    thinner borders, it can be 0.5px */
+  --border: 1px; /* border size. Value must be 1px unless thicker borders are
+    intended. In so it can be 1.5px or 2px. If thinner borders are
+    intended, it can be 0.5px */
 
   --depth: 1; /* only 0 or 1 – Adds a shadow and subtle 3D depth effect to components */
   --noise: 0; /* only 0 or 1 - Adds a subtle noise (grain) effect to components */
@@ -240,7 +240,7 @@ this:
 
 - All CSS variables above are required
 - Colours can be OKLCH or hex or other formats
-- If you're generating a custom theme, do not include the comments from the
+- When generating a custom theme, do not include the comments from the
   example above. Just provide the code.
 
 People can use <https://daisyui.com/theme-generator/> visual tool to create
@@ -280,10 +280,10 @@ where content is:
 - {MODIFIER} is optional and can have one of the modifier class names
 - Accordion uses radio inputs. All radio inputs with the same name work
   together and only one of them can be open at a time
-- If you have more than one set of accordion items on a page, use different
+- If there is more than one set of accordion items on a page, use different
   names for the radio inputs on each set
 - Replace {name} with a unique name for the accordion group
-- replace `{checked}` with `checked="checked"` if you want the accordion to be
+- replace `{checked}` with `checked="checked"` for the accordion to be
   open by default
 
 ### alert
@@ -336,9 +336,9 @@ Avatars are used to show a thumbnail
 
 - {MODIFIER} is optional and can have one of the modifier class names
 - Use `avatar-group` for containing multiple avatars
-- You can set custom sizes using `w-*` and `h-*`
-- You can use mask classes such as `mask-squircle`, `mask-hexagon`,
-  `mask-triangle`
+- Custom sizes can be set using `w-*` and `h-*`
+- Mask classes such as `mask-squircle`, `mask-hexagon`, `mask-triangle` can
+  be used
 
 ### badge
 
@@ -388,7 +388,7 @@ Breadcrumbs helps users to navigate
 
 - breadcrumbs only has one main class name
 - Can contain icons inside the links
-- If you set `max-width` or the list gets larger than the container it will
+- If `max-width` is set, or the list gets larger than the container, it will
   scroll
 
 ### button
@@ -419,8 +419,8 @@ Buttons allow the user to take actions
   colour/style/behaviour/size/modifier class names
 - btn can be used on any html tags such as `<button>`, `<a>`, `<input>`
 - btn can have an icon before or after the text
-- set `tabindex="-1" role="button" aria-disabled="true"` if you want to disable
-  the button using a class name
+- set `tabindex="-1" role="button" aria-disabled="true"` to disable the
+  button using a class name
 
 ### calendar
 
@@ -602,14 +602,14 @@ Collapse is used for showing and hiding content
 #### Rules — collapse
 
 - {MODIFIER} is optional and can have one of the modifier class names
-- instead of `tabindex="0"`, you can use  `<input type="checkbox">` as a first
-  child
+- instead of `tabindex="0"`, `<input type="checkbox">` can be used as a
+  first child
 - Can also be a details/summary tag
 
 ### countdown
 
-Countdown gives you a transition effect when you change a number between 0 to
-999
+Countdown provides a transition effect when a number is changed between 0
+to 999
 
 [countdown docs](https://daisyui.com/components/countdown/)
 
@@ -628,8 +628,8 @@ Countdown gives you a transition effect when you change a number between 0 to
 #### Rules — countdown
 
 - The `--value` CSS variable and text must be a number between 0 and 999
-- you need to change the span text and the `--value` CSS variable using JS
-- you need to add `aria-live="polite"` and `aria-label="{number}"` so screen
+- the span text and the `--value` CSS variable need to be changed using JS
+- `aria-live="polite"` and `aria-label="{number}"` need to be added so screen
   readers can properly read changes
 
 ### diff
@@ -785,8 +785,8 @@ small screen:
 </div>
 ```
 
-Example: This sidebar is always visible. When it's close we only see iocns,
-when it's open we see icons and text
+Example: This sidebar is always visible. When closed only icons are
+visible, when open both icons and text are visible
 
 ```html
 <div class="drawer lg:drawer-open">
@@ -829,11 +829,11 @@ when it's open we see icons and text
 
 - {MODIFIER} is optional and can have one of the modifier/placement class names
 - `id` is required for the `drawer-toggle` input. change `my-drawer` to a
-  unique id according to your needs
+  unique id as needed
 - `lg:drawer-open` can be used to make sidebar visible on larger screens
 - `drawer-toggle` is a hidden checkbox. Use label with "for" attribute to
   toggle state
-- if you want to open the drawer when a button is clicked, use
+- to open the drawer when a button is clicked, use
   `<label for="my-drawer" class="btn drawer-button">Open drawer</label>` where
   `my-drawer` is the id of the `drawer-toggle` input
 - when using drawer, every page content must be inside `drawer-content`
@@ -1011,8 +1011,8 @@ circle, so tooltips are used to indicate the button's function
 
 - {Icon*} should be replaced with the appropriate icon for each button. SVG
   icons are recommended
-- {IconOriginal} is the icon that we see before opening the FAB
-- {IconMainAction} is the icon we see after opening the FAB
+- {IconOriginal} is the icon shown before the FAB is opened
+- {IconMainAction} is the icon shown after the FAB is opened
 - {Icon1}, {Icon2}, {Icon3} are the icons for the additional buttons
 - {Label*} is the label text for each button
 
@@ -1040,7 +1040,7 @@ fieldset-legend as a title and label as a description
 
 #### Rules — fieldset
 
-- You can use any element as a direct child of fieldset to add form elements
+- Any element can be used as a direct child of fieldset to add form elements
 
 ### file-input
 
@@ -1106,8 +1106,8 @@ Without HTML form
 
 - replace `{NAME}` with proper value, according to the context of the filter
 - Each set of radio inputs must have unique `name` attributes to avoid conflicts
-- Use `<form>` tag when possible and only use `<div>` if you can't use a HTML
-  form for some reason
+- Use `<form>` tag when possible and only use `<div>` if a HTML form cannot
+  be used for some reason
 - Use `filter-reset` class for the reset button
 
 ### footer
@@ -1168,7 +1168,7 @@ description
 ### hover-gallery
 
 Hover Gallery is container of images. The first image is visible be default and
-when we hover it horizontally, other images show up. Hover Gallery is useful
+when it is hovered horizontally, other images show up. Hover Gallery is useful
 for product cards in ecommerce sites, portfoilios or in image galleries. Hover
 Gallery can include up to 10 images.
 
@@ -1249,8 +1249,8 @@ Text Input is a simple input field
 
 - {MODIFIER} is optional and can have one of each style/colour/size class names
 - Can be used with any input field type (text, password, email, etc.)
-- Use `input` class for the parent when you have more than one element inside
-  input
+- Use `input` class for the parent when there is more than one element
+  inside input
 
 ### join
 
@@ -1383,7 +1383,7 @@ List is a vertical layout to display information in rows
 
 - Use `list-row` for each item inside the list
 - By default, the second child of the `list-row` will fill the remaining space.
-  You can use `list-col-grow` on another child to make it fill the remaining
+  `list-col-grow` can be used on another child to make it fill the remaining
   space instead
 - Use `list-col-wrap` to force an item to wrap to the next line
 
@@ -1434,8 +1434,8 @@ Mask crops the content of the element to common shapes
 #### Rules — mask
 
 - {MODIFIER} is required and can have one of the style/modifier class names
-- You can change the shape of any element using `mask` class names
-- You can set custom sizes using `w-*` and `h-*`
+- The shape of any element can be changed using `mask` class names
+- Custom sizes can be set using `w-*` and `h-*`
 
 ### menu
 
@@ -1552,7 +1552,7 @@ Phone mockup shows a mockup of an iPhone
 
 #### Rules — mockup-phone
 
-- Inside `mockup-phone-display` you can add anything
+- Anything can be added inside `mockup-phone-display`
 
 ### mockup-window
 
@@ -1574,7 +1574,7 @@ Window mockup shows a box that looks like an operating system window
 
 ### modal
 
-Modal is used to show a dialog or a box when you click a button
+Modal is used to show a dialog or a box when a button is clicked
 
 [modal docs](https://daisyui.com/components/modal/)
 
@@ -1696,7 +1696,7 @@ of time
 #### Rules — progress
 
 - {MODIFIER} is optional and can have one of the colour class names
-- You must specify value and max attributes
+- value and max attributes must be specified
 
 ### radial-progress
 
@@ -1718,9 +1718,9 @@ passing of time
 #### Rules — radial-progress
 
 - The `--value` CSS variable and text must be a number between 0 and 100
-- you need to add `aria-valuenow="{value}"`, `aria-valuenow={value}` so screen
-  readers can properly read value and also show that its a progress element to
-  them
+- `aria-valuenow="{value}"`, `aria-valuenow={value}` need to be added so
+  screen readers can properly read value and also show that it is a
+  progress element
 - Use `div` instead of progress because browsers can't show text inside
   progress tag
 - Use `--size` for setting size (default 5rem) and `--thickness` to set how
@@ -1774,7 +1774,7 @@ Range slider is used to select a value by sliding a handle
 #### Rules — range
 
 - {MODIFIER} is optional and can have one of each colour/size class names
-- You must specify `min` and `max` attributes
+- `min` and `max` attributes must be specified
 
 ### rating
 
@@ -1871,8 +1871,8 @@ Stack visually puts elements on top of each other
 #### Rules — stack
 
 - {MODIFIER} is optional and can have one of the modifier class names
-- You can use `w-*` and `h-*` classes to set the width and height of the stack,
-  making all items the same size
+- `w-*` and `h-*` classes can be used to set the width and height of the
+  stack, making all items the same size
 
 ### stat
 
@@ -1898,7 +1898,7 @@ Stat is used to show numbers and data in a block
 #### Rules — stat
 
 - {MODIFIER} is optional and can have one of the direction class names
-- It's horizontal by default but you can make it vertical with the
+- It's horizontal by default but it can be made vertical with the
   `stats-vertical` class
 - Content includes `stat-title`, `stat-value`, `stat-desc` inside a `stat`
 
@@ -1954,13 +1954,12 @@ Steps can be used to show a list of steps in a process
 
 - {MODIFIER} is optional and can have one of each direction/colour class names
 - To make a step active, add the `step-primary` class
-- You can add an icon in each step using `step-icon` class
+- An icon can be added in each step using `step-icon` class
 - To display data in `data-content` ,use `data-content="{value}"` at the `<li>`
 
 ### swap
 
-Swap allows you to toggle the visibility of two elements using a checkbox or a
-class name
+Swap toggles the visibility of two elements using a checkbox or a class name
 
 [swap docs](https://daisyui.com/components/swap/)
 
