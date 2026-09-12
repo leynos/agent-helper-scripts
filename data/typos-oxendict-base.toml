@@ -190,6 +190,17 @@ ignore = [
   '\brust-analyzer\b',
   'Azure\s+Architecture\s+Center\s*\|\s*Microsoft\s+Learn\b',
   'GitHub\s+Flavored\s+Markdown\b(?:\s\(GFM\))?',
+  # Citation titles reproduced verbatim in the shared guidance documents.
+  # The Azure title above already covers the documentation library's own
+  # occurrence, whose line wrap the general whitespace class absorbs.
+  'How to organise your Rust tests',
+  # Product names and placeholder tokens the tokenizer would otherwise split.
+  'HashiCorp',
+  'currentColor',
+  '\{COLOR\}',
+  # Inline code spans quoting CSS identifiers, CLI flags, Rust attribute
+  # arguments, generic parameters, and deliberately misspelt example names.
+  '`[^`\n]*(?:color|center|flavor|artifact|Ser|iamge_id)[^`\n]*`',
 ]
 
 [files]
