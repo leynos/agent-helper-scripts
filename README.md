@@ -53,13 +53,13 @@ make spelling
 
 ## Gate recipes
 
-Every gate recipe in the Makefile is one command that lists the files it
-examines, so no recipe pipes a producer into a checker whose status hides the
-producer's. `scripts/gate_runner_cli.py` runs the spelling, `markdownlint` and
-`nixie` gates over the list each discovers, and fails when that list is empty,
-when a tool is missing, or when the tool reports a finding. Consumers
-regenerate their recipes from this template; see
-[ADR 006](docs/adr/006-fail-closed-gate-recipes.md).
+The shared `spelling`, `markdownlint` and `nixie` recipes in the Makefile are
+each one command that lists the files it examines, so none pipes a producer
+into a checker whose status hides the producer's. `scripts/gate_runner_cli.py`
+runs the spelling, `markdownlint` and `nixie` gates over the list each
+discovers, and fails when that list is empty, when a tool is missing, or when
+the tool reports a finding. Consumers regenerate their recipes from this
+template; see [ADR 006](docs/adr/006-fail-closed-gate-recipes.md).
 
 ## Developer guide
 

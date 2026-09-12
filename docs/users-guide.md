@@ -195,11 +195,18 @@ an incomplete repository scan cannot appear successful.
 ## Markdown linting
 
 `make markdownlint` lints every Markdown file it discovers under this
-checkout, pruning build, cache and vendored directories, and reads this
-checkout's `.markdownlint-cli2.jsonc`. Linting nothing is a failure: the gate
-stops with a diagnostic when discovery finds no Markdown file or when the
-linter is not installed. It is one of the gates `make ci` runs, in order:
-`check-fmt`, `markdownlint`, `lint`, `typecheck`, `test`, then `spelling`.
+checkout and reads this checkout's `.markdownlint-cli2.jsonc`. The walk prunes
+these directory names at any depth by default: `.git`, `.hypothesis`,
+`.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.terraform`, `.tox`,
+`.uv-cache`, `.uv-tools`, `.venv`, `__pycache__`, `_build`, `build`, `dist`,
+`htmlcov`, `node_modules`, `site`, and `target`. Passing `--exclude` (or
+setting `GATE_RUNNER_EXCLUDE`) replaces that default list rather than
+extending it; `--empty-exclude` clears it entirely. A directory the walk
+cannot read fails the gate instead of being skipped. Linting nothing is a
+failure: the gate stops with a diagnostic when discovery finds no Markdown
+file or when the linter is not installed. It is one of the gates `make ci`
+runs, in order: `check-fmt`, `markdownlint`, `lint`, `typecheck`, `test`, then
+`spelling`.
 
 `make nixie` validates Mermaid diagrams with `nixie` over the same discovered
 files. It is deliberately not part of `make ci`, because it renders through an

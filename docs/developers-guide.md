@@ -312,6 +312,47 @@ exits with the tool's own status. `GATE_RUNNER_*` environment variables supply
 the values the options carry, so a consumer can set `GATE_RUNNER_LINTER`
 instead of restating the flag.
 
+Discovery is its own module, `scripts/gate_discovery.py`. Its `tracked_paths()`
+entry point runs `git -C <repo> ls-files -z` and returns the sorted
+repository-relative paths, NUL delimiting each so a name containing a newline
+stays one entry; it raises when Git fails, carrying Git's own diagnostic, or
+when the list is empty. Its `markdown_paths()` entry point walks the tree for
+the `.md` suffix, matched case-insensitively so `README.MD` is a document,
+prunes excluded directory names at any depth, and returns sorted
+repository-relative paths. It passes an `onerror` callback to `os.walk`, so a
+directory the walk cannot read fails the gate rather than being silently
+skipped: without that callback a partial list reads as a finished scan. A
+caller-supplied `excludes` replaces the defaults rather than extending them.
+
+The default pruned names are `.git`, `.hypothesis`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `.terraform`, `.tox`, `.uv-cache`, `.uv-tools`,
+`.venv`, `__pycache__`, `_build`, `build`, `dist`, `htmlcov`, `node_modules`,
+`site` and `target`: version control, tool caches, virtual environments, and
+build, coverage or vendored output. They overlap the directory entries of the
+shared spelling base's `[files] exclude` list, so a gate descends into nothing
+the spelling policy already treats as outside the repository's own sources.
+
+A configured tool is a command line, split with `shlex.split`, so
+`MDLINT='bunx markdownlint-cli2'` works; it is not looked up on `PATH` as one
+long name. `markdownlint` and `nixie` name every discovered file explicitly
+rather than passing a glob, and `nixie` keeps `--no-sandbox` for the renderer
+it drives. A tool the operating system refuses to start is a gate error naming
+the refusal, such as an argument list too long for `execve`, rather than a
+traceback.
+
+The `spelling` gate generates the shared configuration at the path its
+`--config` option names (default `typos.toml`), requires that file to be
+tracked and undrifted, runs the phrase checker over tracked UTF-8 text, then
+runs the scanner once over every tracked file as `<scanner> --isolated
+--config <path> --force-exclude <files...>`. Generating where the option says
+matters: a tracked configuration under a custom name cannot satisfy the
+tracking and drift checks without ever having been regenerated from the merged
+policy. `--isolated` keeps the scan to the generated configuration, because
+`typos` otherwise merges a `typos.toml` it discovers beside the files it
+reads, so a nested or custom-named policy the gate never generated, never
+required to be tracked and never checked for drift could soften the verdict
+the gate reports as its own configuration's.
+
 The commands themselves live in `scripts/gate_runner.py`, which imports only
 the standard library. The Cyclopts front end is a separate module so tests can
 drive a gate with a command double standing in for its tool.
@@ -319,6 +360,32 @@ drive a gate with a command double standing in for its tool.
 contract: an empty or failed producer fails the gate before its tool is
 invoked, the tool receives the whole list in one invocation, and a tool that
 reports findings fails the gate with its own status.
+`tests/test_gate_discovery_properties.py` states the discovery contract as
+Hypothesis properties over generated directory trees: discovery returns
+exactly the Markdown outside the pruned directories, sorted and
+repository-relative, and honours a caller's exclusion list at any depth.
+
+### Policy merge boundary
+
+`scripts/typos_rollout_merge.py` is the boundary between the shared spelling
+base and a repository's local overlay. `typos_rollout.generate_config()`
+refreshes or reuses the base cache, loads the repository's `typos.local.toml`
+overlay with `local_overlay=True` when one exists — a sparse document that may
+omit the complete-authority fields — and merges it onto the base with
+`merge_dictionaries(base, local)`. The overlay side is merged on top, and the
+result is one deterministically ordered `Dictionary`.
+
+That `Dictionary` is the policy the runner and the phrase checker consume: it
+carries the Oxford stems, accepted words, word corrections, phrase
+corrections, ignore patterns, removed patterns and excluded files. The merge
+refuses to weaken the shared policy. A local correction that contradicts the
+base raises `ValueError`, as does a local overlay that both ignores and removes
+the same pattern, and `typos_rollout_policy.validate_local_exceptions()`
+rejects a local ignore pattern broad enough to mask ordinary prose or a file
+exclusion that names a universal glob such as `*.md` or `**/*`. Ignore patterns
+are checked for backreferences and for repetition that compounds ambiguity
+before any compiled pattern reaches the scanner, so a pattern that would
+introduce unbounded backtracking is refused rather than handed on.
 
 ### Markdown lint configuration
 
@@ -420,6 +487,8 @@ Sibling modules own one policy boundary each:
 - `typos_rollout_cache.py` owns cache records, validator metadata, and atomic
   persistence.
 - `typos_rollout_http.py` coordinates source-scoped local and HTTPS refreshes.
+- `typos_rollout_merge.py` merges the shared base with a repository's sparse
+  local overlay, refusing conflicts and exceptions that weaken shared policy.
 - `typos_rollout_render.py` expands Oxford stems and renders deterministic TOML.
 - `typos_rollout_check.py` enforces curated exact phrase corrections.
 - `typos_rollout_harvest.py` gathers contextual Oxford-form evidence.
