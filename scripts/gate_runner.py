@@ -102,20 +102,31 @@ def _run(command: Sequence[str], *, cwd: Path) -> None:
     Raises
     ------
     GateExecutionError
-        If the executable is not installed.
+        If the executable is not installed, or the operating system refuses
+        to start it.
     SystemExit
         If the tool reports a non-zero status, which is the gate failing.
     """
     resolved = [_resolve(command[0]), *command[1:]]
-    completed = subprocess.run(  # noqa: S603 - resolved executable, no shell.
-        resolved,
-        cwd=cwd,
-        check=False,
-        # ``xargs`` handed its children an empty standard input, so a gate
-        # never read from a terminal. Keeping that here stops a tool that
-        # would prompt from blocking a pipeline that has no one to answer it.
-        stdin=subprocess.DEVNULL,
-    )
+    try:
+        completed = subprocess.run(  # noqa: S603 - resolved executable, no shell.
+            resolved,
+            cwd=cwd,
+            check=False,
+            # ``xargs`` handed its children an empty standard input, so a gate
+            # never read from a terminal. Keeping that here stops a tool that
+            # would prompt from blocking a pipeline that has no one to answer
+            # it.
+            stdin=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        # A list too long for ``execve`` (E2BIG) reaches here because a gate
+        # names every file on one command line, as does a lost race between
+        # resolving the executable and starting it. Both are the operating
+        # system refusing the run, so both are the gate failing to run rather
+        # than a defect in the tool.
+        message = f"could not run '{command[0]}': {error}"
+        raise GateExecutionError(message) from error
     if completed.returncode != 0:
         raise SystemExit(completed.returncode)
 
@@ -218,6 +229,10 @@ def spelling(
 ) -> None:
     """Generate the shared spelling configuration and check tracked text.
 
+    The scanner runs against the generated configuration alone, so policy it
+    would otherwise discover beside the tracked files cannot decide the verdict
+    this gate reports.
+
     Parameters
     ----------
     repository
@@ -241,7 +256,17 @@ def spelling(
     SystemExit
         If a prohibited phrase is present, or the scanner reports findings.
     """
-    generated = typos_rollout.generate_config(repository, source, offline=offline)
+    # The configuration is generated where the option says it will be, not at
+    # a fixed name. Generated anywhere else, a tracked custom configuration
+    # would satisfy the checks below without ever having been regenerated from
+    # the merged policy, and the scanner would read a stale file the gate had
+    # just certified.
+    generated = typos_rollout.generate_config(
+        repository,
+        source,
+        destination=repository / config,
+        offline=offline,
+    )
     print(f"{generated.status}: {generated.path}")
     # Discovery comes first so a producer that fails or lists nothing is
     # reported as such. Left until later, a broken producer surfaces as an
@@ -255,6 +280,12 @@ def spelling(
     _run(
         [
             *shlex.split(typos),
+            # The scan applies the configuration the gate generated and no
+            # other. Without this, typos merges a ``typos.toml`` it discovers
+            # beside a file it reads, so nested or custom-named policy the gate
+            # never tracked or checked for drift could soften a verdict the
+            # gate reports as that configuration's.
+            "--isolated",
             "--config",
             relative,
             "--force-exclude",
@@ -276,7 +307,8 @@ def markdownlint(
     repository
         Directory tree to lint.
     linter
-        Markdown linter to run once over the discovered files.
+        Command line of the Markdown linter, split with shell rules, run once
+        over the discovered files.
     exclude
         Directory names pruned from the walk at any depth.
 
@@ -294,7 +326,10 @@ def markdownlint(
         gate="markdownlint",
         excludes=exclude,
     )
-    _run([linter, *(path.as_posix() for path in paths)], cwd=repository)
+    _run(
+        [*shlex.split(linter), *(path.as_posix() for path in paths)],
+        cwd=repository,
+    )
 
 
 def nixie(
@@ -309,7 +344,8 @@ def nixie(
     repository
         Directory tree whose diagrams should be rendered.
     validator
-        Mermaid validator to run once over the discovered files.
+        Command line of the Mermaid validator, split with shell rules, run
+        once over the discovered files.
     exclude
         Directory names pruned from the walk at any depth.
 
@@ -326,6 +362,10 @@ def nixie(
     # The sandbox is disabled because the renderer runs Chromium, which is
     # unavailable inside the containers and CI runners this gate serves.
     _run(
-        [validator, "--no-sandbox", *(path.as_posix() for path in paths)],
+        [
+            *shlex.split(validator),
+            "--no-sandbox",
+            *(path.as_posix() for path in paths),
+        ],
         cwd=repository,
     )

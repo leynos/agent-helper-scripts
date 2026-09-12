@@ -22,6 +22,7 @@ HYPHENATED_HANDWRITTEN = "hand" + "-written"
 TITLE_HYPHENATED_HANDWRITTEN = "Hand" + "-written"
 PLAIN_BRITISH_ORGANIZE = "organi" + "se"
 AMERICAN_COLOUR = "col" + "or"
+MISSPELLED_ARTICLE = "t" + "eh"
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
@@ -44,9 +45,15 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     assert "data/typos-oxendict-base.toml" in makefile, (
         "spelling target does not take its policy from the shared base"
     )
-    assert "--config typos.toml --force-exclude" not in makefile, (
-        "the target passes scanner flags itself; the runner owns that invocation"
+    assert "--typos" in makefile, (
+        "the spelling target does not hand its scanner to the gate runner"
     )
+    # Checked apart rather than as one ordered substring, so a recipe that
+    # reorders the flags, or writes them as ``--config=x``, is still caught.
+    for flag in ("--config", "--force-exclude"):
+        assert flag not in makefile, (
+            f"the target passes {flag} itself; the runner owns that invocation"
+        )
 
 
 def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
@@ -73,11 +80,14 @@ def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
     return repository
 
 
-def run_spelling_gate(repository: Path) -> subprocess.CompletedProcess[str]:
-    """Run generation and drift validation without invoking the real scanner."""
+def run_spelling_gate(
+    repository: Path,
+    scanner: str = "true",
+) -> subprocess.CompletedProcess[str]:
+    """Run the spelling target, doubling the scanner unless one is named."""
     make = require_executable("make")
     return subprocess.run(
-        [make, "spelling", "TYPOS=true"],
+        [make, "spelling", f"TYPOS={scanner}"],
         cwd=repository,
         check=False,
         capture_output=True,
@@ -247,6 +257,46 @@ def test_spelling_gate_rejects_hyphenated_hand_written(tmp_path: Path) -> None:
     )
     assert expected_diagnostic in result.stdout, (
         "spelling gate did not report the canonical handwritten replacement"
+    )
+
+
+@pytest.mark.slow
+def test_the_scan_ignores_policy_the_gate_did_not_generate(tmp_path: Path) -> None:
+    """The generated configuration alone decides the gate's verdict.
+
+    typos merges a ``typos.toml`` it finds beside the files it reads. Without
+    isolation a nested policy, which the gate never generated, never required
+    to be tracked as its configuration, and never checked for drift, could
+    soften the verdict the gate reports as its own configuration's.
+    """
+    repository = prepare_spelling_gate_repository(tmp_path)
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is unavailable to run the pinned typos binary")
+    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+    match = re.search(r"^TYPOS_VERSION\s*\?=\s*(\S+)", makefile, re.MULTILINE)
+    assert match is not None, "TYPOS_VERSION not found in Makefile"
+    docs = repository / "docs"
+    docs.mkdir()
+    (docs / "typos.toml").write_text(
+        f'[default]\nextend-ignore-re = ["{MISSPELLED_ARTICLE}"]\n',
+        encoding="utf-8",
+    )
+    (docs / "guide.md").write_text(
+        f"The {MISSPELLED_ARTICLE} marker.\n",
+        encoding="utf-8",
+    )
+    git = require_executable("git")
+    subprocess.run([git, "add", "docs"], cwd=repository, check=True, timeout=30)
+
+    result = run_spelling_gate(repository, f"uv tool run typos@{match.group(1)}")
+
+    assert result.returncode != 0, (
+        "the gate passed, so policy beside the scanned files decided the "
+        f"verdict: {result.stdout}"
+    )
+    assert "docs/guide.md" in result.stdout + result.stderr, (
+        "the gate failed without naming the file its own policy rejects"
     )
 
 

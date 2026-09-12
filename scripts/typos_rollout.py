@@ -190,6 +190,7 @@ def generate_config(
     repository: Path,
     source: str | Path,
     *,
+    destination: Path | None = None,
     offline: bool = False,
 ) -> GeneratedConfig:
     """Refresh the shared base and generate a repository's configuration.
@@ -204,6 +205,9 @@ def generate_config(
         Repository root receiving the cache and generated configuration.
     source
         Local path or HTTPS URL for the authoritative shared base.
+    destination
+        File to generate. Defaults to ``typos.toml`` in the repository, which
+        is the name the shared recipe uses.
     offline
         Reuse an existing valid cache without contacting the source.
 
@@ -233,7 +237,7 @@ def generate_config(
             dictionary,
             load_dictionary(local_overlay, local_overlay=True),
         )
-    path = repository / "typos.toml"
+    path = repository / "typos.toml" if destination is None else destination
     write_config(path, dictionary)
     return GeneratedConfig(status=result.status, dictionary=dictionary, path=path)
 

@@ -118,6 +118,11 @@ def test_the_scanner_runs_once_over_every_tracked_file(
 
     assert scanner.call_count == 1, scanner.invocations
     assert list(scanner.invocations[0].args) == [
+        # ``--isolated`` keeps the scan to the configuration the gate
+        # generated; typos otherwise merges a ``typos.toml`` it finds beside
+        # the files it reads, so policy the gate never checked could soften
+        # its verdict.
+        "--isolated",
         "--config",
         "typos.toml",
         "--force-exclude",
@@ -331,3 +336,132 @@ def test_the_command_line_reaches_every_gate_the_recipes_run() -> None:
         assert command in result.stdout, (
             f"the command line does not expose {command}: {result.stdout}"
         )
+
+
+def test_a_multi_token_tool_is_split_into_its_executable_and_arguments(
+    cmd_mox: CmdMox,
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """A configured tool is a command line, exactly as the scanner's is.
+
+    A consumer points the recipe at an override such as
+    ``MDLINT='bunx markdownlint-cli2'``. Read as one name, that override is
+    looked up on ``PATH`` whole and the gate refuses a linter that is in fact
+    installed.
+    """
+    written = write_markdown_tree(tmp_path, ("README.md",))
+    linter = cmd_mox.spy(LINTER).runs(silent)
+
+    gate.runner.markdownlint(
+        repository=tmp_path,
+        linter=f"{LINTER} --config 'my config.jsonc'",
+    )
+
+    assert list(linter.invocations[0].args) == [
+        "--config",
+        "my config.jsonc",
+        *(path.as_posix() for path in written),
+    ], "the runner treated the configured command line as one executable name"
+
+
+def test_the_config_option_decides_where_the_policy_is_generated(
+    cmd_mox: CmdMox,
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """A named configuration is written and scanned, not merely scanned.
+
+    Generated at a fixed name instead, a tracked configuration under any other
+    name passes the tracking and drift checks without ever having been
+    regenerated from the merged policy.
+    """
+    written = write_markdown_tree(tmp_path, ("README.md",))
+    cmd_mox.spy(GIT).runs(
+        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
+    )
+    scanner = cmd_mox.spy(SCANNER).runs(silent)
+
+    gate.runner.spelling(
+        repository=tmp_path,
+        source=SHARED_DICTIONARY_PATH,
+        typos=SCANNER,
+        config=Path("spelling-policy.toml"),
+    )
+
+    assert (tmp_path / "spelling-policy.toml").exists(), (
+        "the configuration was generated somewhere other than where the gate "
+        "says it reads it"
+    )
+    assert not (tmp_path / "typos.toml").exists(), (
+        "generation ignored the option and wrote the default name as well"
+    )
+    scanner_args = list(scanner.invocations[0].args)
+    assert scanner_args[scanner_args.index("--config") + 1] == (
+        "spelling-policy.toml"
+    ), scanner_args
+
+
+def test_a_tool_the_operating_system_refuses_to_start_is_a_gate_error(
+    gate: GateModules,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused start is reported as the gate failing to run.
+
+    A gate names every file on one command line, so a list long enough for
+    ``execve`` to refuse it is the realistic trigger here; a real argument list
+    that long is not portable, so the refusal is raised in its place.
+    """
+    write_markdown_tree(tmp_path, ("README.md",))
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        """Fail the way an oversized argument list does."""
+        raise OSError(7, "Argument list too long")
+
+    monkeypatch.setattr(gate.runner.subprocess, "run", refuse)
+
+    with pytest.raises(gate.runner.GateExecutionError) as failure:
+        gate.runner.markdownlint(repository=tmp_path, linter="/bin/true")
+
+    assert "could not run" in str(failure.value), (
+        "the operating system's refusal must reach the caller as a gate "
+        "diagnostic rather than as an uncaught error"
+    )
+
+
+@pytest.mark.slow
+def test_the_command_line_reports_a_failure_as_one_diagnostic(
+    tmp_path: Path,
+) -> None:
+    """A gate failure leaves the front end as one line, not a traceback."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is unavailable to run the gate command line")
+    result = subprocess.run(
+        [
+            uv,
+            "run",
+            "--script",
+            str(CLI_PATH),
+            "spelling",
+            "--repository",
+            str(tmp_path),
+            "--source",
+            str(SHARED_DICTIONARY_PATH),
+            "--typos",
+            "true",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+
+    assert result.returncode == 1, (result.returncode, result.stderr)
+    assert "gate_runner: error:" in result.stderr, (
+        "the failure did not reach the caller as the gate's own diagnostic"
+    )
+    assert "Traceback" not in result.stderr, (
+        "a gate that cannot list its files must not report a stack trace"
+    )

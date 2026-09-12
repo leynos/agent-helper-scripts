@@ -13,6 +13,7 @@ are reached the way the real gate reaches them.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import typing as typ
 
@@ -193,3 +194,54 @@ def test_the_handler_override_can_answer_one_call_specifically(
     cmd_mox.spy(GIT).runs(git_handler(listed="README.md\0", respond=respond))
 
     assert gate.discovery.tracked_paths(tmp_path, gate=GATE) == (Path("README.md"),)
+
+
+def test_an_uppercase_markdown_suffix_is_discovered(
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """Markdown is Markdown whatever case the suffix was written in."""
+    (tmp_path / "NOTES.Md").write_text("# notes\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# readme\n", encoding="utf-8")
+    (tmp_path / "data.json").write_text("{}\n", encoding="utf-8")
+
+    discovered = gate.discovery.markdown_paths(tmp_path, gate="markdownlint")
+
+    assert discovered == (Path("NOTES.Md"), Path("README.md")), (
+        "a document whose suffix differs only in case is still Markdown, and a "
+        f"non-Markdown file is still not; got {discovered}"
+    )
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0,
+    reason="root reads a directory mode 0 forbids to everyone else",
+)
+def test_a_directory_that_cannot_be_read_fails_the_walk(
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """An unreadable subtree fails the gate instead of being silently skipped.
+
+    ``os.walk`` swallows a ``scandir`` failure unless it is handed an
+    ``onerror`` callback. Without one the readable file below keeps the list
+    non-empty, the linter runs over a subset, and the gate reports a pass over
+    a tree it never finished reading.
+    """
+    (tmp_path / "README.md").write_text("# readme\n", encoding="utf-8")
+    unreadable = tmp_path / "private"
+    unreadable.mkdir()
+    (unreadable / "SECRET.md").write_text("# secret\n", encoding="utf-8")
+    unreadable.chmod(0o000)
+    try:
+        with pytest.raises(gate.discovery.GateDiscoveryError) as failure:
+            gate.discovery.markdown_paths(tmp_path, gate="markdownlint")
+    finally:
+        # Restore the mode so the temporary directory can be removed.
+        unreadable.chmod(0o700)
+
+    message = str(failure.value)
+    assert "markdownlint" in message, message
+    assert "could not read" in message, (
+        f"the failure must name the tree it could not read, got {message!r}"
+    )

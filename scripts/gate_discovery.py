@@ -30,21 +30,29 @@ import os
 from pathlib import Path
 import subprocess
 
-#: Directory names pruned while walking for Markdown files. They mirror the
-#: directory entries of the shared spelling base's ``[files] exclude`` list,
-#: so a gate never descends into a build, cache or vendored tree that the
-#: spelling policy already treats as outside the repository's own sources.
+#: Directory names pruned while walking for Markdown files: version control,
+#: tool caches, virtual environments, and build, coverage or vendored output.
+#: The names overlap the directory entries of the shared spelling base's
+#: ``[files] exclude`` list, so a gate descends into nothing the spelling
+#: policy already treats as outside the repository's own sources.
 DEFAULT_DIRECTORY_EXCLUDES: tuple[str, ...] = (
     ".git",
     ".hypothesis",
+    ".mypy_cache",
     ".pytest_cache",
+    ".ruff_cache",
     ".terraform",
     ".tox",
     ".uv-cache",
     ".uv-tools",
     ".venv",
+    "__pycache__",
+    "_build",
+    "build",
     "dist",
+    "htmlcov",
     "node_modules",
+    "site",
     "target",
 )
 
@@ -144,16 +152,32 @@ def markdown_paths(
     Returns
     -------
     tuple[Path, ...]
-        Repository-relative ``*.md`` paths, sorted.
+        Repository-relative ``*.md`` paths, sorted. The suffix is matched
+        without regard to case, so ``README.MD`` is a Markdown document here
+        just as it is to a reader.
 
     Raises
     ------
     GateDiscoveryError
-        If the walk finds no Markdown file.
+        If the walk finds no Markdown file, or cannot read a directory it
+        descends into.
     """
+
+    def refuse(error: OSError) -> None:
+        """Fail the gate rather than skipping a tree the walk could not read.
+
+        ``os.walk`` ignores a ``scandir`` failure unless it is given this
+        callback, so an unreadable directory would leave the remaining files
+        to be linted and the gate green, which is the fail-open shape the
+        pipeline had.
+        """
+        unreadable = error.filename or repository
+        detail = error.strerror or str(error)
+        raise GateDiscoveryError(gate, f"could not read {unreadable}: {detail}")
+
     pruned = frozenset(excludes)
     paths: list[Path] = []
-    for current, directories, filenames in os.walk(repository):
+    for current, directories, filenames in os.walk(repository, onerror=refuse):
         # Pruning in place stops the walk descending into a tree the caller
         # excluded, rather than filtering the files once they have been read.
         directories[:] = sorted(
@@ -162,7 +186,7 @@ def markdown_paths(
         paths.extend(
             (Path(current) / name).relative_to(repository)
             for name in sorted(filenames)
-            if name.endswith(".md")
+            if Path(name).suffix.casefold() == ".md"
         )
     discovered = tuple(sorted(paths))
     _require_paths(gate, discovered, "Markdown files")
