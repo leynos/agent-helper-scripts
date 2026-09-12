@@ -336,15 +336,19 @@ A configured tool is a command line, split with `shlex.split`, so
 `MDLINT='bunx markdownlint-cli2'` works; it is not looked up on `PATH` as one
 long name. `markdownlint` and `nixie` name every discovered file explicitly
 rather than passing a glob, and `nixie` keeps `--no-sandbox` for the renderer
-it drives. A tool the operating system refuses to start is a gate error naming
-the refusal, such as an argument list too long for `execve`, rather than a
-traceback.
+it drives. The discovered list is introduced by an option terminator, placed
+after the tool's own flags so those still parse. Git tracks a name that begins
+with a dash and discovery reports it as it found it, so `-guide.md` arrives as
+the first operand; unseparated, `typos` and `nixie` refuse it as an unknown
+flag and read no file at all. A tool the operating system refuses to start is
+a gate error naming the refusal, such as an argument list too long for
+`execve`, rather than a traceback.
 
 The `spelling` gate generates the shared configuration at the path its
 `--config` option names (default `typos.toml`), requires that file to be
 tracked and undrifted, runs the phrase checker over tracked UTF-8 text, then
 runs the scanner once over every tracked file as `<scanner> --isolated
---config <path> --force-exclude <files...>`. Generating where the option says
+--config <path> --force-exclude -- <files...>`. Generating where the option says
 matters: a tracked configuration under a custom name cannot satisfy the
 tracking and drift checks without ever having been regenerated from the merged
 policy. `--isolated` keeps the scan to the generated configuration, because
