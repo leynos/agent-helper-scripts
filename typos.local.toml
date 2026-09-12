@@ -12,7 +12,6 @@ accepted = [
   "analyzer",
   "edn",
   "ises",
-  "labeled",
   "mold",
 ]
 
@@ -39,6 +38,10 @@ ignore = [
   '\bmold\b',
   '\bartifact_name\b',
   '\bcolor:',
+  # GitHub's pull_request_target activity type. It is an identifier the
+  # automerge workflow matches on, so it cannot take the British spelling;
+  # matching the whole event list keeps the allowance off the word itself.
+  'labeled, ready_for_review',
 ]
 
 [files]

@@ -41,6 +41,7 @@ extend-ignore-re = [
     "`colorScheme`",
     "`colors`",
     "`hand-written`",
+    "labeled, ready_for_review",
 ]
 
 [default.extend-words]
@@ -1217,7 +1218,6 @@ extend-ignore-re = [
 "kernelizers" = "kernelizers"
 "kernelizes" = "kernelizes"
 "kernelizing" = "kernelizing"
-"labeled" = "labeled"
 "legitimisable" = "legitimizable"
 "legitimisably" = "legitimizably"
 "legitimisation" = "legitimization"

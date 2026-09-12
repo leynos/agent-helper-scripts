@@ -90,7 +90,7 @@ Use a crisp engineering aesthetic with readable annotation hierarchy.
 
 ```text
 Create an educational infographic explaining [topic].
-Include labeled components, arrows showing relationships, and a clean textbook-friendly vector style.
+Include labelled components, arrows showing relationships, and a clean textbook-friendly vector style.
 Use clear English labels and uncluttered spacing.
 ```
 
