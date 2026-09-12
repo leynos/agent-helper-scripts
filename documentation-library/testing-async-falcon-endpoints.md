@@ -196,7 +196,7 @@ from httpx import ASGITransport, AsyncClient
 @pytest.mark.asyncio
 async def test_root_endpoint(app):  # Assuming 'app' is provided by a fixture
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="<http://test>"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         response = await ac.get("/")
         # Assertions follow
@@ -283,7 +283,7 @@ def client_app():
 @pytest.mark.asyncio
 async def test_get_things(client_app):
     async with AsyncClient(
-        transport=ASGITransport(app=client_app), base_url="<http://test>"
+        transport=ASGITransport(app=client_app), base_url="http://test"
     ) as ac:
         response = await ac.get("/things")
     assert response.status_code == HTTPStatus.OK
@@ -294,7 +294,7 @@ async def test_get_things(client_app):
 async def test_post_things(client_app):
     payload = {"name": "My Thing", "value": 42}
     async with AsyncClient(
-        transport=ASGITransport(app=client_app), base_url="<http://test>"
+        transport=ASGITransport(app=client_app), base_url="http://test"
     ) as ac:
         response = await ac.post("/things", json=payload)
     assert response.status_code == HTTPStatus.CREATED
@@ -381,7 +381,7 @@ async def test_example_with_conductor():
         assert response.status_code == 200
 
         # For streaming endpoints (conceptual, actual iteration depends on endpoint):
-        # async with await conductor.simulate_get_stream("/events") as result:
+        # async with conductor.simulate_get_stream("/events") as result:
         #     events_received =
         #     async for chunk in result.stream:  # result.stream is an async_iterator
         #         events_received.append(chunk.decode("utf-8"))
@@ -447,16 +447,19 @@ return the coroutine object itself rather than its awaited result.
 
 ### Creating async fixtures with @pytest_asyncio.fixture
 
-To define an asynchronous fixture, the @pytest\_asyncio.fixture decorator must
-be used instead of the standard @pytest.fixture. This special decorator ensures
-that the async def fixture coroutine is properly executed within the
-pytest-asyncio managed event loop, and its awaited result is supplied to the
-test function. Failure to use @pytest\_asyncio.fixture for an async def fixture
-is a common pitfall. If @pytest.fixture is used, the test function will receive
-the raw coroutine object, leading to AttributeError or unexpected behaviour
-when the test attempts to use it as the actual fixture value. This distinction
-is critical for the correct functioning of asynchronous tests. An example of a
-simple asynchronous fixture:
+To define an asynchronous fixture, the @pytest\_asyncio.fixture decorator is
+the explicit, mode-independent way to mark an async def function as a
+fixture. In strict mode (the pytest-asyncio default), it must be used instead
+of the standard @pytest.fixture: if @pytest.fixture is used on an async def
+fixture under strict mode, the test function receives the raw coroutine
+object rather than its awaited result, leading to AttributeError or other
+unexpected behaviour. This guide configures asyncio\_mode = auto (see Section
+2), under which pytest-asyncio also detects and awaits async def fixtures
+declared with the plain @pytest.fixture, so the failure mode above does not
+apply. Even so, using @pytest\_asyncio.fixture explicitly is recommended in
+both modes, because it makes a fixture's asynchronous nature unambiguous to
+readers regardless of the configured asyncio\_mode. An example of a simple
+asynchronous fixture:
 
 ```python
 import asyncio
@@ -503,7 +506,7 @@ async def async_test_client(app):  # Assuming 'app' is a fixture providing the a
     # The httpx.AsyncClient itself is an async context manager.
     # Its __aenter__ and __aexit__ methods handle setup and teardown.
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="<http://test>"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
     # The client is automatically closed here upon exiting the 'async with' block.
@@ -1272,10 +1275,12 @@ import pytest
 #             await some_utility_that_might_fail_async()
 #             resp.media = {"status": "ok"}
 #         except ValueError as e:
-#             # Example: Catch specific error, log it, and return a generic server error
+#             # Log the exception server-side; never interpolate it into the
+#             # client-facing description, which could leak internal details.
 #             # In a real app, a project might have a custom error handler for ValueError
+#             logger.exception("Internal processing error")
 #             raise falcon.HTTPInternalServerError(
-#                 description=f"Internal processing error: {e}",
+#                 description="An internal error occurred while processing the request.",
 #             )
 
 
@@ -1290,7 +1295,10 @@ async def test_operation_raises_specific_exception(mocker, async_test_client):
     # If testing that the resource correctly translates this to a Falcon error:
     response = await async_test_client.get("/some_endpoint_that_uses_utility")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
-    assert "Simulated problem" in response.json().get("description", "")
+    assert (
+        response.json().get("description", "")
+        == "An internal error occurred while processing the request."
+    )
 ```
 
 ```python
