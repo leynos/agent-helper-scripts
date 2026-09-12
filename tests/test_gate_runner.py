@@ -41,6 +41,9 @@ NOT_A_REPOSITORY = "fatal: not a git repository (or any of the parent directorie
 # compound it builds is one the shipped policy prohibits.
 HYPHENATED_HANDWRITTEN = "hand" + "-written"
 SAMPLE_FINDING = f"README.md:1:8: {HYPHENATED_HANDWRITTEN} -> handwritten"
+# A name Git tracks and the walk reports unchanged, but which a tool reads as
+# an option unless the operand list is introduced by an option terminator.
+DASH_FILE = "-guide.md"
 
 
 def silent(_invocation: Invocation) -> tuple[str, str, int]:
@@ -126,8 +129,43 @@ def test_the_scanner_runs_once_over_every_tracked_file(
         "--config",
         "typos.toml",
         "--force-exclude",
+        "--",
         *(path.as_posix() for path in written),
     ], "the scanner did not receive the generated config and every file"
+
+
+def test_a_dash_prefixed_name_reaches_the_scanner_as_an_operand(
+    cmd_mox: CmdMox,
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """A tracked name beginning with a dash is read as a file, not an option.
+
+    Git tracks such a name and discovery reports it as it found it, so
+    ``-guide.md`` reaches the scanner first. Left there unseparated, it is an
+    unknown flag: typos refuses the invocation and reads no file at all, and
+    the gate reports a scanner failure in place of the scan it was asked for.
+    """
+    written = write_markdown_tree(tmp_path, (DASH_FILE,))
+    cmd_mox.spy(GIT).runs(
+        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
+    )
+    scanner = cmd_mox.spy(SCANNER).runs(silent)
+
+    gate.runner.spelling(
+        repository=tmp_path,
+        source=SHARED_DICTIONARY_PATH,
+        typos=SCANNER,
+    )
+
+    assert list(scanner.invocations[0].args) == [
+        "--isolated",
+        "--config",
+        "typos.toml",
+        "--force-exclude",
+        "--",
+        DASH_FILE,
+    ], "a dash-prefixed name was left where the scanner reads it as a flag"
 
 
 def test_the_scanner_status_is_the_gate_status(
@@ -208,7 +246,8 @@ def test_markdown_gate_lints_every_file_in_one_invocation(
 
     assert linter.call_count == 1, linter.invocations
     assert list(linter.invocations[0].args) == [
-        path.as_posix() for path in written
+        "--",
+        *(path.as_posix() for path in written),
     ], "the linter did not receive every discovered Markdown file"
 
 
@@ -227,7 +266,7 @@ def test_markdown_gate_honours_the_exclusions_it_is_given(
         exclude=("vendor",),
     )
 
-    assert list(linter.invocations[0].args) == ["README.md"], (
+    assert list(linter.invocations[0].args) == ["--", "README.md"], (
         "an excluded tree was linted anyway"
     )
 
@@ -246,8 +285,33 @@ def test_nixie_gate_disables_the_sandbox_and_names_every_file(
     assert validator.call_count == 1, validator.invocations
     assert list(validator.invocations[0].args) == [
         "--no-sandbox",
+        "--",
         *(path.as_posix() for path in written),
     ]
+
+
+def test_the_markdown_gates_terminate_options_before_a_dash_prefixed_name(
+    cmd_mox: CmdMox,
+    gate: GateModules,
+    tmp_path: Path,
+) -> None:
+    """Both walks hand a dash-prefixed name where each tool expects a file."""
+    written = write_markdown_tree(tmp_path, (DASH_FILE,))
+    linter = cmd_mox.spy(LINTER).runs(silent)
+    validator = cmd_mox.spy(VALIDATOR).runs(silent)
+
+    gate.runner.markdownlint(repository=tmp_path, linter=LINTER)
+    gate.runner.nixie(repository=tmp_path, validator=VALIDATOR)
+
+    assert list(linter.invocations[0].args) == [
+        "--",
+        *(path.as_posix() for path in written),
+    ], "markdownlint-cli2 was handed a name it reads as an option"
+    assert list(validator.invocations[0].args) == [
+        "--no-sandbox",
+        "--",
+        *(path.as_posix() for path in written),
+    ], "nixie was handed a name it reads as an option"
 
 
 def recipes(makefile: str) -> dict[str, str]:
@@ -361,6 +425,7 @@ def test_a_multi_token_tool_is_split_into_its_executable_and_arguments(
     assert list(linter.invocations[0].args) == [
         "--config",
         "my config.jsonc",
+        "--",
         *(path.as_posix() for path in written),
     ], "the runner treated the configured command line as one executable name"
 

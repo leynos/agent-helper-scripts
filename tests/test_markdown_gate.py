@@ -534,7 +534,10 @@ def test_make_markdownlint_target_lints_every_discovered_file(tmp_path: Path) ->
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert_names_discovered_markdown(record.read_text(encoding="utf-8").split())
+    assert_names_discovered_markdown(
+        record.read_text(encoding="utf-8").split(),
+        "--",
+    )
 
 
 def test_make_nixie_target_validates_diagrams(tmp_path: Path) -> None:
@@ -552,6 +555,7 @@ def test_make_nixie_target_validates_diagrams(tmp_path: Path) -> None:
     assert_names_discovered_markdown(
         record.read_text(encoding="utf-8").split(),
         "--no-sandbox",
+        "--",
     )
 
 

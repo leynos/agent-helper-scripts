@@ -213,13 +213,10 @@ def test_an_uppercase_markdown_suffix_is_discovered(
     )
 
 
-@pytest.mark.skipif(
-    os.geteuid() == 0,
-    reason="root reads a directory mode 0 forbids to everyone else",
-)
 def test_a_directory_that_cannot_be_read_fails_the_walk(
     gate: GateModules,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An unreadable subtree fails the gate instead of being silently skipped.
 
@@ -227,18 +224,28 @@ def test_a_directory_that_cannot_be_read_fails_the_walk(
     ``onerror`` callback. Without one the readable file below keeps the list
     non-empty, the linter runs over a subset, and the gate reports a pass over
     a tree it never finished reading.
+
+    The refusal is raised in the operating system's place, because a directory
+    mode that denies a read is not portable: root, and a process holding
+    ``CAP_DAC_OVERRIDE``, read the directory anyway, and a platform without
+    POSIX modes never denies it at all.
     """
     (tmp_path / "README.md").write_text("# readme\n", encoding="utf-8")
-    unreadable = tmp_path / "private"
-    unreadable.mkdir()
-    (unreadable / "SECRET.md").write_text("# secret\n", encoding="utf-8")
-    unreadable.chmod(0o000)
-    try:
-        with pytest.raises(gate.discovery.GateDiscoveryError) as failure:
-            gate.discovery.markdown_paths(tmp_path, gate="markdownlint")
-    finally:
-        # Restore the mode so the temporary directory can be removed.
-        unreadable.chmod(0o700)
+    private = tmp_path / "private"
+    private.mkdir()
+    (private / "SECRET.md").write_text("# secret\n", encoding="utf-8")
+    scandir = os.scandir
+
+    def refuse(path: str) -> typ.Iterator[os.DirEntry[str]]:
+        """Deny one directory the way an unreadable one denies the walk."""
+        if Path(path) == private:
+            raise PermissionError(13, "Permission denied", path)
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", refuse)
+
+    with pytest.raises(gate.discovery.GateDiscoveryError) as failure:
+        gate.discovery.markdown_paths(tmp_path, gate="markdownlint")
 
     message = str(failure.value)
     assert "markdownlint" in message, message

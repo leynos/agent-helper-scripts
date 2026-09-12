@@ -47,6 +47,13 @@ DEFAULT_LINTER = "markdownlint-cli2"
 #: Mermaid validator the shared recipe runs.
 DEFAULT_VALIDATOR = "nixie"
 
+#: Ends option parsing before a discovered file list. Git tracks a name that
+#: begins with a dash, and discovery reports a root-relative name as it found
+#: it, so ``-guide.md`` arrives as the first operand. typos and nixie refuse it
+#: as an unknown flag and read nothing at all; the terminator goes after the
+#: gate's own flags, which still need to parse.
+OPTION_TERMINATOR = "--"
+
 
 class GateExecutionError(RuntimeError):
     """Report that a gate could not complete the run it was asked for."""
@@ -289,6 +296,7 @@ def spelling(
             "--config",
             relative,
             "--force-exclude",
+            OPTION_TERMINATOR,
             *(path.as_posix() for path in paths),
         ],
         cwd=repository,
@@ -327,7 +335,11 @@ def markdownlint(
         excludes=exclude,
     )
     _run(
-        [*shlex.split(linter), *(path.as_posix() for path in paths)],
+        [
+            *shlex.split(linter),
+            OPTION_TERMINATOR,
+            *(path.as_posix() for path in paths),
+        ],
         cwd=repository,
     )
 
@@ -365,6 +377,7 @@ def nixie(
         [
             *shlex.split(validator),
             "--no-sandbox",
+            OPTION_TERMINATOR,
             *(path.as_posix() for path in paths),
         ],
         cwd=repository,
