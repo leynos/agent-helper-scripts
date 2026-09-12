@@ -2,7 +2,9 @@
 
 The validator accepts only bounded regular expressions.  It rejects patterns
 whose repetitions can compound ambiguity before the standard-library regular
-expression engine is allowed to use them for repository-wide scans.
+expression engine is allowed to use them for repository-wide scans. The
+normalized policy those checks apply to is ``Dictionary``, which every other
+module reads rather than re-deriving.
 """
 
 from collections.abc import Mapping
@@ -23,6 +25,37 @@ GENERIC_PROSE = ("ordinary prose", "unrelated_identifier")
 UNIVERSAL_FILE_GLOBS = frozenset({"*", "**", "**/*", "*.md", "**.md", "**/*.md"})
 BACKREFERENCE = re.compile(r"\\(?:[1-9]|g<|k<)|\(\?P=")
 REPETITION = re.compile(r"\{(?:\d+(?:,\d*)?|,\d+)\}")
+
+
+@dataclass(frozen=True)
+class Dictionary:
+    """Curated words and exclusions used to generate a Typos config.
+
+    Attributes
+    ----------
+    stems
+        Oxford ``-ize`` stems expanded through supported suffix pairs.
+    accepted
+        Words accepted exactly as written.
+    corrections
+        Explicit source-to-correction word pairs.
+    phrase_corrections
+        Punctuation-separated phrase corrections checked outside Typos.
+    ignore_patterns
+        Bounded regular expressions used to mask upstream text.
+    removed_patterns
+        Shared ignore patterns withdrawn by a local overlay.
+    excluded_files
+        Repository-relative components and globs omitted from spelling scans.
+    """
+
+    stems: tuple[str, ...] = ()
+    accepted: tuple[str, ...] = ()
+    corrections: tuple[tuple[str, str], ...] = ()
+    phrase_corrections: tuple[tuple[str, str], ...] = ()
+    ignore_patterns: tuple[str, ...] = ()
+    removed_patterns: tuple[str, ...] = ()
+    excluded_files: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)

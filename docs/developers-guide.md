@@ -293,6 +293,104 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
+### Gate recipes
+
+Each shared gate is one command that lists the files it examines, so no recipe
+pipes a producer into a checker. A pipeline reports the last command's status,
+and without `pipefail` a producer that fails or matches nothing leaves the
+checker unrun while the recipe still exits zero, which reads as a clean pass
+over an unread tree. [ADR 006](adr/006-fail-closed-gate-recipes.md) records
+the defect and the decision; `set -o pipefail` remains only as an interim
+guard for a repository that has not regenerated its recipes.
+
+The recipes call `scripts/gate_runner_cli.py`, which exposes three commands.
+`spelling` generates the shared configuration, validates it against the merged
+policy, and scans every Git-tracked file. `markdownlint` and `nixie` walk the
+tree for `*.md`, pruning build, cache and vendored directories. Each command
+raises when discovery produces no file, names a tool it cannot resolve, and
+exits with the tool's own status. `GATE_RUNNER_*` environment variables supply
+the values the options carry, so a consumer can set `GATE_RUNNER_LINTER`
+instead of restating the flag.
+
+Discovery is its own module, `scripts/gate_discovery.py`. Its `tracked_paths()`
+entry point runs `git -C <repo> ls-files -z` and returns the sorted
+repository-relative paths, NUL delimiting each so a name containing a newline
+stays one entry; it raises when Git fails, carrying Git's own diagnostic, or
+when the list is empty. Its `markdown_paths()` entry point walks the tree for
+the `.md` suffix, matched case-insensitively so `README.MD` is a document,
+prunes excluded directory names at any depth, and returns sorted
+repository-relative paths. It passes an `onerror` callback to `os.walk`, so a
+directory the walk cannot read fails the gate rather than being silently
+skipped: without that callback a partial list reads as a finished scan. A
+caller-supplied `excludes` replaces the defaults rather than extending them.
+
+The default pruned names are `.git`, `.hypothesis`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `.terraform`, `.tox`, `.uv-cache`, `.uv-tools`,
+`.venv`, `__pycache__`, `_build`, `build`, `dist`, `htmlcov`, `node_modules`,
+`site` and `target`: version control, tool caches, virtual environments, and
+build, coverage or vendored output. They overlap the directory entries of the
+shared spelling base's `[files] exclude` list, so a gate descends into nothing
+the spelling policy already treats as outside the repository's own sources.
+
+A configured tool is a command line, split with `shlex.split`, so
+`MDLINT='bunx markdownlint-cli2'` works; it is not looked up on `PATH` as one
+long name. `markdownlint` and `nixie` name every discovered file explicitly
+rather than passing a glob, and `nixie` keeps `--no-sandbox` for the renderer
+it drives. The discovered list is introduced by an option terminator, placed
+after the tool's own flags so those still parse. Git tracks a name that begins
+with a dash and discovery reports it as it found it, so `-guide.md` arrives as
+the first operand; unseparated, `typos` and `nixie` refuse it as an unknown
+flag and read no file at all. A tool the operating system refuses to start is
+a gate error naming the refusal, such as an argument list too long for
+`execve`, rather than a traceback.
+
+The `spelling` gate generates the shared configuration at the path its
+`--config` option names (default `typos.toml`), requires that file to be
+tracked and undrifted, runs the phrase checker over tracked UTF-8 text, then
+runs the scanner once over every tracked file as `<scanner> --isolated
+--config <path> --force-exclude -- <files...>`. Generating where the option says
+matters: a tracked configuration under a custom name cannot satisfy the
+tracking and drift checks without ever having been regenerated from the merged
+policy. `--isolated` keeps the scan to the generated configuration, because
+`typos` otherwise merges a `typos.toml` it discovers beside the files it
+reads, so a nested or custom-named policy the gate never generated, never
+required to be tracked and never checked for drift could soften the verdict
+the gate reports as its own configuration's.
+
+The commands themselves live in `scripts/gate_runner.py`, which imports only
+the standard library. The Cyclopts front end is a separate module so tests can
+drive a gate with a command double standing in for its tool.
+`tests/test_gate_discovery.py` and `tests/test_gate_runner.py` pin the
+contract: an empty or failed producer fails the gate before its tool is
+invoked, the tool receives the whole list in one invocation, and a tool that
+reports findings fails the gate with its own status.
+`tests/test_gate_discovery_properties.py` states the discovery contract as
+Hypothesis properties over generated directory trees: discovery returns
+exactly the Markdown outside the pruned directories, sorted and
+repository-relative, and honours a caller's exclusion list at any depth.
+
+### Policy merge boundary
+
+`scripts/typos_rollout_merge.py` is the boundary between the shared spelling
+base and a repository's local overlay. `typos_rollout.generate_config()`
+refreshes or reuses the base cache, loads the repository's `typos.local.toml`
+overlay with `local_overlay=True` when one exists — a sparse document that may
+omit the complete-authority fields — and merges it onto the base with
+`merge_dictionaries(base, local)`. The overlay side is merged on top, and the
+result is one deterministically ordered `Dictionary`.
+
+That `Dictionary` is the policy the runner and the phrase checker consume: it
+carries the Oxford stems, accepted words, word corrections, phrase
+corrections, ignore patterns, removed patterns and excluded files. The merge
+refuses to weaken the shared policy. A local correction that contradicts the
+base raises `ValueError`, as does a local overlay that both ignores and removes
+the same pattern, and `typos_rollout_policy.validate_local_exceptions()`
+rejects a local ignore pattern broad enough to mask ordinary prose or a file
+exclusion that names a universal glob such as `*.md` or `**/*`. Ignore patterns
+are checked for backreferences and for repetition that compounds ambiguity
+before any compiled pattern reaches the scanner, so a pattern that would
+introduce unbounded backtracking is refused rather than handed on.
+
 ### Markdown lint configuration
 
 `.markdownlint-cli2.jsonc` is reconciled against the shared
@@ -315,17 +413,24 @@ recorded beside the entry:
 
 `markdownlint-cli2` lints nothing when it receives neither a glob argument nor
 a `globs` key, yet still reports a clean pass, so `make markdownlint` names
-`**/*.md` explicitly rather than relying on a default.
+every file it found rather than relying on a default. The gate runner walks
+the tree itself and refuses an empty result, which is the property a glob
+cannot give: a pattern that matches no file is indistinguishable from a clean
+tree.
 
-The `markdownlint` wrapper shipped for consumers appends that glob when the
-caller names no path. It treats two arguments as explicit targets rather than
-paths, so no glob is appended for either: a standalone `-`, which tells
-`markdownlint-cli2` to read the file list from standard input, and the operand
-of `--config` or `--configPointer`, which names a configuration file rather
-than a document to lint. The repository's own gate does not go through the
-wrapper: it calls `markdownlint-cli2` directly, because the shared baseline
-this repository is moving to provisions the binary globally, which is the case
-the wrapper exists to cover.
+The `markdownlint` wrapper shipped for consumers appends `**/*.md` when the
+caller names no target. Two arguments keep that judgement honest: a standalone
+`-` is a target even though it begins with a dash, and the operand of `--config`
+or `--configPointer` is not, even though it names a path — it selects a
+configuration file, so the tree is still linted. The repository's own gate does
+not go through the wrapper: it calls `markdownlint-cli2` directly, because the
+shared baseline this repository is moving to provisions the binary globally.
+The wrapper covers the repository that has not been provisioned that way: it
+prefers whichever `markdownlint-cli2` is on `PATH` and falls back to the bun
+global install, and it supplies a bundled configuration when the repository
+ships none. The wrapper's widening still cannot tell an empty match from a
+clean tree, so a consumer that needs that guarantee calls the gate runner
+instead.
 
 CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
 rather than installing the linter by hand. The action's release carries
@@ -388,6 +493,8 @@ Sibling modules own one policy boundary each:
 - `typos_rollout_cache.py` owns cache records, validator metadata, and atomic
   persistence.
 - `typos_rollout_http.py` coordinates source-scoped local and HTTPS refreshes.
+- `typos_rollout_merge.py` merges the shared base with a repository's sparse
+  local overlay, refusing conflicts and exceptions that weaken shared policy.
 - `typos_rollout_render.py` expands Oxford stems and renders deterministic TOML.
 - `typos_rollout_check.py` enforces curated exact phrase corrections.
 - `typos_rollout_harvest.py` gathers contextual Oxford-form evidence.
@@ -440,15 +547,17 @@ recorded drift form now carries one canonical replacement for every consumer.
     executes, except that the workflow runs the Markdown gate through the
     `markdownlint-cli2` action and so passes `CI_SKIP_MARKDOWNLINT=1`.
 - `make markdownlint`
-  - Lints every Markdown file with `markdownlint-cli2`, naming the `**/*.md`
-    glob explicitly so the gate cannot pass without having read a file. The
+  - Lints every Markdown file the gate runner discovers with
+    `markdownlint-cli2`, naming each file explicitly so the gate cannot pass
+    without having read one, and failing when the discovery finds none. The
     repository's `markdownlint` wrapper is still shipped for consumers; this
     target does not run it.
   - Reads `.markdownlint-cli2.jsonc`. The wrapper ships its own configuration
     for a consumer repository that has none, so the same script works unchanged
     where `get-markdown-tooling` installs it as `markdownlint`.
 - `make nixie`
-  - Validates every Mermaid diagram with `nixie`.
+  - Validates every Mermaid diagram with `nixie` over the files the gate runner
+    discovers.
   - Not part of `make ci`. `nixie` renders through an external Mermaid CLI
     (`merman-cli`, or `mmdc` with Chromium), which the CI runner does not
     provide; run it locally before pushing documentation that changes a

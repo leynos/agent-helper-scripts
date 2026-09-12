@@ -201,6 +201,47 @@ bootstrap still installs `cargo-nextest` 0.9.133 through
 `CARGO_NEXTEST_VERSION` with `cargo binstall`, so those features are
 documented but not available until that variable is raised.
 
+## Fail-closed gate recipes
+
+Moving from recipes that piped a producer into a checker to recipes that
+discover their own file list and fail closed.
+[ADR 006](adr/006-fail-closed-gate-recipes.md) records the defect and the
+decision.
+
+### Previous model
+
+The shared `spelling`, `markdownlint` and `nixie` recipes piped a producer into
+the checker with no `pipefail` in effect. A pipeline reports the status of its
+last command, and `xargs -r` exits zero when it receives no input, so a
+producer that failed, or that matched nothing, left an empty list and the
+checker never ran. The gate passed having examined nothing.
+
+Any pass recorded by such a recipe over a tree it did not read is not
+evidence: re-earn it by running the gate again.
+
+### New model
+
+Each recipe is now one command,
+`uv run --script scripts/gate_runner_cli.py <command>`, which lists its own
+files, fails on an empty or failed producer, and invokes its tool once over the
+whole list. The Markdown gates also fail on a directory the walk cannot read
+rather than skipping it, and the tool's own status is the recipe's status. The
+spelling gate scans every Git-tracked file with a tracked, drift-checked
+generated configuration.
+
+### Backward compatibility
+
+Consumers copy these recipes into their Makefile by convention from this
+template, so a consumer regenerates its `spelling`, `markdownlint` and `nixie`
+recipes from the template to pick up the fix. Where a previous recipe set an
+option, the equivalent `GATE_RUNNER_*` environment variable now carries its
+value.
+
+`set -o pipefail` (or `.SHELLFLAGS := -eo pipefail -c`) is an interim guard for
+a repository that has not regenerated its recipes, and is no longer needed
+once it has. The guard is not the fix: it catches a producer that fails, but
+not one that succeeds with an empty list.
+
 ## Markdown lint gate
 
 A bare `markdownlint` invocation previously forwarded its arguments with no

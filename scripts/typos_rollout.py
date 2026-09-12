@@ -1,8 +1,8 @@
 """Generate shared en-GB-oxendict Typos policy through a stable facade.
 
 The facade preserves the rollout helper's public import surface while cohesive
-modules own policy validation, cache persistence, HTTPS refresh, phrase checks,
-and Oxford-form harvesting.
+modules own policy validation, overlay merging, cache persistence, HTTPS
+refresh, phrase checks, and Oxford-form harvesting.
 """
 
 from collections.abc import Mapping
@@ -16,6 +16,7 @@ import typos_rollout_cache
 import typos_rollout_check
 import typos_rollout_harvest
 import typos_rollout_http
+import typos_rollout_merge
 import typos_rollout_policy
 import typos_rollout_render
 
@@ -28,8 +29,13 @@ REPETITION = typos_rollout_policy.REPETITION
 SHARED_DICTIONARY_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "typos-oxendict-base.toml"
 )
+DEFAULT_BASE_URL = (
+    "https://raw.githubusercontent.com/leynos/agent-helper-scripts/"
+    "refs/heads/main/data/typos-oxendict-base.toml"
+)
 SUFFIX_PAIRS = typos_rollout_render.SUFFIX_PAIRS
 
+Dictionary = typos_rollout_policy.Dictionary
 RefreshResult = typos_rollout_cache.RefreshResult
 Response = typos_rollout_cache.Response
 RefreshOptions = typos_rollout_http.RefreshOptions
@@ -44,6 +50,7 @@ _atomic_write = typos_rollout_cache.atomic_write
 _read_metadata = typos_rollout_cache.read_metadata
 _remote_is_not_newer = typos_rollout_cache.remote_is_not_newer
 _compile_ignore_patterns = typos_rollout_policy.compile_ignore_patterns
+_merge_ignore_patterns = typos_rollout_merge._merge_ignore_patterns
 _tracked_relative_paths = typos_rollout_harvest._tracked_relative_paths
 _mask_ignored_text = typos_rollout_check._mask_ignored_text
 OXFORD_FORM = typos_rollout_harvest.OXFORD_FORM
@@ -54,37 +61,7 @@ render_typos_config = typos_rollout_render.render_typos_config
 harvest_oxford_forms = typos_rollout_harvest.harvest_oxford_forms
 is_harvest_excluded = typos_rollout_harvest.is_harvest_excluded
 check_phrase_corrections = typos_rollout_check.check_phrase_corrections
-
-
-@dataclass(frozen=True)
-class Dictionary:
-    """Curated words and exclusions used to generate a Typos config.
-
-    Attributes
-    ----------
-    stems
-        Oxford ``-ize`` stems expanded through supported suffix pairs.
-    accepted
-        Words accepted exactly as written.
-    corrections
-        Explicit source-to-correction word pairs.
-    phrase_corrections
-        Punctuation-separated phrase corrections checked outside Typos.
-    ignore_patterns
-        Bounded regular expressions used to mask upstream text.
-    removed_patterns
-        Shared ignore patterns withdrawn by a local overlay.
-    excluded_files
-        Repository-relative components and globs omitted from spelling scans.
-    """
-
-    stems: tuple[str, ...] = ()
-    accepted: tuple[str, ...] = ()
-    corrections: tuple[tuple[str, str], ...] = ()
-    phrase_corrections: tuple[tuple[str, str], ...] = ()
-    ignore_patterns: tuple[str, ...] = ()
-    removed_patterns: tuple[str, ...] = ()
-    excluded_files: tuple[str, ...] = ()
+merge_dictionaries = typos_rollout_merge.merge_dictionaries
 
 
 def _string_list(table: Mapping[str, object], key: str) -> tuple[str, ...]:
@@ -177,88 +154,6 @@ def load_dictionary(path: Path, *, local_overlay: bool = False) -> Dictionary:
     return _dictionary_from_text(path.read_text(encoding="utf-8"), sparse=local_overlay)
 
 
-def _merge_correction_items(
-    base: tuple[tuple[str, str], ...],
-    local: tuple[tuple[str, str], ...],
-    *,
-    label: str,
-) -> tuple[tuple[str, str], ...]:
-    """Merge corrections while rejecting conflicting replacements."""
-    merged = dict(base)
-    for source, correction in local:
-        existing = merged.get(source)
-        if existing is not None and existing != correction:
-            message = (
-                f"conflicting {label} for {source!r}: "
-                f"{existing!r} != {correction!r}"
-            )
-            raise ValueError(message)
-        merged[source] = correction
-    return tuple(sorted(merged.items()))
-
-
-def _merge_ignore_patterns(base: Dictionary, local: Dictionary) -> tuple[str, ...]:
-    """Merge ignore patterns, then apply explicit local withdrawals."""
-    removed = set(local.removed_patterns)
-    contradictory = removed & set(local.ignore_patterns)
-    if contradictory:
-        message = (
-            "local overlay both ignores and removes patterns: "
-            f"{', '.join(sorted(contradictory))}"
-        )
-        raise ValueError(message)
-    return tuple(
-        sorted((set(base.ignore_patterns) | set(local.ignore_patterns)) - removed)
-    )
-
-
-def merge_dictionaries(base: Dictionary, local: Dictionary) -> Dictionary:
-    """Merge a shared dictionary with a non-conflicting local overlay.
-
-    Parameters
-    ----------
-    base
-        Complete shared spelling policy.
-    local
-        Sparse repository-specific policy additions.
-
-    Returns
-    -------
-    Dictionary
-        Deterministically ordered union of both policies.
-
-    Raises
-    ------
-    ValueError
-        If corrections conflict or local exceptions weaken shared policy.
-    """
-    typos_rollout_policy.validate_local_exceptions(
-        local.ignore_patterns,
-        local.excluded_files,
-    )
-    return Dictionary(
-        stems=tuple(sorted(set(base.stems) | set(local.stems))),
-        accepted=tuple(sorted(set(base.accepted) | set(local.accepted))),
-        corrections=_merge_correction_items(
-            base.corrections,
-            local.corrections,
-            label="correction",
-        ),
-        phrase_corrections=_merge_correction_items(
-            base.phrase_corrections,
-            local.phrase_corrections,
-            label="phrase correction",
-        ),
-        ignore_patterns=_merge_ignore_patterns(base, local),
-        removed_patterns=tuple(
-            sorted(set(base.removed_patterns) | set(local.removed_patterns))
-        ),
-        excluded_files=tuple(
-            sorted(set(base.excluded_files) | set(local.excluded_files))
-        ),
-    )
-
-
 def write_config(path: Path, dictionary: Dictionary) -> None:
     """Atomically write validated generated configuration.
 
@@ -270,6 +165,81 @@ def write_config(path: Path, dictionary: Dictionary) -> None:
         Validated spelling policy to render and persist.
     """
     typos_rollout_render.write_config(path, dictionary, _atomic_write)
+
+
+@dataclass(frozen=True)
+class GeneratedConfig:
+    """Describe one generation of a repository's tracked configuration.
+
+    Attributes
+    ----------
+    status
+        Stable refresh status reported for the shared base.
+    dictionary
+        Merged policy the generated configuration was rendered from.
+    path
+        Generated configuration path.
+    """
+
+    status: str
+    dictionary: Dictionary
+    path: Path
+
+
+def generate_config(
+    repository: Path,
+    source: str | Path,
+    *,
+    destination: Path | None = None,
+    offline: bool = False,
+) -> GeneratedConfig:
+    """Refresh the shared base and generate a repository's configuration.
+
+    Both entrypoints that write ``typos.toml`` -- the rollout CLI and the gate
+    runner -- compose the operation here, so the two cannot drift into
+    generating different configuration from the same base.
+
+    Parameters
+    ----------
+    repository
+        Repository root receiving the cache and generated configuration.
+    source
+        Local path or HTTPS URL for the authoritative shared base.
+    destination
+        File to generate. Defaults to ``typos.toml`` in the repository, which
+        is the name the shared recipe uses.
+    offline
+        Reuse an existing valid cache without contacting the source.
+
+    Returns
+    -------
+    GeneratedConfig
+        Refresh status, merged policy, and the path that was written.
+
+    Raises
+    ------
+    OSError, ValueError, tomllib.TOMLDecodeError
+        If refreshing, merging, rendering or replacing the file fails.
+    """
+    cache = repository / ".typos-oxendict-base.toml"
+    result = refresh_base(
+        source,
+        cache,
+        RefreshOptions(
+            metadata=repository / ".typos-oxendict-base.json",
+            offline=offline,
+        ),
+    )
+    dictionary = load_dictionary(cache)
+    local_overlay = repository / "typos.local.toml"
+    if local_overlay.exists():
+        dictionary = merge_dictionaries(
+            dictionary,
+            load_dictionary(local_overlay, local_overlay=True),
+        )
+    path = repository / "typos.toml" if destination is None else destination
+    write_config(path, dictionary)
+    return GeneratedConfig(status=result.status, dictionary=dictionary, path=path)
 
 
 def _valid_cache(cache: Path) -> bool:
