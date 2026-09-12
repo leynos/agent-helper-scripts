@@ -623,6 +623,12 @@ specifies what this awaitable will resolve to when awaited.
 
 ### Patching asynchronous methods and functions
 
+Patching suits a free function or a third-party entry point that the code
+under test cannot be handed. Prefer injecting a collaborator through a
+constructor or factory argument where the design allows it, as the Falcon
+resource example below does: an injected fake needs no import path, so the test
+does not break when a module is reorganized.
+
 The mocker.patch utility (from pytest-mock) or unittest.mock.patch can be used
 to replace asynchronous functions or methods with an AsyncMock instance. The
 core principle of patching—replacing an object where it is looked up—remains
@@ -706,7 +712,12 @@ with its asynchronous dependencies in the expected manner.
 
 ### Example: mocking an async service call in a Falcon resource
 
-Consider a Falcon resource that depends on an external asynchronous service:
+Consider a Falcon resource that depends on an external asynchronous service.
+The resource receives that service through its constructor, and the real
+service is constructed in one place only, the application's composition root.
+A test then passes a narrow fake directly, so no patching by import path is
+needed and the test never depends on where a name happens to be looked up.
+
 **Service (src/services.py):**
 
 ```python
@@ -730,65 +741,73 @@ import falcon.asgi
 
 from .services import ExternalService
 
-# Assume service is instantiated and used by resources
-# This could be a global instance or injected. For simplicity, assume global.
-service_instance = ExternalService()
-
 
 class ServiceResource:
+    def __init__(self, service: ExternalService) -> None:
+        # The collaborator is supplied, never reached for.
+        self._service = service
+
     async def on_get(self, req, resp, item_id):
-        # Calls the asynchronous method on the service instance
-        data = await service_instance.fetch_data(item_id)
+        data = await self._service.fetch_data(item_id)
         resp.media = {"item_data": data}
         resp.status = HTTPStatus.OK
 
 
-app_svc = falcon.asgi.App()
-app_svc.add_route("/items/{item_id}", ServiceResource())
+def create_app(service: ExternalService) -> falcon.asgi.App:
+    """Build the application around an injected service."""
+    app = falcon.asgi.App()
+    app.add_route("/items/{item_id}", ServiceResource(service))
+    return app
+
+
+# Composition root: the only place the real service is constructed.
+app_svc = create_app(ExternalService())
 ```
 
 **Test File (tests/test\_app\_with\_service.py):**
 
 ```python
 from http import HTTPStatus
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, patch
 
-# Or: from asyncmock import AsyncMock, patch
-from src.app_with_service import app_svc  # Falcon ASGI app
+from src.app_with_service import create_app
+from src.services import ExternalService
+
+MOCKED_SERVICE_DATA = "Mocked data for item_789"
+
+
+@pytest.fixture
+def mocked_service():
+    # spec binds the fake to the real interface, so a signature change
+    # in ExternalService breaks this test rather than passing silently.
+    service = AsyncMock(spec=ExternalService)
+    service.fetch_data.return_value = MOCKED_SERVICE_DATA
+    return service
 
 
 @pytest_asyncio.fixture
-async def client_svc():
+async def client_svc(mocked_service):
     async with AsyncClient(
-        transport=ASGITransport(app=app_svc), base_url="http://test"
+        transport=ASGITransport(app=create_app(mocked_service)),
+        base_url="http://test",
     ) as client:
         yield client
 
 
 @pytest.mark.asyncio
-async def test_get_item_with_mocked_service(client_svc, mocker):
-    mocked_service_data = "Mocked data for item_789"
-
-    # Patch the 'fetch_data' method of the 'service_instance'
-    # The target for patching is 'src.app_with_service.service_instance.fetch_data'
-    # because that's where 'fetch_data' is looked up when ServiceResource calls it.
-    patched_fetch_method = mocker.patch(
-        "src.app_with_service.service_instance.fetch_data",
-        new_callable=AsyncMock,  # Ensures the mock is an AsyncMock
-    )
-    patched_fetch_method.return_value = mocked_service_data
-
+async def test_get_item_with_mocked_service(client_svc, mocked_service):
     response = await client_svc.get("/items/item_789")
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"item_data": mocked_service_data}
+    assert response.json() == {"item_data": MOCKED_SERVICE_DATA}
 
-    # Verify that the mocked fetch_data method was called correctly
-    patched_fetch_method.assert_called_once_with("item_789")
+    # assert_awaited_once_with confirms the coroutine was awaited,
+    # which assert_called_once_with alone does not establish.
+    mocked_service.fetch_data.assert_awaited_once_with("item_789")
 ```
 
 ### Table: unittest.mock.Mock vs. unittest.mock.AsyncMock
