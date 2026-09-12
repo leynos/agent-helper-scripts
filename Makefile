@@ -61,14 +61,6 @@ endif
 ci: $(CI_GATES)
 	+$(MAKE) spelling
 
-# Fail early with an actionable message when a gate's CLI tool is absent.
-define ensure-tool
-	@command -v $(1) >/dev/null 2>&1 || { \
-	  printf "Error: '%s' is required, but not installed\n" "$(1)" >&2; \
-	  exit 1; \
-	}
-endef
-
 clean:
 	@echo "clean: nothing to clean"
 
@@ -78,15 +70,20 @@ check-fmt:
 fmt:
 	@mdformat-all
 
+# Each gate is one command that discovers its own file list. Piping a producer
+# into a checker reports the checker's status, so without pipefail a producer
+# that fails, or that matches nothing, hands the checker an empty list and the
+# gate passes having examined no file. scripts/gate_runner_cli.py raises
+# instead, naming the gate, and fails when its tool is not installed.
 markdownlint:
-	$(call ensure-tool,$(MDLINT))
-	@$(MDLINT) '**/*.md'
+	@uv run --script scripts/gate_runner_cli.py markdownlint \
+		--linter '$(MDLINT)'
 
 # Not part of `ci`: nixie renders through an external Mermaid CLI (merman-cli or
 # mmdc plus Chromium), which the CI runner does not provide.
 nixie:
-	$(call ensure-tool,$(NIXIE))
-	@$(NIXIE) --no-sandbox
+	@uv run --script scripts/gate_runner_cli.py nixie \
+		--validator '$(NIXIE)'
 
 syntax-check:
 	@python3 -m py_compile $(PYTHON_SCRIPTS)
@@ -118,11 +115,10 @@ typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
 spelling:
-	@uv run --script scripts/typos_rollout_cli.py generate --repository . --source data/typos-oxendict-base.toml
-	@git ls-files --error-unmatch typos.toml >/dev/null
-	@git diff --exit-code -- typos.toml
-	@uv run --script scripts/typos_rollout_cli.py check --repository .
-	@$(TYPOS) --config typos.toml --force-exclude .
+	@uv run --script scripts/gate_runner_cli.py spelling \
+		--repository . \
+		--source data/typos-oxendict-base.toml \
+		--typos '$(TYPOS)'
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

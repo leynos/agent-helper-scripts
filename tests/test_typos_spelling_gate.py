@@ -25,7 +25,7 @@ AMERICAN_COLOUR = "col" + "or"
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:
-    """The CI entrypoint generates config and runs a pinned typos binary."""
+    """The CI entrypoint runs the shared gate runner with a pinned typos binary."""
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert "CI_GATES := check-fmt markdownlint lint typecheck test" in makefile, (
@@ -36,15 +36,16 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
     assert re.search(r"^TYPOS_VERSION\s*\?=\s*\S+", makefile, re.MULTILINE), (
         "Makefile does not pin typos"
     )
-    assert "scripts/typos_rollout_cli.py generate" in makefile, (
-        "spelling target does not generate configuration"
-    )
-    assert "scripts/typos_rollout_cli.py check" in makefile, (
-        "spelling target does not enforce exact phrase corrections"
+    assert "scripts/gate_runner_cli.py spelling" in makefile, (
+        "spelling target does not run the shared gate runner, which generates "
+        "the configuration, enforces phrase corrections, and discovers the files"
     )
     assert "typos@$(TYPOS_VERSION)" in makefile, "spelling target bypasses the version pin"
-    assert "--config typos.toml --force-exclude ." in makefile, (
-        "spelling target does not apply generated configuration and exclusions"
+    assert "data/typos-oxendict-base.toml" in makefile, (
+        "spelling target does not take its policy from the shared base"
+    )
+    assert "--config typos.toml --force-exclude" not in makefile, (
+        "the target passes scanner flags itself; the runner owns that invocation"
     )
 
 

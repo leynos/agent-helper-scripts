@@ -62,6 +62,11 @@ def _tracked_relative_paths(repository: Path) -> tuple[Path, ...]:
         ["git", "-C", str(repository), "ls-files", "-z"],
         check=True,
         capture_output=True,
+        # Closing standard input matches the gate's other Git calls. Git does
+        # not read it here, but a command double standing in for Git does, and
+        # a shim waiting on an inherited terminal would wedge the gate rather
+        # than fail it.
+        stdin=subprocess.DEVNULL,
         text=True,
     ).stdout
     return tuple(
