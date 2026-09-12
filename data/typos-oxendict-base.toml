@@ -188,6 +188,16 @@ raizing = "raising"
 ignore = [
   '(?s)```.*?```',
   '\brust-analyzer\b',
+  # Citation titles reproduced verbatim in the shared guidance documents.
+  'Azure Architecture\n\s+Center \| Microsoft Learn',
+  'How to organise your Rust tests',
+  # Product names and placeholder tokens the tokenizer would otherwise split.
+  'HashiCorp',
+  'currentColor',
+  '\{COLOR\}',
+  # Inline code spans quoting CSS identifiers, CLI flags, Rust attribute
+  # arguments, generic parameters, and deliberately misspelt example names.
+  '`[^`\n]*(?:color|center|flavor|artifact|Ser|iamge_id)[^`\n]*`',
 ]
 
 [files]
