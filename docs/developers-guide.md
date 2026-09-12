@@ -419,16 +419,18 @@ cannot give: a pattern that matches no file is indistinguishable from a clean
 tree.
 
 The `markdownlint` wrapper shipped for consumers appends `**/*.md` when the
-caller names no path. It treats two arguments as explicit targets rather than
-paths, so no glob is appended for either: a standalone `-`, which tells
-`markdownlint-cli2` to read the file list from standard input, and the operand
-of `--config` or `--configPointer`, which names a configuration file rather
-than a document to lint. The repository's own gate does not go through the
-wrapper: it calls `markdownlint-cli2` directly, because the shared baseline
-this repository is moving to provisions the binary globally, which is the case
-the wrapper exists to cover. The wrapper's widening still cannot tell an empty
-match from a clean tree, so a consumer that needs that guarantee calls the
-gate runner instead.
+caller names no target. Two arguments keep that judgement honest: a standalone
+`-` is a target even though it begins with a dash, and the operand of `--config`
+or `--configPointer` is not, even though it names a path — it selects a
+configuration file, so the tree is still linted. The repository's own gate does
+not go through the wrapper: it calls `markdownlint-cli2` directly, because the
+shared baseline this repository is moving to provisions the binary globally.
+The wrapper covers the repository that has not been provisioned that way: it
+prefers whichever `markdownlint-cli2` is on `PATH` and falls back to the bun
+global install, and it supplies a bundled configuration when the repository
+ships none. The wrapper's widening still cannot tell an empty match from a
+clean tree, so a consumer that needs that guarantee calls the gate runner
+instead.
 
 CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
 rather than installing the linter by hand. The action's release carries
