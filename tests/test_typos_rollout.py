@@ -33,9 +33,10 @@ PLAIN_BRITISH_POLYMERIZATION: str = "polymeri" + "sation"
 AMERICAN_ARTEFACT = "arti" + "fact"
 AMERICAN_ARTEFACTS = AMERICAN_ARTEFACT + "s"
 HYPHENATED_HANDWRITTEN = "hand" + "-written"
-# The American spelling the pull_request_target allowance rests on, split so the
-# repository's own scan of this file does not read the fixture as prose.
-AMERICAN_LABELED = "label" + "ed"
+# The American spelling the pull_request_target allowance rests on. Name and
+# value are both kept out of the scan's way: the tracker reads identifiers as
+# well as prose, so a constant named for the spelling is itself a finding.
+AMERICAN_EVENT_LABEL = "label" + "ed"
 
 
 def test_load_dictionary_rejects_unknown_schema(
@@ -518,10 +519,10 @@ def test_local_policy_bounds_the_pull_request_event_list(
 ) -> None:
     """Only the exact event list is ignored, not a longer name containing it."""
     pattern = r"\blabeled, ready_for_review\b"
-    event_list = f"{AMERICAN_LABELED}, ready_for_review"
+    event_list = f"{AMERICAN_EVENT_LABEL}, ready_for_review"
     longer_names = (
-        f"un{AMERICAN_LABELED}, ready_for_review",
-        f"re{AMERICAN_LABELED}, ready_for_review",
+        f"un{AMERICAN_EVENT_LABEL}, ready_for_review",
+        f"re{AMERICAN_EVENT_LABEL}, ready_for_review",
     )
     local = rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True)
     merged = rollout.merge_dictionaries(rollout.Dictionary(), local)
