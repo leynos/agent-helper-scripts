@@ -293,6 +293,33 @@ clone_or_update_repo \
 The Makefile provides the standard validation entrypoints used locally and in
 CI:
 
+### Gate recipes
+
+Each shared gate is one command that lists the files it examines, so no recipe
+pipes a producer into a checker. A pipeline reports the last command's status,
+and without `pipefail` a producer that fails or matches nothing leaves the
+checker unrun while the recipe still exits zero, which reads as a clean pass
+over an unread tree. [ADR 006](adr/006-fail-closed-gate-recipes.md) records
+the defect and the decision; `set -o pipefail` remains only as an interim
+guard for a repository that has not regenerated its recipes.
+
+The recipes call `scripts/gate_runner_cli.py`, which exposes three commands.
+`spelling` generates the shared configuration, validates it against the merged
+policy, and scans every Git-tracked file. `markdownlint` and `nixie` walk the
+tree for `*.md`, pruning build, cache and vendored directories. Each command
+raises when discovery produces no file, names a tool it cannot resolve, and
+exits with the tool's own status. `GATE_RUNNER_*` environment variables supply
+the values the options carry, so a consumer can set `GATE_RUNNER_LINTER`
+instead of restating the flag.
+
+The commands themselves live in `scripts/gate_runner.py`, which imports only
+the standard library. The Cyclopts front end is a separate module so tests can
+drive a gate with a command double standing in for its tool.
+`tests/test_gate_discovery.py` and `tests/test_gate_runner.py` pin the
+contract: an empty or failed producer fails the gate before its tool is
+invoked, the tool receives the whole list in one invocation, and a tool that
+reports findings fails the gate with its own status.
+
 ### Markdown lint configuration
 
 `.markdownlint-cli2.jsonc` is reconciled against the shared
@@ -315,9 +342,12 @@ recorded beside the entry:
 
 `markdownlint-cli2` lints nothing when it receives neither a glob argument nor
 a `globs` key, yet still reports a clean pass, so `make markdownlint` names
-`**/*.md` explicitly rather than relying on a default.
+every file it found rather than relying on a default. The gate runner walks
+the tree itself and refuses an empty result, which is the property a glob
+cannot give: a pattern that matches no file is indistinguishable from a clean
+tree.
 
-The `markdownlint` wrapper shipped for consumers appends that glob when the
+The `markdownlint` wrapper shipped for consumers appends `**/*.md` when the
 caller names no path. It treats two arguments as explicit targets rather than
 paths, so no glob is appended for either: a standalone `-`, which tells
 `markdownlint-cli2` to read the file list from standard input, and the operand
@@ -325,7 +355,9 @@ of `--config` or `--configPointer`, which names a configuration file rather
 than a document to lint. The repository's own gate does not go through the
 wrapper: it calls `markdownlint-cli2` directly, because the shared baseline
 this repository is moving to provisions the binary globally, which is the case
-the wrapper exists to cover.
+the wrapper exists to cover. The wrapper's widening still cannot tell an empty
+match from a clean tree, so a consumer that needs that guarantee calls the
+gate runner instead.
 
 CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
 rather than installing the linter by hand. The action's release carries
@@ -440,15 +472,17 @@ recorded drift form now carries one canonical replacement for every consumer.
     executes, except that the workflow runs the Markdown gate through the
     `markdownlint-cli2` action and so passes `CI_SKIP_MARKDOWNLINT=1`.
 - `make markdownlint`
-  - Lints every Markdown file with `markdownlint-cli2`, naming the `**/*.md`
-    glob explicitly so the gate cannot pass without having read a file. The
+  - Lints every Markdown file the gate runner discovers with
+    `markdownlint-cli2`, naming each file explicitly so the gate cannot pass
+    without having read one, and failing when the discovery finds none. The
     repository's `markdownlint` wrapper is still shipped for consumers; this
     target does not run it.
   - Reads `.markdownlint-cli2.jsonc`. The wrapper ships its own configuration
     for a consumer repository that has none, so the same script works unchanged
     where `get-markdown-tooling` installs it as `markdownlint`.
 - `make nixie`
-  - Validates every Mermaid diagram with `nixie`.
+  - Validates every Mermaid diagram with `nixie` over the files the gate runner
+    discovers.
   - Not part of `make ci`. `nixie` renders through an external Mermaid CLI
     (`merman-cli`, or `mmdc` with Chromium), which the CI runner does not
     provide; run it locally before pushing documentation that changes a

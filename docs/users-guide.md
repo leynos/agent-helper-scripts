@@ -120,10 +120,12 @@ constraints that apply to native worker mode on CI or dedicated runners.
 Run `make spelling` in this checkout to generate and validate the estate-wide
 en-GB-oxendict configuration. The command uses the tracked shared base in
 `data/typos-oxendict-base.toml`, merges repository-only exceptions from
-`typos.local.toml`, writes generated `typos.toml`, and checks the repository
-with the pinned `typos` version. It also rejects curated punctuation-separated
-phrases that `typos` cannot treat as one word, reporting the canonical
-replacement.
+`typos.local.toml`, writes generated `typos.toml`, and checks every Git-tracked
+file with the pinned `typos` version. It also rejects curated
+punctuation-separated phrases that `typos` cannot treat as one word, reporting
+the canonical replacement. A file list it cannot produce, or one that comes
+back empty, fails the gate rather than reporting a clean pass over an unread
+tree.
 
 Consumer repositories use the same generation model. Their generator fetches
 the shared base into ignored `.typos-oxendict-base.toml` and records freshness
@@ -192,15 +194,17 @@ an incomplete repository scan cannot appear successful.
 
 ## Markdown linting
 
-`make markdownlint` lints every Markdown file by naming the `**/*.md` glob and
-reads this checkout's `.markdownlint-cli2.jsonc`. It is one of the gates
-`make ci` runs, in order: `check-fmt`, `markdownlint`, `lint`, `typecheck`,
-`test`, then `spelling`.
+`make markdownlint` lints every Markdown file it discovers under this
+checkout, pruning build, cache and vendored directories, and reads this
+checkout's `.markdownlint-cli2.jsonc`. Linting nothing is a failure: the gate
+stops with a diagnostic when discovery finds no Markdown file or when the
+linter is not installed. It is one of the gates `make ci` runs, in order:
+`check-fmt`, `markdownlint`, `lint`, `typecheck`, `test`, then `spelling`.
 
-`make nixie` validates Mermaid diagrams with `nixie`. It is deliberately not
-part of `make ci`, because it renders through an external Mermaid CLI
-(`merman-cli`, or `mmdc` with Chromium) that the CI runner does not provide.
-Run it locally when a change touches a diagram.
+`make nixie` validates Mermaid diagrams with `nixie` over the same discovered
+files. It is deliberately not part of `make ci`, because it renders through an
+external Mermaid CLI (`merman-cli`, or `mmdc` with Chromium) that the CI runner
+does not provide. Run it locally when a change touches a diagram.
 
 CI delegates the Markdown gate to the pinned
 `DavidAnson/markdownlint-cli2-action` and therefore runs
