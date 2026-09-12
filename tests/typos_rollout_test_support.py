@@ -15,6 +15,24 @@ SHARED_DICTIONARY_PATH = REPOSITORY_ROOT / "data" / "typos-oxendict-base.toml"
 LOCAL_DICTIONARY_PATH = REPOSITORY_ROOT / "typos.local.toml"
 COMMITTED_CONFIG_PATH = REPOSITORY_ROOT / "typos.toml"
 USERS_GUIDE_PATH = REPOSITORY_ROOT / "docs" / "users-guide.md"
+#: Misspellings placed beside narrow inline-code ignore-pattern exceptions.
+#: Shared between the precision test and the behavioural typos-binary test.
+MISSPELLED_RECEIVE = "rec" + "ieve"
+MISSPELLED_SEPARATE = "sep" + "erate"
+MISSPELLED_AND = "a" + "dn"
+MISSPELLED_THE = "t" + "eh"
+MISSPELLED_FIELD = "f" + "eld"
+MISSPELLED_IMAGE = "ia" + "mge"
+#: US spellings and exempt tokens the narrow ignore patterns cover. Composed by
+#: concatenation so the spelling gate does not flag the fixtures that assert it.
+US_COLOUR_SPELLING = "col" + "or"
+US_COLOUR_SPELLING_UPPER = "COL" + "OR"
+US_CENTRE_SPELLING = "cen" + "ter"
+US_CENTRE_SPELLING_TITLE = "Cen" + "ter"
+US_FLAVOUR_SPELLING = "flav" + "or"
+US_ARTEFACT_SPELLING = "arti" + "fact"
+EXEMPT_SERIALIZER_PARAMETER = "S" + "er"
+
 #: `s`-to-`z` drift forms paired with the one canonical spelling each accepts.
 MISSPELLED_DRIFT_FORMS: tuple[tuple[str, str], ...] = (
     ("otherwi" + "ze", "otherwise"),
