@@ -31,16 +31,22 @@ extend-exclude = [
 locale = "en-gb"
 extend-ignore-re = [
     "(?s)```.*?```",
+    "Azure Architecture\\n\\s+Center \\| Microsoft Learn",
+    "HashiCorp",
+    "How to organise your Rust tests",
     "RUST_ANALYZER(?:_PRECHECK)?",
     "\\bMOLD\\b",
     "\\bartifact_name\\b",
     "\\bcolor:",
     "\\bmold\\b",
     "\\brust-analyzer\\b",
+    "\\{COLOR\\}",
     "`EXPLAIN ANALYZE`",
+    "`[^`\\n]*(?:color|center|flavor|artifact|Ser|iamge_id)[^`\\n]*`",
     "`colorScheme`",
     "`colors`",
     "`hand-written`",
+    "currentColor",
 ]
 
 [default.extend-words]

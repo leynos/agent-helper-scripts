@@ -222,6 +222,20 @@ install (`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
 
 Its rationale and rule set are in the [developers' guide](developers-guide.md).
 
+## Documentation library
+
+The [documentation library](../documentation-library/README.md) holds the
+canonical edition of every guidance document that the estate's repositories
+share under `docs/`: the documentation style guide, the scripting standards,
+the Rust, Python, front-end, and OpenTofu guides, and the users' guides of the
+estate's own libraries. Each canonical edition merges the general improvements
+found across the repository copies and omits repository-specific detail.
+
+Refresh a repository's copy by overwriting it with the library file and
+reviewing the diff. Improvements that belong to every repository go into the
+library first; notes that belong to one repository stay in a document that
+repository owns.
+
 ## Stacked pull requests
 
 The `github-stacks` skill covers GitHub's native stacked pull requests through
