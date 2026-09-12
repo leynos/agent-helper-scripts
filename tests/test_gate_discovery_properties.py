@@ -3,7 +3,7 @@
 ``markdown_paths`` walks a real directory tree, so a generated tree costs
 nothing to check and needs no process double; the example tests beside this
 file pin the Git-backed half of the contract. The properties state what must
-hold for every tree rather than for the shapes a hand-written case happens to
+hold for every tree rather than for the shapes a handwritten case happens to
 name: discovery returns exactly the Markdown files that lie outside the pruned
 directories, as repository-relative paths in sorted order, and never a path
 inside a directory it was told to prune.
