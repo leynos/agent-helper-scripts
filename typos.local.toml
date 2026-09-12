@@ -29,6 +29,16 @@ polymerising = "polymerizing"
 
 [patterns]
 ignore = [
+  # Citation titles are reproduced verbatim in the documentation library.
+  'Azure Architecture\n\s+Center \| Microsoft Learn',
+  'How to organise your Rust tests',
+  # Product names and placeholder tokens the dictionary would otherwise split.
+  'HashiCorp',
+  'currentColor',
+  '\{COLOR\}',
+  # Inline code spans quoting CSS identifiers, CLI flags, Rust attribute
+  # arguments, generic parameters, and deliberately misspelt example names.
+  '`[^`\n]*(?:color|center|flavor|artifact|Ser|iamge_id)[^`\n]*`',
   '`EXPLAIN ANALYZE`',
   '`colorScheme`',
   '`colors`',
