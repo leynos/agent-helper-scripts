@@ -958,14 +958,18 @@ between different expression variants.
 
 ```rust,no_run
 use proptest::prelude::*;
-use test_strategy::Arbitrary;
 
-// Simple enum can be derived automatically.
+// `Just` requires `Clone + Debug`, so the operator enums derive both.
+// `PartialEq` is required by the round-trip test's `prop_assert_eq!`.
+#[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp { Plus, Minus }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp { Add, Sub, Mul, Div }
 
-// The recursive Expr enum requires more control here.
+// The recursive Expr enum requires more control here. `Arbitrary` itself
+// requires `Debug`, and `prop_assert_eq!` requires `PartialEq`.
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Literal(u64),
     Unary { op: UnaryOp, expr: Box<Expr> },
@@ -980,37 +984,47 @@ impl Arbitrary for Expr {
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         // Define a strategy for leaf expressions (non-recursive).
-        let leaf = prop_oneof![
-            any::<u64>().prop_map(Expr::Literal),
-        ];
+        let leaf = any::<u64>().prop_map(Expr::Literal);
 
-        // Create a recursive strategy.
-        // `leaf.prop_recursive` allows building larger expressions from smaller ones.
-        // The first argument is the recursion depth.
-        // The second is the maximum size of compound objects (e.g., Vecs).
-        // The third argument defines how to build one level of recursion.
+        // Create a recursive strategy. `prop_recursive` takes the maximum
+        // recursion depth, the desired total number of nodes, the expected
+        // number of nodes per branch, and a closure that builds one level of
+        // recursion from a strategy for the level below.
         leaf.prop_recursive(
-            8, // Max recursion depth
-            256, // Max total nodes
-            |inner| prop_oneof![
-                // Recursive branches for unary and binary operators
-                prop_oneof![UnaryOp::Plus, UnaryOp::Minus]
-                    .prop_flat_map(|op| {
-                        any::<u64>().prop_map(move |_| Expr::Unary {
-                            op: op.clone(),
-                            expr: Box::new(Expr::Literal(0)),
-                        })
-                    }),
-                prop_oneof![BinaryOp::Add, BinaryOp::Sub, BinaryOp::Mul, BinaryOp::Div]
-                    .prop_flat_map(|op| {
-                        (inner.clone(), inner.clone()).prop_map(move |(l, r)| Expr::Binary {
-                            op: op.clone(),
-                            lhs: Box::new(l),
-                            rhs: Box::new(r),
-                        })
-                    }),
-            ]
-        ).boxed()
+            8,   // Max recursion depth
+            256, // Desired total nodes
+            10,  // Expected nodes per branch
+            |inner| {
+                prop_oneof![
+                    // Pick an operator, then recurse for the operand.
+                    (
+                        prop_oneof![Just(UnaryOp::Plus), Just(UnaryOp::Minus)],
+                        inner.clone(),
+                    )
+                        .prop_map(|(op, expr)| Expr::Unary {
+                            op,
+                            expr: Box::new(expr),
+                        }),
+                    // Pick an operator, then recurse for both operands.
+                    (
+                        prop_oneof![
+                            Just(BinaryOp::Add),
+                            Just(BinaryOp::Sub),
+                            Just(BinaryOp::Mul),
+                            Just(BinaryOp::Div),
+                        ],
+                        inner.clone(),
+                        inner.clone(),
+                    )
+                        .prop_map(|(op, lhs, rhs)| Expr::Binary {
+                            op,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                        }),
+                ]
+            },
+        )
+        .boxed()
     }
 }
 ```
