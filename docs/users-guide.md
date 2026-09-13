@@ -269,7 +269,6 @@ install (`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
 
 Its rationale and rule set are in the [developers' guide](developers-guide.md).
 
-
 ## Documentation library
 
 The [documentation library](../documentation-library/README.md) holds the
