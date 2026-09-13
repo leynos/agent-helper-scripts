@@ -394,8 +394,8 @@ overhead from seconds to milliseconds.
 `TestCluster::connection()` exposes `TestClusterConnection`, a lightweight view
 over the running cluster's connection metadata. Use it to read the host, port,
 superuser name, generated password, or the `.pgpass` path without cloning the
-entire bootstrap struct. When you need to persist those values beyond the guard
-you can call `metadata()` to obtain an owned `ConnectionMetadata`.
+entire bootstrap struct. To persist those values beyond the guard, call
+`metadata()` to obtain an owned `ConnectionMetadata`.
 
 Enable the `diesel-support` feature to call `diesel_connection()` and obtain a
 ready-to-use `diesel::PgConnection`. The default feature set keeps Diesel
@@ -549,7 +549,7 @@ let template_name = format!("template_{}", &hash[..8]);
 # }
 ```
 
-If you already track a migration version, include it in the template name
+Where a migration version is already tracked, include it in the template name
 instead (for example, `format!("template_v{SCHEMA_VERSION}")`). This keeps
 template invalidation explicit without hashing the migration directory.
 
@@ -715,8 +715,8 @@ still running as `root`, follow these steps:
   without interactive prompts. The
   `bootstrap_for_tests().environment.pgpass_file` helper returns the path if
   the bootstrap ran inside the test process.
-- Provide `TZDIR=/usr/share/zoneinfo` (or the correct path for your
-  distribution) if you are running the CLI. The library helper sets `TZ`
+- Provide `TZDIR=/usr/share/zoneinfo` (or the correct path for the
+  distribution in use) when running the CLI. The library helper sets `TZ`
   automatically and, on Unix-like hosts, also seeds `TZDIR` when it discovers a
   valid timezone database.
 
