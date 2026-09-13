@@ -9,15 +9,15 @@ author:
 
 > ## Excerpt
 >
-> Library and command-line utility for rendering projects templates.
+> Library and command-line utility for rendering project templates.
 
 ---
 
 A template is a directory: usually the root folder of a Git repository.
 
 The content of the files inside the project template is copied to the
-destination without changes, **unless they end with `.jinja`** (or your
-chosen suffix, see
+destination without changes, **unless they end with `.jinja`** (or a custom
+suffix, see
 [`templates_suffix`](https://copier.readthedocs.io/en/stable/configuring/#templates_suffix)).
 In that case, the templating engine will be used to render them.
 
@@ -30,9 +30,9 @@ the project, the user will be prompted to fill in or confirm the default values.
 ## Minimal example[¶](https://copier.readthedocs.io/en/stable/creating/#minimal-example "Permanent link")
 
 ```text
-📁 my_copier_template                            # your template project
-├── 📄 copier.yml                                # your template configuration
-├── 📁 .git/                                     # your template is a Git repository
+📁 my_copier_template                            # the template project
+├── 📄 copier.yml                                # the template configuration
+├── 📁 .git/                                     # the template is a Git repository
 ├── 📁 {{project_name}}                          # a folder with a templated name
 │   └── 📄 {{module_name}}.py.jinja              # a file with a templated name
 └── 📄 {{_copier_conf.answers_file}}.jinja       # answers are recorded here
@@ -85,7 +85,9 @@ print("Hello from world!")
 
 ```
 
-```.copier-answers.yml
+`.copier-answers.yml`
+
+```yaml
 # Changes here will be overwritten by Copier
 _commit: 0.1.0
 _src_path: gh:your_account/your_template
@@ -96,7 +98,7 @@ module_name: world
 
 Copier allows much more advanced templating: see the next chapter,
 [configuring a template](https://copier.readthedocs.io/en/stable/configuring/),
-to see all the configurations options and their usage.
+to see all the configuration options and their usage.
 
 ## Template helpers[¶](https://copier.readthedocs.io/en/stable/creating/#template-helpers "Permanent link")
 
@@ -114,7 +116,7 @@ The following variables are always available in Jinja templates:
 ### `_copier_answers`[¶](https://copier.readthedocs.io/en/stable/creating/#_copier_answers "Permanent link")
 
 `_copier_answers` includes the current answers dict, but slightly modified to
-make it suitable to [autoupdate your project
+make it suitable to [autoupdate a project
 safely](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file)
 (see "The `.copier-answers.yml` file"):
 
@@ -130,7 +132,7 @@ safely](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersy
 object, also slightly modified:
 
 - It only contains JSON-serializable data.
-- You can serialize it with `{{ _copier_conf|to_json }}`.
+- It can be serialized with `{{ _copier_conf|to_json }}`.
 - ⚠️ It contains secret answers inside its `.data` key.
 - Modifying it doesn't alter the current rendering configuration.
 
@@ -176,9 +178,9 @@ The current phase, one of `"prompt"`,`"tasks"`, `"migrate"` or `"render"`.
 
 Note
 
-There is also an additional `"undefined"` phase used when not in any phase. You
-may encounter this phase when rendering outside of those phases, when rendering
-lazily (and the phase notion can be irrelevant) or when testing.
+There is also an additional `"undefined"` phase used when not in any phase.
+This phase may be encountered when rendering outside of those phases, when
+rendering lazily (and the phase notion can be irrelevant) or when testing.
 
 ## Variables (context-dependent)[¶](https://copier.readthedocs.io/en/stable/creating/#variables-context-dependent "Permanent link")
 
@@ -200,7 +202,7 @@ Some rendering contexts provide variables unique to them:
 
 ## Loop over lists to generate files and directories[¶](https://copier.readthedocs.io/en/stable/creating/#loop-over-lists-to-generate-files-and-directories "Permanent link")
 
-You can use the special `yield` tag in file and directory names to generate
+The special `yield` tag can be used in file and directory names to generate
 multiple files or directories based on a list of items.
 
 In the path name, `{% yield item from list_of_items %}{{ item }}{% endyield %}`
@@ -252,7 +254,7 @@ print("This is the `{{ subcmd }}` subcommand in the `{{ cmd.name }}` command")
 
 ```
 
-If you answer with the default to the question, Copier will generate the
+If the default answer is chosen for the question, Copier will generate the
 following structure:
 
 ```text

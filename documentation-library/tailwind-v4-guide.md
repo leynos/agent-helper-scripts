@@ -40,7 +40,7 @@ npm install tailwindcss @tailwindcss/vite
 ## Configuration (CSS-First)
 
 **IMPORTANT**: v4 uses CSS-first configuration, NOT JavaScript config files.
-Use the `@theme` directive in your CSS file:
+Use the `@theme` directive in the project's CSS file:
 
 ```css
 @import "tailwindcss";
@@ -191,7 +191,7 @@ be hidden inside `@apply`; keep them visible in markup, or wrap them in an
 ### 3D Transforms
 
 ```html
-<div class="perspective-1000">
+<div class="perspective-[1000px]">
   <div class="rotate-x-45 rotate-y-12 scale-z-110 translate-z-24 transform-3d">
     3D transformed element
   </div>
@@ -359,7 +359,7 @@ src/
 │   ├── components.css    # @utility definitions
 │   └── utilities.css     # Additional @utility definitions
 └── components/
-    └── *.vue/jsx/html    # Your components
+    └── *.vue/jsx/html    # Application components
 ```
 
 ## Common Patterns
@@ -1346,7 +1346,7 @@ transform-style-flat, transform-style-preserve-3d
 #### Perspective (NEW in v4)
 
 ```text
-perspective-none, perspective-250, perspective-500, perspective-750, perspective-1000, perspective-distant
+perspective-none, perspective-dramatic, perspective-near, perspective-normal, perspective-midrange, perspective-distant
 ```
 
 #### Perspective Origin (NEW in v4)
@@ -1739,7 +1739,7 @@ npm list | grep postcss
 
 ### Pre-Migration
 
-- [ ] Backup your project
+- [ ] Backup the project
 - [ ] Ensure Node.js 20+ is installed
 - [ ] Check browser support requirements (Safari 16.4+, Chrome 111+, Firefox
       128+)
@@ -1811,7 +1811,7 @@ npx @tailwindcss/upgrade
 <button
   class="
   relative px-6 py-3 bg-blue-600 text-white font-medium rounded-lg
-  transform-3d perspective-1000 
+  transform-3d perspective-[1000px]
   transition-all duration-200
   hover:rotate-x-12 hover:scale-105 hover:shadow-xl
   active:scale-95 active:rotate-x-6
