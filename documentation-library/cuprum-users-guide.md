@@ -1364,7 +1364,7 @@ asyncio.run(main())
 Configure execution via the `ConcurrentConfig` dataclass:
 
 ```python
-from cuprum import ECHO, ConcurrentConfig, run_concurrent_sync, scoped, sh
+from cuprum import ECHO, ConcurrentConfig, ScopeConfig, run_concurrent_sync, scoped, sh
 
 echo = sh.make(ECHO)
 commands = [echo("-n", f"task-{i}") for i in range(10)]
@@ -1376,7 +1376,7 @@ config = ConcurrentConfig(
     fail_fast=False,  # Continue after failures (default)
 )
 
-with scoped(allowlist=frozenset([ECHO])):
+with scoped(ScopeConfig(allowlist=frozenset([ECHO]))):
     result = run_concurrent_sync(*commands, config=config)
 ```
 
@@ -1397,12 +1397,12 @@ Pass a `ConcurrentConfig` with `concurrency=N` to limit parallel execution.
 This uses an `asyncio.Semaphore` internally:
 
 ```python
-from cuprum import ECHO, ConcurrentConfig, run_concurrent_sync, scoped, sh
+from cuprum import ECHO, ConcurrentConfig, ScopeConfig, run_concurrent_sync, scoped, sh
 
 echo = sh.make(ECHO)
 commands = [echo("-n", f"task-{i}") for i in range(10)]
 
-with scoped(allowlist=frozenset([ECHO])):
+with scoped(ScopeConfig(allowlist=frozenset([ECHO]))):
     # At most 3 commands run simultaneously
     result = run_concurrent_sync(*commands, config=ConcurrentConfig(concurrency=3))
 ```
@@ -1417,9 +1417,9 @@ compacted `results`, whereas `failure_submission_indices` recovers the original
 submission positions:
 
 ```python
-from cuprum import run_concurrent_sync, scoped
+from cuprum import ScopeConfig, run_concurrent_sync, scoped
 
-with scoped(allowlist=...):
+with scoped(ScopeConfig(allowlist=...)):
     result = run_concurrent_sync(cmd1, cmd2, cmd3)
 
 if not result.ok:
@@ -1434,9 +1434,9 @@ Enable `fail_fast=True` in the config to cancel remaining commands after the
 first failure:
 
 ```python
-from cuprum import ConcurrentConfig, run_concurrent_sync, scoped
+from cuprum import ConcurrentConfig, ScopeConfig, run_concurrent_sync, scoped
 
-with scoped(allowlist=...):
+with scoped(ScopeConfig(allowlist=...)):
     result = run_concurrent_sync(*commands, config=ConcurrentConfig(fail_fast=True))
 
 if not result.ok:
@@ -1460,7 +1460,7 @@ Commands share the execution context, so all commands see the same hooks and
 allowlist:
 
 ```python
-from cuprum import ECHO, before, run_concurrent_sync, scoped, sh
+from cuprum import ECHO, ScopeConfig, before, run_concurrent_sync, scoped, sh
 
 
 def log_start(cmd) -> None:
@@ -1470,7 +1470,7 @@ def log_start(cmd) -> None:
 echo = sh.make(ECHO)
 commands = [echo("-n", f"task-{i}") for i in range(3)]
 
-with scoped(allowlist=frozenset([ECHO])), before(log_start):
+with scoped(ScopeConfig(allowlist=frozenset([ECHO]))), before(log_start):
     # log_start fires for each command
     result = run_concurrent_sync(*commands)
 ```

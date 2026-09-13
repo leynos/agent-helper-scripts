@@ -391,7 +391,7 @@ Fixtures are stored as JSON with a versioned schema:
 
 ```json
 {
-  "version": "1.0",
+  "version": "1.0.0",
   "metadata": {
     "created_at": "2025-01-15T10:30:00+00:00",
     "cmdmox_version": "0.2.0",
@@ -422,7 +422,7 @@ Fixture files can be loaded and round-tripped:
 from cmd_mox.record import FixtureFile
 
 fixture = FixtureFile.load(Path("fixtures/git_clone.json"))
-assert fixture.version == "1.0"
+assert fixture.version == "1.0.0"
 assert len(fixture.recordings) == 1
 ```
 
@@ -431,8 +431,9 @@ assert len(fixture.recordings) == 1
 Fixture files include a `version` field following semantic versioning. CmdMox
 automatically migrates older fixture files to the current schema when loading
 via `FixtureFile.load()` or `FixtureFile.from_dict()`. Minor version
-differences within the same major version are tolerated -- for example, a v1.1
-fixture loads correctly into v1.0 code because unknown fields are ignored.
+differences within the same major version are tolerated -- for example, a
+1.1.0 fixture loads correctly into 1.0.0 code because unknown fields are
+ignored.
 Incompatible major versions with no registered migration path raise
 `ValueError`.
 

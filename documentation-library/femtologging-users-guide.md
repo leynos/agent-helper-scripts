@@ -129,9 +129,20 @@ use femtologging_rs::{
     ExceptionPayload, SchemaVersionError, SchemaVersioned,
 };
 
-fn process_payload(json: &str) -> Result<(), SchemaVersionError> {
-    let payload: ExceptionPayload =
-        serde_json::from_str(json).expect("valid JSON");
+#[derive(Debug)]
+enum ProcessPayloadError {
+    Parse(serde_json::Error),
+    Schema(SchemaVersionError),
+}
+
+impl From<serde_json::Error> for ProcessPayloadError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Parse(err)
+    }
+}
+
+fn process_payload(json: &str) -> Result<(), ProcessPayloadError> {
+    let payload: ExceptionPayload = serde_json::from_str(json)?;
     match payload.validate_version() {
         Ok(()) => {
             // Normal processing path.
@@ -146,10 +157,12 @@ fn process_payload(json: &str) -> Result<(), SchemaVersionError> {
                 "payload schema {} is newer than supported {}",
                 found, max_supported
             );
-            Err(SchemaVersionError::VersionTooNew {
-                found,
-                max_supported,
-            })
+            Err(ProcessPayloadError::Schema(
+                SchemaVersionError::VersionTooNew {
+                    found,
+                    max_supported,
+                },
+            ))
         }
         Err(SchemaVersionError::VersionTooOld {
             found,
@@ -160,10 +173,12 @@ fn process_payload(json: &str) -> Result<(), SchemaVersionError> {
                 "payload schema {} is older than minimum {}",
                 found, min_supported
             );
-            Err(SchemaVersionError::VersionTooOld {
-                found,
-                min_supported,
-            })
+            Err(ProcessPayloadError::Schema(
+                SchemaVersionError::VersionTooOld {
+                    found,
+                    min_supported,
+                },
+            ))
         }
     }
 }
