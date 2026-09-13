@@ -31,16 +31,31 @@ extend-exclude = [
 locale = "en-gb"
 extend-ignore-re = [
     "(?s)```.*?```",
+    "--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*",
+    "Azure Architecture\\n\\s+Center \\| Microsoft Learn",
+    "HashiCorp",
+    "How to organise your Rust tests",
     "RUST_ANALYZER(?:_PRECHECK)?",
+    "\\b(?:background|theme)_color\\b",
+    "\\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\\b",
+    "\\bAppFactory<Ser\\b",
     "\\bMOLD\\b",
+    "\\bartifact-(?:name|server-path)\\b",
     "\\bartifact_name\\b",
+    "\\bcolor-(?:mix|contrast)\\b",
     "\\bcolor:",
+    "\\bflavor = ",
     "\\bmold\\b",
     "\\brust-analyzer\\b",
+    "\\bvar\\.iamge_id\\b",
+    "\\{COLOR\\}",
+    "\\{color\\}",
     "`EXPLAIN ANALYZE`",
     "`colorScheme`",
+    "`color`",
     "`colors`",
     "`hand-written`",
+    "currentColor",
 ]
 
 [default.extend-words]

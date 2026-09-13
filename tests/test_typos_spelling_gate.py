@@ -10,10 +10,21 @@ import types
 import pytest
 
 from typos_rollout_test_support import (
+    EXEMPT_SERIALIZER_PARAMETER,
     LOCAL_DICTIONARY_PATH,
+    MISSPELLED_AND,
     MISSPELLED_DRIFT_FORMS,
+    MISSPELLED_FIELD,
+    MISSPELLED_IMAGE,
+    MISSPELLED_RECEIVE,
+    MISSPELLED_SEPARATE,
+    MISSPELLED_THE,
     REPOSITORY_ROOT,
     SHARED_DICTIONARY_PATH,
+    US_ARTEFACT_SPELLING,
+    US_CENTRE_SPELLING,
+    US_COLOUR_SPELLING,
+    US_FLAVOUR_SPELLING,
     deny_path_reads,
     require_executable,
 )
@@ -315,4 +326,89 @@ def test_generated_config_loads_in_pinned_typos(
     for form, canonical in MISSPELLED_DRIFT_FORMS:
         assert corrections.get(form) == [canonical], (
             f"{form} did not resolve to the single canonical correction"
+        )
+
+
+#: Exempt tokens that a broad inline-code mask previously hid, one per
+#: narrowed pattern category, and the exempt-token substring `typos` must
+#: never report a correction for.
+EXEMPT_INLINE_CODE_TOKENS: tuple[str, ...] = (
+    US_COLOUR_SPELLING,
+    US_CENTRE_SPELLING,
+    US_FLAVOUR_SPELLING,
+    US_ARTEFACT_SPELLING,
+    EXEMPT_SERIALIZER_PARAMETER,
+    MISSPELLED_IMAGE,
+)
+
+
+@pytest.mark.slow
+def test_narrow_inline_code_exceptions_expose_neighbouring_misspellings(
+    rollout: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """The pinned scanner still catches typos beside narrow ignore exceptions."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is unavailable to run the pinned typos binary")
+    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+    match = re.search(r"^TYPOS_VERSION\s*\?=\s*(\S+)", makefile, re.MULTILINE)
+    assert match is not None, "TYPOS_VERSION not found in Makefile"
+    config = tmp_path / "typos.toml"
+    rollout.write_config(
+        config,
+        rollout.merge_dictionaries(
+            rollout.load_dictionary(SHARED_DICTIONARY_PATH),
+            rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True),
+        ),
+    )
+    sample = tmp_path / "sample.md"
+    sample.write_text(
+        f"`--{US_COLOUR_SPELLING}-primary {MISSPELLED_RECEIVE}`\n"
+        f"`items-{US_CENTRE_SPELLING} {MISSPELLED_SEPARATE}`\n"
+        f'`#[tokio::test({US_FLAVOUR_SPELLING} = "current_thread")] {MISSPELLED_AND}`\n'
+        f"`{US_ARTEFACT_SPELLING}-name {MISSPELLED_RECEIVE}`\n"
+        f"`AppFactory<{EXEMPT_SERIALIZER_PARAMETER}, Ctx, E, Codec> "
+        f"{MISSPELLED_THE}_{MISSPELLED_FIELD}`\n"
+        f"`var.{MISSPELLED_IMAGE}_id {MISSPELLED_RECEIVE}`\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            uv,
+            "tool",
+            "run",
+            f"typos@{match.group(1)}",
+            "--config",
+            str(config),
+            "--format",
+            "json",
+            str(sample),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    reported_typos = {
+        entry["typo"]
+        for line in result.stdout.splitlines()
+        for entry in (json.loads(line),)
+        if entry.get("type") == "typo"
+    }
+
+    for exempt_token in EXEMPT_INLINE_CODE_TOKENS:
+        assert exempt_token not in reported_typos, (
+            f"narrowed exception failed to cover its own token: {exempt_token}"
+        )
+    for neighbour in (
+        MISSPELLED_RECEIVE,
+        MISSPELLED_SEPARATE,
+        MISSPELLED_AND,
+        MISSPELLED_THE,
+        MISSPELLED_FIELD,
+    ):
+        assert neighbour in reported_typos, (
+            f"narrowed exception hid a neighbouring misspelling: {neighbour}"
         )

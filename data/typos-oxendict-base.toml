@@ -188,6 +188,33 @@ raizing = "raising"
 ignore = [
   '(?s)```.*?```',
   '\brust-analyzer\b',
+  # Citation titles reproduced verbatim in the shared guidance documents.
+  'Azure Architecture\n\s+Center \| Microsoft Learn',
+  'How to organise your Rust tests',
+  # Product names and placeholder tokens the tokenizer would otherwise split.
+  'HashiCorp',
+  'currentColor',
+  '\{COLOR\}',
+  '\{color\}',
+  # CSS custom properties and colour functions whose identifiers carry the US
+  # spelling, for example `--color-primary`, `--tw-color-red-500`, and
+  # `color-mix()`. Only the identifier is exempt, not the span around it.
+  '--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*',
+  '\bcolor-(?:mix|contrast)\b',
+  # Web application manifest members.
+  '\b(?:background|theme)_color\b',
+  # Tailwind and daisyUI alignment class names.
+  '\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\b',
+  # The `tokio` runtime-flavour attribute argument.
+  '\bflavor = ',
+  # `act` command-line options for artefact export.
+  '\bartifact-(?:name|server-path)\b',
+  # A generic parameter in the Wireframe application-factory signature.
+  '\bAppFactory<Ser\b',
+  # A deliberately misspelt identifier in a diagnostics example.
+  '\bvar\.iamge_id\b',
+  # The US spelling quoted as an example of an API that keeps it.
+  '`color`',
 ]
 
 [files]

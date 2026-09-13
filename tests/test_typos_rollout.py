@@ -12,10 +12,23 @@ from hypothesis import strategies as st
 
 from typos_rollout_test_support import (
     COMMITTED_CONFIG_PATH,
+    EXEMPT_SERIALIZER_PARAMETER,
     LOCAL_DICTIONARY_PATH,
+    MISSPELLED_AND,
     MISSPELLED_DRIFT_FORMS,
+    MISSPELLED_FIELD,
+    MISSPELLED_IMAGE,
+    MISSPELLED_RECEIVE,
+    MISSPELLED_SEPARATE,
+    MISSPELLED_THE,
     SHARED_DICTIONARY_PATH,
     USERS_GUIDE_PATH,
+    US_ARTEFACT_SPELLING,
+    US_CENTRE_SPELLING,
+    US_CENTRE_SPELLING_TITLE,
+    US_COLOUR_SPELLING,
+    US_COLOUR_SPELLING_UPPER,
+    US_FLAVOUR_SPELLING,
     deny_path_reads,
     dictionary_text,
     require_executable,
@@ -524,3 +537,156 @@ def test_shared_dictionary_checks_inline_code_but_ignores_fenced_code(
     assert inline_pattern not in generated_patterns
     assert fenced_pattern in dictionary.ignore_patterns
     assert fenced_pattern in generated_patterns
+
+
+#: The narrowed exceptions that replaced the broad inline-code masking pattern.
+#: Each entry matches only its exceptional token, not the surrounding span.
+NARROW_INLINE_CODE_EXCEPTION_PATTERNS: tuple[str, ...] = (
+    rf"Azure Architecture\n\s+{US_CENTRE_SPELLING_TITLE} \| Microsoft Learn",
+    r"How to organise your Rust tests",
+    r"HashiCorp",
+    r"currentColor",
+    rf"\{{{US_COLOUR_SPELLING_UPPER}\}}",
+    rf"\{{{US_COLOUR_SPELLING}\}}",
+    rf"--[a-zA-Z0-9-]*{US_COLOUR_SPELLING}[a-zA-Z0-9*-]*",
+    rf"\b{US_COLOUR_SPELLING}-(?:mix|contrast)\b",
+    rf"\b(?:background|theme)_{US_COLOUR_SPELLING}\b",
+    rf"\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-{US_CENTRE_SPELLING}\b",
+    rf"\b{US_FLAVOUR_SPELLING} = ",
+    rf"\b{US_ARTEFACT_SPELLING}-(?:name|server-path)\b",
+    rf"\bAppFactory<{EXEMPT_SERIALIZER_PARAMETER}\b",
+    rf"\bvar\.{MISSPELLED_IMAGE}_id\b",
+    f"`{US_COLOUR_SPELLING}`",
+)
+
+
+@pytest.mark.parametrize("pattern", NARROW_INLINE_CODE_EXCEPTION_PATTERNS)
+def test_shared_dictionary_declares_narrow_inline_code_exceptions(
+    rollout: types.ModuleType,
+    pattern: str,
+) -> None:
+    """Every narrowed inline-code exception is declared and rendered."""
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+    generated_patterns = tomllib.loads(rollout.render_typos_config(dictionary))[
+        "default"
+    ]["extend-ignore-re"]
+
+    assert pattern in dictionary.ignore_patterns, (
+        f"shared policy omitted the narrow exception: {pattern}"
+    )
+    assert pattern in generated_patterns, (
+        f"generated config omitted the narrow exception: {pattern}"
+    )
+
+
+#: Exact tokens each narrow exception must still match after the narrowing.
+NARROW_INLINE_CODE_EXCEPTION_POSITIVE_SAMPLES: tuple[str, ...] = (
+    f"--{US_COLOUR_SPELLING}-primary",
+    f"--tw-{US_COLOUR_SPELLING}-red-500",
+    f"--my-brand-{US_COLOUR_SPELLING}",
+    f"--{US_COLOUR_SPELLING}-*-content",
+    f"{US_COLOUR_SPELLING}-mix",
+    f"{US_COLOUR_SPELLING}-contrast",
+    f"theme_{US_COLOUR_SPELLING}",
+    f"background_{US_COLOUR_SPELLING}",
+    f"{{{US_COLOUR_SPELLING}}}",
+    f"{{{US_COLOUR_SPELLING_UPPER}}}",
+    f"items-{US_CENTRE_SPELLING}",
+    f"carousel-{US_CENTRE_SPELLING}",
+    f"toast-{US_CENTRE_SPELLING}",
+    f"{US_FLAVOUR_SPELLING} = ",
+    f"{US_ARTEFACT_SPELLING}-name",
+    f"{US_ARTEFACT_SPELLING}-server-path",
+    f"AppFactory<{EXEMPT_SERIALIZER_PARAMETER}",
+    f"var.{MISSPELLED_IMAGE}_id",
+    f"`{US_COLOUR_SPELLING}`",
+    "HashiCorp",
+    "currentColor",
+)
+
+#: Bare words that share a substring with an exception but must stay flagged.
+NARROW_INLINE_CODE_EXCEPTION_NEGATIVE_SAMPLES: tuple[str, ...] = (
+    US_COLOUR_SPELLING,
+    US_CENTRE_SPELLING,
+    US_FLAVOUR_SPELLING,
+    US_ARTEFACT_SPELLING,
+    EXEMPT_SERIALIZER_PARAMETER,
+    f"{EXEMPT_SERIALIZER_PARAMETER}ializer",
+)
+
+
+def _compile_narrow_inline_code_exceptions() -> tuple[re.Pattern[str], ...]:
+    """Compile the narrowed exceptions for direct regex assertions."""
+    return tuple(re.compile(pattern) for pattern in NARROW_INLINE_CODE_EXCEPTION_PATTERNS)
+
+
+@pytest.mark.parametrize("sample", NARROW_INLINE_CODE_EXCEPTION_POSITIVE_SAMPLES)
+def test_narrow_inline_code_exceptions_match_their_exact_token(sample: str) -> None:
+    """Each exempted token is matched by at least one narrow pattern."""
+    compiled = _compile_narrow_inline_code_exceptions()
+
+    assert any(pattern.search(sample) for pattern in compiled), (
+        f"no narrow pattern matched the exempted token: {sample}"
+    )
+
+
+@pytest.mark.parametrize("sample", NARROW_INLINE_CODE_EXCEPTION_NEGATIVE_SAMPLES)
+def test_narrow_inline_code_exceptions_do_not_match_bare_words(sample: str) -> None:
+    """A bare word sharing a substring with an exception is not exempted."""
+    compiled = _compile_narrow_inline_code_exceptions()
+
+    assert not any(pattern.search(sample) for pattern in compiled), (
+        f"a narrow pattern unexpectedly matched a bare word: {sample}"
+    )
+
+
+def _strip_ignore_pattern_matches(sample: str, patterns: tuple[str, ...]) -> str:
+    """Remove every match of every given pattern and return what survives."""
+    residual = sample
+    for pattern in patterns:
+        residual = re.sub(pattern, "", residual)
+    return residual
+
+
+#: Inline-code spans pairing a narrowed exception with a genuine misspelling,
+#: each with the misspellings that must survive stripping every shared
+#: pattern (including the fenced-code and rust-analyzer patterns).
+INLINE_CODE_ANTI_REGRESSION_SAMPLES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        f"`AppFactory<{EXEMPT_SERIALIZER_PARAMETER}, Ctx, E, Codec> "
+        f"{MISSPELLED_THE}_{MISSPELLED_FIELD}`",
+        (MISSPELLED_THE, MISSPELLED_FIELD),
+    ),
+    (
+        f"`--{US_COLOUR_SPELLING}-primary {MISSPELLED_RECEIVE}`",
+        (MISSPELLED_RECEIVE,),
+    ),
+    (
+        f"`items-{US_CENTRE_SPELLING} {MISSPELLED_SEPARATE}`",
+        (MISSPELLED_SEPARATE,),
+    ),
+    (
+        f'`#[tokio::test({US_FLAVOUR_SPELLING} = "current_thread")] {MISSPELLED_AND}`',
+        (MISSPELLED_AND,),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("sample", "expected_survivors"), INLINE_CODE_ANTI_REGRESSION_SAMPLES
+)
+def test_narrow_inline_code_exceptions_leave_misspellings_intact(
+    rollout: types.ModuleType,
+    sample: str,
+    expected_survivors: tuple[str, ...],
+) -> None:
+    """Stripping every shared ignore pattern must not consume neighbouring typos."""
+    dictionary = rollout.load_dictionary(SHARED_DICTIONARY_PATH)
+
+    residual = _strip_ignore_pattern_matches(sample, dictionary.ignore_patterns)
+
+    for survivor in expected_survivors:
+        assert survivor in residual, (
+            f"shared ignore patterns swallowed the misspelling {survivor!r}: "
+            f"residual text was {residual!r}"
+        )
