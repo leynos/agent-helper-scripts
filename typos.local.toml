@@ -38,6 +38,11 @@ ignore = [
   '\bmold\b',
   '\bartifact_name\b',
   '\bcolor:',
+  # GitHub's pull_request_target activity type. It is an identifier the
+  # automerge workflow matches on, so it cannot take the British spelling;
+  # matching the whole event list, bounded at each end, keeps the allowance off
+  # the word itself and off any longer name that contains it.
+  '\blabeled, ready_for_review\b',
 ]
 
 [files]

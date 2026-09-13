@@ -33,6 +33,10 @@ PLAIN_BRITISH_POLYMERIZATION: str = "polymeri" + "sation"
 AMERICAN_ARTEFACT = "arti" + "fact"
 AMERICAN_ARTEFACTS = AMERICAN_ARTEFACT + "s"
 HYPHENATED_HANDWRITTEN = "hand" + "-written"
+# The American spelling the pull_request_target allowance rests on. Name and
+# value are both kept out of the scan's way: the tracker reads identifiers as
+# well as prose, so a constant named for the spelling is itself a finding.
+AMERICAN_EVENT_LABEL = "label" + "ed"
 
 
 def test_load_dictionary_rejects_unknown_schema(
@@ -508,6 +512,30 @@ def test_shared_dictionary_protects_exact_rust_analyzer_name(
     assert not matcher.search("analyzer"), "ordinary analyzer prose was ignored"
     assert not matcher.search("analyser"), "ordinary analyser prose was ignored"
     assert not matcher.search("rust analyzer"), "unhyphenated prose was ignored"
+
+
+def test_local_policy_bounds_the_pull_request_event_list(
+    rollout: types.ModuleType,
+) -> None:
+    """Only the exact event list is ignored, not a longer name containing it."""
+    pattern = r"\blabeled, ready_for_review\b"
+    event_list = f"{AMERICAN_EVENT_LABEL}, ready_for_review"
+    longer_names = (
+        f"un{AMERICAN_EVENT_LABEL}, ready_for_review",
+        f"re{AMERICAN_EVENT_LABEL}, ready_for_review",
+    )
+    local = rollout.load_dictionary(LOCAL_DICTIONARY_PATH, local_overlay=True)
+    merged = rollout.merge_dictionaries(rollout.Dictionary(), local)
+    generated = tomllib.loads(rollout.render_typos_config(merged))["default"]
+    matcher = re.compile(pattern)
+
+    assert pattern in merged.ignore_patterns, "local policy dropped the event list"
+    assert pattern in generated["extend-ignore-re"], (
+        "generated configuration dropped the event list allowance"
+    )
+    assert matcher.search(event_list), "the workflow's own event list was ignored"
+    for name in longer_names:
+        assert not matcher.search(name), f"a longer name was allowed: {name}"
 
 
 def test_shared_dictionary_checks_inline_code_but_ignores_fenced_code(

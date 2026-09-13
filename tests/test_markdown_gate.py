@@ -32,6 +32,11 @@ DEVIATION_RULES: dict[str, object] = {
 
 DEFAULT_GLOB = "**/*.md"
 
+#: Non-source trees the gate's walk prunes. A file from one of these in the
+#: recorded arguments means the walk descended somewhere the spelling policy
+#: already treats as outside the repository's own sources.
+PRUNED_DIRECTORIES = (".git", ".venv", "dist", "node_modules", "target")
+
 # The upstream action CI lints through. Its release carries the linter and its
 # dependency graph, and Dependabot manages the version with the other actions.
 MARKDOWNLINT_ACTION = "DavidAnson/markdownlint-cli2-action"
@@ -479,8 +484,46 @@ def test_ci_skips_only_the_gate_the_action_supplies() -> None:
     assert in_ci == [gate for gate in gates if gate != "markdownlint"], in_ci
 
 
-def test_make_markdownlint_target_lints_the_tree(tmp_path: Path) -> None:
-    """The target hands a glob to the linter rather than passing no paths."""
+def assert_names_discovered_markdown(
+    arguments: Sequence[str],
+    *leading: str,
+) -> None:
+    """Assert a tool was handed the repository's own Markdown files.
+
+    Parameters
+    ----------
+    arguments
+        Arguments the tool recorded, in order.
+    *leading
+        Arguments expected before the file list.
+
+    Raises
+    ------
+    AssertionError
+        If the arguments name no file, name something other than a Markdown
+        file, name a glob, or reach into a tree the gate prunes.
+    """
+    assert list(arguments[: len(leading)]) == list(leading), arguments
+    recorded = list(arguments[len(leading) :])
+    assert recorded, (
+        "the tool was invoked with no file at all, so a clean status reported "
+        "on a tree it never read"
+    )
+    assert sorted(recorded) == recorded, f"the file list is not deterministic: {recorded}"
+    assert all(argument.endswith(".md") for argument in recorded), recorded
+    assert not any("*" in argument or "?" in argument for argument in recorded), (
+        f"the gate must name files rather than a glob that can match none: {recorded}"
+    )
+    assert not any(
+        directory in Path(argument).parts
+        for argument in recorded
+        for directory in PRUNED_DIRECTORIES
+    ), f"a tree the gate prunes was linted anyway: {recorded}"
+    assert {"AGENTS.md", "README.md"} <= set(recorded), recorded
+
+
+def test_make_markdownlint_target_lints_every_discovered_file(tmp_path: Path) -> None:
+    """The target hands the linter the files it discovered, not a glob."""
     stub = make_stub(tmp_path)
     record = tmp_path / "recorded-args.txt"
 
@@ -491,7 +534,10 @@ def test_make_markdownlint_target_lints_the_tree(tmp_path: Path) -> None:
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert record.read_text(encoding="utf-8").split() == [DEFAULT_GLOB]
+    assert_names_discovered_markdown(
+        record.read_text(encoding="utf-8").split(),
+        "--",
+    )
 
 
 def test_make_nixie_target_validates_diagrams(tmp_path: Path) -> None:
@@ -506,7 +552,11 @@ def test_make_nixie_target_validates_diagrams(tmp_path: Path) -> None:
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert record.read_text(encoding="utf-8").split() == ["--no-sandbox"]
+    assert_names_discovered_markdown(
+        record.read_text(encoding="utf-8").split(),
+        "--no-sandbox",
+        "--",
+    )
 
 
 def test_make_gate_fails_when_its_tool_is_absent() -> None:

@@ -34,10 +34,7 @@ from cyclopts import App
 
 import typos_rollout as rollout
 
-DEFAULT_BASE_URL = (
-    "https://raw.githubusercontent.com/leynos/agent-helper-scripts/"
-    "refs/heads/main/data/typos-oxendict-base.toml"
-)
+DEFAULT_BASE_URL = rollout.DEFAULT_BASE_URL
 
 
 def cli() -> None:
@@ -72,24 +69,8 @@ def cli() -> None:
         None
             Writes files and prints the stable refresh status.
         """
-        cache = repository / ".typos-oxendict-base.toml"
-        result = rollout.refresh_base(
-            source,
-            cache,
-            rollout.RefreshOptions(
-                metadata=repository / ".typos-oxendict-base.json",
-                offline=offline,
-            ),
-        )
-        dictionary = rollout.load_dictionary(cache)
-        local_overlay = repository / "typos.local.toml"
-        if local_overlay.exists():
-            dictionary = rollout.merge_dictionaries(
-                dictionary,
-                rollout.load_dictionary(local_overlay, local_overlay=True),
-            )
-        rollout.write_config(repository / "typos.toml", dictionary)
-        print(f"{result.status}: {repository / 'typos.toml'}")
+        generated = rollout.generate_config(repository, source, offline=offline)
+        print(f"{generated.status}: {generated.path}")
 
     @app.command
     def harvest(repository: Path = Path.cwd()) -> None:

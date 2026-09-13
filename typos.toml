@@ -35,6 +35,7 @@ extend-ignore-re = [
     "\\bMOLD\\b",
     "\\bartifact_name\\b",
     "\\bcolor:",
+    "\\blabeled, ready_for_review\\b",
     "\\bmold\\b",
     "\\brust-analyzer\\b",
     "`EXPLAIN ANALYZE`",
