@@ -11,6 +11,10 @@ that property tests can search their input spaces without invoking Git:
 - **Multi-commit replay transitions.** How the result of one replayed commit
   becomes the `ours` input of the next, and why a clean-exit but structurally
   invalid early result can never be accepted as a safe later `ours` stage.
+- **Command-scoped driver override.** Why `-c` configuration such as the
+  `git merge-file` driver override lives for one Git command only, so it must
+  be repeated on every `--continue`, while a path-specific `!merge` line
+  persists as file state.
 
 Nothing here calls Git. The rules are transcriptions of
 `skills/weave-git-merge/SKILL.md` and its `references/behaviour.md`; the
@@ -493,3 +497,143 @@ def safe_prefix_length(states: Sequence[ReplayState]) -> int:
             break
         count += 1
     return count
+
+
+# --- Command-scoped driver override ----------------------------------------
+
+
+class CommandScoped(enum.StrEnum):
+    """Configuration passed with `-c` that lives for exactly one Git command.
+
+    Attributes
+    ----------
+    DEV_NULL_ATTRIBUTES_FILE : CommandScoped
+        `-c core.attributesFile=/dev/null`, which hides the global attributes
+        file for that command only.
+    DRIVER_OVERRIDE : CommandScoped
+        `-c merge.weave.driver='git merge-file ...'` with
+        `-c merge.weave.recursive=text`, which replaces the named driver for
+        that command only and leaves attribute selection untouched.
+    """
+
+    DEV_NULL_ATTRIBUTES_FILE = "core.attributesFile=/dev/null"
+    DRIVER_OVERRIDE = "merge.weave.driver=git merge-file"
+
+
+@dc.dataclass(frozen=True)
+class ReplayCommand:
+    """One Git command in a replay sequence.
+
+    The first command is the `rebase` (or `merge`/`cherry-pick`) itself and
+    each later one is a `--continue`. Git reads its configuration afresh for
+    every command, so the `-c` overrides carried by one command are gone by
+    the next; this is the transition rule the skill's "repeat the same `-c`
+    overrides on every `--continue`" instruction encodes.
+
+    Attributes
+    ----------
+    overrides : frozenset[CommandScoped]
+        Command-scoped configuration passed on this command.
+    needs_content_merge : bool
+        Whether this replay changes the path on both sides relative to its
+        base. Git consults a merge driver only for such paths.
+    """
+
+    overrides: frozenset[CommandScoped]
+    needs_content_merge: bool = True
+
+
+def bypass_in_effect(command: ReplayCommand, *, path_unset_merge: bool) -> Bypass:
+    """Return the attribute-level bypass that applies to one command.
+
+    A path-specific `!merge` line is file state in `.git/info/attributes`,
+    so it persists across commands. `core.attributesFile=/dev/null` is
+    command-scoped. The driver override is not an attribute bypass at all.
+
+    Parameters
+    ----------
+    command : ReplayCommand
+        The command whose effective bypass is wanted.
+    path_unset_merge : bool
+        Whether `.git/info/attributes` currently carries the path-specific
+        `!merge` line.
+
+    Returns
+    -------
+    Bypass
+        The attribute-level bypass `git check-attr` would honour for this
+        command.
+    """
+    if path_unset_merge:
+        return Bypass.PATH_UNSET_MERGE
+    if CommandScoped.DEV_NULL_ATTRIBUTES_FILE in command.overrides:
+        return Bypass.DEV_NULL_ATTRIBUTES_FILE
+    return Bypass.NONE
+
+
+def driver_invoked(
+    sources: Iterable[Scope],
+    command: ReplayCommand,
+    *,
+    path_unset_merge: bool,
+) -> bool:
+    """Return whether Weave's driver runs for one command.
+
+    The driver runs when the replay needs a content merge, the attribute
+    selection still reports `weave` under the bypass in effect, and the
+    command itself does not carry the driver override.
+
+    Parameters
+    ----------
+    sources : Iterable[Scope]
+        Attribute sources supplying `merge=weave` for the path.
+    command : ReplayCommand
+        The command being run.
+    path_unset_merge : bool
+        Whether the persistent `!merge` line is present.
+
+    Returns
+    -------
+    bool
+        `True` if Git hands the path to the Weave driver on this command.
+    """
+    if not command.needs_content_merge:
+        return False
+    bypass = bypass_in_effect(command, path_unset_merge=path_unset_merge)
+    if effective_merge_attribute(sources, bypass) != WEAVE:
+        return False
+    return CommandScoped.DRIVER_OVERRIDE not in command.overrides
+
+
+def fold_commands(
+    sources: Iterable[Scope],
+    commands: Sequence[ReplayCommand],
+    *,
+    path_unset_merge: bool,
+) -> tuple[bool, ...]:
+    """Return, per command, whether the driver ran.
+
+    Command-scoped configuration resets between commands, so the answer for
+    command N depends on command N alone; nothing an earlier command passed
+    with `-c` reaches a later one. Only the persistent `!merge` line carries
+    across the whole sequence.
+
+    Parameters
+    ----------
+    sources : Iterable[Scope]
+        Attribute sources supplying `merge=weave` for the path.
+    commands : Sequence[ReplayCommand]
+        The initial command followed by each `--continue`.
+    path_unset_merge : bool
+        Whether the persistent `!merge` line is present for the sequence.
+
+    Returns
+    -------
+    tuple[bool, ...]
+        One entry per command: whether the driver was invoked.
+    """
+    selected = frozenset(sources)
+    return tuple(
+        driver_invoked(selected, command, path_unset_merge=path_unset_merge)
+        for command in commands
+    )

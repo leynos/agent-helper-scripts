@@ -11,6 +11,7 @@
 - [Driver observability](#driver-observability)
 - [Post-merge validation](#post-merge-validation)
 - [Supported setup patterns](#supported-setup-patterns)
+- [Estate baseline](#estate-baseline)
 
 ## Git driver contract
 
@@ -26,9 +27,17 @@ uses `%P` to select a parser, and overwrites `%A`. This is true for both clean
 and conflicted results. It then returns `0` for clean, `1` for unresolved, or
 `2` for operational failure and binary input.
 
-The driver records lifetime statistics on a best-effort basis. Statistics and
-optional conflict-free replicated data type (CRDT) recording never decide
-merge success.
+Version 0.3.6 records lifetime statistics on a best-effort basis; 0.5.x
+records them only when `WEAVE_STATS=1` is set. Statistics and optional
+conflict-free replicated data type (CRDT) recording never decide merge
+success.
+
+In 0.5.x, exit `1` output carries a `refused_by:` comment inside each enhanced
+marker box, naming the guard that declined to auto-merge, and one trailing
+comment of the form `# weave: run 'weave explain <path>' ...` in the file's
+own comment syntax. That trailing line is the whole findings channel; the
+`.weave-findings.json` sidecar is written only with `WEAVE_FINDINGS=1`, and
+the per-entity audit sidecar only with `--audit` or `WEAVE_AUDIT=1`.
 
 The contract above describes what the driver reports, not what Git or an agent
 may safely infer. A return code of `0` means the driver accepted the bytes it
@@ -53,8 +62,13 @@ The engine applies these layers:
    result. Validation warnings can force a line-level retry when semantic
    reconstruction looks unsafe.
 
-The core bridge is `entity_merge_with_registry`; the driver wraps it in a
-five-second timeout and uses `git merge-file` on timeout.
+The core bridge is `entity_merge_with_registry`. In 0.3.6 the driver wraps it
+in a five-second watchdog, configurable through `WEAVE_TIMEOUT`, and uses
+`git merge-file` on timeout. Version 0.5.x removed the watchdog thread and the
+`WEAVE_TIMEOUT` variable; `git merge-file` remains the line-level route, but
+nothing falls back to it on elapsed time. Since 0.4.0, edits inside one method
+body are also resolved at statement and expression level before the whole
+entity is reported as a conflict, so some 0.3.6 conflicts now merge clean.
 
 ## What resolves cleanly
 
@@ -187,11 +201,20 @@ An auto-resolved count identifies reconstruction work that deserves inspection;
 it is not a success certificate. Correlate these lines with the paths touched
 by the operation and the post-operation audit.
 
-Weave 0.5.x adds the optional `WEAVE_EVENT=1` channel. When enabled for the Git
-command, the driver writes one JSON line per merge to stderr behind a
-`weave-event:` prefix, followed by a single space. Preserve these lines with
-the operation receipt. Use a command-scoped environment override rather than
-exporting `WEAVE_EVENT` across an agent session.
+Weave 0.5.x adds two machine-parseable stderr channels with stable prefixes,
+each followed by a single space:
+
+- `weave-warning:` carries one JSON line per semantic warning. A merge can exit
+  `0` and still emit these; upstream calls that "clean with warnings", and the
+  exit code never changes because of them.
+- `weave-event:` carries one JSON line per merge, for every outcome including
+  exit `2`, when `WEAVE_EVENT=1` is set. The fields are described by
+  `crates/weave-mcp/schema/weave-event.schema.json` upstream.
+
+Preserve these lines with the operation receipt. The estate baseline sets
+`WEAVE_EVENT=1` inside the registered driver command; where it is absent, use
+a command-scoped environment override rather than exporting `WEAVE_EVENT`
+across an agent session.
 
 Record both binaries before relying on version-specific behaviour:
 
@@ -225,17 +248,30 @@ the resulting `HEAD`:
   target require inspection.
 
 Weave 0.5.1 and later provide `weave check` in the expected estate baseline.
-It verifies a merged working tree and can detect leftover markers, lines that
-both sides retained but the result lost, and content stated more often than
-either side supplied. The MCP server exposes the corresponding read-only
-`weave_check` tool. Use either when supported, but retain the independent
-branch/target audit because tool self-validation is not an independent semantic
-oracle.
+With no arguments it verifies the merged working tree and can detect leftover
+markers, lines that both sides retained but the result lost, content stated
+more often than either side supplied, and dangling references. It exits `0`
+with nothing found and `1` with findings, in every mode.
+
+Working-tree mode derives its three-way scope from Git state: `MERGE_HEAD`
+when a merge is in progress, or the two parents when `HEAD` is a merge commit.
+A rebase or cherry-pick stop provides neither, and a completed rebase leaves a
+single-parent `HEAD`, so in those states the command prints a sentence
+containing `NOTHING WAS CHECKED` and exits `0`. The upstream wording is
+explicit that this is not a clean bill of health. `--base`, `--ours`, and
+`--theirs` select a cross-file binding pass between two revisions that emits
+findings JSON; it compares three inputs rather than verifying the resolved
+tree being accepted. No 0.5.1 mode verifies a completed rebase.
+
+The MCP server exposes the corresponding read-only `weave_check` tool. The
+estate baseline does not provision `weave-mcp`. Use either interface when
+supported, but retain the independent branch/target audit because tool
+self-validation is not an independent semantic oracle.
 
 ## Supported setup patterns
 
-Observed setup writes `merge=weave` for a broad set of code and data formats,
-including:
+Version 0.3.6 setup writes `merge=weave` for a hand-listed set of code and
+data formats, including:
 
 ```text
 ts tsx js mjs cjs jsx py go rs java c h cpp cc cxx hpp hh hxx rb cs php
@@ -243,10 +279,13 @@ swift ex exs sh f90 f95 f03 f08 xml plist svg csproj fsproj vbproj json
 yaml yml toml md scala sc sbt kojo mill dart
 ```
 
-This setup list is narrower than every parser or format mentioned in project
-documentation. Trust `git check-attr merge -- path` for the current repository,
-and add an explicit attribute rule only after confirming the installed Weave
-version handles that format acceptably.
+Since 0.4.0 the list is derived from the parser registry rather than
+hand-listed, covering 38 languages and formats, and it grows whenever a
+grammar is added upstream. Four extensions that parse but merge worse than
+Git, `.hs`, `.vue`, `.svelte`, and `.erb`, are declined at the source and are
+never claimed. Trust `git check-attr merge -- path` for the current
+repository, and add an explicit attribute rule only after confirming the
+installed Weave version handles that format acceptably.
 
 For unattended agents, a rule arriving only from global or clone-local ambient
 configuration is not repository consent for a long multi-commit replay. The
@@ -256,3 +295,44 @@ should be respected unless an authorized recovery says otherwise.
 `core.attributesFile` being absent from Git config means the default
 `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes` path is
 consulted, so an absent setting is not an absent rule.
+
+## Estate baseline
+
+The `dev-env-rocky` deployment, as of its September 2026 change "Pin Weave to
+v0.5.1 and make merge-driver activation opt-in", defines the baseline the main
+skill assumes:
+
+- `weave-cli` and `weave-driver` are installed from the upstream `v0.5.1` tag
+  with `cargo install --git ... --tag v0.5.1 --locked --force` into the
+  owner's `~/.cargo`. The CLI package installs the executable named `weave`.
+- Provisioning verifies both canonical binary versions, probes
+  `weave check --help`, and checks the versions resolved on the managed
+  `PATH` with `~/.local/bin` ahead of `~/.cargo/bin`. A shadowing binary fails
+  verification and is reported, not deleted.
+- The legacy thirty-extension block in `~/.config/git/attributes`, delimited
+  by `ANSIBLE MANAGED BLOCK - weave merge driver` markers, is removed. Other
+  entries in that file, repository attributes, and custom global attributes
+  files are left alone, so they still need inspection.
+- Global Git configuration registers the driver with its path shell-quoted,
+  and sets `merge.conflictStyle = zdiff3`. Registration does not activate the
+  driver:
+
+  ```text
+  merge.weave.driver = WEAVE_EVENT=1 '<owner-home>/.cargo/bin/weave-driver' %O %A %B %L %P
+  merge.conflictStyle = zdiff3
+  ```
+
+- Activation is a reviewed per-repository opt-in through that repository's
+  `.gitattributes` or, for a recorded non-shared experiment,
+  `.git/info/attributes`. `weave setup --global` is prohibited.
+- Unattended long-lived branch rebases use Git's text merge unless dogfooding
+  is explicitly requested. The sanctioned bypass for an opted-in repository is
+  a command-scoped `-c merge.weave.driver='git merge-file --zdiff3
+  --marker-size=%L %A %O %B' -c merge.weave.recursive=text`, repeated on each
+  `--continue`.
+- No `weave-mcp` server, `WEAVE_AUDIT`, or `WEAVE_FINDINGS` sidecar is
+  enabled.
+
+The pin is a containment change. The deployment does not claim that 0.5.1
+fixes the 0.3.6 corruptions recorded above, and they have not been replayed
+against 0.5.1.

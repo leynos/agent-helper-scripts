@@ -529,3 +529,163 @@ def test_all_valid_clean_sequences_are_fully_safe(
     assert model.safe_prefix_length(states) == len(sequence), (
         "an all-valid clean sequence did not have a full-length safe prefix"
     )
+
+
+# --- Command-scoped driver override properties -----------------------------
+#
+# The skill's transition rule: `-c` configuration lives for one Git command,
+# so the driver override has to be repeated on every `--continue`, whichever
+# attribute scope selected Weave. The persistent `!merge` line is the only
+# bypass that carries across commands.
+
+COMMAND_SCOPED_SETS = st.frozensets(st.sampled_from(list(model.CommandScoped)))
+REPLAY_COMMANDS = st.builds(
+    model.ReplayCommand,
+    overrides=COMMAND_SCOPED_SETS,
+    needs_content_merge=st.booleans(),
+)
+MERGING_COMMANDS = st.builds(
+    model.ReplayCommand,
+    overrides=COMMAND_SCOPED_SETS,
+    needs_content_merge=st.just(True),
+)
+COMMAND_SEQUENCES = st.lists(REPLAY_COMMANDS, min_size=1, max_size=8)
+OVERRIDDEN_COMMAND = model.ReplayCommand(
+    overrides=frozenset({model.CommandScoped.DRIVER_OVERRIDE})
+)
+BARE_COMMAND = model.ReplayCommand(overrides=frozenset())
+
+
+@given(
+    sources=SCOPE_SETS,
+    commands=st.lists(REPLAY_COMMANDS, min_size=1, max_size=8),
+    path_unset_merge=st.booleans(),
+)
+def test_override_on_every_command_keeps_the_driver_out(
+    sources: frozenset[model.Scope],
+    commands: list[model.ReplayCommand],
+    path_unset_merge: bool,
+) -> None:
+    """Repeating the override on each command never lets the driver run."""
+    guarded = [
+        dc.replace(
+            command,
+            overrides=command.overrides | {model.CommandScoped.DRIVER_OVERRIDE},
+        )
+        for command in commands
+    ]
+
+    invoked = model.fold_commands(sources, guarded, path_unset_merge=path_unset_merge)
+
+    assert not any(invoked), (
+        "an override carried on every command must keep the driver out of "
+        "every replay, whichever scope selected Weave"
+    )
+
+
+@given(
+    sources=SCOPE_SETS,
+    commands=COMMAND_SEQUENCES,
+    index=st.integers(min_value=0, max_value=7),
+)
+def test_each_command_is_judged_on_its_own_overrides_only(
+    sources: frozenset[model.Scope],
+    commands: list[model.ReplayCommand],
+    index: int,
+) -> None:
+    """Command-scoped configuration resets: no `-c` reaches the next command."""
+    index %= len(commands)
+
+    invoked = model.fold_commands(sources, commands, path_unset_merge=False)
+
+    assert invoked[index] == model.driver_invoked(
+        sources, commands[index], path_unset_merge=False
+    ), "a command's outcome must depend on that command alone"
+    # Replacing every other command must not change this one's outcome.
+    rewritten = [
+        command if position == index else OVERRIDDEN_COMMAND
+        for position, command in enumerate(commands)
+    ]
+    assert (
+        model.fold_commands(sources, rewritten, path_unset_merge=False)[index]
+        == invoked[index]
+    ), "overrides on neighbouring commands must not leak into this one"
+
+
+@given(
+    scope=SCOPES,
+    prefix=st.lists(MERGING_COMMANDS, min_size=1, max_size=7),
+)
+def test_a_continue_without_the_override_reaches_the_driver(
+    scope: model.Scope, prefix: list[model.ReplayCommand]
+) -> None:
+    """After any run of guarded commands, one bare `--continue` runs the driver.
+
+    This is the mistake the skill warns about, for every attribute scope: the
+    override on the initial `rebase` does not protect a later `--continue`.
+    """
+    guarded = [
+        dc.replace(command, overrides=frozenset({model.CommandScoped.DRIVER_OVERRIDE}))
+        for command in prefix
+    ]
+    sequence = [*guarded, BARE_COMMAND]
+
+    invoked = model.fold_commands({scope}, sequence, path_unset_merge=False)
+
+    assert not any(invoked[:-1]), "the guarded prefix must not run the driver"
+    assert invoked[-1], (
+        f"a bare --continue must reach the driver selected by the {scope} scope"
+    )
+
+
+@given(scope=SCOPES, command=MERGING_COMMANDS)
+def test_driver_override_never_changes_attribute_selection(
+    scope: model.Scope, command: model.ReplayCommand
+) -> None:
+    """The override replaces the driver; `check-attr` still reports `weave`."""
+    overridden = dc.replace(
+        command, overrides=command.overrides | {model.CommandScoped.DRIVER_OVERRIDE}
+    )
+    bypass = model.bypass_in_effect(overridden, path_unset_merge=False)
+    selection = model.effective_merge_attribute({scope}, bypass)
+
+    assert model.driver_invoked({scope}, overridden, path_unset_merge=False) is False
+    if model.CommandScoped.DEV_NULL_ATTRIBUTES_FILE in overridden.overrides:
+        expected = model.UNSPECIFIED if scope is model.Scope.GLOBAL else model.WEAVE
+    else:
+        expected = model.WEAVE
+    assert selection == expected, (
+        "the driver override must not alter what the attribute sources report"
+    )
+
+
+@given(sources=SCOPE_SETS, commands=COMMAND_SEQUENCES)
+def test_the_persistent_path_unset_line_carries_across_every_command(
+    sources: frozenset[model.Scope], commands: list[model.ReplayCommand]
+) -> None:
+    """Unlike `-c`, the `!merge` line is file state and needs no repetition."""
+    invoked = model.fold_commands(sources, commands, path_unset_merge=True)
+
+    assert not any(invoked), (
+        "a path-specific !merge line must keep the driver out of every command "
+        "without being restated"
+    )
+
+
+@given(sources=SCOPE_SETS, command=MERGING_COMMANDS)
+def test_dev_null_is_command_scoped_and_disables_only_global(
+    sources: frozenset[model.Scope], command: model.ReplayCommand
+) -> None:
+    """`/dev/null` on a command hides the global file for that command only."""
+    with_dev_null = dc.replace(
+        command,
+        overrides={model.CommandScoped.DEV_NULL_ATTRIBUTES_FILE},
+    )
+    without = dc.replace(command, overrides=frozenset())
+
+    assert model.driver_invoked(sources, with_dev_null, path_unset_merge=False) == bool(
+        sources - {model.Scope.GLOBAL}
+    ), "/dev/null must leave tracked and clone-local selection live"
+    assert model.driver_invoked(sources, without, path_unset_merge=False) == bool(
+        sources
+    ), "the next command without /dev/null sees every source again"

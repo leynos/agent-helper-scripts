@@ -794,29 +794,61 @@ Unattended multi-commit or long-lived-branch rebases default to Git's
 built-in merge machinery with `merge.conflictStyle=zdiff3` whenever Weave is
 selected only by ambient global or clone-local configuration; ambient
 selection is not repository consent for that scale of unattended replay. A
-tracked `.gitattributes` rule is explicit repository opt-in, and it is
-honoured unless an authorized recovery overrides it. Setting
-`core.attributesFile=/dev/null` cannot override tracked or clone-local rules —
-that limitation is why the scope matrix in the "Bypass recovery" subsection
-below exists.
+tracked `.gitattributes` rule is explicit repository opt-in for attended
+merges and requested dogfooding; the estate baseline still routes an
+unattended long-lived rebase through Git's text merge unless dogfooding is
+explicitly requested, using the command-scoped driver override described
+next. Setting `core.attributesFile=/dev/null` cannot override tracked or
+clone-local rules — that limitation is why the scope matrix in the "Bypass
+recovery" subsection below exists.
+
+### Estate baseline and driver override
+
+The skill assumes the `dev-env-rocky` deployment that pins Weave to `v0.5.1`
+and makes activation opt-in: the driver is registered globally as
+`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, no global
+attributes rule selects it, `merge.conflictStyle=zdiff3` is global, and each
+repository opts in through its own attributes. The sanctioned bypass for an
+opted-in repository replaces the named driver for one command rather than
+editing attribute files:
+`-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
+-c merge.weave.recursive=text`, repeated on every `--continue`. The scope
+matrix keeps the attribute-level rows for hosts that have not been
+reconciled. Tests must keep both routes executable against real Git.
 
 ### Setup scopes
 
 `weave setup` writes three mutually exclusive scopes:
 
-- default — tracked `.gitattributes`, shared with the whole team;
+- default — tracked `.gitattributes`, shared with the whole team. Since Weave
+  0.4.0 the extension list is derived from the parser registry (38 formats),
+  so the output needs review before it is accepted;
 - `--local` — untracked `.git/info/attributes`, this clone only;
 - `--global` — global Git config plus a global attributes file. When
   `core.attributesFile` is unset, Git falls back to
-  `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`.
+  `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`. The
+  estate baseline prohibits this scope.
 
 ### Driver contract
 
-Setup records `weave-driver %O %A %B %L %P` and Git runs it once per selected
-path. Exit `0` means Weave wrote a clean result to `%A`; exit `1` means Weave
-wrote a partially merged result with conflict markers to `%A` and Git leaves
-the path unmerged; exit `2` is an invocation, input, or output failure and is
-not a semantic conflict.
+Upstream setup records `weave-driver %O %A %B %L %P` and Git runs it once per
+selected path. Exit `0` means Weave wrote a clean result to `%A`; exit `1`
+means Weave wrote a partially merged result with conflict markers to `%A` and
+Git leaves the path unmerged; exit `2` is an invocation, input, or output
+failure and is not a semantic conflict. Weave 0.5.x adds two stable stderr
+prefixes, `weave-warning:` and `weave-event:`, and a conflicted file gains a
+`refused_by:` marker comment plus a trailing `weave explain` hint. The 0.3.x
+`WEAVE_TIMEOUT` watchdog no longer exists in 0.5.x, and lifetime statistics
+need `WEAVE_STATS=1`; the skill must not present either as current default
+behaviour.
+
+### `weave check` scope
+
+Working-tree `weave check` in 0.5.1 finds a three-way scope only when
+`MERGE_HEAD` exists or `HEAD` is a merge commit. A rebase stop or a completed
+rebase makes it print `NOTHING WAS CHECKED` and exit `0`. The skill wraps the
+command so that sentence becomes a stop rather than a pass, and the tests
+exercise the wrapper against a stubbed transcript because CI has no Weave.
 
 ### Validation is mandatory, not optional
 
