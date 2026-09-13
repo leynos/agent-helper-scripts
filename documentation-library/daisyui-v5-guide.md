@@ -13,16 +13,16 @@ for common UI components. This guide covers version 5.3.x.
 [install guide](https://daisyui.com/docs/install/)
 
 1. daisyUI 5 requires Tailwind CSS 4
-2. `tailwind.config.js` file is deprecated in Tailwind CSS v4. do not use
+2. `tailwind.config.js` file is deprecated in Tailwind CSS v4. Do not use
    `tailwind.config.js`. Tailwind CSS v4 only needs `@import "tailwindcss";` in
    the CSS file if it's a node dependency.
-3. daisyUI 5 can be installed using `npm i -D daisyui@latest` and then adding
+3. daisyUI 5 can be installed using `npm i -D daisyui@^5.3.0` and then adding
    `@plugin "daisyui";` to the CSS file
 4. daisyUI is suggested to be installed as a dependency but to use it from a
    CDN instead, use Tailwind CSS and daisyUI CDN files:
 
 ```html
-<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.3" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 ```
 
@@ -327,7 +327,7 @@ Avatars are used to show a thumbnail
 ```html
 <div class="avatar {MODIFIER}">
   <div>
-    <img src="{image-url}" />
+    <img src="{image-url}" alt="{alt-text}" />
   </div>
 </div>
 ```
@@ -687,7 +687,7 @@ Divider will be used to separate content vertically or horizontally
 
 ### dock
 
-Dock (also know as Bottom navigation or Bottom bar) is a UI element that
+Dock (also known as Bottom navigation or Bottom bar) is a UI element that
 provides navigation options to the user. Dock sticks to the bottom of the screen
 
 [dock docs](https://daisyui.com/components/dock/)
@@ -719,7 +719,7 @@ where content is a list of buttons:
 - {MODIFIER} is optional and can have one of the size class names
 - To make a button active, add `dock-active` class to the button
 - add `<meta name="viewport" content="viewport-fit=cover">` is required for
-  responsivness of the dock in iOS
+  responsiveness of the dock in iOS
 
 ### drawer
 
@@ -904,7 +904,7 @@ arrangement or a flower shape (quarter circle)
 
 #### Syntax — fab
 
-A single FAB in the corder of screen
+A single FAB in the corner of screen
 
 ```html
 <div class="fab">
@@ -1044,7 +1044,7 @@ fieldset-legend as a title and label as a description
 
 ### file-input
 
-File Input is a an input field for uploading files
+File Input is an input field for uploading files
 
 [file-input docs](https://daisyui.com/components/file-input/)
 
@@ -1106,7 +1106,7 @@ Without HTML form
 
 - replace `{NAME}` with proper value, according to the context of the filter
 - Each set of radio inputs must have unique `name` attributes to avoid conflicts
-- Use `<form>` tag when possible and only use `<div>` if a HTML form cannot
+- Use `<form>` tag when possible and only use `<div>` if an HTML form cannot
   be used for some reason
 - Use `filter-reset` class for the reset button
 
@@ -1167,12 +1167,12 @@ description
 
 ### hover-gallery
 
-Hover Gallery is container of images. The first image is visible be default and
+Hover Gallery is container of images. The first image is visible by default and
 when it is hovered horizontally, other images show up. Hover Gallery is useful
-for product cards in ecommerce sites, portfoilios or in image galleries. Hover
+for product cards in ecommerce sites, portfolios or in image galleries. Hover
 Gallery can include up to 10 images.
 
-[indicator docs](https://daisyui.com/components/hover-gallery/)
+[hover-gallery docs](https://daisyui.com/components/hover-gallery/)
 
 #### Class names — hover-gallery
 
@@ -1182,10 +1182,10 @@ Gallery can include up to 10 images.
 
 ```html
 <figure class="hover-gallery max-w-60">
-  <img src="https://img.daisyui.com/images/stock/daisyui-hat-1.webp" />
-  <img src="https://img.daisyui.com/images/stock/daisyui-hat-2.webp" />
-  <img src="https://img.daisyui.com/images/stock/daisyui-hat-3.webp" />
-  <img src="https://img.daisyui.com/images/stock/daisyui-hat-4.webp" />
+  <img src="https://img.daisyui.com/images/stock/daisyui-hat-1.webp" alt="Hat, front view" />
+  <img src="https://img.daisyui.com/images/stock/daisyui-hat-2.webp" alt="Hat, side view" />
+  <img src="https://img.daisyui.com/images/stock/daisyui-hat-3.webp" alt="Hat, back view" />
+  <img src="https://img.daisyui.com/images/stock/daisyui-hat-4.webp" alt="Hat, worn view" />
 </figure>
 ```
 

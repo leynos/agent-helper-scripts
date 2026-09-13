@@ -1,15 +1,15 @@
-# React + Tailwind with Bun 1.3.0 — a short, no‑nonsense guide
+# React + Tailwind with Bun 1.3.0+ — a short, no‑nonsense guide
 
 This is a pragmatic walkthrough for building and serving a tiny React +
-Tailwind app using **Bun 1.3.0**. It leans on Bun’s built‑in dev server (HMR,
-React Fast Refresh) and production bundler.
+Tailwind app using **Bun 1.3.0 or later**. It leans on Bun’s built‑in dev
+server (HMR, React Fast Refresh) and production bundler.
 
 ______________________________________________________________________
 
 ## 0) Prerequisites
 
 - Node/npm not required, but fine to have.
-- Bun **1.3.0** installed:
+- Bun **1.3.0 or later** installed:
 
 ```bash
 # Linux/macOS
@@ -29,7 +29,7 @@ npm install -g bun
 Verify:
 
 ```bash
-bun --version  # expect 1.3.0
+bun --version  # expect 1.3.0 or later
 ```
 
 ______________________________________________________________________
@@ -229,21 +229,36 @@ ______________________________________________________________________
   `index.html`; add an `@source` directive only when templates are stored
   outside Tailwind's automatic scan roots.
 - **404s in production for client‑side routes**: add the SPA fallback (see
-  server example) or configure your static host’s rewrite rules.
-- **HMR not triggering**: ensure you started via `bun './**/*.html'` or a
-  `Bun.serve()` with `development.hmr: true`.
+  server example) or configure the static host’s rewrite rules.
+- **HMR not triggering**: ensure the dev server started via `bun
+  './**/*.html'` or a `Bun.serve()` with `development.hmr: true`.
 - **TypeScript module quirks**: Bun defaults to `"module": "Preserve"`; avoid
-  incompatible TS transforms in your own config.
+  incompatible TS transforms in the project's own config.
 
 ______________________________________________________________________
 
 ## 8) Bonus: compile to a single executable (advanced)
 
-A self‑contained binary can serve the app:
+Compiling `./index.html` directly only bundles the static asset; it cannot
+produce a server. Instead, compile a small entry point that imports the HTML
+and starts `Bun.serve()`:
+
+```ts
+// server.ts
+import homepage from "./index.html";
+import { serve } from "bun";
+
+serve({
+  routes: {
+    "/": homepage,
+    "/api/health": () => Response.json({ status: "ok" }),
+  },
+});
+```
 
 ```bash
-bun build --compile ./index.html --outfile myapp
-./myapp  # starts a server; routes can be added in code
+bun build --compile ./server.ts --outfile myapp
+./myapp  # launches the HTTP server; more routes can be added in code
 ```
 
 Use this for kiosk‑style SPAs or internal tools where “download and run” beats

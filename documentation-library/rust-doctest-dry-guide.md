@@ -334,7 +334,7 @@ pub fn my_func_that_needs_env(ctx: &mut TestContext) -> Result<(), ()> {
 
 // This module and its contents are only compiled for doctests.
 #[cfg(doctest)]
-mod doctest_helpers {
+pub mod doctest_helpers {
     // Re-export any types needed for the function signatures above.
     pub use super::TestContext;
     use std::io::Result;
@@ -477,7 +477,12 @@ less ergonomic, especially when applied to outer (`///`) doc comments, as the
 To complement conditional execution, Rust provides a way to visually flag
 feature-gated items in the generated documentation. This is achieved with the
 `#[doc(cfg(...))]` attribute, which requires enabling the
-`#![feature(doc_cfg)]` feature gate at the crate root.
+`#![feature(doc_cfg)]` feature gate at the crate root. Both the attribute and
+the feature gate are nightly-only; the example below does not compile on
+stable Rust, and it does not compile under this repository's default
+`RUST_CHANNEL=stable`. It is retained here purely as a reference for projects
+that build their documentation on nightly (for example, via `docs.rs`, which
+runs nightly `rustdoc`).
 
 ```rust
 // At the crate root (lib.rs)
@@ -616,7 +621,7 @@ mastering doctests:
    unit or integration test. Do not compromise your API design or test clarity
    by forcing a square peg into a round hole. Use the right tool for the job.
 
-### **Works cited**
+### Works cited
 
 [^1]: rust - How can I write documentation tests for private modules,
    accessed on July 15, 2025:
