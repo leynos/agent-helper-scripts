@@ -143,6 +143,7 @@ this is straightforward.
 
 use logos::Logos;
 
+#[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Ignore whitespace
 pub enum Token<'a> {
     #[token("(")] LParen,
@@ -256,6 +257,7 @@ Tests should target these specific ambiguities:
 
 ```rust,no_run
 // In src/lexer.rs, add new tokens for ambiguity test
+#[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
 pub enum AmbiguousToken<'a> {
     #[token("=")] Assign,
@@ -311,8 +313,11 @@ the number is too large:
 use logos::{Lexer, Logos};
 use std::num::ParseIntError;
 
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum CallbackError {
     InvalidInt(ParseIntError),
+    #[default]
+    Other,
 }
 
 fn parse_hex(lex: &mut Lexer<CallbackToken>) -> Result<u32, CallbackError> {
@@ -321,6 +326,7 @@ fn parse_hex(lex: &mut Lexer<CallbackToken>) -> Result<u32, CallbackError> {
     u32::from_str_radix(slice, 16).map_err(CallbackError::InvalidInt)
 }
 
+#[derive(Logos, Debug, PartialEq)]
 #[logos(error = CallbackError)]
 pub enum CallbackToken {
     #[regex("0x[0-9a-fA-F]+", parse_hex)]
@@ -576,7 +582,13 @@ picture of the parser's output for a given input.
 
 // A helper function to combine lexing and parsing for snapshot tests.
 fn parse_for_snapshot(source: &str) -> String {
-    let tokens = MyToken::lexer(source).spanned().collect::<Vec<_>>();
+    let mut tokens = Vec::new();
+    for (result, span) in MyToken::lexer(source).spanned() {
+        match result {
+            Ok(token) => tokens.push((token, &source[span.clone()], span)),
+            Err(err) => panic!("lexer error at {:?}: {:?}", span, err),
+        }
+    }
     let (ast, errs) = my_root_parser().parse(&tokens).into_output_errors();
 
     // Format the output for a clean snapshot.
@@ -638,9 +650,11 @@ fn snapshot_recovery_from_missing_semicolon() {
 }
 ```
 
-The resulting snapshot should show an error message like "Expected semicolon"
-and an AST that contains *both* the `let x = 1` and `let y = 2;` statements,
-proving that recovery was successful. Experimenting with different recovery
+`my_root_parser()` is not shown configured with a recovery combinator here, so
+neither the exact diagnostic text nor the extent of recovery is guaranteed by
+this example alone; the generated snapshot must be reviewed to confirm which
+error message is produced and whether the parser recovers both `let`
+statements, or only the first. Experimenting with different recovery
 strategies (e.g., `recover_with(skip_then_retry_until(…))`), and snapshotting
 the results, is the most effective way to fine-tune how the parser responds to
 invalid input.[^23]
@@ -674,7 +688,13 @@ fn to_sexpr(expr: &Expr) -> String {
 #[case("-5 + 2", "(+ (- 5) 2)")]      // Unary operator
 #[case("-(5 + 2)", "(- (+ 5 2))")]    // Parentheses
 fn test_pratt_parser_expressions(#[case] input: &str, #[case] expected: &str) {
-    let tokens = MyToken::lexer(input).collect();
+    let mut tokens = Vec::new();
+    for (result, span) in MyToken::lexer(input).spanned() {
+        match result {
+            Ok(token) => tokens.push((token, &input[span.clone()], span)),
+            Err(err) => panic!("lexer error at {:?}: {:?}", span, err),
+        }
+    }
     let (ast, errs) = expr_parser().parse(&tokens).into_output_errors();
 
     assert!(errs.is_empty(), "Parse errors found: {:?}", errs);
@@ -1037,23 +1057,24 @@ operator precedence by adding parentheses where necessary to preserve the AST's
 structure.
 
 ```rust,no_run
-// A simple pretty-printer for the Expr AST (illustrative).
+// A prefix S-expression printer for the Expr AST (illustrative).
 fn to_sexpr(expr: &Expr) -> String {
     match expr {
         Expr::Literal(n) => n.to_string(),
         Expr::Unary { op, expr } => {
             let op_str = match op { UnaryOp::Plus => "+", UnaryOp::Minus => "-" };
-            format!("{}{}", op_str, to_sexpr(expr))
+            format!("({} {})", op_str, to_sexpr(expr))
         }
         Expr::Binary { op, lhs, rhs } => {
             let op_str = match op {
                 BinaryOp::Add => "+", BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*", BinaryOp::Div => "/",
             };
-            // This is a simplified printer; a real one would be more careful with parentheses.
-            format!("({} {} {})", to_sexpr(lhs), op_str, to_sexpr(rhs))
+            format!("({} {} {})", op_str, to_sexpr(lhs), to_sexpr(rhs))
         }
-        Expr::Paren(expr) => format!("({})", to_sexpr(expr)),
+        // Parentheses are already implicit in the S-expression's nesting,
+        // so `Paren` is transparent here.
+        Expr::Paren(expr) => to_sexpr(expr),
     }
 }
 ```
@@ -1068,7 +1089,7 @@ proptest! {
     #[test]
     fn ast_round_trip(ast in any::<Expr>()) {
         // 1. Pretty-print the generated AST to a string.
-        let code = ast.to_sexpr();
+        let code = to_sexpr(&ast);
 
         // 2. Parse the string back into an AST.
         let parsed_result = my_language_parser::parse_expr(&code);

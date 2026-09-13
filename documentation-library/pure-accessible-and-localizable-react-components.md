@@ -734,7 +734,7 @@ i18n
       escapeValue: false,
     },
     i18nFormat: {
-      fluentBundleOptions: { useIsolating: false },
+      fluentBundleOptions: { useIsolating: true },
     },
   });
 
@@ -742,23 +742,11 @@ export default i18n;
 
 ```
 
-> ℹ️ **Why `useIsolating: false`?** Fluent inserts invisible FSI/PDI markers
-> around every placeable when isolation is enabled. Those markers break some of
-> the React typography helpers (for example the icon-leading badges and the map
-> callouts that already wrap user-provided strings in `<bdi>`). Because every
-> user-controlled interpolation is explicitly wrapped in `<bdi>` (or rendered
-> in its own element with `dir` attributes) and layout relies on logical CSS
-> properties, disabling Fluent’s automatic isolation still preserves RTL
-> rendering while keeping the markup predictable.
->
-> Projects without those typography constraints should prefer the default
-> `useIsolating: true`. When `false` is retained globally, review every
-> `t(...)`, `<Trans>`, and custom formatter that inserts user-controlled text,
-> and require one of these patterns:
->
-> - wrap the interpolated fragment in `<bdi dir="auto">...</bdi>`;
-> - render the containing element with `dir="auto"` when the whole message is
->   direction-sensitive.
+> ℹ️ **Isolation stays enabled.** `useIsolating` stays at its default of
+> `true`, so Fluent wraps every interpolated value in invisible FSI/PDI
+> markers. That isolation keeps user-controlled and localized substitutions
+> from disrupting surrounding bidirectional text, without requiring manual
+> `<bdi>` wrapping around each interpolation.
 
 Import this module inside `main.tsx` and keep the root wrapped in `Suspense` so
 React can pause rendering until the `.ftl` file for the active locale has been

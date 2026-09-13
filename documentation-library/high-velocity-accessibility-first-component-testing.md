@@ -31,25 +31,34 @@ the document. `axe-core` relies on modifying `isConnected` during its DOM
 traversal. In Happy DOM, `isConnected` is implemented as a read-only property
 (and not fully standard), causing `axe-core` to throw runtime errors when it
 attempts to set it. In practice, this means any accessibility scan using
-`axe-core` fails outright under Happy DOM.[^1] Community reports and library
-documentation confirm this issue: the maintainers of `vitest-axe` (a
-Vitest/Jest integration for axe) explicitly warn that their matcher is
-**incompatible** with Happy DOM environments.
+`axe-core` fails outright under Happy DOM in the versions we tested.[^1]
+Community reports and library documentation confirm this issue: the
+maintainers of `vitest-axe` (a Vitest/Jest integration for axe) explicitly
+warn that their matcher is **incompatible** with the Happy DOM versions they
+tested against. Confirm the current compatibility of the Happy DOM, `axe-core`
+and `vitest-axe` versions selected for a given project before relying on this
+warning.
 
-Unfortunately, Bun’s test runner **does not yet support** the more
-standards-compliant **JSDOM** environment (the de facto choice for Node-based
-DOM testing). JSDOM would solve the `isConnected` issue, but Bun cannot use it
-as a drop-in replacement at this time.[^2] This presents a catch-22:
+At the time this strategy was adopted, Bun’s test runner did not support the
+more standards-compliant **JSDOM** environment (the de facto choice for
+Node-based DOM testing) as a drop-in replacement.[^2] Whether that remains
+true depends on the Bun version in use: compatibility between Bun, JSDOM and
+`axe-core` should be validated against the versions selected for the target
+project rather than assumed. With the Bun version available when this
+document was written, the combination presented a catch-22:
 
 - Bun’s recommended path for DOM tests is Happy DOM (for speed).
 
 - `axe-core` cannot operate under Happy DOM due to fundamental API mismatch.
 
-- The only viable alternative (JSDOM) isn’t supported in Bun’s native runner.
+- The only viable alternative (JSDOM) was not supported in Bun’s native
+  runner.
 
-In summary, **Bun alone cannot run component-level accessibility scans** today.
-This impasse is not a matter of configuration or minor bug; it’s a fundamental
-limitation of the current Bun + Happy DOM pairing. We must therefore adjust our
+In summary, with the dependency versions evaluated here, **Bun alone could not
+run component-level accessibility scans**. This was not a matter of
+configuration or a minor bug; it was a limitation of that particular Bun +
+Happy DOM pairing, and it should be re-verified against the versions in use
+before being treated as still applicable. We must therefore adjust our
 strategy to retain Bun’s performance benefits _and_ enable `axe-core` scans
 through other means. The solution is a **hybrid testing approach**: run most
 tests in Bun for speed, but outsource accessibility-specific tests to a Node.js
@@ -57,8 +66,11 @@ environment that supports JSDOM.
 
 ### 1.2 A Hybrid Solution: Node.js + JSDOM for A11y Scans
 
-To resolve the deadlock, we introduce a **parallel Node.js test harness**
-dedicated to accessibility checks. Rather than abandoning Bun entirely (and its
+To resolve the deadlock observed with the evaluated versions, we introduce a
+**parallel Node.js test harness** dedicated to accessibility checks. This is a
+version-dependent design choice rather than a universal or permanent Bun
+limitation, and it should be revisited whenever the Bun, JSDOM or `axe-core`
+versions in use change. Rather than abandoning Bun entirely (and its
 performance gains), we isolate the `axe-core` scans into their own test suite
 running on Node.js. In practice, this means writing our accessibility tests in
 separate files – for example, naming them `*.a11y.test.tsx` – and executing
@@ -460,7 +472,7 @@ next” examples and shows what the accessible alternative should look like.
 To enforce these practices, we integrate ESLint rules and testing guidelines:
 
 - We enable **ESLint plugins like Testing Library’s `prefer-user-event` and
-  `prefer-accessible-queries`** which warn if a test uses `getByTestId` when a
+  `no-test-id-queries`** which warn if a test uses `getByTestId` when a
   role query is available, or if it calls low-level DOM methods instead of
   simulating real user events.
 
@@ -1287,6 +1299,7 @@ things** for our users.
 [^1]: Happy DOM issue tracker – documented incompatibility of
     `Node.isConnected` implementation with axe-core's expectations.
 [^2]: Bun GitHub issue #3554 – tracking request for JSDOM support in Bun's
-    test runner (unresolved as of 2025).
+    test runner. The issue is closed, and Bun v1.1.41 brought JSDOM
+    compatibility improvements.
 [^3]: Deque `axe-core` documentation – notes on JSDOM support and rules like
     `color-contrast` being inapplicable in headless DOM.
