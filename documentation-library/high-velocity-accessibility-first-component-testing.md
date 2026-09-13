@@ -841,12 +841,15 @@ test('Settings panel visual regression in dark and light mode', async ({ page })
 ```
 
 This produces baseline images for both dark and light modes of the settings
-panel. If in light mode some text becomes illegible (e.g., white text
-accidentally appearing on a light background), the screenshot difference will
-flag it. This is effectively an automated **contrast check** across themes,
-complementing what axe does. Axe will catch low contrast if configured, but
-visual snapshots give a human-verifiable artefact to review if something
-changes.
+panel. A screenshot snapshot is **visual-regression evidence**: it detects any
+departure from an approved baseline, including changed layout, clipped text and
+unintended theme changes. It is not an automated contrast check, because a
+difference is only reported against the baseline and a baseline that was
+approved with poor contrast keeps passing.
+
+Colour contrast is validated by the `axe-core` scan instead. That scan must run
+in the real-browser Playwright layer, where computed styles are available, for
+its contrast results to mean anything.
 
 Visual regression tests are run sparingly because they can be
 resource-intensive and occasionally flaky (due to antialiasing differences,
@@ -1298,10 +1301,12 @@ remembering every ARIA rule – the system provides that backstop.
   return focus to opener on close – see test X”). This knowledge sharing is
   invaluable.
 
-- **Compliance and Confidence:** The team can confidently assert conformance
-  to standards (like WCAG 2.1 AA) because of automated checks for many
-  criteria (contrast, focus order, semantics, etc.). This mitigates risk from
-  a legal/compliance standpoint and broadens the product’s user reach.
+- **Compliance and Confidence:** Automated checks across many criteria
+  (contrast, semantics, and the interaction behaviours covered in the
+  Playwright layer) support a WCAG conformance evaluation. An experienced
+  accessibility reviewer must complete a manual evaluation before the team
+  claims conformance to WCAG 2.1 AA. This mitigates risk from a
+  legal/compliance standpoint and broadens the product’s user reach.
 
 By modernizing the original design to use **Bun for speed** and a **Node
 assist for axe**, this preserves the core philosophy: accessibility testing
