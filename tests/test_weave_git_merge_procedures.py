@@ -265,6 +265,30 @@ def _diverge_for_cherry_pick(repository: Path, source: Path) -> None:
     _git(repository, "commit", "--quiet", "--all", "-m", "main change")
 
 
+def _diverge_competing(repository: Path, source: Path, *, second: bool = False) -> None:
+    """Commit the base, then competing edits to `alpha` on `main` and `topic`.
+
+    Both sides edit the same function, so the built-in merge cannot resolve
+    it. With `second`, `topic` carries a further commit changing `gamma`, so a
+    rebase has a second replay to make after the conflicting one is resolved.
+    """
+    _git(repository, "commit", "--quiet", "-m", "base")
+    _git(repository, "switch", "--quiet", "--create", "topic")
+    source.write_text(BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_TOPIC), encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "topic alpha")
+    if second:
+        source.write_text(
+            BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_TOPIC).replace(
+                _GAMMA_BASE, _GAMMA_TOPIC
+            ),
+            encoding="utf-8",
+        )
+        _git(repository, "commit", "--quiet", "--all", "-m", "topic gamma")
+    _git(repository, "switch", "--quiet", "main")
+    source.write_text(MAIN_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "main alpha")
+
+
 def _prepare(repository: Path, source: Path, operation: str) -> None:
     """Build the history the given operation needs."""
     if operation == "cherry-pick":
@@ -565,6 +589,7 @@ UNATTENDED_PREFIX = (
 )
 
 AUTO_RESOLVED_LINE = "weave: 5 entities auto-resolved (conflict confidence)"
+WARNING_LINE = 'weave-warning: {"entity":"alpha","file":"example.py","kind":"cooccupancy"}'
 EVENT_LINE = 'weave-event: {"path":"example.py","entities":5}'
 # Emitted by the driver but deliberately outside the evidence grammar, so a
 # parse that swept up every stderr line would be caught rather than passing.
@@ -689,14 +714,7 @@ def test_unattended_prefix_records_the_merge_base_in_conflict_markers(
     """`zdiff3` keeps the base section a reviewer needs to explain a deletion."""
     repository, source, attributes = diverged
     _select_scope(repository, "global", attributes)
-    # Both sides edit the same function, so the built-in merge cannot resolve it.
-    _git(repository, "commit", "--quiet", "-m", "base")
-    _git(repository, "switch", "--quiet", "--create", "topic")
-    source.write_text(BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_TOPIC), encoding="utf-8")
-    _git(repository, "commit", "--quiet", "--all", "-m", "topic alpha")
-    _git(repository, "switch", "--quiet", "main")
-    source.write_text(MAIN_SOURCE, encoding="utf-8")
-    _git(repository, "commit", "--quiet", "--all", "-m", "main alpha")
+    _diverge_competing(repository, source)
     _git(repository, "switch", "--quiet", "topic")
 
     conflicted = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
@@ -823,7 +841,11 @@ def test_driver_stderr_capture_preserves_auto_resolution_and_event_lines(
         )
         _ancestor, current, _other, _marker_size, _pathname = invocation.args
         (repository / current).write_text(MERGED_SOURCE, encoding="utf-8")
-        return ("", f"{DECOY_LINE}\n{AUTO_RESOLVED_LINE}\n{EVENT_LINE}\n", 0)
+        return (
+            "",
+            f"{DECOY_LINE}\n{AUTO_RESOLVED_LINE}\n{WARNING_LINE}\n{EVENT_LINE}\n",
+            0,
+        )
 
     environment = EnvironmentManager()
     with CmdMox(environment=environment) as mox:
@@ -859,7 +881,13 @@ def test_driver_stderr_capture_preserves_auto_resolution_and_event_lines(
     assert EVENT_LINE in captured, "structured events must reach the operation receipt"
 
     matched = subprocess.run(  # noqa: S603 - fixed executable and arguments.
-        ["/usr/bin/env", "grep", "-E", "auto-resolved|^weave-event: ", str(capture)],
+        [
+            "/usr/bin/env",
+            "grep",
+            "-E",
+            "auto-resolved|^weave-warning: |^weave-event: ",
+            str(capture),
+        ],
         text=True,
         capture_output=True,
         check=False,
@@ -868,11 +896,15 @@ def test_driver_stderr_capture_preserves_auto_resolution_and_event_lines(
     )
     assert DECOY_LINE in captured, "the decoy must reach the capture file"
     assert matched.returncode == 0, (
-        "the documented parse must find both lines; a fail-open `|| true` would "
-        "have hidden an empty or unreadable capture here"
+        "the documented parse must find the evidence lines; a fail-open `|| true` "
+        "would have hidden an empty or unreadable capture here"
     )
     assert AUTO_RESOLVED_LINE in matched.stdout, (
         "the auto-resolution summary must be reported by the parse"
+    )
+    assert WARNING_LINE in matched.stdout, (
+        "a clean-with-warnings merge is a real 0.5.x state; its warning line "
+        "must be reported by the parse"
     )
     assert EVENT_LINE in matched.stdout, "the event line must be reported by the parse"
     assert DECOY_LINE not in matched.stdout, (
@@ -977,4 +1009,333 @@ def test_recovery_evidence_must_cover_staged_unstaged_and_untracked_work(
     restore((staged_only, unstaged_only), keep_untracked=False)
     assert not untracked.exists(), (
         "this is the loss the recovery-completeness rule exists to prevent"
+    )
+
+
+# --- v0.5.1 opt-in baseline --------------------------------------------------
+#
+# The estate baseline registers the driver globally, activates it only through
+# repository attributes, and bypasses an opted-in driver with a command-scoped
+# override of the named driver rather than by editing attribute files. The
+# tests below execute those documented commands against real Git. The stubbed
+# `weave check` transcript reproduces the 0.5.1 no-scope sentence so the
+# documented fail-closed guard is exercised without a Weave installation.
+
+DRIVER_OVERRIDE = (
+    "-c",
+    "merge.conflictStyle=zdiff3",
+    "-c",
+    "merge.weave.driver=git merge-file --zdiff3 --marker-size=%L %A %O %B",
+    "-c",
+    "merge.weave.recursive=text",
+)
+OVERRIDE_DRIVER_COMMAND = "git merge-file --zdiff3 --marker-size=%L %A %O %B"
+NOTHING_CHECKED_TRANSCRIPT = (
+    "weave check: no merge in progress (no MERGE_HEAD) and HEAD is not a merge "
+    "commit, so there is no three-way context to verify a resolution against. "
+    "NOTHING WAS CHECKED - this is not a clean bill of health."
+)
+CLEAN_CHECK_TRANSCRIPT = (
+    "OK: example.py - markers cleared, no unanimous-line loss, no duplicated "
+    "definitions or lines, no dangling references"
+)
+# A transcription of the skill's fail-closed `weave check` wrapper.
+CHECK_GUARD_SCRIPT = """
+set -u
+if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  echo 'weave check: no MERGE_HEAD; working-tree mode has no three-way scope' >&2
+fi
+WEAVE_CHECK_OUT=$(mktemp -t weave-check.XXXXXX) || exit 1
+weave check | tee -- "$WEAVE_CHECK_OUT"
+CHECK_STATUS=${PIPESTATUS[0]}
+if grep -q 'NOTHING WAS CHECKED' -- "$WEAVE_CHECK_OUT"; then
+  echo 'andon: weave check verified nothing; record unchecked, not clean' >&2
+  exit 1
+fi
+printf 'weave_check_status=%s\\nevidence=%s\\n' "$CHECK_STATUS" "$WEAVE_CHECK_OUT"
+"""
+
+
+def _ref_exists(repository: Path, ref: str) -> bool:
+    """Report whether `ref` resolves, the way the skill's guard asks Git."""
+    return _git(repository, "rev-parse", "-q", "--verify", ref, check=False).returncode == 0
+
+
+def _parent_count(repository: Path) -> int:
+    """Count the parents of `HEAD`; two means `weave check` sees a merge."""
+    listed = _git(repository, "rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
+    return len(listed) - 1
+
+
+def _fake_weave(directory: Path, transcript: str) -> Path:
+    """Install a `weave` stand-in that prints `transcript` and exits 0.
+
+    The stand-in is placed first on `PATH` by the caller, so the documented
+    wrapper resolves it before any real installation.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / "weave"
+    script.write_text(f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(transcript)}\n")
+    script.chmod(0o755)
+    return script
+
+
+def _run_check_guard(repository: Path, fake_bin: Path) -> subprocess.CompletedProcess[str]:
+    """Run the transcribed `weave check` wrapper with `fake_bin` first on PATH."""
+    return subprocess.run(  # noqa: S603 - fixed interpreter and script.
+        ["/bin/bash", "-c", CHECK_GUARD_SCRIPT],
+        cwd=repository,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        env=os.environ
+        | {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+        },
+    )
+
+
+@pytest.mark.parametrize("scope", SCOPES)
+@pytest.mark.parametrize("operation", OPERATIONS)
+def test_driver_override_bypasses_an_opted_in_driver_for_each_operation(
+    diverged: tuple[Path, Path, Path], scope: str, operation: str
+) -> None:
+    """The command-scoped override replaces the driver without touching attributes."""
+    repository, source, attributes = diverged
+    _select_scope(repository, scope, attributes)
+    _prepare(repository, source, operation)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_conflict_handler())
+        mox.replay()
+        _wire_driver(repository, environment)
+
+        interrupted = _start_operation(repository, operation)
+        assert interrupted.returncode != 0, (
+            f"the failing driver must interrupt the {operation}"
+        )
+        assert spy.call_count == 1, f"Git must have invoked the driver for the {operation}"
+        _abort(repository, operation)
+
+        still_selected = _git(
+            repository, *DRIVER_OVERRIDE, "check-attr", "merge", "--", "example.py"
+        )
+        assert still_selected.stdout.rstrip().endswith("merge: weave"), (
+            "the override must leave attribute selection alone; it replaces the "
+            "named driver rather than making the path unselected"
+        )
+        effective = _git(repository, *DRIVER_OVERRIDE, "config", "--get", "merge.weave.driver")
+        assert effective.stdout.strip() == OVERRIDE_DRIVER_COMMAND, (
+            "the documented verification must show the git merge-file command"
+        )
+
+        retried = _start_operation(repository, operation, list(DRIVER_OVERRIDE))
+        assert retried.returncode == 0, (
+            f"the {operation} must succeed under the driver override: {retried.stderr}"
+        )
+        assert spy.call_count == 1, (
+            f"the override must stop Git invoking the driver on the {operation} retry"
+        )
+
+    assert source.read_text(encoding="utf-8") == EXPECTED_AFTER_BYPASS[operation], (
+        f"git merge-file must produce the {operation} result exactly"
+    )
+    info = repository / ".git" / "info" / "attributes"
+    assert "!merge" not in (info.read_text(encoding="utf-8") if info.exists() else ""), (
+        "the override must not need the attribute-level `!merge` opt-out"
+    )
+
+
+def test_driver_override_must_be_repeated_on_rebase_continue(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Git re-reads the driver per replay, so `--continue` needs the same `-c`."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "tracked", attributes)
+    _diverge_competing(repository, source, second=True)
+    _git(repository, "switch", "--quiet", "topic")
+    resolution = MAIN_SOURCE
+    continue_args = ("-c", "core.editor=true", "rebase", "--continue")
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_conflict_handler())
+        mox.replay()
+        _wire_driver(repository, environment)
+
+        stopped = _git(repository, *DRIVER_OVERRIDE, "rebase", "main", check=False)
+        assert stopped.returncode != 0, "the competing `alpha` edits must conflict"
+        assert spy.call_count == 0, "the override must keep the driver out of the first replay"
+        markers = source.read_text(encoding="utf-8")
+        assert "|||||||" in markers and '"base"' in markers, (
+            "`git merge-file --zdiff3` must emit the base section in the markers"
+        )
+
+        # Control: continuing without the override hands the second replay to
+        # the driver again, which is the mistake the skill warns about.
+        source.write_text(resolution, encoding="utf-8")
+        _git(repository, "add", "example.py")
+        unguarded = _git(repository, *continue_args, check=False)
+        assert spy.call_count == 1, (
+            "a `--continue` without the override must reach the driver; the "
+            "override is per command, not per operation"
+        )
+        assert unguarded.returncode != 0, "the conflicting driver must stop the second replay"
+        _abort(repository, "rebase")
+
+        # Now carry the override on every command, as the skill instructs.
+        stopped = _git(repository, *DRIVER_OVERRIDE, "rebase", "main", check=False)
+        assert stopped.returncode != 0, "the first replay must stop again"
+        source.write_text(resolution, encoding="utf-8")
+        _git(repository, "add", "example.py")
+        completed = _git(repository, *DRIVER_OVERRIDE, *continue_args, check=False)
+        assert completed.returncode == 0, (
+            f"the guarded `--continue` must finish the rebase: {completed.stderr}"
+        )
+        assert spy.call_count == 1, (
+            "the override on `--continue` must keep the driver out of the second replay"
+        )
+
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "git merge-file must compose the resolved `alpha` with the replayed `gamma`"
+    )
+
+
+def test_baseline_driver_command_supplies_the_event_flag_itself(
+    diverged: tuple[Path, Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered command carries `WEAVE_EVENT=1` and a quoted absolute path."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "tracked", attributes)
+    _diverge(repository, source)
+    monkeypatch.delenv("WEAVE_EVENT", raising=False)
+
+    def handler(invocation: Invocation) -> tuple[str, str, int]:
+        assert invocation.env.get("WEAVE_EVENT") == "1", (
+            "the flag must come from the registered command, not the caller's "
+            "environment"
+        )
+        _ancestor, current, _other, _marker_size, _pathname = invocation.args
+        (repository / current).write_text(MERGED_SOURCE, encoding="utf-8")
+        return ("", f"{EVENT_LINE}\n", 0)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(handler)
+        mox.replay()
+        assert environment.shim_dir is not None, "cmd-mox must be in replay"
+        # A directory name with a space stands in for an owner home that needs
+        # the shell quoting the baseline applies to the driver path.
+        quoted_home = tmp_path / "owner home"
+        quoted_home.mkdir()
+        driver_dir = quoted_home / "bin"
+        driver_dir.symlink_to(environment.shim_dir, target_is_directory=True)
+        driver = driver_dir / DRIVER_NAME
+        assert driver.exists(), "the shim must be reachable through the quoted path"
+        _git(
+            repository,
+            "config",
+            "merge.weave.driver",
+            f"WEAVE_EVENT=1 {shlex.quote(str(driver))} %O %A %B %L %P",
+        )
+        registered = _git(
+            repository, "config", "--show-scope", "--get-all", "merge.weave.driver"
+        ).stdout
+        assert registered.startswith("local\tWEAVE_EVENT=1 '"), (
+            "the documented inspection must show the scope and the quoted command"
+        )
+
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, "rebase", "main", check=False)
+        assert spy.call_count == 1, "Git must have run the driver through the shell"
+
+    assert rebased.returncode == 0, f"the clean driver exit must complete the rebase: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "the driver's output must have been recorded"
+    )
+
+
+def test_weave_check_working_tree_scope_exists_only_for_merges(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A rebase stop and a completed rebase give `weave check` nothing to verify."""
+    repository, source, attributes = diverged
+    del attributes
+    _diverge_competing(repository, source)
+    _git(repository, "switch", "--quiet", "topic")
+
+    stopped = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+    assert stopped.returncode != 0, "the competing edits must stop the rebase"
+    assert _ref_exists(repository, "REBASE_HEAD"), "Git must record the rebase stop"
+    assert not _ref_exists(repository, "MERGE_HEAD"), (
+        "a rebase stop has no MERGE_HEAD, so working-tree `weave check` has no scope"
+    )
+    # Keep topic's `alpha`, so the replayed commit still differs from `main`
+    # and the merge below is a real merge rather than "already up to date".
+    source.write_text(BASE_SOURCE.replace(_ALPHA_BASE, _ALPHA_TOPIC), encoding="utf-8")
+    _git(repository, "add", "example.py")
+    completed = _git(repository, "-c", "core.editor=true", "rebase", "--continue", check=False)
+    assert completed.returncode == 0, f"the resolved rebase must complete: {completed.stderr}"
+    assert not _ref_exists(repository, "MERGE_HEAD"), "a completed rebase leaves no MERGE_HEAD"
+    assert _parent_count(repository) == 1, (
+        "a replayed commit has one parent, so `weave check` cannot infer a merge"
+    )
+
+    _git(repository, "switch", "--quiet", "main")
+    _git(repository, "merge", "--no-ff", "--no-commit", "--quiet", "topic")
+    assert _ref_exists(repository, "MERGE_HEAD"), (
+        "an in-progress merge is the state working-tree `weave check` verifies"
+    )
+    _git(repository, "-c", "core.editor=true", "commit", "--quiet", "--no-edit")
+    assert _parent_count(repository) == 2, (
+        "a merge commit is the other state `weave check` recognizes"
+    )
+
+
+def test_check_guard_fails_closed_on_a_nothing_checked_transcript(
+    diverged: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    """The documented wrapper refuses to record an unchecked run as clean."""
+    repository, source, attributes = diverged
+    del attributes
+    _diverge(repository, source)
+    _git(repository, "switch", "--quiet", "topic")
+    rebased = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+    assert rebased.returncode == 0, "the fixture rebase must complete"
+
+    unchecked = _run_check_guard(
+        repository, _fake_weave(tmp_path / "unchecked", NOTHING_CHECKED_TRANSCRIPT).parent
+    )
+    assert unchecked.returncode == 1, (
+        "a `weave check` that verified nothing exits 0 upstream; the wrapper must "
+        "turn that into a stop rather than a pass"
+    )
+    assert "no MERGE_HEAD" in unchecked.stderr, (
+        "the wrapper must say why working-tree mode had no scope"
+    )
+    assert "record unchecked, not clean" in unchecked.stderr, (
+        "the wrapper must name the evidence state it recorded"
+    )
+    assert "weave_check_status=" not in unchecked.stdout, (
+        "no receipt line may be printed for an unchecked run"
+    )
+
+    _git(repository, "switch", "--quiet", "main")
+    _git(repository, "merge", "--no-ff", "--no-commit", "--quiet", "topic")
+    checked = _run_check_guard(
+        repository, _fake_weave(tmp_path / "checked", CLEAN_CHECK_TRANSCRIPT).parent
+    )
+    assert checked.returncode == 0, f"a verified clean run must pass: {checked.stderr}"
+    assert "no MERGE_HEAD" not in checked.stderr, (
+        "with a merge in progress the scope warning must not fire"
+    )
+    assert "weave_check_status=0" in checked.stdout, (
+        "the receipt must carry the checker's own exit status"
     )

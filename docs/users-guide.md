@@ -264,26 +264,38 @@ base. A completed rebase creates a new candidate, so gate and review evidence
 tied to the old head is stale for acceptance and the candidate-bound checks
 must be rerun against the new `HEAD`.
 
+The skill assumes the `dev-env-rocky` baseline: Weave `v0.5.1`, a globally
+registered driver command that carries `WEAVE_EVENT=1` and a quoted absolute
+path, no global attributes rule, `merge.conflictStyle=zdiff3` set globally,
+and activation only through a repository's own reviewed attributes such as
+`src/*.rs merge=weave`. The skill shows how to verify a host against that
+baseline before trusting it.
+
 For unattended multi-commit or long-lived-branch rebases, the workflow
-bypasses Weave by default when it is selected only through ambient global or
-clone-local configuration, using Git's built-in merge machinery with
-`merge.conflictStyle=zdiff3` instead. A tracked `.gitattributes` rule is
-explicit repository opt-in and is respected unless an authorized recovery
-says otherwise. This matters because Weave 0.3.6 has recorded clean-exit
-corruption modes that pass parsers, compilers, and tests, so a clean exit and
-a green suite are never acceptance evidence on their own.
+bypasses Weave by default, using Git's built-in merge machinery with
+`merge.conflictStyle=zdiff3` instead. Ambient global or clone-local selection
+is never repository consent; a tracked `.gitattributes` rule is explicit
+opt-in for attended merges and requested dogfooding, and for unattended
+replays the skill bypasses it with a command-scoped override of the named
+driver, repeated on every `--continue`, rather than by editing attribute
+files. This matters because Weave 0.3.6 has recorded clean-exit corruption
+modes that pass parsers, compilers, and tests, so a clean exit and a green
+suite are never acceptance evidence on their own, and the 0.5.1 pin is not a
+claim that those modes are fixed.
 
 When Weave is deliberately kept active, per-replay structural checks via
 `git rebase --exec` are the default, and driver stderr — including
-`weave: N entities auto-resolved` summaries and command-scoped `WEAVE_EVENT=1`
+`weave: N entities auto-resolved` summaries, `weave-warning:` lines, and
 `weave-event:` JSON lines — must be preserved and read. A mandatory semantic
 post-operation audit then runs independently of the driver's exit code and
 the structural gates: target-changed but branch-untouched files must be
 byte-identical to the target, every deletion against the target in a
 branch-touched file must be explained, and newly repeated multi-line blocks
 need inspection. Record `weave --version` and `weave-driver --version`, and
-run `weave check` (or the MCP `weave_check` tool) when supported, while the
-independent audit stays authoritative.
+run `weave check` (or the MCP `weave_check` tool) when supported, knowing
+that its working-tree mode verifies merges only and reports
+`NOTHING WAS CHECKED` after a rebase; the independent audit stays
+authoritative.
 
 Failures of any of these checks are andon events: stop, preserve evidence,
 and do not guess a repair. The `rebase` skill routes garbled or non-parsing

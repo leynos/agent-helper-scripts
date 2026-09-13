@@ -213,8 +213,72 @@ def test_skill_reads_driver_stderr_and_supports_event_capture() -> None:
     assert "weave-event:" in skill, (
         "the structured stderr prefix must be documented for log parsing"
     )
+    assert "grep -E 'auto-resolved|^weave-warning: |^weave-event: '" in skill, (
+        "the evidence parse must include the 0.5.x warning channel; a clean "
+        "merge with warnings is a real state the receipt has to show"
+    )
     assert "command-scoped" in skill, (
         "observability overrides must not leak across the agent session"
+    )
+    assert "weave explain path/to/file.ts" in skill, (
+        "conflict inspection must name the 0.5.x per-entity explain command"
+    )
+    assert "`refused_by:`" in skill, (
+        "the marker line that names the refusing guard must be documented"
+    )
+
+
+def test_skill_describes_the_v051_opt_in_estate_baseline() -> None:
+    """The skill states the deployment it assumes and how to verify a host."""
+    _, skill = _skill_frontmatter()
+
+    assert "## Know the estate baseline" in skill, (
+        "the skill must describe the deployment baseline it assumes"
+    )
+    assert (
+        "`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`" in skill
+    ), "the registered driver command must be quoted exactly"
+    assert "No global attributes rule selects Weave" in skill, (
+        "global registration without activation is the baseline's key property"
+    )
+    assert "type -a weave weave-driver" in skill, (
+        "PATH shadowing must be checked before trusting a version"
+    )
+    assert "git config --show-origin --show-scope --get-all merge.weave.driver" in skill, (
+        "the effective driver must be inspected with its scope and origin"
+    )
+    assert "do not run `weave setup --global`" in skill, (
+        "the baseline prohibits recreating ambient global activation"
+    )
+    assert "src/*.rs merge=weave" in skill, (
+        "the skill must show the narrow tracked opt-in the baseline prefers"
+    )
+    assert "WEAVE_TIMEOUT" in skill and "0.5.x removed the watchdog" in skill, (
+        "the 0.3.x-only timeout must be marked as removed rather than documented "
+        "as current behaviour"
+    )
+    assert "WEAVE_STATS=1" in skill and "WEAVE_MAX_DUPLICATES" in skill, (
+        "the 0.5.x environment switches must be documented"
+    )
+
+
+def test_skill_bypasses_an_opted_in_driver_with_a_command_scoped_override() -> None:
+    """The sanctioned bypass replaces the driver without editing attributes."""
+    _, skill = _skill_frontmatter()
+
+    override = "-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'"
+    assert override in skill, "the driver override must be quoted exactly"
+    assert "-c merge.weave.recursive=text" in skill, (
+        "the recursive-merge driver must be overridden alongside the main one"
+    )
+    assert "Repeat the same `-c` overrides on every `git rebase --continue`" in skill, (
+        "the override is per command, so each continue must carry it"
+    )
+    assert "| Any (driver override) |" in skill, (
+        "the scope matrix must offer the override as a scope-independent row"
+    )
+    assert "Do not confuse this with\n`--ours` or `--theirs`" in skill, (
+        "the override must be distinguished from side-discarding options"
     )
 
 
@@ -272,6 +336,18 @@ def test_skill_runs_weave_check_only_when_the_installed_version_supports_it() ->
     )
     assert "Neither interface replaces" in skill, (
         "Weave self-validation must not replace the independent semantic audit"
+    )
+    assert "only when `MERGE_HEAD` exists or `HEAD` is a merge commit" in skill, (
+        "the working-tree mode's scope rule must be stated"
+    )
+    assert "git rev-parse -q --verify MERGE_HEAD" in skill, (
+        "the scope precondition must be checked with an executable command"
+    )
+    assert "grep -q 'NOTHING WAS CHECKED' -- \"$WEAVE_CHECK_OUT\"" in skill, (
+        "the wrapper must fail closed on the upstream no-scope sentence"
+    )
+    assert "No 0.5.1 mode verifies a completed rebase's tree" in skill, (
+        "the checker's limit for rebases must be explicit"
     )
 
 
@@ -464,6 +540,45 @@ def test_behaviour_reference_documents_observability_and_weave_check() -> None:
     )
     assert "`weave_check` tool" in behaviour, (
         "the MCP equivalent must be discoverable by agents"
+    )
+    assert "`weave-warning:` carries one JSON line per semantic warning" in behaviour, (
+        "the warning channel must be documented beside the event channel"
+    )
+    assert "NOTHING WAS CHECKED" in behaviour, (
+        "the no-scope sentence must be searchable from the reference"
+    )
+
+
+def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> None:
+    """The reference separates 0.3.6 facts from 0.5.x facts and the deployment."""
+    behaviour = _read(BEHAVIOUR_PATH)
+
+    assert "## Estate baseline" in behaviour, (
+        "the reference must record the deployment the skill assumes"
+    )
+    assert "Pin Weave to\nv0.5.1 and make merge-driver activation opt-in" in behaviour, (
+        "the deployment change must be named so its source can be found"
+    )
+    assert "ANSIBLE MANAGED BLOCK - weave merge driver" in behaviour, (
+        "the removed legacy block must be identifiable by its marker"
+    )
+    assert "Registration does not activate the\n  driver" in behaviour, (
+        "registration and activation must be stated as separate"
+    )
+    assert "removed the watchdog thread and the\n`WEAVE_TIMEOUT` variable" in behaviour, (
+        "the timeout must be recorded as a 0.3.x-only behaviour"
+    )
+    assert "records them only when `WEAVE_STATS=1` is set" in behaviour, (
+        "lifetime statistics must be recorded as opt-in on 0.5.x"
+    )
+    assert "38 languages and formats" in behaviour, (
+        "the 0.4.0+ registry-derived setup list must replace the hand list"
+    )
+    assert "`.hs`, `.vue`, `.svelte`, and `.erb`, are declined" in behaviour, (
+        "the declined extensions must be named"
+    )
+    assert "they have not been replayed\nagainst 0.5.1" in behaviour, (
+        "the pin must not be presented as a fix for the recorded corruptions"
     )
 
 

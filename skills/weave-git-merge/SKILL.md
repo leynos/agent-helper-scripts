@@ -6,18 +6,59 @@ description: Use and troubleshoot Weave as an entity-aware Git merge driver duri
 # Use Weave with Git
 
 Treat Weave as a per-file Git merge driver, not as a replacement for `git merge`
-or `git rebase`. Git selects it through attributes and invokes
-`weave-driver %O %A %B %L %P` for each selected path.
+or `git rebase`. Git selects it through attributes and invokes the command
+recorded in `merge.weave.driver` for each selected path. Upstream setup records
+`weave-driver %O %A %B %L %P`; the estate baseline described below records a
+quoted absolute driver path with `WEAVE_EVENT=1` in front of it.
 
 Read [behaviour.md](references/behaviour.md) before diagnosing a surprising
 result or deciding whether an unresolved file is safe to edit. In particular,
 Weave 0.3.6 has produced clean-exit semantic corruption that parses, compiles,
 and passes tests, so neither the driver's exit code nor a structural gate is
-sufficient evidence on its own.
+sufficient evidence on its own. The 0.5.1 baseline is a containment change,
+not evidence that those defects are fixed.
 
 Every shell example below requires Bash. This matters for the stage-validation
 commands and stderr capture in particular: `set -o pipefail` and process
 substitution are Bash features with no POSIX `sh` equivalent.
+
+## Know the estate baseline
+
+The `dev-env-rocky` deployment pins `weave-cli` and `weave-driver` to the
+upstream `v0.5.1` tag and separates installation from activation:
+
+- The driver is registered globally as
+  `WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`. The path is
+  absolute and shell-quoted so a PATH-shadowing driver cannot intercept an
+  opted-in operation, and every invocation emits one `weave-event:` line.
+- No global attributes rule selects Weave. The legacy managed block in
+  `~/.config/git/attributes` is removed. Global registration alone must not
+  select Weave for an ordinary path.
+- `merge.conflictStyle=zdiff3` is set globally, so native text merges keep
+  the base section a reviewer needs.
+- Activation is a reviewed per-repository decision in that repository's own
+  `.gitattributes`, for example `src/*.rs merge=weave`, or in
+  `.git/info/attributes` for a recorded non-shared experiment.
+- No `weave-mcp` server, audit sidecar, or findings sidecar is provisioned.
+
+Verify the host before relying on any of this:
+
+```bash
+weave --version
+weave-driver --version
+weave check --help >/dev/null
+type -a weave weave-driver
+git config --show-origin --show-scope --get-all merge.weave.driver
+git config --show-origin --show-scope --get-all merge.conflictStyle
+git check-attr merge -- src/lib.rs README.md Cargo.toml
+```
+
+Both binaries must report `0.5.1`, the versions resolved on `PATH` must match
+the canonical `~/.cargo/bin` binaries, and ordinary paths must report
+`merge: unspecified` unless the repository has opted in. A host that still
+selects Weave from the global attributes file, or that reports `0.3.6`, has
+not been reconciled; record that as an environment finding and apply the
+unattended bypass below rather than assuming the baseline.
 
 ## Establish the operation and evidence boundary
 
@@ -98,10 +139,11 @@ operation will replay multiple commits, or a long-lived branch is being rebased
 across substantial target history, bypass Weave up front when it is selected
 only by global or clone-local ambient configuration. Use Git's built-in merge
 machinery with `zdiff3` instead. Use Weave for such an operation only when the
-repository explicitly opts in through tracked attributes or the task explicitly
-requests Weave dogfooding/evidence collection.
+repository explicitly opts in through tracked attributes and the task
+explicitly requests Weave dogfooding/evidence collection.
 
-For a global ambient rule, a typical unattended rebase therefore starts as:
+For a global ambient rule on an unreconciled host, a typical unattended rebase
+therefore starts as:
 
 ```bash
 git -c core.attributesFile=/dev/null \
@@ -109,9 +151,26 @@ git -c core.attributesFile=/dev/null \
     rebase origin/main
 ```
 
-If tracked `.gitattributes` selects Weave, that is explicit repository policy.
-Do not silently bypass it. If an authorized recovery requires bypassing a
-tracked or clone-local rule, use the scope-specific override below.
+If tracked `.gitattributes` selects Weave, that is explicit repository policy
+for attended merges and for dogfooding the repository has asked for. Do not
+silently bypass it. The estate baseline still routes an unattended long-lived
+branch rebase through Git's text merge unless the operator explicitly requests
+dogfooding, so in that case bypass the driver with the command-scoped override
+below and record the decision in the operation receipt. The override replaces
+the named driver for those commands only; it does not edit the repository's
+attribute files:
+
+```bash
+git -c merge.conflictStyle=zdiff3 \
+    -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
+    -c merge.weave.recursive=text \
+    rebase --exec 'cargo check --workspace' "$TARGET"
+```
+
+Repeat the same `-c` overrides on every `git rebase --continue`; Git reads the
+driver configuration again for each replayed commit. Do not confuse this with
+`--ours` or `--theirs`, which discard one side of a conflict. The override
+targets Weave only; other custom merge drivers need their own policy.
 
 Choose one setup scope deliberately when configuring Weave:
 
@@ -126,6 +185,13 @@ weave setup --local
 weave setup --global
 ```
 
+Under the estate baseline, do not run `weave setup --global`: it recreates the
+ambient activation the deployment removed. Review the output of a bare
+`weave setup` before accepting it; since 0.4.0 it claims every extension the
+parser registry supports, 38 formats in total. Prefer a handwritten, narrow
+tracked rule such as `src/*.rs merge=weave`, and do not add JSON, TOML, YAML,
+Markdown, or lock files to an experiment by default.
+
 Pass `--driver /absolute/path/to/weave-driver` when auto-detection is
 unreliable. Prefer a stable installed path over a versioned build directory.
 
@@ -134,9 +200,15 @@ attribute state:
 
 | Setup scope | Rule location | Make `merge` unspecified | Verify, then retry |
 | --- | --- | --- | --- |
+| Any (driver override) | Any attribute source; the rule stays in place | Run Git with `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text`. `merge` stays `weave`; the named driver is replaced for that command. | `git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text config --get merge.weave.driver` must print the `git merge-file` command; rerun the original operation, and every `--continue`, under the same `-c` overrides. |
 | Global | Configured global attributes file (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`. | `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments under the same `-c`. |
 | Tracked | Repository `.gitattributes` | Preserve `.git/info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
 | Clone-local | `.git/info/attributes` | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
+
+Prefer the driver override for an opted-in repository: it leaves the tracked
+and clone-local attribute files untouched and needs no restore step. Use the
+attribute rows when the override is unavailable or when the goal is to make
+Git report the path as unselected.
 
 ## Preview before changing Git state
 
@@ -158,9 +230,13 @@ the desired rebased result and inspect the stage blobs when provenance matters.
 Never discard driver stderr. A line such as
 `weave: 5 entities auto-resolved (conflict confidence)` identifies a file or
 operation whose clean reconstruction deserves scrutiny; it is not proof of
-correctness. On Weave versions that support it, set `WEAVE_EVENT=1` for one
-JSON event per merge on stderr. Keep the environment override command-scoped
-rather than exporting it across an agent session:
+correctness. Weave 0.5.x adds two machine-parseable channels with stable
+prefixes, each followed by one space: `weave-warning:` carries one JSON line
+per semantic warning, and a merge can exit `0` while emitting these, which is
+the "clean with warnings" state; `weave-event:` carries one JSON line per
+merge when `WEAVE_EVENT=1` is set. The baseline driver command already sets
+`WEAVE_EVENT=1`. On an installation that does not, keep the environment
+override command-scoped rather than exporting it across an agent session:
 
 ```bash
 WEAVE_STDERR=$(mktemp -t weave-rebase.stderr.XXXXXX) || exit 1
@@ -171,7 +247,7 @@ cat -- "$WEAVE_STDERR" >&2
 # Fail closed. `grep` exits 1 for "no match" and 2 for "could not read the
 # file", so only the latter is a capture failure; an empty capture means the
 # driver said nothing, which is itself worth recording rather than assuming.
-grep -E 'auto-resolved|^weave-event: ' -- "$WEAVE_STDERR"
+grep -E 'auto-resolved|^weave-warning: |^weave-event: ' -- "$WEAVE_STDERR"
 GREP_STATUS=$?
 if [ "$GREP_STATUS" -gt 1 ]; then
   echo 'andon: driver stderr capture unreadable; stop before the audit' >&2
@@ -180,10 +256,10 @@ fi
 printf 'rebase_status=%s\nevidence=%s\n' "$REBASE_STATUS" "$WEAVE_STDERR"
 ```
 
-Read the captured stderr after the operation and correlate every auto-resolved
-or event-reported path with the post-operation audit below. A clean exit and a
-high-confidence label are evidence about Weave's decision, not evidence that
-the merged semantics are correct.
+Read the captured stderr after the operation and correlate every auto-resolved,
+warning-reported, or event-reported path with the post-operation audit below.
+A clean exit and a high-confidence label are evidence about Weave's decision,
+not evidence that the merged semantics are correct.
 
 After Git stops on a conflict:
 
@@ -192,7 +268,16 @@ git status --short
 git diff --name-only --diff-filter=U
 git ls-files -u -- path/to/file.ts
 weave summary path/to/file.ts
+weave explain path/to/file.ts
 ```
+
+In 0.5.x each enhanced marker box opens with a `refused_by:` comment naming
+the guard that declined to auto-merge and quoting the disputed lines, and the
+driver appends one trailing comment to a conflicted file of the form
+`# weave: run 'weave explain <path>' ...` in the file's own comment syntax.
+`weave explain` reads the three index stages and reports the guard, confidence,
+and hunks per conflicted entity. Remove the trailing comment with the markers;
+`weave check` reports it if it is left behind.
 
 Inspect the three index inputs without touching the working file:
 
@@ -365,7 +450,8 @@ than replace the semantic audit.
 
 Record `weave --version` in the operation evidence. The estate is expected to
 provision Weave 0.5.1 or newer; on an installed version that supports
-`weave check`, run it after the Git operation and before accepting the result:
+`weave check`, run it while Git still holds the three-way context and before
+accepting the result:
 
 ```bash
 weave --version
@@ -373,16 +459,49 @@ weave check --help >/dev/null
 weave check
 ```
 
-`weave check` verifies the merged working tree against the merge inputs and can
-report leftover markers, lines present on both sides that went missing, and
-content repeated more often than either side supplied. Treat findings or an
-unsupported/missing checker as explicit evidence states; do not translate
-“checker unavailable” into success.
+`weave check` with no arguments verifies the working tree against the merge
+inputs and can report leftover markers, including its own trailing comment,
+lines present on both sides that went missing, content repeated more often
+than either side supplied, and dangling references. Exit `0` means nothing was
+found and exit `1` means findings.
+
+Know what the no-argument mode can see. In 0.5.1 it finds a three-way scope
+only when `MERGE_HEAD` exists or `HEAD` is a merge commit. A rebase or
+cherry-pick stop has `REBASE_HEAD` or `CHERRY_PICK_HEAD` but no `MERGE_HEAD`,
+and a completed rebase leaves a single-parent `HEAD`, so in those states the
+command prints a sentence containing `NOTHING WAS CHECKED` and exits `0`.
+That is an explicit "unchecked" state, never a pass. Confirm the scope
+before running it and fail closed on the sentence:
+
+```bash
+if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  echo 'weave check: no MERGE_HEAD; working-tree mode has no three-way scope' >&2
+fi
+WEAVE_CHECK_OUT=$(mktemp -t weave-check.XXXXXX) || exit 1
+weave check | tee -- "$WEAVE_CHECK_OUT"
+CHECK_STATUS=${PIPESTATUS[0]}
+if grep -q 'NOTHING WAS CHECKED' -- "$WEAVE_CHECK_OUT"; then
+  echo 'andon: weave check verified nothing; record unchecked, not clean' >&2
+  exit 1
+fi
+printf 'weave_check_status=%s\nevidence=%s\n' "$CHECK_STATUS" "$WEAVE_CHECK_OUT"
+```
+
+For a merge, run it after resolving and before `git commit`, or immediately
+after the merge commit while `HEAD` still has two parents. For a rebase, run
+it per file while the conflict stop still has unmerged index stages, or use
+`weave check --base <rev> --ours <rev> --theirs <rev>`; that mode runs a
+cross-file binding pass between two revisions and emits findings JSON, so it
+describes a three-input comparison rather than the exact resolved tree being
+accepted. No 0.5.1 mode verifies a completed rebase's tree. Treat findings or
+an unsupported/missing checker as explicit evidence states; do not translate
+"checker unavailable" or "nothing checked" into success.
 
 When the Weave MCP server is available, the read-only `weave_check` tool is the
-agent-facing equivalent. Use it instead of shelling out when that is the
-established integration, and retain its findings with the same candidate
-identity. Neither interface replaces the target/branch semantic audit above.
+agent-facing equivalent. The estate baseline does not provision `weave-mcp`;
+use the tool only where that integration is established, and retain its
+findings with the same candidate identity. Neither interface replaces the
+target/branch semantic audit above.
 
 As a read-only verifier, `weave check` or MCP `weave_check` must not mutate the
 working tree. Unexpected mutation is an andon event.
@@ -402,10 +521,22 @@ for tools such as Jujutsu; Git's positional `%L` does not disable enhanced
 markers.
 
 Set `WEAVE_VERBOSE=1` to print per-file statistics. Prefer command-scoped
-`env WEAVE_VERBOSE=1 ...` rather than a session-wide export. Set
-`WEAVE_TIMEOUT` to a whole number of seconds only when the default five-second
-entity-merge timeout is unsuitable. A timeout falls back to `git merge-file`;
-it does not abort the overall driver invocation.
+`env WEAVE_VERBOSE=1 ...` rather than a session-wide export. Other 0.5.x
+environment switches:
+
+- `WEAVE_MAX_DUPLICATES=<n>` sets how often one name may repeat in a file
+  before the merge takes the line-level route; the default is 10.
+- `WEAVE_STATS=1` re-enables the lifetime counters in `~/.weave/stats.json`;
+  0.5.x no longer records them by default.
+- `WEAVE_AUDIT=1` and `WEAVE_FINDINGS=1` write sidecar files into the working
+  tree beside the merged path. Leave both unset for unattended work; the
+  baseline does not enable them, and an unexpected untracked file would
+  contaminate recovery evidence.
+
+`WEAVE_TIMEOUT` and the five-second entity-merge watchdog belong to 0.3.x
+only. Version 0.5.x removed the watchdog thread, so a slow merge no longer
+falls back to `git merge-file` on its own; setting `WEAVE_TIMEOUT` there has
+no effect.
 
 ## Andon triggers
 
@@ -417,10 +548,15 @@ candidate again when any of these occurs:
 - a target-only path differs from `TARGET` after the operation;
 - a branch-touched path contains an unexplained deletion against `TARGET`;
 - a repeated-block scan finds a new duplication that cannot be justified;
-- driver stderr records an auto-resolution whose affected path has not yet been
-  audited;
+- driver stderr records an auto-resolution or a `weave-warning:` line whose
+  affected path has not yet been audited;
+- `weave check` reports `NOTHING WAS CHECKED` and the receipt would otherwise
+  record the result as clean;
 - the installed `weave` and `weave-driver` versions disagree unexpectedly, or
   the required post-merge checker is unavailable;
+- a host expected at the opt-in baseline still selects Weave for an ordinary
+  path from the global attributes file, or resolves a driver on `PATH` that
+  differs from the canonical `~/.cargo/bin` binary;
 - source or compiled artefact provenance disagrees;
 - recovery evidence omits staged, unstaged, or intended untracked work;
 - the rebase changes the candidate head while old gate/review evidence is still
@@ -498,11 +634,24 @@ This override disables only the user attributes file for those commands.
 Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
 it preserves unrelated repository merge rules. It is suitable when
 `weave setup --global` supplied the `merge=weave` rule and no higher-precedence
-source selects Weave. For tracked or clone-local setup, use the corresponding
-matrix row above; `/dev/null` alone cannot override those rules. A later
-path-specific `!merge` line in `.git/info/attributes`
-outranks every attribute source for that path, which is why it is the bypass
-for tracked and clone-local rules.
+source selects Weave. For tracked or clone-local setup, use the driver
+override or the corresponding matrix row above, because
+`/dev/null` alone cannot override those rules. A later path-specific `!merge`
+line in `.git/info/attributes` outranks every attribute source for that path,
+which is why it is the attribute-level bypass for tracked and clone-local
+rules.
+
+For an opted-in repository, the retry with the driver override is:
+
+```bash
+git -c merge.conflictStyle=zdiff3 \
+    -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
+    -c merge.weave.recursive=text \
+    rebase "$TARGET"
+```
+
+Carry the same overrides on each `git rebase --continue` until the operation
+completes.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and
