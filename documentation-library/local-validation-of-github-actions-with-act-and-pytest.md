@@ -116,7 +116,10 @@ intercept commands inside the containers.
 # tests/test_workflow_integration.py
 import json
 import subprocess
+import zipfile
 from pathlib import Path
+
+import pytest
 
 EVENT = Path("tests/fixtures/pull_request.event.json")
 
@@ -126,6 +129,7 @@ def run_act(
     event_path: Path = EVENT,
     *,
     artifact_dir: Path,
+    timeout: float = 300.0,
 ) -> tuple[int, Path, str]:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -143,7 +147,16 @@ def run_act(
         "--rm",  # clean up failed workflow containers
         "-b",  # bind-mount repo as workspace (preserves side effects)
     ]
-    completed = subprocess.run(cmd, text=True, capture_output=True)
+    try:
+        completed = subprocess.run(
+            cmd, text=True, capture_output=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(
+            f"act timed out after {timeout}s.\n"
+            f"stdout:\n{exc.stdout or ''}\n"
+            f"stderr:\n{exc.stderr or ''}"
+        )
     logs = completed.stdout + "\n" + completed.stderr
     return completed.returncode, artifact_dir, logs
 
@@ -153,10 +166,21 @@ def test_workflow_produces_expected_artefact_and_logs(tmp_path: Path) -> None:
     code, artdir, logs = run_act(artifact_dir=artifact_dir)
     assert code == 0, f"act failed:\n{logs}"
 
-    # Assert artefact presence and contents
+    # Assert artefact presence and contents. The raw layout is used when
+    # available; otherwise --artifact-server-path has produced a zip
+    # archive, so read result.json out of it without extracting to disk.
     files = list(artdir.rglob("result*/result.json"))
-    assert files, f"artefact missing. Logs:\n{logs}"
-    data = json.loads(files[0].read_text())
+    if files:
+        data = json.loads(files[0].read_text())
+    else:
+        zips = list(artdir.rglob("*.zip"))
+        assert zips, f"artefact missing. Logs:\n{logs}"
+        with zipfile.ZipFile(zips[0]) as archive:
+            member = next(
+                name for name in archive.namelist() if name.endswith("result.json")
+            )
+            with archive.open(member) as fh:
+                data = json.load(fh)
     assert data["status"] == "ok"
     assert data["python"].startswith("3."), data["python"]
 
@@ -183,24 +207,31 @@ zip file rather than the raw file. Expect a path such as:
 
 - `<artifact-server-path>/<run-id>/<artifact-name>/<artifact-name>.zip`
 
-Unpack the zip in the test harness if the original file is not available
-directly.
+Read `result.json` straight out of the zip using the standard library
+`zipfile` module if the raw file is not available directly; avoid extracting
+to disk unless the workflow under test genuinely requires it.
 
 ## Record -> replay -> verify (closing the loop)
 
-`cmd-mox` complements this harness when a workflow drives helper scripts
-that shell out to external command-line interfaces (CLIs). The tooling
+`cmd-mox` complements this harness when a helper script shells out to
+external command-line interfaces (CLIs), such as `gh`. Host-side `cmd_mox`
+spies and mocks cannot intercept commands executed inside an `act`
+container, so these tests invoke the helper process directly on the host,
+as a separate test from the `act` integration test above. The tooling
 follows a record, replay, and verify loop:
 
 1. **Record** a golden trace with passthrough spies.
 
    ```python
-   def test_record(tmp_path: Path, cmd_mox) -> None:
-       artifact_dir = tmp_path / "act-artifacts"
+   def test_record(cmd_mox) -> None:
        gh = cmd_mox.spy("gh").passthrough()
        cmd_mox.replay()
-       code, _, logs = run_act(artifact_dir=artifact_dir)
-       assert code == 0, logs
+       result = subprocess.run(
+           ["python", "scripts/publish_release.py"],
+           text=True,
+           capture_output=True,
+       )
+       assert result.returncode == 0, result.stderr
        cmd_mox.verify()
        assert gh.call_count == 1
    ```
@@ -210,8 +241,7 @@ follows a record, replay, and verify loop:
    quickly.
 
    ```python
-   def test_replay(tmp_path: Path, cmd_mox) -> None:
-       artifact_dir = tmp_path / "act-artifacts"
+   def test_replay(cmd_mox) -> None:
        cmd_mox.mock("gh").with_args(
            "release",
            "view",
@@ -219,14 +249,23 @@ follows a record, replay, and verify loop:
            "tagName",
        ).returns(stdout='{"tagName":"v9.9.9"}\n')
        cmd_mox.replay()
-       code, _, logs = run_act(artifact_dir=artifact_dir)
-       assert code == 0, logs
+       result = subprocess.run(
+           ["python", "scripts/publish_release.py"],
+           text=True,
+           capture_output=True,
+       )
+       assert result.returncode == 0, result.stderr
        cmd_mox.verify()
    ```
 
 3. **Inspect** the journal. After verification, `cmd_mox.journal` exposes
    the captured `Invocation` objects. Serialize the data into JSON lines or
    YAML, so future tests can bootstrap mocks from the same expectations.
+
+The `act` integration test above stays a pure black-box check: exit status,
+artefacts, workspace side effects, and structured logs. It does not
+configure `cmd_mox`, because host-side spies and mocks cannot see, let
+alone replace, commands that `act` runs inside its container.
 
 ## What to assert (beyond exit code)
 

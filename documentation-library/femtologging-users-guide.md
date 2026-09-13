@@ -3,12 +3,12 @@
 Femtologging is an asynchronous logging runtime for Python applications that
 delegates IO and record fan-out to Rust worker threads. This guide covers the
 features that are currently implemented, how they differ from the CPython
-`logging` module, and the practical caveats you need to keep in mind when
+`logging` module, and the practical caveats that need to be kept in mind when
 building production systems on top of femtologging.
 
 ## Quick start
 
-Install the package (a local editable installation is shown here) and emit your
+Install the package (a local editable installation is shown here) and emit the
 first record:
 
 ```bash
@@ -25,7 +25,7 @@ logger.log("INFO", "hello from femtologging")
 ```
 
 Handlers run in background threads, so remember to flush or close them before
-your process exits.
+the process exits.
 
 ## Architectural overview
 
@@ -38,8 +38,8 @@ your process exits.
   operations never block the calling code.
 - When any queue is full, the record is dropped. Each component emits
   rate-limited warnings and maintains drop counters
-  (`FemtoLogger.get_dropped()` and handler-specific warnings) so you can
-  monitor pressure.
+  (`FemtoLogger.get_dropped()` and handler-specific warnings) so pressure
+  can be monitored.
 - Record metadata tracks the logger name, level, message text, timestamps,
   thread identity, and optional structured exception (`exc_info`) and call stack
   (`stack_info`) payloads. The Python API does not yet expose other rich
@@ -565,8 +565,8 @@ builder.build_and_init()
   `logging.handlers.TimedRotatingFileHandler`, and
   `logging.handlers.SocketHandler` (plus their femtologging equivalents).
 - Handler `args` are evaluated with `ast.literal_eval`, matching the stdlib
-  behaviour for simple tuples. For socket handlers you can pass either
-  `(host, port)` or a single Unix socket path; keyword arguments mirror the
+  behaviour for simple tuples. For socket handlers, either `(host, port)` or a
+  single Unix socket path can be passed; keyword arguments mirror the
   builder API (`host`, `port`, `unix_path`, `capacity`, `connect_timeout_ms`,
   `write_timeout_ms`, `max_frame_size`, `tls`, `tls_domain`, `tls_insecure`,
   `backoff_*` aliases).
@@ -597,7 +597,7 @@ builder.build_and_init()
   state changes. A failed `fileConfig` call leaves the current logger
   configuration intact.
 - Default substitutions (`%(foo)s`) work across the INI file and any mapping
-  you pass via `defaults`.
+  passed via `defaults`.
 - Formatters and handler-level overrides are not supported. Including
   `[formatter_*]` sections or specifying `level`/`formatter` inside
   `[handler_*]` entries raises `ValueError`.
@@ -683,11 +683,11 @@ callback_filter = PythonCallbackFilterBuilder(enrich_request)
 - Monitor `logger.get_dropped()` and the warnings emitted by each handler to
   detect back pressure early. Increase handler capacities or switch to
   blocking/timeout policies when drops are unacceptable.
-- File-based handlers count `flush_interval` in _records_. If you need
-  time-based flushing, add a periodic `handler.flush()` in your application.
-- Blocking overflow policies affect the thread that calls `logger.log()`. Use
-  them only when you are comfortable with logging back pressure slowing the
-  producer because that is what will happen.
+- File-based handlers count `flush_interval` in _records_. For time-based
+  flushing, add a periodic `handler.flush()` in the application.
+- Blocking overflow policies affect the thread that calls `logger.log()`.
+  These should only be used when it is acceptable for logging back pressure
+  to slow the producer, because that is what will happen.
 - Socket handlers serialize to MessagePack with a one-megabyte default frame
   limit. Large payloads are silently dropped; consider truncating or chunking
   messages before logging.
@@ -701,8 +701,8 @@ callback_filter = PythonCallbackFilterBuilder(enrich_request)
   `FemtoStreamHandler`, `FemtoFileHandler`, or `FemtoSocketHandler` to ship
   records to syslog-compatible or other central collectors.
 - Sending logs to Journald or OpenTelemetry is always an explicit action.
-  Enabling the relevant feature/build option alone is not enough; you must
-  configure the matching handler/layer in your application.
+  Enabling the relevant feature/build option alone is not enough; the
+  matching handler/layer must also be configured in the application.
 - Treat log forwarding as sensitive-data egress. Scrub message text and any
   contextual keys before sending records to external observability systems.
 - Until the structured logging work is complete, the planned
@@ -710,7 +710,7 @@ callback_filter = PythonCallbackFilterBuilder(enrich_request)
   (logger name and level), not rich key-value fields or trace correlation.
 
 Keep an eye on the project's roadmap for upcoming additions (formatter
-resolution, richer dictConfig support, timed rotation) and update your
+resolution, richer dictConfig support, timed rotation) and update the
 configuration once those features land. For now, the patterns above reflect the
 current, tested surface area of femtologging.
 

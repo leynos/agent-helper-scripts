@@ -634,7 +634,7 @@ implementation is required.>
 - <Open question 2>
 ```
 
-### Repository layout document
+## Repository layout document
 
 Use a repository layout document, canonically `docs/repository-layout.md`, to
 explain the shape of the tree and the responsibilities of its major paths. Use

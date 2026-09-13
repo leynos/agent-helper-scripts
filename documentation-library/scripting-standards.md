@@ -39,8 +39,11 @@ as a default.
 - External processes are invoked via
   [`cuprum`](https://github.com/leynos/cuprum/) to provide typed,
   allowlist-based command execution rather than ad‑hoc shell strings. Cuprum's
-  catalogue system ensures only registered programs can be executed, preventing
-  accidental shell access.
+  catalogue system reduces accidental invocation of unregistered executables,
+  but registering an interpreter such as `sh`, `bash` or `python` still
+  permits arbitrary code execution through caller-supplied arguments. An
+  explicit executable policy plus separate validation of caller-supplied
+  arguments remain required.
 - File‑system interactions use `pathlib.Path`. Higher‑level operations (for
   example, copying or removing trees) go through the `shutil` standard library
   module.
@@ -143,8 +146,11 @@ Guidance:
 ## cuprum: typed command execution
 
 Cuprum provides allowlist-based command execution with built-in observability.
-Programs must be registered in a catalogue before they can be executed,
-preventing accidental shell access.
+Programs must be registered in a catalogue before they can be executed, which
+reduces accidental invocation of unregistered executables. Registering an
+interpreter such as `sh`, `bash` or `python` still permits arbitrary code
+execution through caller-supplied arguments, so an explicit executable policy
+plus separate validation of caller-supplied arguments remain required.
 
 ### Shared vs local catalogues
 
@@ -474,12 +480,14 @@ def main(
 ):
     project_root = Path(__file__).resolve().parents[1]
     dist = (outdir or (project_root / "dist")) / bin_name
-    dist.mkdir(parents=True, exist_ok=True)
 
     if not dry_run:
+        dist.mkdir(parents=True, exist_ok=True)
         with sh.scoped(CATALOGUE):
             git = sh.make("git")
-            git("tag", f"v{version}", cwd=project_root).run_sync()
+            result = git("tag", f"v{version}", cwd=project_root).run_sync()
+            if result.exit_code != 0:
+                raise SystemExit(result.exit_code)
 
     print({
         "bin_name": bin_name,

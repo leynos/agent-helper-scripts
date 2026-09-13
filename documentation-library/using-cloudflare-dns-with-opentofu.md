@@ -2,11 +2,31 @@
 
 ## 1. Set up the Cloudflare provider
 
-The `provider "cloudflare"` block configures authentication and connects
-OpenTofu to Cloudflare. Use environment variables for credentials to avoid
-leaking secrets:
+Pin the Cloudflare provider to a v5 release from the `cloudflare/cloudflare`
+source:
 
 ```hcl
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
+  }
+}
+```
+
+The `provider "cloudflare"` block configures authentication and connects
+OpenTofu to Cloudflare. Declare the token as a sensitive variable and supply
+it via an environment variable to avoid leaking secrets:
+
+```hcl
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with DNS edit permissions"
+  type        = string
+  sensitive   = true
+}
+
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
@@ -36,20 +56,21 @@ This exposes the `zone_id` required for record management.
 
 ## 3. Configure DNS records
 
-Use `cloudflare_record` resources to define DNS entries:
+Use `cloudflare_dns_record` resources to define DNS entries:
 
 ```hcl
-resource "cloudflare_record" "www" {
+resource "cloudflare_dns_record" "www" {
   zone_id = cloudflare_zone.example.id
   name    = "www"
   type    = "A"
   content = "203.0.113.10"
-  ttl     = 3600
+  ttl     = 1
   proxied = true
 }
 ```
 
-This creates a proxied A record pointing to `203.0.113.10`.
+This creates a proxied A record pointing to `203.0.113.10`. Cloudflare
+requires automatic TTL (`ttl = 1`) on proxied records.
 
 ## 4. Automate bulk records with variables
 
@@ -58,7 +79,7 @@ with a structured variable:
 
 ```hcl
 variable "dns_records" {
-  type = list(object({
+  type = map(object({
     name    = string
     type    = string
     content = string
@@ -67,8 +88,8 @@ variable "dns_records" {
   }))
 }
 
-resource "cloudflare_record" "bulk" {
-  for_each = { for r in var.dns_records : r.name => r }
+resource "cloudflare_dns_record" "bulk" {
+  for_each = var.dns_records
 
   zone_id = var.cloudflare_zone_id
   name    = each.value.name
@@ -79,14 +100,21 @@ resource "cloudflare_record" "bulk" {
 }
 ```
 
-Define `dns_records` in `terraform.tfvars`:
+`dns_records` is a map keyed by a caller-supplied, stable identifier, so
+several records can share a hostname (for example round-robin `A` records)
+without colliding. Define `dns_records` in `terraform.tfvars`:
 
 ```hcl
-dns_records = [
-  { name = "app.example.com", type = "A", content = "192.168.1.1", ttl = 3600, proxied = true },
-  { name = "api.example.com", type = "CNAME", content = "example.com", ttl = 300 }
-]
+dns_records = {
+  app      = { name = "app.example.com", type = "A", content = "192.168.1.1", ttl = 1, proxied = true }
+  api      = { name = "api.example.com", type = "CNAME", content = "example.com", ttl = 300 }
+  app_rr_a = { name = "app-rr.example.com", type = "A", content = "203.0.113.11", ttl = 300 }
+  app_rr_b = { name = "app-rr.example.com", type = "A", content = "203.0.113.12", ttl = 300 }
+}
 ```
+
+The `app_rr_a` and `app_rr_b` entries are round-robin `A` records that share
+the `app-rr.example.com` hostname under different map keys.
 
 This keeps the configuration "don't repeat yourself" (DRY) and maintainable.
 
@@ -102,14 +130,16 @@ IDs (not just names) are required for import:
    ZONE_ID=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
      https://api.cloudflare.com/client/v4/zones?name=example.com | jq -r '.result[0].id')
 
-   curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-     "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=www.example.com&type=A" | jq -r '.result[0].id'
+   DNS_ID=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+     "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=www.example.com&type=A" | jq -r '.result[0].id')
    ```
 
-2. Then import:
+2. Then import using the composite `<zone_id>/<dns_record_id>` identifier
+   that the `cloudflare/cloudflare` provider v5 (and later) expects for
+   `cloudflare_dns_record`:
 
    ```bash
-   tofu import cloudflare_record.example DNS_ID
+   tofu import cloudflare_dns_record.example "${ZONE_ID}/${DNS_ID}"
    ```
 
 This aligns existing records with the Infrastructure as Code (IaC) workflow.
@@ -127,11 +157,12 @@ infra/
 
 - **`provider.tf`** – Sets Cloudflare provider and auth via variables.
 - **`variables.tf`** – Defines `dns_records`, `cloudflare_zone_id`, etc.
-- **`main.tf`** – Contains `cloudflare_zone` and `cloudflare_record`
+- **`main.tf`** – Contains `cloudflare_zone` and `cloudflare_dns_record`
   blocks (static or dynamic).
 - **`outputs.tf`** – Outputs useful values like `name_servers`.
-- **`terraform.tfvars`** – Specifies concrete values: zone name, token,
-  and record definitions.
+- **`terraform.tfvars`** – Specifies non-secret concrete values: zone name
+  and record definitions. Credentials come from an environment variable or
+  secret manager, never from this file.
 
 ## 7. Workflow quick-hit list
 

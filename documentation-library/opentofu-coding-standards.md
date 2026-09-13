@@ -44,7 +44,8 @@ modules/
 
 ## Formatting
 
-- Run `tofu fmt -check`, `tofu validate`, and `tofu test` before submitting.
+- Run `tofu fmt -check`, `tofu validate`, and `tofu test` (per module
+  directory) before submitting.
 - Indent with two spaces; avoid tabs and trailing whitespace.
 - Keep argument lines under 120 characters; break expressions with
   parentheses.
@@ -101,6 +102,16 @@ variable "bucket_name" {
 - Assert on outputs, resource counts, and critical arguments.
 - Use generated fixtures only within the test directory; clean temporary
   files.
+- `tofu test` discovers its `tests/` directory relative to the module under
+  test, so run it separately from each `modules/<name>` directory rather
+  than once from the repository root, for example:
+
+  ```bash
+  for module_dir in modules/*/; do
+    (cd "${module_dir}" && tofu test)
+  done
+  ```
+
 - Ensure `tofu test` passes alongside `tofu validate` for every change set.
 
 ## Security and secrets
@@ -121,7 +132,10 @@ variable "bucket_name" {
 
 ## Workflow expectations
 
-- Run `tofu init`, `tofu plan`, and `tofu apply` in clean environments.
+- Run `tofu init` and `tofu plan` in clean environments; review the plan
+  output before any deployment.
+- Run `tofu apply` only after explicit approval through the approved
+  deployment workflow, and only against an isolated deployment environment.
 - Share plan output or a summary in pull requests touching infrastructure.
 - Follow Conventional Commits; mention the affected module in the body
   when useful.

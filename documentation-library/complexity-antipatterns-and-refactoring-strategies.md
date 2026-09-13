@@ -329,7 +329,7 @@ Once a Bumpy Road is identified, the primary remediation strategy is the
 
 Tools like CodeScene's Automatic Code Evolution (ACE) service can automatically
 identify Bumpy Roads and even suggest or perform auto-refactoring for certain
-languages.[^9]
+languages.[^15]
 
 ### C. Red flags portending the bumpy road
 
@@ -342,7 +342,7 @@ escalating into full-blown Bumpy Roads.
 
 2. **Deeply Nested Logic:** Even a single area of deep nesting (more than 2–3
    levels) should be a concern. If multiple such areas appear in the same
-   function, it's a strong red flag.[^9]
+   function, it's a strong red flag.[^9][^14]
 
 3. **Functions Doing "Too Much":** If describing what a function does requires
    using the word "and" multiple times (e.g., "it validates the input, and
@@ -361,7 +361,7 @@ escalating into full-blown Bumpy Roads.
    correlates with high complexity that could manifest as a Bumpy Road.
 
 6. **Code "Smells" like Long Method:** A Bumpy Road is often, though not always,
-   a Long Method.[^12] The length itself isn't the core problem, but it
+   a Long Method.[^12][^16] The length itself isn't the core problem, but it
    provides more space for bumps to accumulate.
 
 7. **Declining Code Health Metrics:** Tools like CodeScene provide "Code Health"
@@ -383,9 +383,9 @@ maintainable systems.
 
 Separation of Concerns is a design principle that advocates for dividing a
 computer program into distinct sections, where each section addresses a separate
-concern.[^13] A "concern" is a set of information that affects the code of a
+concern.[^18] A "concern" is a set of information that affects the code of a
 computer program. Modularity is achieved by encapsulating information within a
-section of code that has a well-defined interface.[^13]
+section of code that has a well-defined interface.[^18]
 
 The Bumpy Road antipattern is a direct violation of SoC. Each "bump" in the
 code often represents a distinct concern, or responsibility, that has been
@@ -395,10 +395,10 @@ data transformation, and error handling for each case, all intermingled.
 Refactoring a Bumpy Road by extracting methods inherently applies SoC, as each
 extracted method ideally handles a single, well-defined concern.[^10] This
 leads to increased freedom for simplification, maintenance, module upgrade,
-reuse, and independent development.[^13] While SoC might introduce additional
+reuse, and independent development.[^18] While SoC might introduce additional
 interfaces and require more code to execute, the accompanying coordination
 overhead is typically outweighed by gains in clarity and maintainability,
-especially as systems grow.[^13]
+especially as systems grow.[^18]
 
 Consider a function that processes different types of user commands. A Bumpy
 Road approach might have a large `if-else if-else` structure, with each block
@@ -414,12 +414,12 @@ commands.
 
 Command Query Responsibility Segregation is an architectural pattern that
 segregates operations that modify state (commands) from operations that read
-state (queries).[^14] Commands are task-based and should represent specific
+state (queries).[^19] Commands are task-based and should represent specific
 business intentions (e.g.,
 
-`BookHotelRoomCommand` rather than `SetReservationStatusCommand`).[^14] Queries
+`BookHotelRoomCommand` rather than `SetReservationStatusCommand`).[^19] Queries
 never alter data and return Data Transfer Objects optimized for display
-needs.[^14]
+needs.[^19]
 
 While Command Query Responsibility Segregation operates at a higher
 architectural level than a single Bumpy Road method, the principles are
@@ -431,7 +431,7 @@ distinct command-like operations, are tangled together.
   distinct commands and queries from the start. This naturally leads to
   smaller, more focused methods or handlers for each command and query,
   reducing the likelihood of a single method accumulating many "bumps" of
-  unrelated logic.[^14] For instance, a method that both fetches data for a
+  unrelated logic.[^20] For instance, a method that both fetches data for a
   complex report, and then allows modifications based on that report, could
   become very complex. Command Query Responsibility Segregation would split
   this into a query to fetch the data and separate commands for any
@@ -441,9 +441,9 @@ distinct command-like operations, are tangled together.
   characteristics because it handles multiple types of updates or decisions
   leading to state changes, Command Query Responsibility Segregation principles
   can guide its refactoring. The different "bumps" that correspond to different
-  update logics could be refactored into separate command handlers.[^15] This
+  update logics could be refactored into separate command handlers.[^23] This
   aligns with the Single Responsibility Principle, as each command handler
-  focuses on a single way of modifying state.[^15]
+  focuses on a single way of modifying state.[^23]
 
 - **God Objects and Command Query Responsibility Segregation:** The "God
   Object" or "God Class" antipattern, where a single class hoards too much
@@ -452,7 +452,7 @@ distinct command-like operations, are tangled together.
   Objects by separating their command-handling responsibilities from their
   query-handling responsibilities, potentially leading to smaller, more focused
   classes (e.g., one class for command processing, another for query
-  processing, or even finer-grained handlers).[^16] This separation simplifies
+  processing, or even finer-grained handlers).[^22] This separation simplifies
   each part, making them easier to manage and reducing the cognitive load
   associated with the original monolithic structure.
 
@@ -461,10 +461,10 @@ prevent the kind of tangled logic that forms Bumpy Roads. By isolating write
 operations (commands) from read operations (queries), and by encouraging
 task-based commands, the system naturally tends towards smaller, more cohesive
 units of behaviour, thus reducing overall cognitive complexity within individual
-components.[^14] The separation allows for independent optimization and
+components.[^19] The separation allows for independent optimization and
 scaling of read and write sides, but more importantly for this discussion, it
 enforces a structural discipline that discourages methods from accumulating
-diverse responsibilities.[^14]
+diverse responsibilities.[^24]
 
 ### B. Avoiding spaghetti code turning into ravioli code
 
@@ -558,26 +558,26 @@ and method structure.
 Structural pattern matching—available in languages like Python (since 3.10 with
 match-case) and C#—offers a declarative and expressive way to handle complex
 conditional logic, often replacing verbose if-elif-else chains or switch
-statements.[^21]
+statements.[^32]
 
 It works by allowing code to match against the *structure* of data—such as its
 type, shape, or specific values within sequences like lists or tuples, or
 mappings such as dictionaries—and simultaneously destructure this data, binding
-parts of it to variables.[^22] This approach can significantly reduce cognitive
+parts of it to variables.[^33] This approach can significantly reduce cognitive
 load. The clarity comes from the direct mapping of data shapes to code blocks,
 making it easier to understand the conditions under which a piece of code
-executes.[^23] For instance, instead of multiple `isinstance` checks followed
+executes.[^32] For instance, instead of multiple `isinstance` checks followed
 by key lookups and value comparisons in a nested `if` structure to parse a JSON
 object, a single `case` statement with a mapping pattern can define the
-expected structure and extract the necessary values concisely.[^22] This shifts
+expected structure and extract the necessary values concisely.[^33] This shifts
 the focus from an imperative sequence of checks to a declarative description of
 data shapes, which is often more intuitive. The destructuring capability is
 particularly powerful, as it eliminates the manual code otherwise needed to
 extract values after a condition has been met, reducing boilerplate while also
-cutting the number of mental steps a developer must follow.[^22]
+cutting the number of mental steps a developer must follow.[^33]
 
 Consider processing different event types from a UI framework, where events are
-represented as dictionaries.[^24]
+represented as dictionaries.
 
 - *Imperative (Python-like pseudocode):*
 
@@ -617,7 +617,7 @@ The pattern matching version is more readable and directly expresses the
 expected structure of each event type, reducing the cognitive effort to
 understand the conditions and data extraction. Key features like guards (`if`
 conditions on `case` statements) allow for additional non-structural checks,
-further enhancing its power.[^22]
+further enhancing its power.[^33]
 
 #### 2. Embracing declarative programming
 
@@ -793,9 +793,9 @@ to a pattern for its own sake, to avoid pitfalls like Ravioli Code.
 Integrate these principles and techniques into daily development practices
 through a proactive and disciplined approach. This includes regular code
 reviews, monitoring complexity metrics, and fostering a team culture that
-values code quality and continuous improvement. The oft-quoted wisdom, "Good
-programmers write code that humans can understand"[^1], remains the guiding
-principle. Strive for this ideal. That focus delivers systems that are
+values code quality and continuous improvement.[^13] The oft-quoted wisdom,
+"Good programmers write code that humans can understand"[^1], remains the
+guiding principle. Strive for this ideal. That focus delivers systems that are
 powerful, efficient, and genuinely enjoyable for the team to evolve and
 maintain.
 
@@ -874,3 +874,5 @@ maintain.
 [^32]: Refactor `if-else` Statements to `match-case` for Improved Readability
        and Maintainability in Python 3.10+ · Issue #453 — GitHub,
        <https://github.com/sourcery-ai/sourcery/issues/453>
+[^33]: PEP 636 – Structural Pattern Matching: Tutorial — Python Enhancement
+       Proposals, <https://peps.python.org/pep-0636/>
