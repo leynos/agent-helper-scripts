@@ -803,7 +803,7 @@ text-shadow-sm, text-shadow, text-shadow-lg, text-shadow-xl, text-shadow-none
 #### Overflow Wrap (NEW in v4)
 
 ```text
-overflow-wrap-normal, overflow-wrap-break-word, overflow-wrap-anywhere
+wrap-normal, wrap-break-word, wrap-anywhere
 ```
 
 #### Vertical Align
