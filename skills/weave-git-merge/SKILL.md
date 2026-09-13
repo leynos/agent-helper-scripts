@@ -479,13 +479,29 @@ if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
 fi
 WEAVE_CHECK_OUT=$(mktemp -t weave-check.XXXXXX) || exit 1
 weave check | tee -- "$WEAVE_CHECK_OUT"
-CHECK_STATUS=${PIPESTATUS[0]}
+# Copy the array in one step: any later command, even an assignment, resets it.
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+CHECK_STATUS=${PIPE_STATUSES[0]}
+TEE_STATUS=${PIPE_STATUSES[1]}
+if [ "$TEE_STATUS" -ne 0 ]; then
+  echo 'andon: weave check output was not captured; stop before the audit' >&2
+  exit 1
+fi
 if grep -q 'NOTHING WAS CHECKED' -- "$WEAVE_CHECK_OUT"; then
   echo 'andon: weave check verified nothing; record unchecked, not clean' >&2
   exit 1
 fi
 printf 'weave_check_status=%s\nevidence=%s\n' "$CHECK_STATUS" "$WEAVE_CHECK_OUT"
+if [ "$CHECK_STATUS" -ne 0 ]; then
+  echo 'andon: weave check reported findings or failed; stop before accepting' >&2
+  exit "$CHECK_STATUS"
+fi
 ```
+
+The wrapper keeps the evidence file and then propagates the checker's own
+status: `1` for findings, `127` for a missing `weave`, and any other non-zero
+value for a checker failure. A workflow that gates on the wrapper's exit
+status therefore cannot accept a result the checker rejected.
 
 For a merge, run it after resolving and before `git commit`, or immediately
 after the merge commit while `HEAD` still has two parents. For a rebase, run

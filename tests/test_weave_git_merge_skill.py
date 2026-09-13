@@ -346,6 +346,17 @@ def test_skill_runs_weave_check_only_when_the_installed_version_supports_it() ->
     assert "grep -q 'NOTHING WAS CHECKED' -- \"$WEAVE_CHECK_OUT\"" in skill, (
         "the wrapper must fail closed on the upstream no-scope sentence"
     )
+    assert 'exit "$CHECK_STATUS"' in skill, (
+        "the wrapper must propagate the checker's own non-zero status rather "
+        "than finishing on a successful printf"
+    )
+    assert 'PIPE_STATUSES=("${PIPESTATUS[@]}")' in skill, (
+        "both pipeline statuses must be captured in one step; a plain "
+        "assignment resets PIPESTATUS before the second index is read"
+    )
+    assert "TEE_STATUS=${PIPE_STATUSES[1]}" in skill, (
+        "a failed capture must also stop the wrapper"
+    )
     assert "No 0.5.1 mode verifies a completed rebase's tree" in skill, (
         "the checker's limit for rebases must be explicit"
     )

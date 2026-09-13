@@ -1047,13 +1047,26 @@ if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
 fi
 WEAVE_CHECK_OUT=$(mktemp -t weave-check.XXXXXX) || exit 1
 weave check | tee -- "$WEAVE_CHECK_OUT"
-CHECK_STATUS=${PIPESTATUS[0]}
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+CHECK_STATUS=${PIPE_STATUSES[0]}
+TEE_STATUS=${PIPE_STATUSES[1]}
+if [ "$TEE_STATUS" -ne 0 ]; then
+  echo 'andon: weave check output was not captured; stop before the audit' >&2
+  exit 1
+fi
 if grep -q 'NOTHING WAS CHECKED' -- "$WEAVE_CHECK_OUT"; then
   echo 'andon: weave check verified nothing; record unchecked, not clean' >&2
   exit 1
 fi
 printf 'weave_check_status=%s\\nevidence=%s\\n' "$CHECK_STATUS" "$WEAVE_CHECK_OUT"
+if [ "$CHECK_STATUS" -ne 0 ]; then
+  echo 'andon: weave check reported findings or failed; stop before accepting' >&2
+  exit "$CHECK_STATUS"
+fi
 """
+FINDINGS_CHECK_TRANSCRIPT = (
+    "FOUND: example.py - line kept by both sides is missing: 'return \"base\"'"
+)
 
 
 def _ref_exists(repository: Path, ref: str) -> bool:
@@ -1067,15 +1080,17 @@ def _parent_count(repository: Path) -> int:
     return len(listed) - 1
 
 
-def _fake_weave(directory: Path, transcript: str) -> Path:
-    """Install a `weave` stand-in that prints `transcript` and exits 0.
+def _fake_weave(directory: Path, transcript: str, exit_code: int = 0) -> Path:
+    """Install a `weave` stand-in that prints `transcript` and exits `exit_code`.
 
     The stand-in is placed first on `PATH` by the caller, so the documented
     wrapper resolves it before any real installation.
     """
     directory.mkdir(parents=True, exist_ok=True)
     script = directory / "weave"
-    script.write_text(f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(transcript)}\n")
+    script.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(transcript)}\nexit {exit_code}\n"
+    )
     script.chmod(0o755)
     return script
 
@@ -1338,4 +1353,38 @@ def test_check_guard_fails_closed_on_a_nothing_checked_transcript(
     )
     assert "weave_check_status=0" in checked.stdout, (
         "the receipt must carry the checker's own exit status"
+    )
+
+
+@pytest.mark.parametrize(
+    ("transcript", "exit_code"),
+    [
+        pytest.param(FINDINGS_CHECK_TRANSCRIPT, 1, id="findings"),
+        pytest.param("weave check: internal error", 2, id="checker-failure"),
+    ],
+)
+def test_check_guard_propagates_a_failing_checker_status(
+    diverged: tuple[Path, Path, Path], tmp_path: Path, transcript: str, exit_code: int
+) -> None:
+    """Findings and checker failures reach the wrapper's exit status."""
+    repository, source, attributes = diverged
+    del attributes
+    _diverge(repository, source)
+    _git(repository, "merge", "--no-ff", "--no-commit", "--quiet", "topic")
+    assert _ref_exists(repository, "MERGE_HEAD"), "the fixture must be mid-merge"
+
+    failed = _run_check_guard(
+        repository, _fake_weave(tmp_path / "failing", transcript, exit_code).parent
+    )
+    assert failed.returncode == exit_code, (
+        "the wrapper must exit with the checker's own status; storing it in "
+        "`CHECK_STATUS` and then finishing on a successful `printf` would let a "
+        "gated workflow accept a result the checker rejected"
+    )
+    assert f"weave_check_status={exit_code}" in failed.stdout, (
+        "the receipt must still be written before the wrapper stops"
+    )
+    assert transcript in failed.stdout, "the checker's transcript must be echoed"
+    assert "stop before accepting" in failed.stderr, (
+        "the wrapper must name the andon condition"
     )
