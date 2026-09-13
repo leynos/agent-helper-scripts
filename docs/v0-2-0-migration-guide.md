@@ -321,3 +321,63 @@ Existing audit invocations that assumed `MERGE_BASE` applied uniformly need
 reviewing wherever they run after a squash restack, because a target
 merge-base can include inherited parent work that must not be counted as
 child-owned changes.
+
+## Weave v0.5.1 opt-in baseline
+
+Moving the `weave-git-merge` skill from the Weave 0.3.6 global-activation
+deployment to the `dev-env-rocky` v0.5.1 opt-in baseline.
+
+### Previous model
+
+The deployment installed Weave 0.3.6 and enrolled thirty file extensions in
+`~/.config/git/attributes`, so every repository routed those paths through
+`weave-driver %O %A %B %L %P`. The skill treated that ambient global rule as
+the typical case, bypassed it with `-c core.attributesFile=/dev/null`, ran
+bare `weave check` after any operation, and documented `WEAVE_TIMEOUT` and a
+five-second entity-merge watchdog.
+
+### New model
+
+Weave is pinned to `v0.5.1`. The role-owned global attributes block is
+removed, the driver is registered globally as
+`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, and
+`merge.conflictStyle=zdiff3` is set globally. A repository activates Weave
+only through its own reviewed attributes, such as `src/*.rs merge=weave`.
+The [skill](../skills/weave-git-merge/SKILL.md#know-the-estate-baseline)
+now opens with a host verification block and:
+
+- bypasses an opted-in driver for unattended replays with a command-scoped
+  `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
+  -c merge.weave.recursive=text`, repeated on every `--continue`;
+- runs `weave check` only while Git holds a three-way scope, wraps it so a
+  `NOTHING WAS CHECKED` transcript or a non-zero status stops the workflow,
+  and records that no 0.5.1 mode verifies a completed rebase tree;
+- captures `weave-warning:` lines beside `weave-event:` lines, and uses
+  `weave explain` on conflict stops;
+- marks `WEAVE_TIMEOUT` and the watchdog as 0.3.x-only, and notes
+  `WEAVE_STATS=1`, `WEAVE_MAX_DUPLICATES`, `WEAVE_AUDIT`, and
+  `WEAVE_FINDINGS`.
+
+### Backward compatibility
+
+The attribute-level bypass rows in the scope matrix remain for hosts that
+have not been reconciled and still select Weave from the global attributes
+file. The 0.3.6 corruption incidents in the
+[behaviour reference](../skills/weave-git-merge/references/behaviour.md#known-clean-exit-corruption)
+are retained as evidence; the pin is a containment change, not a claim that
+they are fixed.
+
+### Habits that no longer hold
+
+- Assuming a `merge: weave` report on an ordinary path is expected. On a
+  reconciled host it means the repository opted in, or the host was not
+  reconciled; check the attribute source either way.
+- Running `weave setup --global`. The baseline prohibits it.
+- Treating a tracked `.gitattributes` rule as consent for an unattended
+  long-lived branch rebase. Use the driver override unless dogfooding was
+  explicitly requested.
+- Passing the override on the initial `rebase` only. Git reads `-c`
+  configuration per command, so each `--continue` needs it again.
+- Reading a bare `weave check` exit of `0` after a rebase as a pass. It has
+  no scope in that state and says so.
+- Setting `WEAVE_TIMEOUT`. It has no effect on 0.5.x.

@@ -1070,8 +1070,32 @@ FINDINGS_CHECK_TRANSCRIPT = (
 
 
 def _ref_exists(repository: Path, ref: str) -> bool:
-    """Report whether `ref` resolves, the way the skill's guard asks Git."""
-    return _git(repository, "rev-parse", "-q", "--verify", ref, check=False).returncode == 0
+    """Report whether `ref` resolves, the way the skill's guard asks Git.
+
+    `git rev-parse -q --verify` exits 0 for a resolvable ref and 1 for an
+    absent one; that pair is the documented answer. Any other status is a
+    query failure (no repository, unreadable object store) and is raised with
+    Git's stderr rather than folded into "absent".
+    """
+    completed = _git(repository, "rev-parse", "-q", "--verify", ref, check=False)
+    if completed.returncode == 0:
+        return True
+    if completed.returncode == 1:
+        return False
+    message = (
+        f"git rev-parse -q --verify {ref} failed with status "
+        f"{completed.returncode}: {completed.stderr.strip()}"
+    )
+    raise RuntimeError(message)
+
+
+def test_ref_exists_raises_on_an_unexpected_git_failure(tmp_path: Path) -> None:
+    """A Git query failure is not reported as an absent ref."""
+    not_a_repository = tmp_path / "plain-directory"
+    not_a_repository.mkdir()
+
+    with pytest.raises(RuntimeError, match="failed with status 128"):
+        _ref_exists(not_a_repository, "MERGE_HEAD")
 
 
 def _parent_count(repository: Path) -> int:
