@@ -25,7 +25,7 @@
 
    - Theme values are defined as CSS custom properties (variables).
      Tailwind uses these to generate corresponding utility classes (e.g.,
-     `font-sans`, `bg-brand-500`, `lg:p-(--spacing-4)`) and also makes
+     `font-sans`, `bg-brand-500`, `lg:p-4`) and also makes
      these variables globally available for use in custom CSS or arbitrary
      values (e.g., `var(--color-brand-500)`).
    - The default theme is still provided but can be extended, overridden,

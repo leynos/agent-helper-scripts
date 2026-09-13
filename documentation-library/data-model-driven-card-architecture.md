@@ -10,8 +10,8 @@ schemas, localization rules, and migration steps needed to align a codebase
 with that principle.
 
 For a backend-compatible perspective (hexagonal domain boundaries, ports, and
-offline-first persistence), see your project's backend architecture
-documentation.
+offline-first persistence), see the backend architecture documentation for
+the project.
 
 ## Principles to enforce
 
@@ -22,6 +22,9 @@ documentation.
   tags).
 - Numeric values are stored in SI base units; conversion happens at render
   time via shared unit-format helpers.
+- Currency is an explicit exception to SI base-unit storage: prices are
+  stored as integer ISO 4217 minor units, and every price carries an ISO
+  4217 currency code.
 - Counts stay as integers; pluralization belongs to the translation system.
 - Components receive fully formed entities and only format/present them.
 
@@ -48,6 +51,11 @@ Use these primitives across entities:
 ```ts
 export type LocaleCode = "en-GB" | "en-US" | "fr" | "de" | "es" | "ar";
 
+export type ItemId = string;
+export type CategoryId = string;
+export type TagId = string;
+export type BadgeId = string;
+
 export type LocalizedStringSet = {
   readonly name: string;
   readonly description?: string;
@@ -68,30 +76,37 @@ export type ImageAsset = {
 `EntityLocalizations` and `LocalizedAltText` are `Partial` records because a
 newly added locale will not have every entity translated immediately.
 
-Fallback rule: prefer the current user locale, fall back to a designated
-default locale, then any available locale. Components must not construct
-names from translation keys. The same fallback chain resolves localized
-image alt text when the current locale is absent.
+Fallback rule: resolve using a deterministic order — the current user
+locale, then the designated default locale, then an explicit, stable
+fallback locale list — and take the first locale in that order that has
+the required value. Do not fall back to object insertion order or to any
+arbitrary available locale. Components must not construct names from
+translation keys. The same ordered fallback governs both entity names and
+localized image alt text.
 
 ## Entity schemas by card type
 
 The schemas below use a generic catalogue domain to illustrate the pattern;
-apply the same shapes to your own entities.
+apply the same shapes to the entities in the target domain.
 
 - **Item (primary content/product cards)**
   - `id: ItemId` (stable slug)
   - `localizations: EntityLocalizations` (name, description)
   - `heroImage: ImageAsset`
-  - `priceMinorUnits: number` (ISO 4217 minor units, e.g. pence or cents)
+  - `priceMinorUnits: number` (integer ISO 4217 minor units, e.g. pence or
+    cents)
+  - `currencyCode: string` (ISO 4217 currency code for `priceMinorUnits`)
   - `weightGrams: number` (SI)
   - `rating: number` (0–5)
-  - `badges: string[]` (badge descriptor ids)
+  - `badges: BadgeId[]` (badge descriptor ids)
   - `categoryId?: CategoryId`
   - `tagIds?: TagId[]`
 - **ItemCollection (curated collection cards)**
   - `id`, `localizations`
   - `leadImage: ImageAsset`
   - `priceRangeMinorUnits: [number, number]`
+  - `currencyCode: string` (ISO 4217 currency code for
+    `priceRangeMinorUnits`)
   - `itemIds: ItemId[]`
 - **Category (category chips)**
   - `id`
@@ -119,6 +134,7 @@ erDiagram
   ITEM {
     string id
     number priceMinorUnits
+    string currencyCode
     number weightGrams
     number rating
   }
@@ -132,6 +148,7 @@ erDiagram
     string id
     number priceRangeMinMinorUnits
     number priceRangeMaxMinorUnits
+    string currencyCode
   }
 
   ITEM_COLLECTION_ITEM {
@@ -148,7 +165,7 @@ erDiagram
   ITEM ||--o{ ITEM_COLLECTION_ITEM : has
   ITEM_COLLECTION ||--o{ ITEM_COLLECTION_ITEM : contains
   CATEGORY ||--o{ ITEM : categorizes
-  FEATURED_PICK ||--|| ITEM : is_based_on_optional
+  FEATURED_PICK ||--o| ITEM : is_based_on_optional
 ```
 
 Figure 2 sketches the class-level model with localization-aware fields and
@@ -175,10 +192,11 @@ classDiagram
   }
 
   class Item {
-    +string id
+    +ItemId id
     +EntityLocalizations localizations
     +ImageAsset heroImage
     +number priceMinorUnits
+    +string currencyCode
     +number weightGrams
     +number rating
     +BadgeId[] badges
@@ -187,7 +205,7 @@ classDiagram
   }
 
   class Category {
-    +string id
+    +CategoryId id
     +EntityLocalizations localizations
     +number itemCount
     +string iconToken
@@ -198,6 +216,7 @@ classDiagram
     +EntityLocalizations localizations
     +ImageAsset leadImage
     +number[2] priceRangeMinorUnits
+    +string currencyCode
     +ItemId[] itemIds
   }
 
@@ -215,26 +234,26 @@ classDiagram
   }
 
   class TagDescriptor {
-    +string id
+    +TagId id
     +EntityLocalizations localizations
     +string iconToken
   }
 
   class ResolvedTagDescriptor {
-    +string id
+    +TagId id
     +EntityLocalizations localizations
     +string iconToken
     +LocalizedStringSet localization
   }
 
   class BadgeDescriptor {
-    +string id
+    +BadgeId id
     +EntityLocalizations localizations
     +optional string accentClass
   }
 
   class ResolvedBadgeDescriptor {
-    +string id
+    +BadgeId id
     +EntityLocalizations localizations
     +optional string accentClass
     +LocalizedStringSet localization
@@ -276,8 +295,11 @@ classDiagram
 - Descriptor registries store `localizations` instead of a `labelKey` and
   `defaultLabel` pair.
 - Component props shift from `title`/`description` strings to entire entity
-  objects. Helpers (e.g., `formatPrice`) continue to format numbers with
-  translated unit labels.
+  objects. Non-currency helpers (e.g., a weight formatter) continue to
+  format numbers with translated unit labels. `formatPrice` instead
+  receives the minor-unit value together with its `currencyCode` and
+  selects currency formatting from that code, never from translated unit
+  labels.
 
 ## Attribute identifier strategy
 

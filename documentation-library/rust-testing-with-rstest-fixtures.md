@@ -111,9 +111,9 @@ Add the following lines to the project's `Cargo.toml` under the
 
 ```toml
 [dev-dependencies]
-rstest = "0.26.1" # Or the latest version available on crates.io
+rstest = "0.27.0" # Or the latest version available on crates.io
 # rstest_macros may also be needed explicitly depending on usage or version
-# rstest_macros = "0.26.1" # Check crates.io for the latest version
+# rstest_macros = "0.27.0" # Check crates.io for the latest version
 ```
 
 It is advisable to check `crates.io` for the latest stable version of `rstest`
@@ -129,7 +129,7 @@ the `time` and `test-util` features via a dev-only dependency:
 ```toml
 [dev-dependencies]
 tokio = { version = "1", default-features = false, features = ["time", "test-util"] }
-rstest = "0.26.1"
+rstest = "0.27.0"
 ```
 
 ### B. First fixture: defining with `#[fixture]`
@@ -752,10 +752,10 @@ async fn async_fixture_value() -> u32 {
 
 #[rstest]
 #[async_std::test] // Or #[tokio::test], #[actix_rt::test]
-async fn my_async_test(async_fixture_value: u32) {
+async fn my_async_test(#[future] async_fixture_value: u32) {
     // Simulate further async work in the test
     async_std::task::sleep(Duration::from_millis(5)).await;
-    assert_eq!(async_fixture_value, 100);
+    assert_eq!(async_fixture_value.await, 100);
 }
 ```
 
@@ -1031,7 +1031,7 @@ provides the `#[files("glob_pattern")]` attribute. This attribute can be used
 on a test function argument to inject file paths that match a given glob
 pattern. The argument type is typically `PathBuf`. It can also inject file
 contents directly as `&str` or `&[u8]` by specifying a mode, e.g.,
-`#[files("glob_pattern", mode = "str")]`, and additional attributes such as
+`#[files("glob_pattern")] #[mode = str]`, and additional attributes such as
 `#[base_dir = "…"]` can specify a base directory for the glob, and
 `#[exclude("regex")]` can filter out paths matching a regular expression.
 
@@ -1051,8 +1051,11 @@ fn process_text_file(#[files] path: PathBuf) {
 }
 
 #[rstest]
-#[files("tests/test_data/*.json", mode = "str")] // Injects content of each.json file as &str
-fn process_json_content(#[files] content: &str) {
+fn process_json_content(
+    #[files("tests/test_data/*.json")]
+    #[mode = str]
+    content: &str,
+) {
     println!("Processing JSON content (first 50 chars): {:.50}", content);
     assert!(content.contains("{")); // Basic check for JSON-like content
 }
