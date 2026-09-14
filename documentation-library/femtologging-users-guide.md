@@ -11,10 +11,12 @@ building production systems on top of femtologging.
 Install the package (a local editable installation is shown here) and emit the
 first record:
 
+<!-- tested-example: femtologging-quickstart-install -->
 ```bash
 pip install .
 ```
 
+<!-- tested-example: femtologging-quickstart-emit -->
 ```python
 from femtologging import FemtoStreamHandler, get_logger
 
@@ -86,6 +88,7 @@ the process exits.
   stack is appended to the record. Both payloads are rendered by the default
   formatter and are available as structured data to `handle_record` handlers.
 
+  <!-- tested-example: femtologging-emitting-records-exc-info -->
   ```python
   try:
       db.execute(query)
@@ -124,6 +127,7 @@ Rust-side validation returns stable variants from `SchemaVersionError`:
 
 Use these variants to choose explicit behaviour when versions mismatch:
 
+<!-- tested-example: femtologging-exception-schema-versioning -->
 ```rust
 use femtologging_rs::{
     ExceptionPayload, SchemaVersionError, SchemaVersioned,
@@ -285,6 +289,7 @@ fields with safe defaults does not require a version bump.
 
 - Socket handlers must be built via `SocketHandlerBuilder`. Typical usage:
 
+<!-- tested-example: femtologging-handler-socket -->
 ```python
 from femtologging import BackoffConfig, SocketHandlerBuilder
 
@@ -336,6 +341,7 @@ socket_handler = (
 
 ### Custom Python handlers
 
+<!-- tested-example: femtologging-handler-custom-python -->
 ```python
 class Collector:
     def __init__(self) -> None:
@@ -444,6 +450,7 @@ subclass, translates femtologging record dicts into `logging.LogRecord`
 instances, and delegates to the wrapped handler's `handle()` method so that
 attached filters and I/O locking apply.
 
+<!-- tested-example: femtologging-handler-stdlib-adapter -->
 ```python
 import logging
 from femtologging import FemtoLogger, StdlibHandlerAdapter
@@ -494,6 +501,7 @@ the `LogRecord.__dict__`, making them available to stdlib formatters (e.g.
   `AttributeError` immediately rather than silently creating a new attribute
   that `basicConfig` never reads:
 
+  <!-- tested-example: femtologging-basicconfig -->
   ```python
   cfg = BasicConfig(level="INFO")
   cfg.filenam = "/var/log/app.log"  # AttributeError: no such field
@@ -508,6 +516,7 @@ the `LogRecord.__dict__`, making them available to stdlib formatters (e.g.
 
 ### ConfigBuilder (imperative API)
 
+<!-- tested-example: femtologging-configbuilder -->
 ```python
 from femtologging import (
     ConfigBuilder,
@@ -622,6 +631,7 @@ builder.build_and_init()
 - Logger-level formatting is fixed (`"{logger} [LEVEL] message"`). To customize
   output wrap handlers with formatter callables using the builder API:
 
+<!-- tested-example: femtologging-formatting-json-formatter -->
 ```python
 def json_formatter(record: dict[str, object]) -> str:
     import json
@@ -652,6 +662,7 @@ stream = StreamHandlerBuilder.stdout().with_formatter(json_formatter).build()
   async queue, making them visible to formatter callables and
   `StdlibHandlerAdapter`.
 
+<!-- tested-example: femtologging-formatting-callback-filter -->
 ```python
 import contextvars
 import logging
@@ -734,6 +745,7 @@ current, tested surface area of femtologging.
 Use `log_context(...)` to add structured key-values to every record emitted on
 the current thread while the context is active:
 
+<!-- tested-example: femtologging-log-context-basic -->
 ```python
 import femtologging
 
@@ -774,6 +786,7 @@ Accepted enrichment must satisfy all of the following:
 
 Example of accepted enrichment:
 
+<!-- tested-example: femtologging-callback-enrichment-accepted -->
 ```python
 import logging
 
@@ -797,6 +810,7 @@ Collisions and invalid values are rejected before the record enters the worker
 thread. For example, this filter tries to overwrite a stdlib field and attach
 an unsupported value:
 
+<!-- tested-example: femtologging-callback-enrichment-invalid -->
 ```python
 import logging
 
