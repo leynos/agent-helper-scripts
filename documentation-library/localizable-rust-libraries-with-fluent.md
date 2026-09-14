@@ -176,8 +176,7 @@ fn main() {
     let loader: FluentLanguageLoader = fluent_language_loader!();
 
     // 2. Determine the preferred language from the system.
-    let requester = DesktopLanguageRequester::new();
-    let requested_locales = requester.requested_languages();
+    let requested_locales = DesktopLanguageRequester::requested_languages();
 
     // 3. Perform language negotiation. The `select` function finds the best
     // matching language and loads all corresponding resources from the

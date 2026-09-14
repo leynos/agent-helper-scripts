@@ -484,6 +484,8 @@ integrated:
   doesn’t adhere to accessible-first querying. Over time this becomes second
   nature.
 
+### 2.4 Inner-loop outcome
+
 By combining tooling (axe scans, proper libraries) with conventions (only use
 accessible queries, assert on ARIA/focus behaviours), the inner loop becomes a
 strong quality gate. A developer cannot merge a component that is functionally
