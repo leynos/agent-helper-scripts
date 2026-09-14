@@ -1682,7 +1682,7 @@ m-[12px], p-[24px], grid-cols-[200px_minmax(900px,_1fr)_100px]
 <script>
   let { variant = "primary", children } = $props();
 
-  const buttonClasses = $derived(() => [
+  const buttonClasses = $derived.by(() => [
     'px-4 py-2 rounded-md font-medium transition-colors',
     variant === 'primary'
       ? 'bg-brand text-white hover:bg-brand/90'

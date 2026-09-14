@@ -139,7 +139,7 @@ IDs (not just names) are required for import:
    `cloudflare_dns_record`:
 
    ```bash
-   tofu import cloudflare_dns_record.example "${ZONE_ID}/${DNS_ID}"
+   tofu import cloudflare_dns_record.www "${ZONE_ID}/${DNS_ID}"
    ```
 
 This aligns existing records with the Infrastructure as Code (IaC) workflow.
@@ -179,7 +179,7 @@ infra/
 The [Filador blog](https://filador.com) demonstrates integrating DNS, WAF,
 mTLS, and Pages with OpenTofu and Cloudflare. Provider documentation is
 available via the
-[OpenTofu registry (Cloudflare provider)](https://registry.opentofu.org/providers/opentofu/cloudflare/latest)
+[OpenTofu registry (Cloudflare provider)](https://search.opentofu.org/provider/cloudflare/cloudflare/latest)
 and the
 [Terraform Registry](https://registry.terraform.io/providers/cloudflare/cloudflare/latest);
 modules remain discoverable on the

@@ -177,8 +177,10 @@ def test_workflow_produces_expected_artefact_and_logs(tmp_path: Path) -> None:
         assert zips, f"artefact missing. Logs:\n{logs}"
         with zipfile.ZipFile(zips[0]) as archive:
             member = next(
-                name for name in archive.namelist() if name.endswith("result.json")
+                (name for name in archive.namelist() if name.endswith("result.json")),
+                None,
             )
+            assert member, f"artefact missing. Logs:\n{logs}"
             with archive.open(member) as fh:
                 data = json.load(fh)
     assert data["status"] == "ok"

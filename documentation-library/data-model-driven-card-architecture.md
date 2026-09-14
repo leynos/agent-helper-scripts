@@ -303,7 +303,7 @@ classDiagram
 
 ## Attribute identifier strategy
 
-- Continue to use descriptor ids (`categoryId`, `tagId`) as the canonical
+- Continue to use descriptor ids (`categoryId`, `tagIds`) as the canonical
   internal keys.
 - Introduce a `tagDescriptors` registry to replace ad-hoc tag strings; each
   tag owns its `localizations` and icon metadata.

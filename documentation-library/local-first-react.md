@@ -788,6 +788,7 @@ these will lead to a broken or unreliable offline experience.
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createIDBPersister } from './lib/idbPersister';
+import { api } from './lib/api';
 
 // 1. Create a QueryClient with a long gcTime
 const queryClient = new QueryClient({
@@ -910,14 +911,16 @@ A minimal SW sketch:
 
 ```ts
 // sw.ts (illustrative)
+const TILES_CACHE_NAME = 'tiles-v1';
+
 self.addEventListener('message', (event: MessageEvent) => {
   const msg = event.data;
   if (msg?.type !== 'PRECACHE_TILES') return;
 
-  const { cacheName, urls } = msg as { cacheName: string; urls: string[] };
+  const { urls } = msg as { urls: string[] };
 
   event.waitUntil((async () => {
-    const cache = await caches.open(cacheName);
+    const cache = await caches.open(TILES_CACHE_NAME);
     await Promise.all(urls.map(async (url) => {
       const req = new Request(url, { cache: 'reload' });
       const res = await fetch(req);
@@ -934,7 +937,7 @@ self.addEventListener('fetch', (event: FetchEvent) => {
   if (!isTile) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open('tiles-v1');
+    const cache = await caches.open(TILES_CACHE_NAME);
     const cached = await cache.match(event.request);
     if (cached) return cached;
 
@@ -1016,6 +1019,10 @@ const lat2tileY = (lat: number, z: number) => {
   return Math.floor((1 - n / Math.PI) / 2 * (2 ** z));
 };
 
+// Slippy-map tiles are indexed 0..2^z-1 per axis; beyond zoom 24 that
+// exponent starts to threaten safe-integer arithmetic, so cap it there.
+const MAX_SUPPORTED_ZOOM = 24;
+
 export function enumerateTiles(
   bounds: [number, number, number, number],
   zMin: number,
@@ -1026,6 +1033,9 @@ export function enumerateTiles(
   }
   if (zMin < 0 || zMax < zMin) {
     throw new RangeError('zMin must be >= 0 and zMax must be >= zMin');
+  }
+  if (zMax > MAX_SUPPORTED_ZOOM) {
+    throw new RangeError(`zMax must be <= ${MAX_SUPPORTED_ZOOM}`);
   }
 
   const [minLng, minLat, maxLng, maxLat] = bounds;
@@ -1214,14 +1224,15 @@ export function useUpdateTodo() {
     onMutate: async (updatedTodo) => {
       const queryKey = ['todos', 'list'];
       
-      // 1. Cancel ongoing refetches
+      // 1. Cancel ongoing refetches for every list variant, filtered or not
       await queryClient.cancelQueries({ queryKey });
 
-      // 2. Snapshot the previous value
-      const previousTodos = queryClient.getQueryData(queryKey);
+      // 2. Snapshot every matched list variant for rollback
+      const previousTodos = queryClient.getQueriesData({ queryKey });
 
-      // 3. Optimistically update to the new value
-      queryClient.setQueryData(queryKey, (old) => {
+      // 3. Optimistically update every matched list variant, not just the
+      //    unfiltered key, so filtered views stay in sync too
+      queryClient.setQueriesData({ queryKey }, (old) => {
         if (!Array.isArray(old)) {
           return old;
         }
@@ -1233,9 +1244,11 @@ export function useUpdateTodo() {
       return { previousTodos };
     },
 
-    // 5. If the mutation fails, roll back
+    // 5. If the mutation fails, roll back every snapshotted variant
     onError: (err, updatedTodo, context) => {
-      queryClient.setQueryData(['todos', 'list'], context.previousTodos);
+      context.previousTodos.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
     },
 
     // 6. Always refetch after error or success
@@ -1330,14 +1343,21 @@ function TodoSocketBridge() {
       queryClient.setQueryData(['todos', 'detail', newTodo.id], newTodo);
 
       // Also update every cached list variant (e.g. filtered views) that
-      // shares the 'todos', 'list' prefix, not just the unfiltered key
-      queryClient.setQueriesData({ queryKey: ['todos', 'list'] }, (oldData = []) => {
+      // shares the 'todos', 'list' prefix, not just the unfiltered key.
+      // Only touch a variant's items if the incoming todo actually matches
+      // that variant's own filter, carried as the third queryKey segment.
+      queryClient.setQueriesData({ queryKey: ['todos', 'list'] }, (oldData = [], query) => {
+        const filters = query.queryKey[2] ?? {};
+        const matchesFilter = filters.status ? newTodo.status === filters.status : true;
+
         const exists = oldData.some(todo => todo.id === newTodo.id);
         if (exists) {
-          return oldData.map(todo => (todo.id === newTodo.id ? newTodo : todo));
+          return matchesFilter
+            ? oldData.map(todo => (todo.id === newTodo.id ? newTodo : todo))
+            : oldData.filter(todo => todo.id !== newTodo.id);
         }
 
-        return [...oldData, newTodo];
+        return matchesFilter ? [...oldData, newTodo] : oldData;
       });
     };
 

@@ -351,7 +351,7 @@ user's guide or developer's guide.
 Use RFCs for proposed changes that need technical review before they become
 binding. Store them under `docs/rfcs/`.
 
-### RFC naming convention
+#### RFC naming convention
 
 Name RFC files using the pattern `0001-short-topic.md`, where `0001` is a
 zero-padded sequence number. Place RFCs in the `docs/rfcs/` directory.
@@ -360,7 +360,7 @@ zero-padded sequence number. Place RFCs in the `docs/rfcs/` directory.
 - Do not renumber existing RFCs after publication. Gaps are acceptable when
   numbers are reserved, drafted on another branch, or intentionally skipped.
 
-### RFC required sections
+#### RFC required sections
 
 Every RFC must include the following sections in order:
 
@@ -375,7 +375,7 @@ Every RFC must include the following sections in order:
   `## Summary`, `## Executive summary`, or `## Problem` are all acceptable if
   used consistently within the document.
 
-### RFC conditional sections
+#### RFC conditional sections
 
 Include these sections as appropriate to the scope and complexity of the
 proposal:
@@ -399,7 +399,7 @@ proposal:
 - **Recommendation:** End with a clear statement of the preferred direction
   when the preceding analysis presents multiple viable choices.
 
-### RFC formatting guidance
+#### RFC formatting guidance
 
 - Use second-level headings (`##`) for major sections.
 - Use third-level headings (`###`) for subsections such as phases, options,
@@ -414,7 +414,7 @@ proposal:
 - Update links when RFC filenames change, especially cross-references from one
   RFC to another.
 
-### RFC template
+#### RFC template
 
 ```markdown
 # RFC 0001: <title>

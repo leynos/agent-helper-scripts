@@ -29,14 +29,20 @@ ______________________________________________________________________
 
 ### 1. Add `mockable`
 
-First, add the crate to development dependencies in `Cargo.toml`.
+`Env` and `DefaultEnv` are used from production code, not only from tests, so
+`mockable` and `chrono` belong under normal dependencies. `assert_cmd`, used
+later for end-to-end process tests, belongs under development dependencies.
 
 ```toml
-[dev-dependencies]
+[dependencies]
 mockable = { version = "0.1.4", default-features = false, features = [
     "clock",
     "mock",
 ] }
+chrono = "0.4"
+
+[dev-dependencies]
+assert_cmd = "2"
 ```
 
 ### 2. The untestable code (before)
@@ -142,6 +148,11 @@ requires, rather than mutating or relying on the harness process's own
 environment:
 
 ```rust,no_run
+let program_under_test = env!("CARGO_BIN_EXE_my_app");
+let isolated_home = "/tmp/test-home";
+let controlled_path = "/usr/bin:/bin";
+let config_path = "/tmp/test-home/config.toml";
+
 let mut command = assert_cmd::Command::new(program_under_test);
 command
     .env_clear()

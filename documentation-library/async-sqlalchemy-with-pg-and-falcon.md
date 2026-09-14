@@ -11,7 +11,7 @@ practices for leveraging asynchronous SQLAlchemy 2.0 with PostgreSQL,
 specifically using the asyncpg driver, within the context of the Falcon web
 framework. Falcon, known for its minimalist design and performance focus,
 supports ASGI (Asynchronous Server Gateway Interface), making it suitable for
-building asynchronous APIs.[^3] When combined with SQLAlchemy's async features,
+building asynchronous APIs.[^2] When combined with SQLAlchemy's async features,
 developers can create highly concurrent services capable of handling numerous
 I/O-bound database operations without blocking the main execution thread. This
 document will delve into the intricacies of setting up the asynchronous engine
@@ -22,7 +22,7 @@ testing strategies. The objective is to equip developers with the knowledge to
 build efficient, reliable, and maintainable asynchronous applications using
 this powerful technology stack. The transition from synchronous patterns, such
 as those offered by encode/databases (which is no longer actively maintained),
-to SQLAlchemy's native async support represents a significant step forward.[^6]
+to SQLAlchemy's native async support represents a significant step forward.[^3]
 
 ## II. Core Asynchronous SQLAlchemy Setup: Engine and Session Factory
 
@@ -34,9 +34,9 @@ async\_sessionmaker.
 ### A. The create_async_engine: The Foundation for Asynchronous Database Communication
 
 The create\_async\_engine function is the entry point for establishing
-asynchronous communication with the PostgreSQL database.[^7] It requires an
+asynchronous communication with the PostgreSQL database.[^4] It requires an
 asynchronous database driver; for PostgreSQL, asyncpg is the recommended choice
-due to its performance and feature set.[^6] A typical engine setup for PostgreSQL
+due to its performance and feature set.[^3] A typical engine setup for PostgreSQL
 with asyncpg is as follows:
 
 ```python
@@ -60,18 +60,18 @@ engine = create_async_engine(
 dialect and driver. Several parameters are crucial for configuring the engine's
 behaviour, particularly its connection pool. Logging SQL statements generated
 by SQLAlchemy can be enabled by setting echo=True on the engine, which is
-invaluable during development and debugging.[^9]
+invaluable during development and debugging.[^5]
 
 #### Deep Dive: Connection Pooling with AsyncEngine
 
 Connection pooling is paramount for the performance and stability of web
 applications, as it mitigates the overhead of establishing new database
-connections for each request.[^9] SQLAlchemy's AsyncEngine manages a pool of
+connections for each request.[^5] SQLAlchemy's AsyncEngine manages a pool of
 database connections that can be reused. The poolclass parameter specifies the
 pooling implementation. For asynchronous operations, AsyncAdaptedQueuePool is
-the appropriate choice.[^9] It is important to distinguish this from the
+the appropriate choice.[^5] It is important to distinguish this from the
 synchronous QueuePool. The SQLAlchemy documentation explicitly notes that
-QueuePool is not compatible with asyncio.[^10] AsyncAdaptedQueuePool acts as a
+QueuePool is not compatible with asyncio.[^6] AsyncAdaptedQueuePool acts as a
 wrapper, adapting a queue-based pooling mechanism to function correctly within
 an asynchronous environment. This adaptation ensures that operations like
 checking out and returning connections do not block the asyncio event loop.
@@ -83,12 +83,12 @@ of this pool: **Table 1: create\_async\_engine Key Pooling Parameters**
 
 | Parameter       | Description                                                                                         | Typical Value/Range                               | Impact & Best Practice                                                                                                                                               |
 | :-------------- | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pool\_size      | The number of connections to keep persistently in the pool.[^9]                                     | 5-20 (application-dependent)                      | Sets the baseline for available connections. Too small can lead to waiting; too large can strain database resources. Tune based on load tests and database capacity. |
-| max\_overflow   | The maximum number of additional connections that can be opened beyond pool\_size under load.[^9]   | 10-50 (application-dependent)                     | Allows handling of temporary spikes in demand. Total connections \= pool\_size \+ max\_overflow. Ensure the database can handle this total.                          |
-| pool\_recycle   | Time in seconds after which a connection is automatically recycled (closed and replaced).[^9]       | 1800-7200 (30-120 minutes)                        | Prevents issues with stale connections due to network or database timeouts. Should be less than any server-side connection timeout.                                  |
-| pool\_pre\_ping | If True, issues a lightweight "ping" (e.g., SELECT 1\) on connection checkout to test liveness.[^9] | True / False                                      | Recommended as True for production to avoid errors from dead connections, especially with long pool\_recycle times. Adds minor overhead but improves reliability.    |
-| pool\_timeout   | Number of seconds to wait for a connection from the pool before raising a timeout error.[^10]       | 30 (default)                                      | Prevents indefinite blocking if the pool is exhausted. Adjust based on application tolerance for waiting.                                                            |
-| echo\_pool      | If True or a logging level string (e.g., "debug"), logs connection pool activity.[^13]              | False (production), True or "debug" (development) | Useful for debugging pool behaviour, such as checkouts, checkins, and recycling. Can be verbose for production.                                                      |
+| pool\_size      | The number of connections to keep persistently in the pool.[^5]                                     | 5-20 (application-dependent)                      | Sets the baseline for available connections. Too small can lead to waiting; too large can strain database resources. Tune based on load tests and database capacity. |
+| max\_overflow   | The maximum number of additional connections that can be opened beyond pool\_size under load.[^5]   | 10-50 (application-dependent)                     | Allows handling of temporary spikes in demand. Total connections \= pool\_size \+ max\_overflow. Ensure the database can handle this total.                          |
+| pool\_recycle   | Time in seconds after which a connection is automatically recycled (closed and replaced).[^5]       | 1800-7200 (30-120 minutes)                        | Prevents issues with stale connections due to network or database timeouts. Should be less than any server-side connection timeout.                                  |
+| pool\_pre\_ping | If True, issues a lightweight "ping" (e.g., SELECT 1\) on connection checkout to test liveness.[^5] | True / False                                      | Recommended as True for production to avoid errors from dead connections, especially with long pool\_recycle times. Adds minor overhead but improves reliability.    |
+| pool\_timeout   | Number of seconds to wait for a connection from the pool before raising a timeout error.[^6]        | 30 (default)                                      | Prevents indefinite blocking if the pool is exhausted. Adjust based on application tolerance for waiting.                                                            |
+| echo\_pool      | If True or a logging level string (e.g., "debug"), logs connection pool activity.[^7]               | False (production), True or "debug" (development) | Useful for debugging pool behaviour, such as checkouts, checkins, and recycling. Can be verbose for production.                                                      |
 
 7 Properly configuring these parameters is essential for balancing performance,
 resource utilization, and application resilience.
@@ -96,7 +96,7 @@ resource utilization, and application resilience.
 ### B. The async_sessionmaker: Crafting Your Session Factory
 
 Once the AsyncEngine is configured, an async\_sessionmaker is used to create a
-factory for AsyncSession instances.[^7] The AsyncSession is the primary interface
+factory for AsyncSession instances.[^4] The AsyncSession is the primary interface
 for ORM operations in an asynchronous context.
 
 ```python
@@ -118,7 +118,7 @@ async_session_factory = async_sessionmaker(
 - class\_=AsyncSession: Explicitly specifies that the factory should produce
   instances of AsyncSession.
 - expire\_on\_commit=False: This is a **critical best practice** for
-  asynchronous applications.[^9] Setting it to False prevents SQLAlchemy from
+  asynchronous applications.[^5] Setting it to False prevents SQLAlchemy from
   expiring the attributes of ORM-mapped instances after a transaction commits.
   In an asynchronous environment, if attributes are expired, subsequent access
   might trigger implicit I/O operations (lazy loading). If this I/O is not
@@ -126,10 +126,10 @@ async_session_factory = async_sessionmaker(
   async function or not using awaitable\_attrs), it can lead to runtime errors
   such as MissingGreenlet or, if the underlying I/O were synchronous, block the
   event loop. SQLAlchemy's asyncio extension is designed to prevent such
-  implicit I/O by requiring explicit await for operations that load data.[^7]
+  implicit I/O by requiring explicit await for operations that load data.[^4]
   Thus, expire\_on\_commit=False ensures that already loaded data remains
   accessible without triggering unexpected, unawaited I/O.
-- autoflush=False: This is generally recommended for asynchronous operations.[^9]
+- autoflush=False: This is generally recommended for asynchronous operations.[^5]
   Autoflush can trigger database I/O at potentially unexpected moments during a
   session's lifecycle. In an async context, it is preferable to have explicit
   control over when data is flushed to the database using await
@@ -142,12 +142,12 @@ async_session_factory = async_sessionmaker(
 | :----------------- | :--------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | bind               | The AsyncEngine to which new sessions will be bound. | engine instance             | Essential for connecting sessions to the database.                                                                                                                                          |
 | class\_            | The class of session to be generated.                | AsyncSession                | Ensures that sessions are compatible with asynchronous operations.                                                                                                                          |
-| expire\_on\_commit | If True, all instances are expired after commit().   | False                       | Prevents attributes from being expired post-commit, avoiding potential unawaited lazy-loading I/O that can cause errors or block the event loop in an async context.[^7]                    |
-| autoflush          | If True, pending changes are flushed before queries. | False                       | Provides more explicit control over when database I/O occurs via await session.flush(), preventing unexpected blocking or unawaited operations that could arise from automatic flushes.[^9] |
+| expire\_on\_commit | If True, all instances are expired after commit().   | False                       | Prevents attributes from being expired post-commit, avoiding potential unawaited lazy-loading I/O that can cause errors or block the event loop in an async context.[^4]                    |
+| autoflush          | If True, pending changes are flushed before queries. | False                       | Provides more explicit control over when database I/O occurs via await session.flush(), preventing unexpected blocking or unawaited operations that could arise from automatic flushes.[^5] |
 
 9 Finally, during application shutdown, it is crucial to dispose of the engine
 using await engine.dispose(). This call gracefully closes all underlying
-database connections in the pool.[^7]
+database connections in the pool.[^4]
 
 ## III. Integrating AsyncSession with Falcon: Best Practices
 
@@ -157,10 +157,10 @@ session management.
 
 ### A. Falcon's ASGI Nature: falcon.asgi.App and Async Responders
 
-Falcon supports asynchronous operations through its falcon.asgi.App class.[^3]
+Falcon supports asynchronous operations through its falcon.asgi.App class.[^2]
 When using this class, all components involved in request processing, including
 resource responders (e.g., on\_get, on\_post), middleware methods, hooks, and
-error handlers, **must** be defined as async def coroutine functions.[^16]
+error handlers, **must** be defined as async def coroutine functions.[^8]
 Falcon's ASGI implementation does not perform implicit wrapping or scheduling
 of synchronous functions in an executor; developers are responsible for
 ensuring all parts of the request-response cycle are awaitable if they involve
@@ -169,13 +169,13 @@ asynchronous operations.
 ### B. Core Best Practice: Request-Scoped Session Management via Custom Async Middleware
 
 A fundamental principle when working with AsyncSession is that instances are
-not safe for concurrent use across different asyncio tasks.[^17] Since each
+not safe for concurrent use across different asyncio tasks.[^9] Since each
 incoming web request might be handled by a distinct asyncio task, each request
 must have its own isolated AsyncSession instance. This prevents race conditions
 and ensures data integrity. While the falcon-sqla package provides middleware
 for SQLAlchemy session management in synchronous Falcon applications 18, it
 does not appear to support AsyncEngine or AsyncSession based on available
-information.[^18] Consequently, a custom asynchronous middleware solution is
+information.[^10] Consequently, a custom asynchronous middleware solution is
 necessary for managing AsyncSession lifecycle in a Falcon ASGI application.
 Middleware is Falcon's standard mechanism for intercepting and processing
 requests and responses 3, making it the ideal place to manage the creation,
@@ -198,7 +198,6 @@ in the previous section) as an argument during initialization.
 import falcon
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError  # For broader SQLAlchemy error catching
-
 
 class SQLAlchemySessionManager:
     def __init__(self, async_session_factory):
@@ -243,7 +242,7 @@ still active. An active transaction implies that the responder did not
 explicitly commit or roll back. If an error occurred or the request was not
 successful, it attempts a rollback. Robust error handling ensures a rollback
 occurs if exceptions arise during the commit or close operations. The
-session.is\_active check is important to avoid attempting to commit or roll
+session.in\_transaction() check is important to avoid attempting to commit or roll
 back an already concluded transaction. 2\. Initializing and Registering the
 Middleware: The middleware instance is passed to the falcon.asgi.App during its
 instantiation.
@@ -273,7 +272,6 @@ from sqlalchemy import select
 
 # Assuming User model is defined as above and session is provided by middleware
 # from .models import User  # Your ORM model
-
 
 class UserResource:
     async def on_get(self, req: falcon.Request, resp: falcon.Response, user_id: int):
@@ -305,7 +303,6 @@ class UserResource:
                 title="Database error", description="A database error occurred."
             )
 
-
 # Add route to the Falcon app
 # app.add_route('/users/{user_id:int}', UserResource())
 ```
@@ -329,12 +326,12 @@ SQLAlchemy's 2.0-style ORM constructs with await.
 
 ### A. Executing SELECT Queries Asynchronously
 
-All query types are executed using await session.execute(statement).[^9] The
+All query types are executed using await session.execute(statement).[^5] The
 Result object returned by execute provides various methods for fetching data:
 
 - result.scalars(): Yields scalar values from the first column of each row,
   typically used for retrieving lists of ORM objects when the statement selects
-  entity instances.[^20]
+  entity instances.[^11]
 - result.scalar\_one\_or\_none(): Returns a single scalar value from the first
   column of the first row, or None if no rows are found. Raises an error if
   multiple rows are returned.
@@ -354,7 +351,7 @@ memory at once, SQLAlchemy provides streaming capabilities:
 - await session.stream(statement): Returns an AsyncResult object that supports
   asynchronous iteration.
 - async for obj in (await session.stream(stmt)).scalars(): Iterates over
-  scalar results (e.g., ORM objects) in a streaming fashion.[^7]
+  scalar results (e.g., ORM objects) in a streaming fashion.[^4]
 
 ```python
 from sqlalchemy import select
@@ -362,18 +359,15 @@ from sqlalchemy import select
 # Assuming User is an ORM model and session is an active AsyncSession
 # from .models import User
 
-
 async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
     stmt = select(User).where(User.id == user_id)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()  # Returns a single User object or None
 
-
 async def get_all_users_list(session: AsyncSession) -> list[User]:
     stmt = select(User).order_by(User.name)
     result = await session.execute(stmt)
     return result.scalars().all()  # Returns a list of User objects
-
 
 async def stream_all_user_names(session: AsyncSession):
     stmt = select(User.name).order_by(User.name)
@@ -392,8 +386,8 @@ committing them.
 
 - session.add(instance) and session.add\_all(\[instance1, instance2,…\]) are
   used to add new or modified ORM instances to the session, staging them for an
-  INSERT or UPDATE operation.[^17]
-- session.delete(instance) stages an ORM instance for a DELETE operation.[^21]
+  INSERT or UPDATE operation.[^9]
+- session.delete(instance) stages an ORM instance for a DELETE operation.[^12]
 
 These changes are typically written to the database when await session.commit()
 is called. The await session.flush() method can be used to send pending changes
@@ -406,7 +400,6 @@ over when these intermediate state updates occur.
 
 ```python
 # from .models import User  # Assuming User model
-
 
 async def create_new_user(session: AsyncSession, name: str, email: str) -> User:
     new_user = User(name=name, email=email)
@@ -427,7 +420,6 @@ async def update_user_email(
         return user_to_update
     return None
 
-
 async def remove_user(session: AsyncSession, user_id: int) -> bool:
     user_to_delete = await session.get(User, user_id)
     if user_to_delete:
@@ -446,17 +438,17 @@ async def remove_user(session: AsyncSession, user_id: int) -> bool:
 Lazy loading, the default behaviour for relationships, can lead to the "N+1
 query problem," where accessing a relationship on N parent objects results in N
 additional database queries. This is highly inefficient. Eager loading
-strategies are essential to mitigate this.[^23]
+strategies are essential to mitigate this.[^13]
 
 - selectinload(Model.relationship\_attr): This strategy is generally preferred
   for loading one-to-many or many-to-many collections. It issues a second
   SELECT statement that fetches all related objects for the parent objects
   retrieved in the initial query, typically using an IN clause with the parent
-  primary keys.[^20]
+  primary keys.[^11]
 - joinedload(Model.relationship\_attr): This strategy uses a JOIN (usually a
   LEFT OUTER JOIN) in the primary SELECT statement to fetch related objects
   simultaneously. It is often suitable for many-to-one or one-to-one
-  relationships.[^24]
+  relationships.[^14]
 
 ```python
 from sqlalchemy import select
@@ -481,11 +473,11 @@ be more efficient for collections, especially since the awaits are
 non-blocking, allowing the event loop to perform other work. The general
 guidance often remains: selectinload for collections and joinedload for scalar
 references (many-to-one, one-to-one) is a good starting point, but performance
-should be verified through benchmarking for specific use cases.[^23] Fewer awaits
+should be verified through benchmarking for specific use cases.[^13] Fewer awaits
 do not inherently guarantee better performance; the overall query complexity
 and data volume are critical factors. Another useful strategy is lazy='raise'
 or the raiseload() option, which can be used to prevent accidental lazy loads
-by raising an exception if an unloaded attribute is accessed.[^24] This is
+by raising an exception if an unloaded attribute is accessed.[^14] This is
 particularly helpful in async code to ensure all data access is explicit and
 awaited. **Table 3: Async Relationship Loading Strategies: A Quick Comparison**
 
@@ -506,7 +498,7 @@ asynchronously.
 ### A. Atomic Operations with async with session.begin()
 
 The async with session.begin(): context manager is the primary and recommended
-way to manage transactions.[^8] It ensures that the block of operations is treated
+way to manage transactions.[^15] It ensures that the block of operations is treated
 atomically:
 
 - Upon entering the block, a new transaction is started (or a savepoint, if
@@ -520,7 +512,6 @@ atomically:
 ```python
 # Assuming session is an active AsyncSession and User is an ORM model
 # from .models import User
-
 
 async def update_user_name_atomically(
     session: AsyncSession, user_id: int, new_name: str
@@ -540,7 +531,7 @@ async def update_user_name_atomically(
 async\_session\_factory.begin() as session:. The latter,
 async\_sessionmaker.begin(), is a convenience method that both creates a new
 AsyncSession from the factory *and* starts a transaction within that new
-session, managing the lifecycle of both.[^7] In the context of the Falcon
+session, managing the lifecycle of both.[^4] In the context of the Falcon
 middleware pattern where a session is already created and provided per request
 (e.g., req.context.session), one would typically use async with
 req.context.session.begin(): within a responder if that responder needs to
@@ -554,7 +545,7 @@ savepoints.
 While async with session.begin(): is preferred for its explicitness and safety,
 there might be scenarios requiring more granular control over when commit() or
 rollback() are called. In such cases, these methods can be invoked directly,
-ensuring they are awaited.[^8] The custom Falcon middleware detailed in Section
+ensuring they are awaited.[^15] The custom Falcon middleware detailed in Section
 III.B is an example where explicit commit/rollback logic is implemented in the
 process\_response method.
 
@@ -575,14 +566,13 @@ except Exception:
 
 SQLAlchemy supports nested transactions through savepoints. The
 session.begin\_nested() method initiates a new savepoint within the current
-transaction.[^17] This is useful for operations that should be partially committed
+transaction.[^9] This is useful for operations that should be partially committed
 or rolled back without affecting the entire outer transaction. begin\_nested()
 returns a transaction object that may be awaited directly or used as an
 asynchronous context manager.
 
 ```python
 # from .models import AuditLog, User
-
 
 async def process_user_with_audit(session: AsyncSession, user_data: dict):
     async with session.begin():  # Outer transaction
@@ -653,11 +643,11 @@ Key exceptions to handle include 31:
 - sqlalchemy.exc.OperationalError: A subclass of DBAPIError, often indicating
   issues like connection problems, database unavailability, or other
   operational issues. asyncpg might raise specific connection errors like
-  asyncpg.exceptions.ConnectionDoesNotExistError.[^33]
+  asyncpg.exceptions.ConnectionDoesNotExistError.[^16]
 
 It's also beneficial to be aware of asyncpg-specific exceptions (e.g., from
 asyncpg.exceptions) if more granular error handling related to the driver is
-needed.[^11]
+needed.[^17]
 
 ```python
 import asyncpg  # For asyncpg specific exceptions
@@ -688,17 +678,17 @@ from sqlalchemy.exc import IntegrityError, NoResultFound, OperationalError
 #         )
 #     except asyncpg.PostgresConnectionError as e:  # More specific asyncpg connection error
 #         # Log detailed error: e
-#         if session.is_active:
+#         if session.in_transaction():
 #             await session.rollback()
 #         raise falcon.HTTPServiceUnavailable(title="Database connection error")
 #     except OperationalError as e:  # Broader SQLAlchemy operational errors
 #         # Log detailed error: e
-#         if session.is_active:
+#         if session.in_transaction():
 #             await session.rollback()
 #         raise falcon.HTTPServiceUnavailable(title="Database operation failed")
 #     except Exception as e:  # Catch-all for other unexpected errors
 #         # Log detailed error: e
-#         if hasattr(req.context, "session") and req.context.session.is_active:
+#         if hasattr(req.context, "session") and req.context.session.in_transaction():
 #             await req.context.session.rollback()
 #         # Re-raise to be handled by Falcon's global error handlers or for further logging
 #         raise falcon.HTTPInternalServerError(title="An unexpected error occurred.")
@@ -711,7 +701,7 @@ from sqlalchemy.exc import IntegrityError, NoResultFound, OperationalError
 A common pitfall in ORM usage is the DetachedInstanceError. This error occurs
 when an application attempts to access an attribute that requires a database
 load (lazy loading) on an ORM object that is no longer associated with an
-active session; the object is in a "detached" state.[^35] This can happen if an
+active session; the object is in a "detached" state.[^18] This can happen if an
 object is fetched, the session used to fetch it is closed, and then an attempt
 is made to access a related collection or a deferred attribute. In an
 asynchronous context, even with expire\_on\_commit=False (which keeps
@@ -732,24 +722,24 @@ DetachedInstanceError:**
    here.
 2. **Eager Loading:** Proactively load all necessary related data when the
    object is initially queried using strategies like selectinload or
-   joinedload.[^20] This avoids the need for later lazy loading.
+   joinedload.[^11] This avoids the need for later lazy loading.
 3. **await session.refresh(instance):** If an object is detached or its data
    might be stale, and it's re-associated with an active session, await
    session.refresh(instance) can be used to reload its attributes from the
-   database.[^35]
+   database.[^18]
 4. **instance.awaitable\_attrs:** SQLAlchemy's AsyncAttrs extension provides
    the awaitable\_attrs namespace on ORM objects. Accessing relationships
    through this mechanism (e.g., related\_items \= await
    my\_object.awaitable\_attrs.children) allows lazy loading to occur correctly
    and be awaited in an asynchronous context, provided the object is still
-   bound to an active session.[^7] A potential issue arises if an object itself
+   bound to an active session.[^4] A potential issue arises if an object itself
    was lazy-loaded via awaitable\_attrs, and then one attempts to access *its*
    relationships. These nested relationships might still attempt a lazy load
    that could fail if not handled correctly. One documented solution involves
    explicitly refreshing these child objects within the current session before
    accessing their relationships (e.g., children \= await
    parent.awaitable\_attrs.children; \[await db\_session.refresh(c) for c in
-   children\]).[^35]
+   children\]).[^18]
 
 The DetachedInstanceError often signals an issue with how sessions are scoped
 or how object lifecycles are managed relative to session lifecycles in an
@@ -759,8 +749,8 @@ asynchronous application.
 
 Falcon allows for clean error handling by enabling responders to raise specific
 falcon.HTTPStatus exceptions (e.g., falcon.HTTPNotFound, falcon.HTTPConflict,
-falcon.HTTPBadRequest).[^3] Custom error handlers can also be registered globally
-using app.add\_error\_handler(SomeException, custom\_handler\_func).[^3] It is a
+falcon.HTTPBadRequest).[^2] Custom error handlers can also be registered globally
+using app.add\_error\_handler(SomeException, custom\_handler\_func).[^2] It is a
 best practice to use try…except blocks within service layers or Falcon
 responders to catch specific SQLAlchemy or asyncpg exceptions and translate
 them into appropriate Falcon HTTP error responses, providing meaningful
@@ -782,28 +772,28 @@ the application's expected concurrent load, the database server's capacity, and
 network characteristics. Setting pool\_pre\_ping=True is generally advisable
 for production environments as it helps avoid errors due to stale or dead
 connections, albeit with a minor performance overhead for each connection
-checkout.[^9]
+checkout.[^5]
 
 ### B. Strategic Query Construction and Relationship Loading
 
 The choice of relationship loading strategy (Table 3\) significantly impacts
 performance. As a general rule, selectinload is often better for collections
 (one-to-many, many-to-many), while joinedload can be more efficient for scalar
-(to-one) relationships.[^20] However, these are guidelines; actual performance can
+(to-one) relationships.[^11] However, these are guidelines; actual performance can
 vary. Avoid fetching unnecessary data by selecting only required columns or
 using load\_only and defer options for specific attributes. The asyncpg driver,
 when used with PostgreSQL, offers performance benefits through its support for
 the binary protocol and prepared statements, which SQLAlchemy's async layer can
-leverage.[^12] Furthermore, standard database optimization techniques, such as
+leverage.[^19] Furthermore, standard database optimization techniques, such as
 ensuring appropriate indexes are in place for frequently queried columns and
-join conditions, remain crucial.[^12]
+join conditions, remain crucial.[^19]
 
 ### C. Identifying Bottlenecks: SQL Logging and Profiling
 
 To identify performance bottlenecks:
 
 1. **SQLAlchemy SQL Logging:** Enable echo=True on the AsyncEngine or
-   echo\_pool=True for pool-specific logging during development.[^9] This allows
+   echo\_pool=True for pool-specific logging during development.[^5] This allows
    inspection of the exact SQL queries being generated, helping to spot N+1
    problems, inefficient joins, or unexpectedly frequent queries.
 2. **Python Profiling:** Use tools like cProfile (built-in) or asyncprofiler
@@ -824,11 +814,11 @@ A core tenet of asynchronous programming is to avoid blocking the event loop.
 - SQLAlchemy 2.0's async mode is designed to make I/O explicit. Synchronous
   SQLAlchemy functions or attributes that might implicitly trigger I/O in older
   versions are generally not awaitable or are designed to raise errors if
-  misused in an async context without proper handling.[^7]
+  misused in an async context without proper handling.[^4]
 
 SQLAlchemy's asynchronous support internally uses greenlets to bridge its
 predominantly synchronous core logic with the asynchronous event loop provided
-by asyncio.[^8] While this architecture is powerful, allowing much of the familiar
+by asyncio.[^15] While this architecture is powerful, allowing much of the familiar
 SQLAlchemy API to be used asynchronously via await, it implies that any
 operation within a greenlet-spawned function that is truly blocking and not
 correctly managed by the async driver (asyncpg) could still impede the thread
@@ -840,7 +830,7 @@ compilers that perform I/O) must be run within an async session context,
 SQLAlchemy provides await session.run\_sync(). This method runs the
 synchronous callable inline, via a greenlet, on the same thread and event
 loop as the calling coroutine; it does not offload the work to a separate
-thread.[^7] It is intended for synchronous SQLAlchemy code that does not perform
+thread.[^4] It is intended for synchronous SQLAlchemy code that does not perform
 genuinely blocking I/O. For synchronous code that does perform blocking I/O,
 use await asyncio.to\_thread(...) instead, which actually runs the callable
 in a separate thread and keeps the event loop responsive.
@@ -853,10 +843,10 @@ specific setups to ensure test isolation and reliability.
 ### A. Test Setup with pytest and pytest-asyncio
 
 pytest is a widely adopted Python testing framework. For testing asyncio code,
-the pytest-asyncio plugin is indispensable.[^44] It allows pytest to discover and
+the pytest-asyncio plugin is indispensable.[^20] It allows pytest to discover and
 run async def test functions as coroutines. It's common to configure
 pytest-asyncio mode, for example, by setting asyncio\_mode \= auto in the
-pytest.ini file, which simplifies the execution of async tests and fixtures.[^45]
+pytest.ini file, which simplifies the execution of async tests and fixtures.[^21]
 
 ### B. Best Practice: Transactional Tests with Per-Test Rollbacks
 
@@ -864,13 +854,13 @@ A critical best practice for database testing is to ensure that each test runs
 in an isolated transaction, which is rolled back at the test's conclusion. This
 guarantees a clean database state for every test, irrespective of the
 operations performed within the test, including calls to await
-session.commit().[^46] This is achieved by managing transactions at the connection
+session.commit().[^22] This is achieved by managing transactions at the connection
 level for the test session, while individual tests operate within savepoints. A
 common fixture setup in conftest.py might include:
 
 1. **event\_loop fixture (session-scoped):** Provides the asyncio event loop
    for the test session. pytest-async-sqlalchemy requires this to be
-   session-scoped if sharing connections.[^49]
+   session-scoped if sharing connections.[^23]
 2. **AsyncEngine fixture (session-scoped):** Creates a single AsyncEngine for
    the entire test session.
 3. **Database Schema Setup/Teardown fixture (session-scoped):** Manages the
@@ -887,7 +877,7 @@ common fixture setup in conftest.py might include:
    - It is bound to the test connection established by the db\_connection
      fixture.  
    - Crucially, it is configured with
-     join\_transaction\_mode="create\_savepoint".[^46] When await session.commit()
+     join\_transaction\_mode="create\_savepoint".[^22] When await session.commit()
      is called within a test using this session, SQLAlchemy doesn't commit the
      main database transaction on the connection. Instead, it operates on a
      SAVEPOINT within that main transaction.  
@@ -922,15 +912,13 @@ TEST_DATABASE_URL = (
     "postgresql+asyncpg://test_user:test_password@localhost/test_db"  # Replace with your test DB URL
 )
 
-
 @pytest.fixture(scope="session")
 def event_loop():
     if sys.platform.startswith("win") and sys.version_info[:2] >= (3, 8):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    loop = asyncio.new_event_loop_policy().new_event_loop()
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
-
 
 @pytest.fixture(scope="session")
 async def engine():
@@ -944,7 +932,6 @@ async def engine():
     #     await conn.run_sync(Base.metadata.drop_all)
     await async_engine.dispose()
 
-
 @pytest.fixture
 async def db_connection(engine: AsyncEngine) -> AsyncConnection:
     connection = await engine.connect()
@@ -954,7 +941,6 @@ async def db_connection(engine: AsyncEngine) -> AsyncConnection:
     yield connection
     await connection.rollback()  # Rollback the real transaction
     await connection.close()
-
 
 @pytest.fixture
 async def db_session(db_connection: AsyncConnection) -> AsyncSession:
@@ -992,16 +978,16 @@ async def db_session(db_connection: AsyncConnection) -> AsyncSession:
 ```
 
 (This fixture setup is a more detailed interpretation based on SQLAlchemy
-testing patterns and snippets.[^46] The pytest-async-sqlalchemy library 49 offers
+testing patterns and snippets.[^22] The pytest-async-sqlalchemy library 49 offers
 pre-built fixtures that implement similar logic, but understanding the manual
 setup is valuable for customization and deeper comprehension.)
 
 ### C. Testing Falcon Endpoints with an Injected Test Session
 
 To test Falcon endpoints that rely on the SQLAlchemy session middleware, you'll
-use Falcon's testing utilities, such as falcon.testing.TestClient.[^48] For more
+use Falcon's testing utilities, such as falcon.testing.TestClient.[^24] For more
 fine-grained control over the ASGI lifecycle, especially for streaming
-responses or WebSockets, falcon.testing.ASGIConductor can be used.[^48] The
+responses or WebSockets, falcon.testing.ASGIConductor can be used.[^24] The
 primary challenge is to ensure that your Falcon application, when run under
 test, uses the transactional db\_session fixture instead of its production
 database session factory. Falcon does not have a direct equivalent to FastAPI's
@@ -1029,7 +1015,6 @@ import falcon
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 @pytest.fixture
 async def client(db_session: AsyncSession):  # Uses the transactional db_session from above
     # Test middleware that injects the transactional db_session
@@ -1051,7 +1036,6 @@ async def client(db_session: AsyncSession):  # Uses the transactional db_session
     # configure_routes(test_app)
 
     return falcon.testing.TestClient(test_app)
-
 
 # In your test file (e.g., test_user_endpoints.py)
 # async def test_get_specific_user(client, db_session: AsyncSession):
@@ -1117,11 +1101,11 @@ SQLAlchemy's powerful async ORM capabilities provides a potent stack for modern
 Python web services. **Pointers for Further Learning:**
 
 - The official SQLAlchemy documentation, particularly the sections on
-  Asynchronous I/O and ORM usage.[^7]
+  Asynchronous I/O and ORM usage.[^4]
 - The official Falcon framework documentation for ASGI applications and
-  middleware.[^3]
+  middleware.[^2]
 - The asyncpg driver documentation for advanced features and
-  PostgreSQL-specific interactions.[^53]
+  PostgreSQL-specific interactions.[^25]
 - Deeper exploration of asyncio patterns and best practices for concurrent
   programming in Python.[^1]
 
@@ -1131,94 +1115,94 @@ Python web services. **Pointers for Further Learning:**
     1, 2025,
     [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
 
-[^3]: Introduction to Python Falcon \- Tutorialspoint, accessed on June 1, 2025,
+[^2]: Introduction to Python Falcon \- Tutorialspoint, accessed on June 1, 2025,
     [https://www.tutorialspoint.com/python\_falcon/python\_falcon\_introduction.htm](https://www.tutorialspoint.com/python_falcon/python_falcon_introduction.htm)
 
-[^6]: seapagan/fastapi\_async\_sqlalchemy2\_example: A Simple example how to use
+[^3]: seapagan/fastapi\_async\_sqlalchemy2\_example: A Simple example how to use
     FastAPI with Async SQLAlchemy 2.0 \- GitHub, accessed on June 1, 2025,
     [https://github.com/seapagan/fastapi\_async\_sqlalchemy2\_example](https://github.com/seapagan/fastapi_async_sqlalchemy2_example)
 
-[^7]: Asynchronous I/O (asyncio) — SQLAlchemy 2.0 Documentation, accessed on
+[^4]: Asynchronous I/O (asyncio) — SQLAlchemy 2.0 Documentation, accessed on
     June 1, 2025,
     [http://docs.sqlalchemy.org/en/latest/orm/extensions/asyncio.html](http://docs.sqlalchemy.org/en/latest/orm/extensions/asyncio.html)
 
-[^8]: SQLAlchemy 2.0 \- GINO 1.1.0b2 documentation, accessed on June 1, 2025,
-    [https://python-gino.org/docs/en/1.1b2/explanation/sa20.html](https://python-gino.org/docs/en/1.1b2/explanation/sa20.html)
-
-[^9]: Asynchronous Database Sessions in FastAPI with SQLAlchemy \- DEV
+[^5]: Asynchronous Database Sessions in FastAPI with SQLAlchemy \- DEV
     Community, accessed on June 1, 2025,
     [https://dev.to/akarshan/asynchronous-database-sessions-in-fastapi-with-sqlalchemy-1o7e](https://dev.to/akarshan/asynchronous-database-sessions-in-fastapi-with-sqlalchemy-1o7e)
 
-[^10]: Asynchronous SQLAlchemy in FastAPI \- lricardo.space, accessed on June 1,
+[^6]: Asynchronous SQLAlchemy in FastAPI \- lricardo.space, accessed on June 1,
     2025,
     [https://lricardo.space/posts/asynchronous-sqlalchemy/](https://lricardo.space/posts/asynchronous-sqlalchemy/)
 
-[^11]: Building an Async Product Management API with FastAPI, Pydantic, and
-    PostgreSQL \- Neon, accessed on June 1, 2025,
-    [https://neon.tech/guides/fastapi-async](https://neon.tech/guides/fastapi-async)
-
-[^12]: Boost Your Application Performance With Asyncpg and PostgreSQL \-
-    Timescale, accessed on June 1, 2025,
-    [https://www.timescale.com/blog/how-to-build-applications-with-asyncpg-and-postgresql](https://www.timescale.com/blog/how-to-build-applications-with-asyncpg-and-postgresql)
-
-[^13]: Connection Pooling — SQLAlchemy 2.0 Documentation, accessed on June 1,
+[^7]: Connection Pooling — SQLAlchemy 2.0 Documentation, accessed on June 1,
     2025,
     [http://docs.sqlalchemy.org/en/latest/core/pooling.html](http://docs.sqlalchemy.org/en/latest/core/pooling.html)
 
-[^16]: How to use async await in python falcon? \- Stack Overflow, accessed on
+[^8]: How to use async await in python falcon? \- Stack Overflow, accessed on
     June 1, 2025,
     [https://stackoverflow.com/questions/40791420/how-to-use-async-await-in-python-falcon](https://stackoverflow.com/questions/40791420/how-to-use-async-await-in-python-falcon)
 
-[^17]: Session Basics — SQLAlchemy 2.0 Documentation, accessed on June 1, 2025,
+[^9]: Session Basics — SQLAlchemy 2.0 Documentation, accessed on June 1, 2025,
     [http://docs.sqlalchemy.org/en/latest/orm/session\_basics.html](http://docs.sqlalchemy.org/en/latest/orm/session_basics.html)
 
-[^18]: vytas7/falcon-sqla: SQLAlchemy session management middleware for Falcon
+[^10]: vytas7/falcon-sqla: SQLAlchemy session management middleware for Falcon
     applications., accessed on June 1, 2025,
     [https://github.com/vytas7/falcon-sqla](https://github.com/vytas7/falcon-sqla)
 
-[^20]: examples.asyncio.async\_orm — SQLAlchemy 2.0 Documentation, accessed on
+[^11]: examples.asyncio.async\_orm — SQLAlchemy 2.0 Documentation, accessed on
     June 1, 2025,
     [http://docs.sqlalchemy.org/en/latest/\_modules/examples/asyncio/async\_orm.html](http://docs.sqlalchemy.org/en/latest/_modules/examples/asyncio/async_orm.html)
 
-[^21]: Using SQLAlchemy Asynchronously With AsyncIO (SQLAlchemy 2.0) \- YouTube,
+[^12]: Using SQLAlchemy Asynchronously With AsyncIO (SQLAlchemy 2.0) \- YouTube,
     accessed on June 1, 2025,
     [https://www.youtube.com/watch?v=hkvngd\_BUrY](https://www.youtube.com/watch?v=hkvngd_BUrY)
 
-[^23]: Understanding Lazy Loading in SQLAlchemy \- Optimize Your Performance
+[^13]: Understanding Lazy Loading in SQLAlchemy \- Optimize Your Performance
     Effectively, accessed on June 1, 2025,
     [https://moldstud.com/articles/p-understanding-lazy-loading-in-sqlalchemy-optimize-your-performance-effectively](https://moldstud.com/articles/p-understanding-lazy-loading-in-sqlalchemy-optimize-your-performance-effectively)
 
-[^24]: Relationship Loading Techniques — SQLAlchemy 2.0 Documentation, accessed
+[^14]: Relationship Loading Techniques — SQLAlchemy 2.0 Documentation, accessed
     on June 1, 2025,
     [http://docs.sqlalchemy.org/en/latest/orm/queryguide/relationships.html](http://docs.sqlalchemy.org/en/latest/orm/queryguide/relationships.html)
 
-[^33]: I keep getting asyncpg.exceptions.ConnectionDoesNotExistError: connection
+[^15]: SQLAlchemy 2.0 \- GINO 1.1.0b2 documentation, accessed on June 1, 2025,
+    [https://python-gino.org/docs/en/1.1b2/explanation/sa20.html](https://python-gino.org/docs/en/1.1b2/explanation/sa20.html)
+
+[^16]: I keep getting asyncpg.exceptions.ConnectionDoesNotExistError: connection
     was closed in the middle of operation in my Sqlalchemy application \- DBA
     Stack Exchange, accessed on June 1, 2025,
     [https://dba.stackexchange.com/questions/345227/i-keep-getting-asyncpg-exceptions-connectiondoesnotexisterror-connection-was-cl](https://dba.stackexchange.com/questions/345227/i-keep-getting-asyncpg-exceptions-connectiondoesnotexisterror-connection-was-cl)
 
-[^35]: python \- Accessing Eager-Loaded Relationships When Lazy …, accessed on
+[^17]: Building an Async Product Management API with FastAPI, Pydantic, and
+    PostgreSQL \- Neon, accessed on June 1, 2025,
+    [https://neon.tech/guides/fastapi-async](https://neon.tech/guides/fastapi-async)
+
+[^18]: python \- Accessing Eager-Loaded Relationships When Lazy …, accessed on
     June 1, 2025,
     [https://stackoverflow.com/questions/77812185/accessing-eager-loaded-relationships-when-lazy-loading-in-async-sqlalchemy](https://stackoverflow.com/questions/77812185/accessing-eager-loaded-relationships-when-lazy-loading-in-async-sqlalchemy)
 
-[^44]: Essential pytest asyncio Tips for Modern Async Testing \- Continuously
+[^19]: Boost Your Application Performance With Asyncpg and PostgreSQL \-
+    Timescale, accessed on June 1, 2025,
+    [https://www.timescale.com/blog/how-to-build-applications-with-asyncpg-and-postgresql](https://www.timescale.com/blog/how-to-build-applications-with-asyncpg-and-postgresql)
+
+[^20]: Essential pytest asyncio Tips for Modern Async Testing \- Continuously
     Merging, accessed on June 1, 2025,
     [https://blog.mergify.com/pytest-asyncio-2/](https://blog.mergify.com/pytest-asyncio-2/)
 
-[^45]: Trouble getting testing working with async FastAPI \+ SQLAlchemy \-
+[^21]: Trouble getting testing working with async FastAPI \+ SQLAlchemy \-
     Reddit, accessed on June 1, 2025,
     [https://www.reddit.com/r/FastAPI/comments/1jcw7l7/trouble\_getting\_testing\_working\_with\_async/](https://www.reddit.com/r/FastAPI/comments/1jcw7l7/trouble_getting_testing_working_with_async/)
 
-[^46]: Pytest \+ FastAPI \+ Async SQLAlchemy · GitHub, accessed on June 1, 2025,
+[^22]: Pytest \+ FastAPI \+ Async SQLAlchemy · GitHub, accessed on June 1, 2025,
     [https://gist.github.com/e-kondr01/969ae24f2e2f31bd52a81fa5a1fe0f96](https://gist.github.com/e-kondr01/969ae24f2e2f31bd52a81fa5a1fe0f96)
 
-[^48]: Testing Helpers — Falcon 3.1.3 documentation, accessed on June 1, 2025,
-    [https://falcon.readthedocs.io/en/3.1.3/api/testing.html](https://falcon.readthedocs.io/en/3.1.3/api/testing.html)
-
-[^49]: pytest-async-sqlalchemy · PyPI, accessed on June 1, 2025,
+[^23]: pytest-async-sqlalchemy · PyPI, accessed on June 1, 2025,
     [https://pypi.org/project/pytest-async-sqlalchemy/](https://pypi.org/project/pytest-async-sqlalchemy/)
 
-[^53]: asyncpg Usage, accessed on June 1, 2025,
+[^24]: Testing Helpers — Falcon 3.1.3 documentation, accessed on June 1, 2025,
+    [https://falcon.readthedocs.io/en/3.1.3/api/testing.html](https://falcon.readthedocs.io/en/3.1.3/api/testing.html)
+
+[^25]: asyncpg Usage, accessed on June 1, 2025,
     [https://magicstack.github.io/asyncpg/current/usage.html](https://magicstack.github.io/asyncpg/current/usage.html)
 
 ### Further reading
