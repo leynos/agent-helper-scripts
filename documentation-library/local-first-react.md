@@ -1219,6 +1219,9 @@ export function useUpdateTodo() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Matches the key registered with setMutationDefaults, so a mutation
+    // paused before a reload resolves its default function on resumption.
+    mutationKey: ['todos', 'mutate'],
     mutationFn: updateTodo, // (updatedTodo) => axios.put(`/todos/${updatedTodo.id}`, updatedTodo)
     
     onMutate: async (updatedTodo) => {
