@@ -127,10 +127,29 @@ the canonical replacement. A file list it cannot produce, or one that comes
 back empty, fails the gate rather than reporting a clean pass over an unread
 tree.
 
-Consumer repositories use the same generation model. Their generator fetches
-the shared base into ignored `.typos-oxendict-base.toml` and records freshness
-metadata in `.typos-oxendict-base.json`. A valid cache supports offline runs;
-the tracked `typos.toml` remains deterministic and reviewable.
+### Consumer repositories
+
+Consumer repositories carry no spelling tooling of their own. They run one
+command, pinned to a released tag:
+
+```bash
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
+  typos-config-builder gate
+```
+
+`gate` fetches this repository's `data/typos-oxendict-base.toml` live from
+`main`, merges the consumer's optional `typos.local.toml` overlay, rewrites
+`typos.toml`, runs the pinned `typos` binary over tracked files, and enforces
+the shared phrase corrections. The fetched copy is cached in ignored
+`.typos-oxendict-base.toml` with freshness metadata in
+`.typos-oxendict-base.json`, so a valid cache still supports offline runs.
+
+This file is the sole authority for estate-wide spelling policy. Adding an
+accepted word, a correction, or an ignore pattern here reaches every consumer
+on its next `gate` run: no consumer edit, version bump, or regenerated commit
+is required.
+
+### Maintaining the shared base in this checkout
 
 Cache metadata is scoped to the exact authority that supplied it. A stale cache
 or HTTP `304 Not Modified` response is accepted only when the metadata names
@@ -173,9 +192,9 @@ competing candidates:
 "raizing" = "raising"
 ```
 
-Consumer repositories receive these mappings the next time they generate
-configuration from the shared base: the corrections are rendered into their
-tracked `typos.toml`, so no local overlay change is required.
+Consumer repositories receive these mappings on their next `gate` run: the
+corrections are rendered into the generated `typos.toml`, so no local overlay
+change is required.
 
 Inline code is checked by default so misspelled identifiers, flags, module
 paths and file names remain visible. Add exact identifier patterns to the
