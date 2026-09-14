@@ -142,9 +142,18 @@ this is straightforward.
 // In src/lexer.rs
 
 use logos::Logos;
+use std::num::ParseIntError;
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum LexError {
+    ParseInt(ParseIntError),
+    #[default]
+    Other,
+}
 
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Ignore whitespace
+#[logos(error = LexError)]
 pub enum Token<'a> {
     #[token("(")] LParen,
     #[token(")")] RParen,
@@ -152,12 +161,12 @@ pub enum Token<'a> {
     #[token("}")] RBrace,
     #[token("let")] Let,
     #[token("fn")] Fn,
+    #[token("=")] Assign,
+    #[token(";")] Semicolon,
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice())]
     Ident(&'a str),
-    #[regex("[0-9]+", |lex| lex.slice().parse())]
+    #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().map_err(LexError::ParseInt))]
     Integer(u64),
-    #[error]
-    Error,
 }
 
 #[cfg(test)]
@@ -259,6 +268,7 @@ Tests should target these specific ambiguities:
 // In src/lexer.rs, add new tokens for ambiguity test
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
+#[logos(error = LexError)]
 pub enum AmbiguousToken<'a> {
     #[token("=")] Assign,
     #[token("==")] Equal,
@@ -271,8 +281,6 @@ pub enum AmbiguousToken<'a> {
 
     #[regex("[a-z_]+")]
     Ident(&'a str),
-
-    #[error] Error,
 }
 
 #[cfg(test)]
@@ -474,15 +482,17 @@ against both the output and the error vector.
 ```rust,no_run
 // Assuming an AST definition like this:
 
+#[derive(Debug, PartialEq)]
 pub enum Stmt<'a> {
     Let {
         name: &'a str,
-        value: Expr<'a>,
+        value: Expr,
     },
     //… other statements
 }
 
-pub enum Expr<'a> {
+#[derive(Debug, PartialEq)]
+pub enum Expr {
     Literal(u64),
     //… other expressions
 }
@@ -494,7 +504,7 @@ use crate::lexer::Token; // Token enum defined by the parser
 fn let_parser<'a>(
 ) -> impl Parser<
     'a,
-    &'a [(Token<'a>, &'a str, std::ops::Range<usize>)],
+    &'a [Token<'a>],
     Stmt<'a>,
     extra::Err<Simple<Token<'a>>>,
 >
@@ -516,11 +526,11 @@ mod tests {
     #[test]
     fn test_valid_let_statement() {
         let tokens = vec![
-            (Token::Let, "let", 0..3),
-            (Token::Ident("x"), "x", 4..5),
-            (Token::Assign, "=", 6..7),
-            (Token::Integer(42), "42", 8..10),
-            (Token::Semicolon, ";", 10..11),
+            Token::Let,
+            Token::Ident("x"),
+            Token::Assign,
+            Token::Integer(42),
+            Token::Semicolon,
         ];
 
         let result = let_parser().parse(&tokens).into_result();
@@ -534,10 +544,10 @@ mod tests {
     #[test]
     fn test_invalid_let_statement_missing_semicolon() {
         let tokens = vec![
-            (Token::Let, "let", 0..3),
-            (Token::Ident("x"), "x", 4..5),
-            (Token::Assign, "=", 6..7),
-            (Token::Integer(42), "42", 8..10),
+            Token::Let,
+            Token::Ident("x"),
+            Token::Assign,
+            Token::Integer(42),
         ];
 
         let (ast, errs) = let_parser().parse(&tokens).into_output_errors();
@@ -874,7 +884,6 @@ fn test_typed_ast_navigation_on_malformed_input() {
     assert_eq!(func.name().unwrap().text(), "my_func");
     // But the body, which depends on elements after the name, might not be found.
     // The exact outcome depends on the parser's recovery strategy.
-    assert!(func.body().is_none());
 }
 ```
 
@@ -1041,6 +1050,8 @@ impl Arbitrary for Expr {
                             lhs: Box::new(lhs),
                             rhs: Box::new(rhs),
                         }),
+                    // Recurse once more, wrapped in parentheses.
+                    inner.clone().prop_map(|expr| Expr::Paren(Box::new(expr))),
                 ]
             },
         )

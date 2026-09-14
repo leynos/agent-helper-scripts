@@ -58,9 +58,9 @@ Bun 1.3 can serve HTML entry points directly and handle bundling/transpilation
 under the hood.
 
 ```bash
-bun './**/*.html'
+bun './**/*.html' --console
 # or simply:
-bun ./index.html
+bun ./index.html --console
 ```
 
 A URL like `http://localhost:3000/` and a routes table are displayed. Open the

@@ -145,7 +145,7 @@ async def test_async_insert_and_query():
     # Derive a unique port per pytest-xdist worker to avoid collisions.
     worker_id = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
     tcp_port = 54321 + int(worker_id.replace("gw", "") or 0)
-    config = PGliteConfig(tcp_port=tcp_port, tcp_host="127.0.0.1")  # use TCP mode
+    config = PGliteConfig(tcp_port=tcp_port, tcp_host="127.0.0.1", use_tcp=True)  # use TCP mode
     with PGliteManager(config) as pg_manager:  # start the Postgres WASM instance
         # Build an AsyncEngine using asyncpg driver
         pg_url = f"postgresql+asyncpg://postgres:postgres@{config.tcp_host}:{config.tcp_port}/postgres"

@@ -175,9 +175,9 @@ export function ExampleDialog() {
           className="fixed inset-0 bg-black/50 data-[state=open]:animate-in
             data-[state=closed]:animate-out"
         />
+        {/* The inner panel: use card tokens */}
         <Dialog.Content
           className="modal modal-open grid place-items-center p-6"
-          /* The inner panel: use card tokens */
         >
           <div className="rounded-box bg-base-100 shadow-xl p-6 w-full max-w-md">
             <Dialog.Title className="text-xl font-semibold">Title</Dialog.Title>
@@ -202,15 +202,27 @@ Other handy Radix states:
 - `data-[state=on]` for toggles/switches.
 - `data-[disabled]` for disabled components.
 
-Example for a menu item:
+Example for a menu item. A standalone `role="menuitem"` element has no menu
+ancestor to own it and no keyboard handling, so use Radix's own `DropdownMenu`
+primitives instead: they supply the surrounding menu structure, focus
+management and keyboard activation, while `Item` still exposes the
+`data-[highlighted]` and `data-[disabled]` state for styling:
 
 ```tsx
-<div
-  className="px-3 py-2 rounded-field data-[highlighted]:bg-base-200 data-[disabled]:opacity-50"
-  role="menuitem"
->
-  Preferences
-</div>
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+
+<DropdownMenu.Root>
+  <DropdownMenu.Trigger className="btn">Menu</DropdownMenu.Trigger>
+  <DropdownMenu.Portal>
+    <DropdownMenu.Content className="menu bg-base-100 rounded-box shadow-xl p-2">
+      <DropdownMenu.Item
+        className="px-3 py-2 rounded-field data-[highlighted]:bg-base-200 data-[disabled]:opacity-50"
+      >
+        Preferences
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  </DropdownMenu.Portal>
+</DropdownMenu.Root>
 ```
 
 > **Note:** Variants like `data-[state=open]:…` work with **Tailwind

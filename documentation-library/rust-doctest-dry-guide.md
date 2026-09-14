@@ -309,7 +309,9 @@ excluded from normal production builds and standard unit test runs, preventing
 any pollution of the final binary or the public API.
 
 The typical implementation pattern is to create a private helper module within
-the library:
+the library. The doctest must refer to it via the crate name (here `mycrate`,
+standing for the reader's own crate), never via `crate::`, because the
+doctest compiles as its own separate crate:
 
 ```rust
 // In lib.rs or a submodule
@@ -319,7 +321,7 @@ the library:
 /// # Examples
 ///
 /// ```
-/// # use crate::doctest_helpers::setup_test_environment;
+/// # use mycrate::doctest_helpers::setup_test_environment;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut ctx = setup_test_environment()?;
 /// let result = my_func_that_needs_env(&mut ctx);
@@ -338,10 +340,6 @@ pub mod doctest_helpers {
     // Re-export any types needed for the function signatures above.
     pub use super::TestContext;
     use std::io::Result;
-
-    pub struct TestContext {
-        //... fields for the test context...
-    }
 
     pub fn setup_test_environment() -> Result<TestContext> {
         // All the complex, shared setup logic lives here once.

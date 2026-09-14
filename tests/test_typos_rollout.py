@@ -49,7 +49,7 @@ HYPHENATED_HANDWRITTEN = "hand" + "-written"
 # The American spelling the pull_request_target allowance rests on. Name and
 # value are both kept out of the scan's way: the tracker reads identifiers as
 # well as prose, so a constant named for the spelling is itself a finding.
-AMERICAN_EVENT_LABEL = "label" + "ed"
+AMERICAN_EVENT_LABEL: str = "label" + "ed"
 
 
 def test_load_dictionary_rejects_unknown_schema(

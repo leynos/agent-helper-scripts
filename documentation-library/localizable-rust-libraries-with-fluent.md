@@ -93,7 +93,7 @@ This file contains the library's localizable strings.
 
 ```fluent
 error-not-found = The requested item could not be found.
-error-permission-denied = You do not have permission to perform this action.
+error-permission-denied = Permission to perform this action is denied.
 ```
 
 `my-lib/src/lib.rs`

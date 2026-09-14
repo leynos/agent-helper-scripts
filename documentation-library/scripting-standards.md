@@ -485,9 +485,16 @@ def main(
         dist.mkdir(parents=True, exist_ok=True)
         with sh.scoped(CATALOGUE):
             git = sh.make("git")
-            result = git("tag", f"v{version}", cwd=project_root).run_sync()
+            tag = f"v{version}"
+            result = git("tag", tag, cwd=project_root).run_sync()
             if result.exit_code != 0:
-                raise SystemExit(result.exit_code)
+                head = git("rev-parse", "HEAD", cwd=project_root).run_sync()
+                tagged = git("rev-parse", tag, cwd=project_root).run_sync()
+                tag_matches_head = (
+                    tagged.exit_code == 0 and tagged.stdout.strip() == head.stdout.strip()
+                )
+                if not tag_matches_head:
+                    raise SystemExit(result.exit_code)
 
     print({
         "bin_name": bin_name,

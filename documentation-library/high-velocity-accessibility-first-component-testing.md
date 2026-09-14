@@ -223,7 +223,7 @@ import { describe, it, expect } from 'bun:test';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-// ... import our ThemeProvider and a test component
+// ... import the theme provider and a test component
 
 describe('ThemeProvider integration', () => {
   it('applies the default theme to <html> and <body>', () => {
@@ -456,8 +456,8 @@ hooks. They are valuable targets when socializing the upcoming lint rule:
   can use `getByRole('region', { name: /sales summary widget/i })` and remain
   resilient.
 
-Documenting these specific call sites gives reviewers a short list of “fix me
-next” examples and shows what the accessible alternative should look like.
+Documenting these specific call sites gives reviewers a short list of “next
+targets” examples and shows what the accessible alternative should look like.
 
 - **Assertions on Accessibility Outcomes:** In addition to low-level
   assertions (like “this state toggled” or “this element exists”), tests

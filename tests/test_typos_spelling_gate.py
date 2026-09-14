@@ -33,7 +33,7 @@ HYPHENATED_HANDWRITTEN = "hand" + "-written"
 TITLE_HYPHENATED_HANDWRITTEN = "Hand" + "-written"
 PLAIN_BRITISH_ORGANIZE = "organi" + "se"
 AMERICAN_COLOUR = "col" + "or"
-MISSPELLED_ARTICLE = "t" + "eh"
+MISSPELLED_ARTICLE: str = "t" + "eh"
 
 
 def test_makefile_spelling_gate_uses_pinned_typos() -> None:

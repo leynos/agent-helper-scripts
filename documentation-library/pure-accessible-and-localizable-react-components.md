@@ -91,8 +91,8 @@ scheduler.[^4]
 
 Immutability is the cornerstone of purity within the JavaScript ecosystem.
 React's change detection mechanism, particularly in functional components
-optimized with `React.memo`, relies on a shallow comparison of props and state.
-It uses reference equality (‘===‘) to determine if an object or array has
+optimized with `React.memo`, relies on a shallow comparison of props.
+`React.memo` compares each prop using `Object.is` to determine if it has
 changed.[^5] If data structures are mutated directly, their memory reference
 remains the same. Consequently, React's shallow comparison will fail to detect
 the change, leading to a missed re-render and a UI that is out of sync with the

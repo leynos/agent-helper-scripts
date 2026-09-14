@@ -534,12 +534,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[fixture]
 #[once]
-fn expensive_setup() -> &'static AtomicUsize {
+fn expensive_setup() -> AtomicUsize {
     // Simulate expensive setup
     println!("Performing expensive_setup once…");
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    COUNTER.fetch_add(1, Ordering::Relaxed); // To demonstrate it's called once
-    &COUNTER
+    let counter = AtomicUsize::new(0);
+    counter.fetch_add(1, Ordering::Relaxed); // To demonstrate it's called once
+    counter
 }
 
 #[rstest]
@@ -707,6 +707,15 @@ diagnostic messages.
 `rstest` provides robust support for testing asynchronous Rust code,
 integrating with common async runtimes and offering syntactic sugar for
 managing futures.
+
+The examples below use `async-std` for `async_std::task::sleep` and the
+`#[async_std::test]` attribute macro. Add it under `[dev-dependencies]` with
+the `attributes` feature enabled:
+
+```toml
+[dev-dependencies]
+async-std = { version = "1", features = ["attributes"] }
+```
 
 ### A. Defining asynchronous fixtures (`async fn`)
 

@@ -5,8 +5,8 @@
 It is important to understand how Copier works. It has 2 kinds of
 configurations:
 
-1. **Settings** for Copier itself. This includes things as minimal Copier
-    version required, which subdirectory to render, tasks to run, etc.
+1. **Settings** for Copier itself. This includes things such as the minimum
+    Copier version required, which subdirectory to render, tasks to run, etc.
 2. **Answers**. This is customized per template. The user answers template
     questions, and those answers are stored as variables available for the
     template at rendering time.
@@ -1071,8 +1071,8 @@ Each pattern can be templated using Jinja.
 
 Example
 
-Templating `exclude` patterns using `_copier_operation` allows to have files
-that are rendered once during `copy`, but are never updated:
+Templating `exclude` patterns using `_copier_operation` allows files to be
+rendered once during `copy`, but are never updated:
 
 ```yaml
 _exclude:
@@ -1261,8 +1261,8 @@ Examples of extensions that can be used:
 
 - [`copier_templates_extensions.TemplateExtensionLoader`](https://github.com/copier-org/copier-templates-extensions):
     enhances the extension loading mechanism to allow templates writers to put
-    their extensions directly in their templates. It also allows to modify the
-    rendering context (the Jinja variables that can be used in templates)
+    their extensions directly in their templates. It also allows modification
+    of the rendering context (the Jinja variables that can be used in templates)
     before rendering templates, see
     [using a context
     hook](https://copier.readthedocs.io/en/stable/faq/#how-can-i-alter-the-context-before-rendering-the-project
@@ -1734,7 +1734,7 @@ Project layout
 
 Commands to execute after generating or updating a project from the template.
 
-They run ordered, and with the `$STAGE=task` variable in their environment.
+They run in order, and with the `$STAGE=task` variable in their environment.
 Each task runs in its own subprocess.
 
 If a `dict` is given it can contain the following items:
@@ -1798,7 +1798,7 @@ _every file_, except those that are
 [excluded by default](https://copier.readthedocs.io/en/stable/configuring/#exclude).
 If an error happens while trying to read a file as a template, it will
 fall back to a simple copy (it will typically happen for binary files like
-images). At the contrary, if such an error happens and the templates suffix is
+images). By contrast, if such an error happens and the templates suffix is
 _not_ empty, Copier will abort and print an error message.
 
 Example

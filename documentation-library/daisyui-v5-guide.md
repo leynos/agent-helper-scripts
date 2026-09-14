@@ -50,17 +50,18 @@ for common UI components. This guide covers version 5.3.x.
    This is a last resort solution and should be used sparingly.
 4. If a specific component or something similar to it doesn't exist in daisyUI,
    create a custom component using Tailwind CSS utility
-5. when using Tailwind CSS `flex` and `grid` for layout, it should be
+5. When using Tailwind CSS `flex` and `grid` for layout, it should be
    responsive using Tailwind CSS responsive utility prefixes.
 6. Only allowed class names are existing daisyUI class names or Tailwind CSS
    utility classes.
 7. Ideally, no custom CSS will need to be written. Using daisyUI class names
    or Tailwind CSS utility classes is preferred.
-8. suggested - if placeholder images are needed, use
-   <https://picsum.photos/200/300> with the size required
-9. suggested - when designing , don't add a custom font unless it's necessary
-10. don't add `bg-base-100 text-base-content` to body unless it's necessary
-11. For design decisions, use Refactoring UI book best practices
+8. It is suggested that, if placeholder images are needed,
+   <https://picsum.photos/200/300> is used with the required size.
+9. It is suggested that, when designing, a custom font is not added unless
+   it's necessary.
+10. Do not add `bg-base-100 text-base-content` to body unless it's necessary.
+11. For design decisions, use best practices from the Refactoring UI book.
 
 daisyUI 5 class names are one of the following categories. These type names are
 only for reference and are not used in the actual code
@@ -107,12 +108,12 @@ daisyUI with all the default configs:
 }
 ```
 
-An example config: In below config, all the built-in themes are enabled while
-bumblebee is the default theme and synthwave is the prefersdark theme (default
-dark mode) All the other themes are enabled and can be used by adding
-`data-theme="THEME_NAME"` to the `<html>` element root scrollbar gutter is
-excluded. `daisy-` prefix is used for all daisyUI classes and console.log is
-disabled
+An example config: in the config below, all the built-in themes are enabled,
+with bumblebee as the default theme and synthwave as the prefersdark theme
+(the default dark mode). All the other themes are enabled and can be used by
+adding `data-theme="THEME_NAME"` to the `<html>` element. The root scrollbar
+gutter is excluded. The `daisy-` prefix is used for all daisyUI classes, and
+console logging is disabled.
 
 ```css
 @plugin "daisyui" {
@@ -1428,7 +1429,7 @@ Mask crops the content of the element to common shapes
 #### Syntax — mask
 
 ```html
-<img class="mask {MODIFIER}" src="{image-url}" />
+<img class="mask {MODIFIER}" src="{image-url}" alt="{alt-text}" />
 ```
 
 #### Rules — mask
@@ -1718,9 +1719,11 @@ passing of time
 #### Rules — radial-progress
 
 - The `--value` CSS variable and text must be a number between 0 and 100
-- `aria-valuenow="{value}"`, `aria-valuenow={value}` need to be added so
-  screen readers can properly read value and also show that it is a
-  progress element
+- In plain HTML, `aria-valuenow="{value}"` needs to be added so screen
+  readers can properly read the value and also show that it is a progress
+  element
+- In JSX, `aria-valuenow={value}` needs to be added so screen readers can
+  properly read the value and also show that it is a progress element
 - Use `div` instead of progress because browsers can't show text inside
   progress tag
 - Use `--size` for setting size (default 5rem) and `--thickness` to set how
