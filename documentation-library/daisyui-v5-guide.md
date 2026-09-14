@@ -21,6 +21,7 @@ for common UI components. This guide covers version 5.3.x.
 4. daisyUI is suggested to be installed as a dependency but to use it from a
    CDN instead, use Tailwind CSS and daisyUI CDN files:
 
+<!-- tested-example: daisyui-install-cdn -->
 ```html
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5.3" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -29,6 +30,7 @@ for common UI components. This guide covers version 5.3.x.
 1. A CSS file with Tailwind CSS and daisyUI looks like this (if it's a node
    dependency)
 
+<!-- tested-example: daisyui-install-css-import -->
 ```css
 @import "tailwindcss";
 @plugin "daisyui";
@@ -83,12 +85,14 @@ only for reference and are not used in the actual code
 daisyUI 5 config docs: <https://daisyui.com/docs/config/> daisyUI without
 config:
 
+<!-- tested-example: daisyui-config-default -->
 ```css
 @plugin "daisyui";
 ```
 
 daisyUI config with `light` theme only:
 
+<!-- tested-example: daisyui-config-light-only -->
 ```css
 @plugin "daisyui" {
   themes: light --default;
@@ -97,6 +101,7 @@ daisyUI config with `light` theme only:
 
 daisyUI with all the default configs:
 
+<!-- tested-example: daisyui-config-all-defaults -->
 ```css
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
@@ -115,6 +120,7 @@ adding `data-theme="THEME_NAME"` to the `<html>` element. The root scrollbar
 gutter is excluded. The `daisy-` prefix is used for all daisyUI classes, and
 console logging is disabled.
 
+<!-- tested-example: daisyui-config-example-custom -->
 ```css
 @plugin "daisyui" {
   themes: light, dark, cupcake, bumblebee --default, emerald, corporate,
@@ -184,6 +190,7 @@ console logging is disabled.
 A CSS file with Tailwind CSS, daisyUI and a custom daisyUI theme looks like
 this:
 
+<!-- tested-example: daisyui-custom-theme-colours -->
 ```css
 @import "tailwindcss";
 @plugin "daisyui";
@@ -264,12 +271,14 @@ open at a time
 
 #### Syntax — accordion
 
+<!-- tested-example: daisyui-accordion-wrapper -->
 ```html
 <div class="collapse {MODIFIER}">{CONTENT}</div>
 ```
 
 where content is:
 
+<!-- tested-example: daisyui-accordion-content -->
 ```html
 <input type="radio" name="{name}" checked="{checked}" />
 <div class="collapse-title">{title}</div>
@@ -302,6 +311,7 @@ Alert informs users about important events
 
 #### Syntax — alert
 
+<!-- tested-example: daisyui-alert -->
 ```html
 <div role="alert" class="alert {MODIFIER}">{CONTENT}</div>
 ```
@@ -325,6 +335,7 @@ Avatars are used to show a thumbnail
 
 #### Syntax — avatar
 
+<!-- tested-example: daisyui-avatar -->
 ```html
 <div class="avatar {MODIFIER}">
   <div>
@@ -357,6 +368,7 @@ Badges are used to inform the user of the status of specific data
 
 #### Syntax — badge
 
+<!-- tested-example: daisyui-badge -->
 ```html
 <span class="badge {MODIFIER}">Badge</span>
 ```
@@ -379,6 +391,7 @@ Breadcrumbs helps users to navigate
 
 #### Syntax — breadcrumbs
 
+<!-- tested-example: daisyui-breadcrumbs -->
 ```html
 <div class="breadcrumbs">
   <ul><li><a>Link</a></li></ul>
@@ -410,6 +423,7 @@ Buttons allow the user to take actions
 
 #### Syntax — button
 
+<!-- tested-example: daisyui-button -->
 ```html
 <button class="btn {MODIFIER}">Button</button>
 ```
@@ -440,18 +454,21 @@ Calendar includes styles for different calendar libraries
 
 For Cally:
 
+<!-- tested-example: daisyui-calendar-cally -->
 ```html
 <calendar-date class="cally">{CONTENT}</calendar-date>
 ```
 
 For Pikaday:
 
+<!-- tested-example: daisyui-calendar-pikaday -->
 ```html
 <input type="text" class="input pika-single">
 ```
 
 For React Day Picker:
 
+<!-- tested-example: daisyui-calendar-react-day-picker -->
 ```html
 <DayPicker className="react-day-picker">
 ```
@@ -476,6 +493,7 @@ Cards are used to group and display content
 
 #### Syntax — card
 
+<!-- tested-example: daisyui-card -->
 ```html
 <div class="card {MODIFIER}">
   <figure><img src="{image-url}" alt="{alt-text}" /></figure>
@@ -510,6 +528,7 @@ Carousel show images or content in a scrollable area
 
 #### Syntax — carousel
 
+<!-- tested-example: daisyui-carousel -->
 ```html
 <div class="carousel {MODIFIER}">{CONTENT}</div>
 ```
@@ -538,6 +557,7 @@ including the author image, author name, time, etc
 
 #### Syntax — chat
 
+<!-- tested-example: daisyui-chat -->
 ```html
 <div class="chat {PLACEMENT}">
   <div class="chat-image"></div>
@@ -571,6 +591,7 @@ Checkboxes are used to select or deselect a value
 
 #### Syntax — checkbox
 
+<!-- tested-example: daisyui-checkbox -->
 ```html
 <input type="checkbox" class="checkbox {MODIFIER}" />
 ```
@@ -593,6 +614,7 @@ Collapse is used for showing and hiding content
 
 #### Syntax — collapse
 
+<!-- tested-example: daisyui-collapse -->
 ```html
 <div tabindex="0" class="collapse {MODIFIER}">
   <div class="collapse-title">{title}</div>
@@ -620,6 +642,7 @@ to 999
 
 #### Syntax — countdown
 
+<!-- tested-example: daisyui-countdown -->
 ```html
 <span class="countdown">
   <span style="--value:{number};">number</span>
@@ -646,6 +669,7 @@ Diff component shows a side-by-side comparison of two items
 
 #### Syntax — diff
 
+<!-- tested-example: daisyui-diff -->
 ```html
 <figure class="diff">
   <div class="diff-item-1">{item1}</div>
@@ -676,6 +700,7 @@ Divider will be used to separate content vertically or horizontally
 
 #### Syntax — divider
 
+<!-- tested-example: daisyui-divider -->
 ```html
 <div class="divider {MODIFIER}">{text}</div>
 ```
@@ -702,12 +727,14 @@ provides navigation options to the user. Dock sticks to the bottom of the screen
 
 #### Syntax — dock
 
+<!-- tested-example: daisyui-dock-wrapper -->
 ```html
 <div class="dock {MODIFIER}">{CONTENT}</div>
 ```
 
 where content is a list of buttons:
 
+<!-- tested-example: daisyui-dock-button -->
 ```html
 <button>
     <svg>{icon}</svg>
@@ -739,6 +766,7 @@ of the page
 
 #### Syntax — drawer
 
+<!-- tested-example: daisyui-drawer-wrapper -->
 ```html
 <div class="drawer {MODIFIER}">
   <input id="my-drawer" type="checkbox" class="drawer-toggle" />
@@ -750,6 +778,7 @@ of the page
 where {CONTENT} can be navbar, site content, footer, etc and {SIDEBAR} can be a
 menu like:
 
+<!-- tested-example: daisyui-drawer-sidebar-menu -->
 ```html
 <ul class="menu p-4 w-80 min-h-full bg-base-100 text-base-content">
   <li><a>Item 1</a></li>
@@ -759,6 +788,7 @@ menu like:
 
 To open/close the drawer, use a label that points to the `drawer-toggle` input:
 
+<!-- tested-example: daisyui-drawer-toggle-label -->
 ```html
 <label for="my-drawer" class="btn drawer-button">Open/close drawer</label>
 ```
@@ -766,6 +796,7 @@ To open/close the drawer, use a label that points to the `drawer-toggle` input:
 Example: This sidebar is always visible on large screen, can be toggled on
 small screen:
 
+<!-- tested-example: daisyui-drawer-responsive-sidebar -->
 ```html
 <div class="drawer lg:drawer-open">
   <input id="my-drawer-3" type="checkbox" class="drawer-toggle" />
@@ -789,6 +820,7 @@ small screen:
 Example: This sidebar is always visible. When closed only icons are
 visible, when open both icons and text are visible
 
+<!-- tested-example: daisyui-drawer-icon-collapse-sidebar -->
 ```html
 <div class="drawer lg:drawer-open">
   <input id="my-drawer-4" type="checkbox" class="drawer-toggle" />
@@ -858,6 +890,7 @@ Dropdown can open a menu or any other element when the button is clicked
 
 Using details and summary
 
+<!-- tested-example: daisyui-dropdown-details-summary -->
 ```html
 <details class="dropdown">
   <summary>Button</summary>
@@ -867,6 +900,7 @@ Using details and summary
 
 Using popover API
 
+<!-- tested-example: daisyui-dropdown-popover-api -->
 ```html
 <button popovertarget="{id}" style="anchor-name:--{anchor}">{button}</button>
 <ul class="dropdown-content" popover id="{id}" style="position-anchor:--{anchor}">{CONTENT}</ul>
@@ -874,6 +908,7 @@ Using popover API
 
 Using CSS focus
 
+<!-- tested-example: daisyui-dropdown-css-focus -->
 ```html
 <div class="dropdown">
   <div tabindex="0" role="button">Button</div>
@@ -907,6 +942,7 @@ arrangement or a flower shape (quarter circle)
 
 A single FAB in the corner of screen
 
+<!-- tested-example: daisyui-fab-single -->
 ```html
 <div class="fab">
   <button class="btn btn-lg btn-circle">{IconOriginal}</button>
@@ -915,6 +951,7 @@ A single FAB in the corner of screen
 
 A FAB that opens a 3 other buttons in the corner of page vertically
 
+<!-- tested-example: daisyui-fab-vertical-icons -->
 ```html
 <div class="fab">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -927,6 +964,7 @@ A FAB that opens a 3 other buttons in the corner of page vertically
 A FAB that opens a 3 other buttons in the corner of page vertically and they
 have label text
 
+<!-- tested-example: daisyui-fab-vertical-labelled -->
 ```html
 <div class="fab">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -939,6 +977,7 @@ have label text
 FAB with rectangle buttons. These are not circular buttons so they can have
 more content.
 
+<!-- tested-example: daisyui-fab-rectangle-buttons -->
 ```html
 <div class="fab">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -951,6 +990,7 @@ more content.
 FAB with close button. When FAB is open, the original button is replaced with a
 close button
 
+<!-- tested-example: daisyui-fab-close-button -->
 ```html
 <div class="fab">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -964,6 +1004,7 @@ close button
 FAB with Main Action button. When FAB is open, the original button is replaced
 with a main action button
 
+<!-- tested-example: daisyui-fab-main-action -->
 ```html
 <div class="fab">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -979,6 +1020,7 @@ with a main action button
 FAB Flower. It opens the buttons in a flower shape (quarter circle) arrangement
 instead of vertical
 
+<!-- tested-example: daisyui-fab-flower -->
 ```html
 <div class="fab fab-flower">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -992,6 +1034,7 @@ instead of vertical
 FAB Flower with tooltips. There's no space for a text label in a quarter
 circle, so tooltips are used to indicate the button's function
 
+<!-- tested-example: daisyui-fab-flower-tooltips -->
 ```html
 <div class="fab fab-flower">
   <div tabindex="0" role="button" class="btn btn-lg btn-circle btn-primary">{IconOriginal}</div>
@@ -1031,6 +1074,7 @@ fieldset-legend as a title and label as a description
 
 #### Syntax — fieldset
 
+<!-- tested-example: daisyui-fieldset -->
 ```html
 <fieldset class="fieldset">
   <legend class="fieldset-legend">{title}</legend>
@@ -1061,6 +1105,7 @@ File Input is an input field for uploading files
 
 #### Syntax — file-input
 
+<!-- tested-example: daisyui-file-input -->
 ```html
 <input type="file" class="file-input {MODIFIER}" />
 ```
@@ -1085,6 +1130,7 @@ others and shows a reset button next to the chosen option
 
 Using HTML form
 
+<!-- tested-example: daisyui-filter-form -->
 ```html
 <form class="filter">
   <input class="btn btn-square" type="reset" value="×"/>
@@ -1095,6 +1141,7 @@ Using HTML form
 
 Without HTML form
 
+<!-- tested-example: daisyui-filter-no-form -->
 ```html
 <div class="filter">
   <input class="btn filter-reset" type="radio" name="{NAME}" aria-label="×"/>
@@ -1126,6 +1173,7 @@ Footer can contain logo, copyright notice, and links to other pages
 
 #### Syntax — footer
 
+<!-- tested-example: daisyui-footer -->
 ```html
 <footer class="footer {MODIFIER}">{CONTENT}</footer>
 ```
@@ -1154,6 +1202,7 @@ description
 
 #### Syntax — hero
 
+<!-- tested-example: daisyui-hero -->
 ```html
 <div class="hero {MODIFIER}">{CONTENT}</div>
 ```
@@ -1181,6 +1230,7 @@ Gallery can include up to 10 images.
 
 #### Syntax — hover-gallery
 
+<!-- tested-example: daisyui-hover-gallery -->
 ```html
 <figure class="hover-gallery max-w-60">
   <img src="https://img.daisyui.com/images/stock/daisyui-hat-1.webp" alt="Hat, front view" />
@@ -1212,6 +1262,7 @@ Indicators are used to place an element on the corner of another element
 
 #### Syntax — indicator
 
+<!-- tested-example: daisyui-indicator -->
 ```html
 <div class="indicator">
   <span class="indicator-item">{indicator content}</span>
@@ -1242,6 +1293,7 @@ Text Input is a simple input field
 
 #### Syntax — input
 
+<!-- tested-example: daisyui-input -->
 ```html
 <input type="{type}" placeholder="Type here" class="input {MODIFIER}" />
 ```
@@ -1268,6 +1320,7 @@ Join can be used to create a horizontal or vertical list of items
 
 #### Syntax — join
 
+<!-- tested-example: daisyui-join -->
 ```html
 <div class="join {MODIFIER}">{CONTENT}</div>
 ```
@@ -1292,6 +1345,7 @@ Kbd is used to display keyboard shortcuts
 
 #### Syntax — kbd
 
+<!-- tested-example: daisyui-kbd -->
 ```html
 <kbd class="kbd {MODIFIER}">K</kbd>
 ```
@@ -1315,6 +1369,7 @@ placed before or after the field
 
 For regular label:
 
+<!-- tested-example: daisyui-label-regular -->
 ```html
 <label class="input">
   <span class="label">{label text}</span>
@@ -1324,6 +1379,7 @@ For regular label:
 
 For floating label:
 
+<!-- tested-example: daisyui-label-floating -->
 ```html
 <label class="floating-label">
   <input type="text" placeholder="Type here" class="input" />
@@ -1353,6 +1409,7 @@ Link adds the missing underline style to links
 
 #### Syntax — link
 
+<!-- tested-example: daisyui-link -->
 ```html
 <a class="link {MODIFIER}">Click me</a>
 ```
@@ -1374,6 +1431,7 @@ List is a vertical layout to display information in rows
 
 #### Syntax — list
 
+<!-- tested-example: daisyui-list -->
 ```html
 <ul class="list">
   <li class="list-row">{CONTENT}</li>
@@ -1403,6 +1461,7 @@ Loading shows an animation to indicate that something is loading
 
 #### Syntax — loading
 
+<!-- tested-example: daisyui-loading -->
 ```html
 <span class="loading {MODIFIER}"></span>
 ```
@@ -1428,6 +1487,7 @@ Mask crops the content of the element to common shapes
 
 #### Syntax — mask
 
+<!-- tested-example: daisyui-mask -->
 ```html
 <img class="mask {MODIFIER}" src="{image-url}" alt="{alt-text}" />
 ```
@@ -1456,6 +1516,7 @@ Menu is used to display a list of links vertically or horizontally
 
 Vertical menu:
 
+<!-- tested-example: daisyui-menu-vertical -->
 ```html
 <ul class="menu">
   <li><button>Item</button></li>
@@ -1464,6 +1525,7 @@ Vertical menu:
 
 Horizontal menu:
 
+<!-- tested-example: daisyui-menu-horizontal -->
 ```html
 <ul class="menu menu-horizontal">
   <li><button>Item</button></li>
@@ -1492,6 +1554,7 @@ Browser mockup shows a box that looks like a browser window
 
 #### Syntax — mockup-browser
 
+<!-- tested-example: daisyui-mockup-browser -->
 ```html
 <div class="mockup-browser">
   <div class="mockup-browser-toolbar">
@@ -1519,6 +1582,7 @@ editor
 
 #### Syntax — mockup-code
 
+<!-- tested-example: daisyui-mockup-code -->
 ```html
 <div class="mockup-code">
   <pre data-prefix="$"><code>npm i daisyui</code></pre>
@@ -1544,6 +1608,7 @@ Phone mockup shows a mockup of an iPhone
 
 #### Syntax — mockup-phone
 
+<!-- tested-example: daisyui-mockup-phone -->
 ```html
 <div class="mockup-phone">
   <div class="mockup-phone-camera"></div>
@@ -1567,6 +1632,7 @@ Window mockup shows a box that looks like an operating system window
 
 #### Syntax — mockup-window
 
+<!-- tested-example: daisyui-mockup-window -->
 ```html
 <div class="mockup-window">
   <div>{CONTENT}</div>
@@ -1591,6 +1657,7 @@ Modal is used to show a dialog or a box when a button is clicked
 
 Using HTML dialog element
 
+<!-- tested-example: daisyui-modal-dialog-element -->
 ```html
 <button onclick="my_modal.showModal()">Open modal</button>
 <dialog id="my_modal" class="modal">
@@ -1601,6 +1668,7 @@ Using HTML dialog element
 
 Using checkbox (legacy)
 
+<!-- tested-example: daisyui-modal-checkbox-legacy -->
 ```html
 <label for="my-modal" class="btn">Open modal</label>
 <input type="checkbox" id="my-modal" class="modal-toggle" />
@@ -1612,6 +1680,7 @@ Using checkbox (legacy)
 
 Using anchor links (legacy)
 
+<!-- tested-example: daisyui-modal-anchor-legacy -->
 ```html
 <a href="#my-modal" class="btn">Open modal</a>
 <div class="modal" id="my-modal">
@@ -1640,6 +1709,7 @@ Navbar is used to show a navigation bar on the top of the page
 
 #### Syntax — navbar
 
+<!-- tested-example: daisyui-navbar -->
 ```html
 <div class="navbar">{CONTENT}</div>
 ```
@@ -1665,6 +1735,7 @@ Pagination is a group of buttons
 
 #### Syntax — pagination
 
+<!-- tested-example: daisyui-pagination -->
 ```html
 <div class="join">{CONTENT}</div>
 ```
@@ -1690,6 +1761,7 @@ of time
 
 #### Syntax — progress
 
+<!-- tested-example: daisyui-progress -->
 ```html
 <progress class="progress {MODIFIER}" value="50" max="100"></progress>
 ```
@@ -1712,6 +1784,7 @@ passing of time
 
 #### Syntax — radial-progress
 
+<!-- tested-example: daisyui-radial-progress -->
 ```html
 <div class="radial-progress" style="--value:70;" aria-valuenow="70" role="progressbar">70%</div>
 ```
@@ -1744,6 +1817,7 @@ Radio buttons allow the user to select one option
 
 #### Syntax — radio
 
+<!-- tested-example: daisyui-radio -->
 ```html
 <input type="radio" name="{name}" class="radio {MODIFIER}" />
 ```
@@ -1770,6 +1844,7 @@ Range slider is used to select a value by sliding a handle
 
 #### Syntax — range
 
+<!-- tested-example: daisyui-range -->
 ```html
 <input type="range" min="0" max="100" value="40" class="range {MODIFIER}" />
 ```
@@ -1793,6 +1868,7 @@ Rating is a set of radio buttons that allow the user to rate something
 
 #### Syntax — rating
 
+<!-- tested-example: daisyui-rating -->
 ```html
 <div class="rating {MODIFIER}">
   <input type="radio" name="rating-1" class="mask mask-star" />
@@ -1824,6 +1900,7 @@ Select is used to pick a value from a list of options
 
 #### Syntax — select
 
+<!-- tested-example: daisyui-select -->
 ```html
 <select class="select {MODIFIER}">
   <option>Option</option>
@@ -1846,6 +1923,7 @@ Skeleton is a component that can be used to show a loading state
 
 #### Syntax — skeleton
 
+<!-- tested-example: daisyui-skeleton -->
 ```html
 <div class="skeleton"></div>
 ```
@@ -1867,6 +1945,7 @@ Stack visually puts elements on top of each other
 
 #### Syntax — stack
 
+<!-- tested-example: daisyui-stack -->
 ```html
 <div class="stack {MODIFIER}">{CONTENT}</div>
 ```
@@ -1892,6 +1971,7 @@ Stat is used to show numbers and data in a block
 
 #### Syntax — stat
 
+<!-- tested-example: daisyui-stat -->
 ```html
 <div class="stats {MODIFIER}">
   <div class="stat">{CONTENT}</div>
@@ -1922,6 +2002,7 @@ element, like online, offline, error, etc
 
 #### Syntax — status
 
+<!-- tested-example: daisyui-status -->
 ```html
 <span class="status {MODIFIER}"></span>
 ```
@@ -1947,6 +2028,7 @@ Steps can be used to show a list of steps in a process
 
 #### Syntax — steps
 
+<!-- tested-example: daisyui-steps -->
 ```html
 <ul class="steps {MODIFIER}">
   <li class="step">{step content}</li>
@@ -1977,6 +2059,7 @@ Swap toggles the visibility of two elements using a checkbox or a class name
 
 Using checkbox
 
+<!-- tested-example: daisyui-swap-checkbox -->
 ```html
 <label class="swap {MODIFIER}">
   <input type="checkbox" />
@@ -1987,6 +2070,7 @@ Using checkbox
 
 Using class name
 
+<!-- tested-example: daisyui-swap-class-name -->
 ```html
 <div class="swap {MODIFIER}">
   <div class="swap-on">{content when active}</div>
@@ -2020,6 +2104,7 @@ Tabs can be used to show a list of links in a tabbed format
 
 Using buttons:
 
+<!-- tested-example: daisyui-tab-buttons -->
 ```html
 <div role="tablist" class="tabs {MODIFIER}">
   <button role="tab" class="tab">Tab</button>
@@ -2028,6 +2113,7 @@ Using buttons:
 
 Using radio inputs:
 
+<!-- tested-example: daisyui-tab-radio-inputs -->
 ```html
 <div role="tablist" class="tabs tabs-box">
   <input type="radio" name="my_tabs" class="tab" aria-label="Tab" />
@@ -2055,6 +2141,7 @@ Table can be used to show a list of data in a table format
 
 #### Syntax — table
 
+<!-- tested-example: daisyui-table -->
 ```html
 <div class="overflow-x-auto">
   <table class="table {MODIFIER}">
@@ -2096,6 +2183,7 @@ Textarea allows users to enter text in multiple lines
 
 #### Syntax — textarea
 
+<!-- tested-example: daisyui-textarea -->
 ```html
 <textarea class="textarea {MODIFIER}" placeholder="Bio"></textarea>
 ```
@@ -2118,6 +2206,7 @@ value
 
 #### Syntax — theme-controller
 
+<!-- tested-example: daisyui-theme-controller -->
 ```html
 <input type="checkbox" value="{theme-name}" class="theme-controller" />
 ```
@@ -2141,6 +2230,7 @@ Timeline component shows a list of events in chronological order
 
 #### Syntax — timeline
 
+<!-- tested-example: daisyui-timeline -->
 ```html
 <ul class="timeline {MODIFIER}">
   <li>
@@ -2173,6 +2263,7 @@ Toast is a wrapper to stack elements, positioned on the corner of page
 
 #### Syntax — toast
 
+<!-- tested-example: daisyui-toast -->
 ```html
 <div class="toast {MODIFIER}">{CONTENT}</div>
 ```
@@ -2197,6 +2288,7 @@ Toggle is a checkbox that is styled to look like a switch button
 
 #### Syntax — toggle
 
+<!-- tested-example: daisyui-toggle -->
 ```html
 <input type="checkbox" class="toggle {MODIFIER}" />
 ```
@@ -2219,6 +2311,7 @@ on input's validation rules
 
 #### Syntax — validator
 
+<!-- tested-example: daisyui-validator -->
 ```html
 <input type="{type}" class="input validator" required />
 <p class="validator-hint">Error message</p>
