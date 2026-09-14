@@ -151,7 +151,7 @@ pub enum LexError {
     Other,
 }
 
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Ignore whitespace
 #[logos(error = LexError)]
 pub enum Token<'a> {
@@ -1050,8 +1050,14 @@ impl Arbitrary for Expr {
                             lhs: Box::new(lhs),
                             rhs: Box::new(rhs),
                         }),
-                    // Recurse once more, wrapped in parentheses.
-                    inner.clone().prop_map(|expr| Expr::Paren(Box::new(expr))),
+                    // `Paren` is deliberately not generated here: the printer
+                    // is transparent for it (`to_sexpr` emits the inner
+                    // expression's text unchanged), so parsing that output
+                    // back can never reconstruct the wrapper. The round-trip
+                    // assertion below would fail on every generated `Paren`
+                    // node. The variant and its printer arm stay, since they
+                    // document a real AST feature; do not re-add generation
+                    // for it.
                 ]
             },
         )

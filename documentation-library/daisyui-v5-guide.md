@@ -469,8 +469,8 @@ For Pikaday:
 For React Day Picker:
 
 <!-- tested-example: daisyui-calendar-react-day-picker -->
-```html
-<DayPicker className="react-day-picker">
+```jsx
+<DayPicker className="react-day-picker" />
 ```
 
 #### Rules — calendar

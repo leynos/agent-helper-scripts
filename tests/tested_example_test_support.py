@@ -76,16 +76,23 @@ _MARKER_RE = re.compile(
     r"^[ \t]*<!--\s*tested-example:\s*(?P<identifier>.*?)\s*-->\s*$"
 )
 
-#: Matches a fence's opening line, capturing its language tag (which may be
-#: empty when the author omitted one).
-_FENCE_OPEN_RE = re.compile(r"^[ \t]*```(?P<language>[^\s`]*)\s*$")
+#: Matches a fence's opening line, capturing the opening backtick run (three
+#: or more, per CommonMark) and its language tag (which may be empty when
+#: the author omitted one). The closing fence must use a run of backticks at
+#: least as long as this one, so the captured run is threaded through to
+#: `_read_fence_body`, which builds the matching close pattern.
+_FENCE_OPEN_RE = re.compile(r"^[ \t]*(?P<fence>`{3,})(?P<language>[^\s`]*)\s*$")
 
-#: Matches a fence's closing line. Fences in both published documents, and in
-#: the inline documents this module's negative tests construct, always use
-#: exactly three backticks, so this loader does not need to track the longer
-#: backtick runs CommonMark allows for a fence that itself contains a
-#: fenced example.
-_FENCE_CLOSE_RE = re.compile(r"^[ \t]*```\s*$")
+
+def _fence_close_pattern(fence: str) -> re.Pattern[str]:
+    """Return a pattern matching a close run of at least ``len(fence)`` backticks.
+
+    CommonMark requires a fence's closing run to be at least as long as its
+    opening run, so a longer-fenced example can nest a shorter fenced
+    example in its body without that inner fence being mistaken for the
+    close.
+    """
+    return re.compile(rf"^[ \t]*`{{{len(fence)},}}\s*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,10 +163,13 @@ def load_tested_examples(path: Path) -> list[TestedExample]:
             continue
 
         fence_line = index + 1
+        fence = fence_match.group("fence")
         language = fence_match.group("language")
         marker_identifier = _marker_identifier_before(lines, index, path, fence_line)
 
-        body_lines, body_end_index = _read_fence_body(lines, index, path, fence_line)
+        body_lines, body_end_index = _read_fence_body(
+            lines, index, fence, path, fence_line
+        )
 
         if language in NON_EXECUTABLE_LANGUAGES:
             index = body_end_index + 1
@@ -215,16 +225,22 @@ def _marker_identifier_before(
 
 
 def _read_fence_body(
-    lines: list[str], fence_index: int, path: Path, fence_line: int
+    lines: list[str], fence_index: int, fence: str, path: Path, fence_line: int
 ) -> tuple[list[str], int]:
     """Return a fence's body lines and the index of its closing line.
 
+    ``fence`` is the opening backtick run captured by `_FENCE_OPEN_RE`; the
+    closing line must use a run at least as long, so a shorter backtick run
+    inside the body (for example a nested three-backtick example inside a
+    four-backtick fence) is not mistaken for the close.
+
     Raises when the fence is never closed before the document ends.
     """
+    close_re = _fence_close_pattern(fence)
     cursor = fence_index + 1
     total = len(lines)
     while cursor < total:
-        if _FENCE_CLOSE_RE.match(lines[cursor]):
+        if close_re.match(lines[cursor]):
             return lines[fence_index + 1 : cursor], cursor
         cursor += 1
     raise TestedExampleError(

@@ -489,9 +489,18 @@ def main(
             result = git("tag", tag, cwd=project_root).run_sync()
             if result.exit_code != 0:
                 head = git("rev-parse", "HEAD", cwd=project_root).run_sync()
-                tagged = git("rev-parse", tag, cwd=project_root).run_sync()
+                # Resolve the peeled ref: a bare tag name returns the tag
+                # object for an annotated tag, not the commit it points at,
+                # so the comparison below would never match. The explicit
+                # `refs/tags/` namespace also stops a same-named branch from
+                # shadowing the tag.
+                tagged = git(
+                    "rev-parse", f"refs/tags/{tag}^{{}}", cwd=project_root
+                ).run_sync()
                 tag_matches_head = (
-                    tagged.exit_code == 0 and tagged.stdout.strip() == head.stdout.strip()
+                    head.exit_code == 0
+                    and tagged.exit_code == 0
+                    and tagged.stdout.strip() == head.stdout.strip()
                 )
                 if not tag_matches_head:
                     raise SystemExit(result.exit_code)

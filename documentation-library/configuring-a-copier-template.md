@@ -1072,7 +1072,7 @@ Each pattern can be templated using Jinja.
 Example
 
 Templating `exclude` patterns using `_copier_operation` allows files to be
-rendered once during `copy`, but are never updated:
+rendered once during `copy`, but it is never updated:
 
 ```yaml
 _exclude:
@@ -1734,7 +1734,7 @@ Project layout
 
 Commands to execute after generating or updating a project from the template.
 
-They run in order, and with the `$STAGE=task` variable in their environment.
+They run in order, with the `$STAGE=task` variable in their environment.
 Each task runs in its own subprocess.
 
 If a `dict` is given it can contain the following items:

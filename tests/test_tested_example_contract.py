@@ -50,14 +50,14 @@ def _assert_contract_satisfied(
 
 
 def test_the_daisyui_guide_marks_every_html_and_css_fence() -> None:
-    """The daisyUI guide's 87 html and 6 css fences are all marked and unique."""
+    """The daisyUI guide's 86 html, 6 css and 1 jsx fences are marked and unique."""
     examples = load_tested_examples(DAISYUI_GUIDE_PATH)
     _assert_contract_satisfied(
         examples, expected_count=DAISYUI_EXPECTED_EXAMPLE_COUNT
     )
     languages = {example.language for example in examples}
-    assert languages == {"html", "css"}, (
-        f"expected only html and css fences, found languages {languages!r}"
+    assert languages == {"html", "css", "jsx"}, (
+        f"expected only html, css and jsx fences, found languages {languages!r}"
     )
 
 

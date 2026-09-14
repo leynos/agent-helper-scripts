@@ -475,10 +475,11 @@ targets” examples and shows what the accessible alternative should look like.
 To enforce these practices, ESLint rules and testing guidelines are
 integrated:
 
-- **ESLint plugins like Testing Library’s `prefer-user-event` and
-  `no-test-id-queries`** are enabled, which warn if a test uses `getByTestId`
-  when a role query is available, or if it calls low-level DOM methods
-  instead of simulating real user events.
+- **ESLint plugins like Testing Library’s `testing-library/no-test-id-queries`,
+  `testing-library/prefer-user-event`, and `testing-library/no-node-access`**
+  are enabled, which warn if a test uses `getByTestId` at all, calls low-level
+  DOM methods instead of simulating real user events, or accesses DOM nodes
+  directly instead of through Testing Library queries.
 
 - In pull request reviews, the team is instructed to flag any test code that
   doesn’t adhere to accessible-first querying. Over time this becomes second
@@ -488,8 +489,10 @@ integrated:
 
 By combining tooling (axe scans, proper libraries) with conventions (only use
 accessible queries, assert on ARIA/focus behaviours), the inner loop becomes a
-strong quality gate. A developer cannot merge a component that is functionally
-perfect but accessibly flawed – the tests would catch it.
+strong quality gate. It catches a defined subset of accessibility defects,
+such as missing roles, mismanaged focus, or non-accessible queries, before a
+component can merge. The browser-based outer loop, and the manual review that
+follows it, remain responsible for the defects this inner loop cannot reach.
 
 ## III. The Outer Loop: Comprehensive E2E Validation with Playwright
 
