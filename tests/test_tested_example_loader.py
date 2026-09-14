@@ -113,3 +113,26 @@ def test_a_marked_mermaid_fence_is_also_accepted_and_not_returned(
         "a marker before a mermaid fence must not cause it to be returned, "
         "since mermaid fences neither require nor reject a marker"
     )
+
+
+def test_a_four_backtick_fence_is_recognised_and_returned(
+    tmp_path: Path,
+) -> None:
+    """A marked four-backtick fence is recognised, closing on its own run.
+
+    The nested three-backtick fence in the body must not be mistaken for
+    the close, and must survive into the returned body untouched.
+    """
+    document_path = _write_document(
+        tmp_path,
+        "<!-- tested-example: nested-fence-example -->\n"
+        "````markdown\n"
+        "```python\nprint('hi')\n```\n"
+        "````\n",
+    )
+    examples = load_tested_examples(document_path)
+    assert len(examples) == 1, examples
+    example = examples[0]
+    assert example.identifier == "nested-fence-example"
+    assert example.language == "markdown"
+    assert example.body == "```python\nprint('hi')\n```"

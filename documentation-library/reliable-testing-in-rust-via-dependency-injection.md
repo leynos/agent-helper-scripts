@@ -148,6 +148,10 @@ requires, rather than mutating or relying on the harness process's own
 environment:
 
 ```rust,no_run
+// In tests/cli.rs: `CARGO_BIN_EXE_<name>` is set by Cargo only while
+// building an integration test or benchmark, never for a unit test or
+// doctest, so this snippet must live in a file under `tests/`, not in a
+// `#[cfg(test)]` module inside the crate.
 let program_under_test = env!("CARGO_BIN_EXE_my_app");
 let isolated_home = "/tmp/test-home";
 let controlled_path = "/usr/bin:/bin";

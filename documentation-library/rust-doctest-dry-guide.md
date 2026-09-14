@@ -308,7 +308,7 @@ compiled and available *only* when `cargo test --doc` is running. This code is
 excluded from normal production builds and standard unit test runs, preventing
 any pollution of the final binary or the public API.
 
-The typical implementation pattern is to create a private helper module within
+The typical implementation pattern is to create a public helper module within
 the library. The doctest must refer to it via the crate name (here `mycrate`,
 standing for the reader's own crate), never via `crate::`, because the
 doctest compiles as its own separate crate:

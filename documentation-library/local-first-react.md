@@ -391,7 +391,7 @@ By abstracting these concerns away, Tanstack Query allows developers to focus
 on what data their components need, rather than the complex mechanics of how to
 fetch and maintain it.
 
-### The Query Lifecycle: ,`staleTime`, vs. ,`gcTime`
+### The Query Lifecycle: `staleTime` vs. `gcTime`
 
 Understanding the distinction between `staleTime` and `gcTime` (garbage
 collection time) is the absolute key to mastering Tanstack Query's caching
@@ -698,7 +698,7 @@ by Tanstack Query to a durable storage layer. This transforms the cache from a
 transient, session-based optimization into a robust, local database that
 enables full offline functionality.
 
-### Enabling Offline Mode with ,`persistQueryClient`
+### Enabling Offline Mode with `persistQueryClient`
 
 The Tanstack ecosystem provides a dedicated utility for this purpose: the
 `@tanstack/react-query-persist-client` package. Its primary export, the
@@ -760,7 +760,7 @@ Simply adding a persister is not enough. To ensure a robust offline
 implementation, two critical configuration changes are required. Neglecting
 these will lead to a broken or unreliable offline experience.
 
-1. **Setting **`gcTime`** to Prevent Premature Data Loss:** As discussed in
+1. **Setting `gcTime` to Prevent Premature Data Loss:** As discussed in
    Section 4, `gcTime` controls when inactive data is removed from the cache.
    The default is 5 minutes. In an offline context, a query can easily become
    "inactive" for longer than this period. If `gcTime` is not increased,
@@ -771,7 +771,7 @@ these will lead to a broken or unreliable offline experience.
 `gcTime` must be set to a much higher value, such as 24 hours or even
 `Infinity`, to ensure that offline data is preserved indefinitely.[^25]
 
-1. **Using **`PersistQueryClientProvider`** to Prevent Race Conditions:**
+1. **Using `PersistQueryClientProvider` to Prevent Race Conditions:**
    Restoring the cache from an asynchronous storage like IndexedDB takes a
    small amount of time. During this hydration process, components may mount
    and trigger `useQuery` hooks, initiating new network requests before the
@@ -805,7 +805,7 @@ const persister = createIDBPersister();
 // 3. Register a default mutationFn so paused mutations can be resumed
 //    after a page reload, when the in-memory function reference is lost
 queryClient.setMutationDefaults(['todos', 'mutate'], {
-  mutationFn: ({ id, data }) => api.updateTodo(id, data),
+  mutationFn: (updatedTodo) => api.updateTodo(updatedTodo.id, updatedTodo),
 });
 
 function App() {
@@ -1011,7 +1011,7 @@ For slippy-map/WebMercator tiles:
 
 ```ts
 const lon2tileX = (lon: number, z: number) =>
-  Math.floor(((lon + 180) / 360) * (2 ** z));
+  Math.min(Math.floor(((lon + 180) / 360) * (2 ** z)), 2 ** z - 1);
 
 const lat2tileY = (lat: number, z: number) => {
   const rad = (lat * Math.PI) / 180;
@@ -1019,8 +1019,9 @@ const lat2tileY = (lat: number, z: number) => {
   return Math.floor((1 - n / Math.PI) / 2 * (2 ** z));
 };
 
-// Slippy-map tiles are indexed 0..2^z-1 per axis; beyond zoom 24 that
-// exponent starts to threaten safe-integer arithmetic, so cap it there.
+// Slippy-map tiles are indexed 0..2^z-1 per axis. 24 is a practical
+// application or provider limit, not a safe-integer boundary: 2 ** z stays
+// within Number.MAX_SAFE_INTEGER through z = 52 and exceeds it at z = 53.
 const MAX_SUPPORTED_ZOOM = 24;
 
 export function enumerateTiles(
@@ -1234,13 +1235,30 @@ export function useUpdateTodo() {
       const previousTodos = queryClient.getQueriesData({ queryKey });
 
       // 3. Optimistically update every matched list variant, not just the
-      //    unfiltered key, so filtered views stay in sync too
-      queryClient.setQueriesData({ queryKey }, (old) => {
+      //    unfiltered key, so filtered views stay in sync too. Re-evaluate
+      //    membership per variant, since an edit can move an item into or
+      //    out of a filtered view.
+      queryClient.getQueriesData({ queryKey }).forEach(([key, old = []]) => {
         if (!Array.isArray(old)) {
-          return old;
+          return;
         }
 
-        return old.map(todo => (todo.id === updatedTodo.id ? updatedTodo : todo));
+        const filters = key[2] ?? {};
+        const matchesFilter = filters.status
+          ? updatedTodo.status === filters.status
+          : true;
+        const exists = old.some(todo => todo.id === updatedTodo.id);
+
+        let nextData;
+        if (exists) {
+          nextData = matchesFilter
+            ? old.map(todo => (todo.id === updatedTodo.id ? updatedTodo : todo))
+            : old.filter(todo => todo.id !== updatedTodo.id);
+        } else {
+          nextData = matchesFilter ? [...old, updatedTodo] : old;
+        }
+
+        queryClient.setQueryData(key, nextData);
       });
 
       // 4. Return a context object with the snapshotted value
@@ -1349,19 +1367,26 @@ function TodoSocketBridge() {
       // shares the 'todos', 'list' prefix, not just the unfiltered key.
       // Only touch a variant's items if the incoming todo actually matches
       // that variant's own filter, carried as the third queryKey segment.
-      queryClient.setQueriesData({ queryKey: ['todos', 'list'] }, (oldData = [], query) => {
-        const filters = query.queryKey[2] ?? {};
-        const matchesFilter = filters.status ? newTodo.status === filters.status : true;
+      queryClient
+        .getQueriesData({ queryKey: ['todos', 'list'] })
+        .forEach(([key, oldData = []]) => {
+          const filters = key[2] ?? {};
+          const matchesFilter = filters.status
+            ? newTodo.status === filters.status
+            : true;
 
-        const exists = oldData.some(todo => todo.id === newTodo.id);
-        if (exists) {
-          return matchesFilter
-            ? oldData.map(todo => (todo.id === newTodo.id ? newTodo : todo))
-            : oldData.filter(todo => todo.id !== newTodo.id);
-        }
+          const exists = oldData.some(todo => todo.id === newTodo.id);
+          let nextData;
+          if (exists) {
+            nextData = matchesFilter
+              ? oldData.map(todo => (todo.id === newTodo.id ? newTodo : todo))
+              : oldData.filter(todo => todo.id !== newTodo.id);
+          } else {
+            nextData = matchesFilter ? [...oldData, newTodo] : oldData;
+          }
 
-        return matchesFilter ? [...oldData, newTodo] : oldData;
-      });
+          queryClient.setQueryData(key, nextData);
+        });
     };
 
     return () => socket.close();
