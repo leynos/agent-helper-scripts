@@ -1441,6 +1441,76 @@ The skill fixes these constraints:
 - The fact cache is scoped per scenario through `${MOLECULE_SCENARIO_NAME}`.
 - `molecule test --all` is the sequential fallback.
 
+## Tested-example contract
+
+The style guide's "Tested correctness" bullet, in
+[documentation-library/documentation-style-guide.md](../documentation-library/documentation-style-guide.md),
+requires every executable fenced example in a published, user-facing
+document to carry a `<!-- tested-example: <identifier> -->` marker on the
+line immediately before its fence, so a shared loader can pull the example
+straight out of the shipped Markdown and hand it to a test. The marker must
+be the line directly above the fence's opening line; a marker separated from
+its fence by a blank line, or by any other content, does not count.
+
+An opening fence may use a run of three or more backticks, and its closing
+fence must use a run at least as long as its opener. This is what lets a
+three-backtick example nest inside a four-backtick fence without the inner
+run closing the outer block.
+
+`tests/tested_example_test_support.py` is that loader. It exports:
+
+- `load_tested_examples(path)` — reads a Markdown file from disk, by path,
+  and returns a `list[TestedExample]`, one entry per executable fence, in
+  document order.
+- `TestedExample` — a frozen dataclass carrying `identifier`, `language`,
+  `body`, and the fence's 1-indexed opening `line`.
+- `TestedExampleError` — a `ValueError` subclass raised on a contract
+  violation, with a message naming the file and line.
+- `NON_EXECUTABLE_LANGUAGES` — the frozen set of fence languages the
+  contract does not cover; currently `{"mermaid"}`.
+
+Every fence language counts as executable and requires a marker, including
+an empty (missing) language tag. The loader fails closed on an unlabelled
+fence rather than exempting it, because the style guide already requires
+every fence to declare a language, so an unlabelled fence is far more likely
+to be an overlooked code sample than a deliberate diagram; failing closed
+turns the omission into a test failure naming the file and line, rather than
+letting an example quietly fall outside the contract's coverage.
+
+Mermaid fences are the sole exception, because the style guide explicitly
+assigns them to a different gate: the diagram-rendering check run by `make
+nixie`. A mermaid fence is accepted whether or not it carries a marker, and
+is never returned by the loader.
+
+The loader does not invent identifiers; it only validates and reports the
+ones already written in the document. Callers are expected to name each
+marker after the surrounding section or component — for example
+`daisyui-avatar-basic` or `femtologging-handler-flush` — rather than a
+positional counter, so that reordering a document does not renumber
+unrelated markers.
+
+The loader rejects four failure modes, each raising `TestedExampleError`
+with a message naming the offending line:
+
+- an executable fence with no marker immediately above it;
+- a marker whose identifier is empty;
+- a duplicate identifier reused within the same document; and
+- a fence that is opened but never closed.
+
+Two published guides currently sit under the contract:
+`documentation-library/daisyui-v5-guide.md` and
+`documentation-library/femtologging-users-guide.md`.
+`tests/test_tested_example_contract.py` loads both from their shipped paths
+and asserts each satisfies the contract in full — every executable fence
+marked, every identifier unique within its document, and the expected fence
+count and language set unchanged — so a regression in either document's
+markers, or a bug in the loader itself, fails a test rather than surfacing
+only when a downstream example-execution test silently stops running.
+`tests/test_tested_example_loader.py` exercises the four failure modes above
+against small inline documents, checking the specific diagnostic each
+raises, and separately confirms that an unmarked or marked mermaid fence is
+accepted and excluded from the results.
+
 ## Validation expectations
 
 When changing bootstrap behaviour in this repository, replay the usual
