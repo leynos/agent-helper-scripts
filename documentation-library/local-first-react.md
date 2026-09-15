@@ -1244,6 +1244,17 @@ export function useUpdateTodo() {
         }
 
         const filters = key[2] ?? {};
+
+        // A paginated variant's page membership depends on server-side
+        // ordering and page size the client does not have, so inserting or
+        // removing an item locally could place it on the wrong page.
+        // Invalidate paginated keys instead of writing to them, and keep
+        // the direct filter-aware write below for keys without pagination.
+        if (filters.page !== undefined) {
+          queryClient.invalidateQueries({ queryKey: key });
+          return;
+        }
+
         const matchesFilter = filters.status
           ? updatedTodo.status === filters.status
           : true;
@@ -1371,6 +1382,18 @@ function TodoSocketBridge() {
         .getQueriesData({ queryKey: ['todos', 'list'] })
         .forEach(([key, oldData = []]) => {
           const filters = key[2] ?? {};
+
+          // A paginated variant's page membership depends on server-side
+          // ordering and page size the client does not have, so inserting
+          // or removing an item locally could place it on the wrong page.
+          // Invalidate paginated keys instead of writing to them, and keep
+          // the direct filter-aware write below for keys without
+          // pagination.
+          if (filters.page !== undefined) {
+            queryClient.invalidateQueries({ queryKey: key });
+            return;
+          }
+
           const matchesFilter = filters.status
             ? newTodo.status === filters.status
             : true;

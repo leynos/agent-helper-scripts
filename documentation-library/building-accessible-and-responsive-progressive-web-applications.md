@@ -1084,9 +1084,12 @@ instead: its **Manifest** section lists the parsed manifest fields
 (`name`/`short_name`, `icons`, `start_url`, `display`, and so on) and
 surfaces any installability errors, such as a missing required icon size or
 a manifest that fails to load. The same panel confirms whether the page is
-served over HTTPS and whether an active service worker is currently
-controlling the page, both of which are required for the browser to consider
-the PWA installable.
+served over HTTPS, which alongside a valid manifest is required for the
+browser to consider the PWA installable. Chrome has removed the requirement
+for a service worker implementing `fetch()` when installing from the menu,
+though the automatic install prompt still depends on one until further
+changes are made, so a missing or inactive service worker no longer blocks
+menu installation but can still suppress the prompt.
 
 #### Testing Offline Reliability
 

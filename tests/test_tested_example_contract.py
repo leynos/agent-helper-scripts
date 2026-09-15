@@ -12,6 +12,7 @@ silently stops running.
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 from tested_example_test_support import TestedExample, load_tested_examples
@@ -55,9 +56,10 @@ def test_the_daisyui_guide_marks_every_html_and_css_fence() -> None:
     _assert_contract_satisfied(
         examples, expected_count=DAISYUI_EXPECTED_EXAMPLE_COUNT
     )
-    languages = {example.language for example in examples}
-    assert languages == {"html", "css", "jsx"}, (
-        f"expected only html, css and jsx fences, found languages {languages!r}"
+    language_counts = Counter(example.language for example in examples)
+    assert language_counts == Counter({"html": 86, "css": 6, "jsx": 1}), (
+        "expected exactly 86 html, 6 css and 1 jsx fences, found "
+        f"{language_counts!r}"
     )
 
 
