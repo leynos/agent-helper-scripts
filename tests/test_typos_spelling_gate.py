@@ -15,7 +15,9 @@ from typos_rollout_test_support import (
     REPOSITORY_ROOT,
     SHARED_DICTIONARY_PATH,
     deny_path_reads,
+    prepare_spelling_gate_repository,
     require_executable,
+    run_spelling_gate,
 )
 
 HYPHENATED_HANDWRITTEN = "hand" + "-written"
@@ -54,46 +56,6 @@ def test_makefile_spelling_gate_uses_pinned_typos() -> None:
         assert flag not in makefile, (
             f"the target passes {flag} itself; the runner owns that invocation"
         )
-
-
-def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
-    """Create an indexed consumer fixture for behavioural Makefile checks."""
-    repository = tmp_path / "consumer"
-    repository.mkdir()
-    for path in ("Makefile", "typos.local.toml", "typos.toml"):
-        shutil.copy2(REPOSITORY_ROOT / path, repository / path)
-    shutil.copytree(REPOSITORY_ROOT / "data", repository / "data")
-    shutil.copytree(REPOSITORY_ROOT / "scripts", repository / "scripts")
-    git = require_executable("git")
-    subprocess.run(
-        [git, "init", "--quiet"],
-        cwd=repository,
-        check=True,
-        timeout=30,
-    )
-    subprocess.run(
-        [git, "add", "."],
-        cwd=repository,
-        check=True,
-        timeout=30,
-    )
-    return repository
-
-
-def run_spelling_gate(
-    repository: Path,
-    scanner: str = "true",
-) -> subprocess.CompletedProcess[str]:
-    """Run the spelling target, doubling the scanner unless one is named."""
-    make = require_executable("make")
-    return subprocess.run(
-        [make, "spelling", f"TYPOS={scanner}"],
-        cwd=repository,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=90,
-    )
 
 
 def test_spelling_gate_rejects_stale_generated_config(tmp_path: Path) -> None:

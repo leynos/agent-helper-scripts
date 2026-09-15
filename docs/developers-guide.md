@@ -446,11 +446,39 @@ while a local `make ci` still runs it.
 The architecture and trade-offs are recorded in
 [ADR 003](adr/003-shared-oxford-spelling-base.md).
 
+Consumer repositories no longer vendor this generator. The consumer boundary
+is `typos-config-builder gate`, pinned to a released tag:
+
+```bash
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
+  typos-config-builder gate
+```
+
+`gate` fetches `data/typos-oxendict-base.toml` live from this repository's
+`main`, merges the consumer's optional `typos.local.toml` overlay, and
+rewrites `typos.toml` on every run. The fetched dictionary is cached in
+ignored `.typos-oxendict-base.toml`, with freshness metadata in
+`.typos-oxendict-base.json`, so a valid cache still supports offline runs.
+
+**Rollout status:** as of 2026-09-14 no consumer has migrated onto this
+contract. Twenty-eight repositories invoke the builder pinned to a commit,
+alongside their own phrase-check script; thirty-six still run a vendored
+copy of this repository's generator, which receives dictionary updates but
+enforces no phrase corrections. Migration order and status are tracked in
+`docs/execplans/audit-missing-functionality.md` in
+`leynos/typos-config-builder`. See the "Shared spelling tools" section of
+[docs/users-guide.md](users-guide.md) for the full consumer contract.
+
+The rest of this section covers maintaining the shared base in this
+repository: curation rules and the local generator this repository's own
+`make spelling` gate runs. A migrated consumer never invokes that generator
+directly.
+
 The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
 generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
 there only when it is valid across repositories. Product names, quoted upstream
-terms and fixture-specific vocabulary belong in the consumer repository's
-tracked `typos.local.toml` overlay.
+terms and fixture-specific vocabulary belong in a consumer's own
+`typos.local.toml` overlay instead.
 
 Local pattern additions merge with the shared ignore list. A local
 `[patterns] remove` list then withdraws exact shared entries, allowing a
@@ -458,7 +486,9 @@ consumer to narrow an overly broad authority pattern without forking the
 generator. A pattern cannot appear in both the local `ignore` and `remove`
 lists; removals that no longer exist upstream remain valid no-ops.
 
-The executable `scripts/typos_rollout_cli.py` provides three commands.
+The executable `scripts/typos_rollout_cli.py` is the local generator this
+repository's own `make spelling` gate runs to curate and check the shared
+base; it is not what a migrated consumer runs. It provides three commands.
 `harvest` emits JSON Lines evidence for both plain-British `-ise` and Oxford
 `-ize` forms found in Git-tracked UTF-8 text. `generate` conditionally
 refreshes the untracked `.typos-oxendict-base.toml` cache, merges any local
