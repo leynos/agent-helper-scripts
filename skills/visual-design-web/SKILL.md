@@ -1,18 +1,8 @@
 ---
 name: visual-design-web
-description: >
-  Visual strategy, art direction, and design critique for websites. Use this
-  skill whenever the user asks for visual direction, page design strategy,
-  design critique, hierarchy planning, concept exploration, or art direction
-  for any web page or site — including landing pages, service/transactional
-  pages, dashboards, editorial layouts, portfolios, campaign pages, and
-  design-system foundations. Also trigger when the user asks to evaluate an
-  existing web design, generate concept territories, plan visual hierarchy,
-  choose type/colour/image strategy, or review a design for accessibility
-  and communication clarity. This skill produces design rationale, concept
-  directions, hierarchy maps, system strategies, and review notes — not
-  HTML/CSS code. If the user needs implementation, hand off to the
-  frontend-design skill after the design direction is set.
+description: >-
+  Set or critique web visual direction and hierarchy; produce strategy and
+  review notes, not HTML/CSS implementation.
 ---
 
 # Visual design for the web

@@ -1,6 +1,8 @@
 ---
 name: execplans
-description: Write and maintain self-contained ExecPlans (execution plans) that a novice can follow end-to-end; use when planning or implementing non-trivial repo changes.
+description: >-
+  Create and maintain self-contained ExecPlans for non-trivial repository work
+  that a novice can execute end to end.
 ---
 
 # Codex execution plans (ExecPlans)

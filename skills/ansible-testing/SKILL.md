@@ -1,16 +1,8 @@
 ---
 name: ansible-testing
-description: >
-  Local-first Ansible testing for roles and modules within collections. Use
-  whenever the user wants to add, run, scaffold, or debug tests for an Ansible
-  collection, role, or module. Triggers include: "test my Ansible role",
-  "add Molecule tests", "run ansible-test", "set up integration tests",
-  "scaffold a test scenario", "run sanity checks", "write unit tests for a
-  module", "test a collection locally". Always prefer this skill over ad hoc
-  shell suggestions when Ansible testing is the subject. The skill covers the
-  full testing stack: Molecule + Podman for roles, ansible-test for modules
-  and collections (sanity, unit, integration). Python 3.12+, collections
-  layout, and Podman are assumed throughout.
+description: >-
+  Test Ansible roles, modules, and collections with Molecule, Podman, and
+  ansible-test; covers scaffolding and CI.
 ---
 
 # Ansible Testing Skill

@@ -35,7 +35,7 @@ from comenq_coderabbit_contract_data import (
     README_SIGNPOST,
     REHEARSAL_SCENARIO_COUNT,
     REQUIRED_AGENT_ROLES,
-    REQUIRED_DESCRIPTION_TRIGGERS,
+    REQUIRED_ROUTING_CASES,
     REQUIRED_SKILL_HEADINGS,
     REQUIRED_SKILL_RULES,
     SKILL_LINK,
@@ -124,16 +124,15 @@ def validate_skill_contract(skill: str, failure_modes: str, evidence: str) -> No
     )
     description = frontmatter.get("description")
     assert isinstance(description, str), "the skill must declare a description"
-    normalized_description = normalize(description)
-    for trigger in REQUIRED_DESCRIPTION_TRIGGERS:
-        assert trigger in normalized_description, (
-            f"discovery metadata must advertise {trigger!r}"
+    normalized_skill = normalize(skill)
+    for routing_case in REQUIRED_ROUTING_CASES:
+        assert routing_case in normalized_skill, (
+            f"the loaded skill must document the {routing_case!r} routing case"
         )
 
     for heading in REQUIRED_SKILL_HEADINGS:
         assert heading in skill, f"the skill must retain the {heading!r} section"
 
-    normalized_skill = normalize(skill)
     for rule, sentence in REQUIRED_SKILL_RULES.items():
         assert normalize(sentence) in normalized_skill, (
             f"the skill must retain the {rule} rule: `{sentence}`"

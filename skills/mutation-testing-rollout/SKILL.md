@@ -1,6 +1,8 @@
 ---
 name: mutation-testing-rollout
-description: Roll out scheduled, informational mutation testing across an estate of repositories, triage the results into issues and killing tests, and keep the callers documented and drift-free.
+description: >-
+  Roll out informational mutation testing across repositories; triage survivors
+  into issues and stronger tests.
 ---
 
 # Mutation-testing estate rollout and triage

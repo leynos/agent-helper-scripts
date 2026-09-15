@@ -20,7 +20,7 @@ EVIDENCE_LINK = (
     "../skills/comenq-coderabbit/references/evidence-and-rehearsal.md"
 )
 
-REQUIRED_DESCRIPTION_TRIGGERS = (
+REQUIRED_ROUTING_CASES = (
     "review requests",
     "duplicate reviews",
     "clone or service failures",

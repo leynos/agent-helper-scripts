@@ -1,14 +1,8 @@
 ---
 name: odw-testing
-description: >
-  Test Open Dynamic Workflows (ODW) workflow scripts effectively. Use when the
-  user wants to write, extend, review, or debug tests for an ODW workflow;
-  when they mention testing `odw` workflows, workflow test suites, mock
-  adapters, schema-satisfying mock agents, parse gates, helper-surface
-  extraction, control-loop simulation, `events.jsonl` assertions, or
-  verifying a workflow before a live run. Complements `odw-authoring` (which
-  covers writing workflows) and `odw-supervision` (which covers operating
-  runs).
+description: >-
+  Write, review, and debug tests for Open Dynamic Workflows using mocks, parse
+  gates, simulations, and event assertions.
 ---
 
 # ODW Testing

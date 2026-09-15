@@ -1,14 +1,8 @@
 ---
 name: codescene-cli
-description: >
-  Run CodeScene code health analyses locally with the `cs` CLI. Use this skill
-  whenever the user wants to analyse non-committed or staged changes, compare
-  branches or commits with a delta analysis, lint a file for code health issues,
-  wire CodeScene into git hooks, editors, or CI, or validate or edit
-  `.codescene/code-health-rules.json` from the command line. Triggers include
-  `cs delta`, `cs review`, `cs check`, `cs check-rules`, `cs rules-config`, and
-  requests to
-  "run CodeScene locally" or "check code health before committing".
+description: >-
+  Run local CodeScene health analyses on working changes, branches, commits, or
+  files; integrate checks with hooks and CI.
 ---
 
 # CodeScene CLI (`cs`)

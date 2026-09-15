@@ -1,6 +1,8 @@
 ---
 name: biome-typescript
-description: Configure and use Biome (biomejs) for TypeScript linting and formatting. Use when setting up Biome in a project, configuring lint rules, migrating from ESLint/Prettier, fixing lint errors, setting up CI pipelines with Biome, or configuring git hooks for code quality. Covers biome.json configuration, file inclusion/exclusion patterns, rule overrides, and integration with build tooling.
+description: >-
+  Configure Biome for TypeScript linting and formatting, including migrations,
+  rules, CI, hooks, and error fixes.
 ---
 
 # Biome TypeScript Linting Skill

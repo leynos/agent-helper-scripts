@@ -1,13 +1,8 @@
 ---
 name: odw-supervision
-description: >
-  Supervise Open Dynamic Workflows (ODW) runs. Use when the user wants to
-  inspect, monitor, debug, pause, resume, stop, list, follow logs for, retrieve
-  results from, or operate the dashboard/API for an ODW workflow run; when they
-  mention ODW run IDs, `odw status`, `odw logs`, `odw result`, `odw serve`,
-  `events.jsonl`, `status.json`, `result.json`, `error.json`, `worker.log`,
-  run directories, dashboard jobs, SSE streams, Claude Code workflow visibility,
-  `workspaceMode`, `inplace`, multi-provider handoff, or workflow supervision.
+description: >-
+  Operate Open Dynamic Workflows runs: inspect status and logs, debug, pause,
+  resume, stop, and retrieve results.
 ---
 
 # ODW Supervision

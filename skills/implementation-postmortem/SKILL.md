@@ -1,6 +1,8 @@
 ---
 name: implementation-postmortem
-description: Conduct structured implementation postmortems to gather feedback on architecture conformance, library friction, and tooling effectiveness. Use when reviewing completed implementations, PRs, or development phases to surface design gaps, boundary violations, and improvement opportunities. Triggers on requests for code review feedback, implementation retrospectives, architecture audits, or library/tooling evaluations.
+description: >-
+  Review completed implementations for architecture conformance, library
+  friction, tooling gaps, and lessons learned.
 ---
 
 # Implementation Postmortem Agent

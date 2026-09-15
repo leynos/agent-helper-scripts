@@ -1,6 +1,8 @@
 ---
 name: grepai
-description: "Workspace-first GrepAI search workflow for programming agents (v0.34+): project-scoped semantic search, token-efficient output, and reliable fallbacks."
+description: >-
+  Navigate code semantically with GrepAI using project-scoped search,
+  token-efficient output, and reliable fallbacks.
 ---
 
 # GrepAI Workspace Search (Agent-Focused)

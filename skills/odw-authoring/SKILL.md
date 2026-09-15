@@ -1,14 +1,8 @@
 ---
 name: odw-authoring
-description: >
-  Author Open Dynamic Workflows (ODW) workflow scripts. Use when the user wants
-  to design, write, review, repair, or run-check an ODW workflow; when they
-  mention `odw`, Open Dynamic Workflows, Claude Code workflow dialect, dynamic
-  workflows, multi-agent orchestration, `agent()`, `parallel()`, `pipeline()`,
-  nested `workflow()`, workflow generation, JSON-Schema agent outputs, adapter
-  routing, `workspaceMode`, `inplace`, multi-provider handoff, or examples such
-  as fan-out/reduce, deep research, adversarial verification, routing,
-  tournament, or loop-until-dry workflows.
+description: >-
+  Design, write, review, repair, or run-check Open Dynamic Workflows scripts and
+  multi-agent orchestration.
 ---
 
 # ODW Authoring

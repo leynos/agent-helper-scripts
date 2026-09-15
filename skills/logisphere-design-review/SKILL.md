@@ -1,14 +1,8 @@
 ---
 name: logisphere-design-review
-description: >
-  Pre-implementation design review framework using the df12 Logisphere crew. Stress-tests system designs,
-  RFCs, ADRs, API proposals, data models, and architecture decisions before code gets written. Each expert
-  examines the design through their specialist lens — structural integrity (Pandalump), alternative approaches
-  (Wafflecat), scaling characteristics (Buzzy Bee), contract design (Telefono), failure modes (Doggylump),
-  and long-term viability (Dinolump). Includes a structured pre-mortem and alternatives checkpoint. Use this
-  skill when asked to review a design document, RFC, ADR, system proposal, API design, or architecture
-  decision — or when asked "should we build it this way", "what could go wrong", "design review",
-  "pre-mortem", "architecture review", "RFC review", or any request for pre-implementation feedback.
+description: >-
+  Stress-test proposed designs before implementation through multi-perspective
+  review, pre-mortem, and alternatives.
 ---
 
 # Logisphere Design Review — Pre-Implementation Expert Panel

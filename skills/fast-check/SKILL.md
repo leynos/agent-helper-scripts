@@ -1,15 +1,8 @@
 ---
 name: fast-check
-description: >
-  Write and maintain fast-check property-based tests for TypeScript and
-  JavaScript, including arbitrary design, the filtering trap, model-based
-  (stateful) testing with commands, race-condition detection with the
-  scheduler, replay of failures, and CI tiering. Trigger whenever the user
-  mentions fast-check, property-based testing in TypeScript or JavaScript,
-  fc.assert, fc.property, arbitraries, model-based testing, fuzzing a
-  TypeScript function, or wants generated inputs instead of handwritten
-  test cases. Covers fast-check 4.x and flags 3.x idioms that no longer
-  hold.
+description: >-
+  Write fast-check property tests for JavaScript and TypeScript, including
+  generators, stateful models, races, and replay.
 ---
 # fast-check property-based testing for TypeScript and JavaScript
 

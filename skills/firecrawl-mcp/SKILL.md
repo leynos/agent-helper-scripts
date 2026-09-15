@@ -1,17 +1,8 @@
 ---
 name: firecrawl-mcp
-description: >
-  Using the Firecrawl MCP server to scrape, search, crawl, and interact with
-  the web. Use this skill whenever the Firecrawl MCP tools are available and
-  you need to retrieve web content, discover URLs on a site, search the web
-  with full-page content retrieval, extract structured data from pages, perform
-  autonomous multi-source web research, or drive a page through a live browser
-  session. Trigger this skill for any task involving firecrawl_scrape,
-  firecrawl_search, firecrawl_map, firecrawl_crawl, firecrawl_agent,
-  firecrawl_interact, or firecrawl_interact_stop. Also trigger when the user
-  asks you to "scrape", "crawl", "map a site", "extract data from a page",
-  "search with Firecrawl", or "interact with a page", even if they don't
-  mention Firecrawl by name — provided the MCP tools are connected.
+description: >-
+  Use connected Firecrawl MCP tools to scrape, crawl, map, search, extract,
+  research, or interact with web pages.
 ---
 
 # Firecrawl MCP — Agent Skill

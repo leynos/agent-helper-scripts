@@ -1,6 +1,8 @@
 ---
 name: nanobanana
-description: "Craft high-precision prompts and edit instructions for Nano Banana image workflows, especially when using the local nanobanana MCP tools for generation, editing, character consistency, or multi-image fusion. Use when the task needs structured prompts, reference-role assignment, layout-heavy image specs, typography-heavy images, iterative edit-first refinement, or reliable model/aspect/output-path choices."
+description: >-
+  Craft Nano Banana image-generation and edit prompts for references, layout,
+  typography, consistency, and fusion.
 ---
 
 # Nanobanana

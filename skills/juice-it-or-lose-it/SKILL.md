@@ -1,6 +1,8 @@
 ---
 name: juice-it-or-lose-it
-description: Diagnose and add "juice" — game feel, feedback, and tactile polish — to games, prototypes, and interactive software. Use this skill whenever the user is building, polishing, prototyping, or reviewing a game (especially action, arcade, platformer, shooter, or rhythm games), or when they ask about game feel, juice, screen shake, hit feedback, particles, easing, tweening, screen pause/hitstop, juicy effects, "making it feel good", or why their prototype feels limp, lifeless, dry, or cheap. Also trigger when reviewing UI prototypes that need tactile response, or when the user mentions Jonasson, Purho, Vlambeer, Nuclear Throne, screen shake, or Steve Swink's "Game Feel" book. Apply even to non-game interactive software when the user wants buttons, transitions, or interactions to feel responsive and satisfying.
+description: >-
+  Add or critique game feel and tactile feedback—motion, hitstop, particles,
+  easing, and responsive interactions.
 ---
 
 # Juice it or Lose it

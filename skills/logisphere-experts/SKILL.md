@@ -1,14 +1,8 @@
 ---
 name: logisphere-experts
-description: >
-  Community-of-experts review framework using the df12 Logisphere crew for software engineering tasks.
-  Each expert brings a distinct engineering perspective: architecture (Pandalump), creative alternatives
-  (Wafflecat), performance and observability (Buzzy Bee), type safety and contracts (Telefono),
-  reliability and ops (Doggylump), and developer experience (Dinolump). Use this skill when asked to
-  review code, design systems, evaluate architecture decisions, debug complex issues, assess production
-  readiness, or when a thorough multi-perspective engineering analysis is needed. Triggers include:
-  "review this", "what do you think of this design", "is this production-ready", "logisphere review",
-  "expert review", "community review", "crew review", or any request for comprehensive engineering feedback.
+description: >-
+  Review code, architecture, debugging, or readiness through multiple
+  specialist engineering perspectives.
 ---
 
 # Logisphere Experts — Community of Experts Review

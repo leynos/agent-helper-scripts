@@ -1,10 +1,8 @@
 ---
 name: rebase
-description: >
-  Rebase a branch onto an explicit target, including restacking after a parent
-  PR was squash-merged. Establish and validate the exclusive replay boundary
-  before rewriting history; preserve recovery evidence, resolve conflicts,
-  audit the replay, and validate the exact new candidate.
+description: >-
+  Safely rebase onto an explicit target or restack after squash-merge;
+  establish the replay boundary before rewriting.
 ---
 
 # Rebase the current branch or restack safely

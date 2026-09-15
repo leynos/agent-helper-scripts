@@ -579,6 +579,10 @@ recorded drift form now carries one canonical replacement for every consumer.
 - `make skill-manifest-validate`
   - Runs `skills-ref validate` over each skill directory to enforce the
     Agent Skills manifest schema.
+  - `tests/test_skill_manifests.py` adds the repository's discovery contract:
+    after whitespace normalization, every shipped description is a complete
+    sentence no longer than 120 characters. Keep detailed routing cases and
+    procedures in the loaded skill body rather than extending the description.
 - `make shell-syntax-check`
   - Runs `bash -n` over every shell script listed in `SHELL_SCRIPTS` to catch
     syntax errors without executing any code.

@@ -1,12 +1,8 @@
 ---
 name: comenq-coderabbit
 description: >-
-  Request CodeRabbit reviews through the managed comenq queue and carry the
-  review-response loop through evidence-backed convergence. Use for review
-  requests, queue delays, duplicate reviews, clone or service failures, stale
-  pre-merge tables, documentation-coverage disputes, unresolved threads, stale
-  CHANGES_REQUESTED decisions, review evidence invalidated by a restack, or
-  agent-team triage and remediation of CodeRabbit findings.
+  Run managed CodeRabbit review and remediation loops through comenq until
+  findings reach evidence-backed convergence.
 ---
 
 # CodeRabbit reviews via comenq
@@ -21,6 +17,11 @@ September 2026 implementation-postmortem lessons. Deployment-specific hosts,
 sockets, credentials, seat limits, and approved identities remain installation
 configuration, not defaults supplied by this skill. Do not copy credentials into
 comments or evidence records.
+
+Use this workflow for review requests, queue delays or duplicate reviews, clone
+or service failures, stale pre-merge tables, documentation-coverage disputes,
+unresolved threads, stale CHANGES_REQUESTED decisions, review evidence
+invalidated by a restack, and agent-team triage and remediation of findings.
 
 ## Read the relevant recovery guide
 

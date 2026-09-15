@@ -1,6 +1,8 @@
 ---
 name: sem
-description: "Semantic version control — entity-level diffs on top of Git. Use when reviewing code changes, understanding what changed in a commit/PR, diffing files, analysing impact of changes, or when line-level diffs are insufficient. Triggers: sem diff, semantic diff, what changed, entity diff, function diff, impact analysis, entity blame, dependency graph, code change summary, what broke, what was renamed, show changes semantically, 语义差异, 实体级别差异"
+description: >-
+  Use semantic, entity-level Git diffs to review changes, renamed symbols,
+  dependencies, and impact beyond line diffs.
 ---
 
 # sem — Semantic Version Control

@@ -1,6 +1,8 @@
 ---
 name: hypothesis-debugging
-description: Structured code debugging through hypothesis formation and falsification planning. Use when diagnosing bugs, unexpected behaviour, or system failures where the root cause is unclear. Produces a hypothesis document for execution by another agent rather than performing the investigation directly. Triggers on requests to debug issues, diagnose problems, investigate failures, or create debugging plans.
+description: >-
+  Plan unclear-bug diagnosis with falsifiable hypotheses; output a plan for
+  another agent, not the investigation.
 ---
 
 # Hypothesis-Driven Debugging

@@ -1,13 +1,8 @@
 ---
 name: nextest
 description: >-
-  Use when running Rust tests with cargo-nextest. Keywords: cargo nextest,
-  nextest, test runner, run tests, test parallelism, test threads, flaky test,
-  retry, slow test, timeout, test group, filterset, test partition, sharding,
-  continuous integration (CI) testing, nextest profile, nextest config,
-  .config/nextest.toml, cargo nextest run, cargo nextest list, test archive,
-  JUnit, stress test, miri, test coverage, cargo-mutants, criterion, debugger,
-  tracer.
+  Run and configure Rust tests with cargo-nextest, including profiles, filters,
+  retries, timeouts, partitions, and CI.
 ---
 
 # cargo-nextest: The Rust Test Runner

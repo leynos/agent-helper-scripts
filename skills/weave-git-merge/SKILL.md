@@ -1,6 +1,8 @@
 ---
 name: weave-git-merge
-description: Use and troubleshoot Weave as an entity-aware Git merge driver during merges, rebases, cherry-picks, and conflict resolution. Use when configuring Weave, previewing a merge, checking whether Git will invoke it, interpreting Weave conflict markers or exit behaviour, detecting structurally corrupt clean results, auditing semantic corruption after a clean replay, bypassing Weave safely, recovering from driver failures, or explaining what Weave actually resolves versus when it falls back to line-level merging.
+description: >-
+  Configure and troubleshoot Weave's entity-aware Git merge driver; verify
+  clean results and recover or bypass it safely.
 ---
 
 # Use Weave with Git

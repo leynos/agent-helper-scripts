@@ -11,6 +11,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHIPPED_MANIFESTS = sorted((REPO_ROOT / "skills").glob("*/SKILL.md"))
+DESCRIPTION_DISCOVERY_LIMIT = 120
 
 
 def _run_make(target: str, *skill_dirs: Path) -> subprocess.CompletedProcess[str]:
@@ -91,6 +92,23 @@ def test_shipped_metadata_values_are_strings(manifest: Path) -> None:
     assert isinstance(metadata, dict), f"metadata must be a mapping, got {type(metadata).__name__}"
     non_strings = {key: value for key, value in metadata.items() if not isinstance(value, str)}
     assert not non_strings, f"metadata values must be strings: {non_strings}"
+
+
+@pytest.mark.parametrize("manifest", SHIPPED_MANIFESTS, ids=lambda path: path.parent.name)
+def test_shipped_descriptions_fit_codex_discovery_budget(manifest: Path) -> None:
+    """Discovery descriptions are complete sentences within the Codex prefix."""
+    description = _frontmatter(manifest).get("description")
+
+    assert isinstance(description, str), "the skill must declare a description"
+    normalized = " ".join(description.split())
+    assert normalized, "the skill description must not be empty"
+    assert len(normalized) <= DESCRIPTION_DISCOVERY_LIMIT, (
+        f"description is {len(normalized)} characters; "
+        f"the discovery budget is {DESCRIPTION_DISCOVERY_LIMIT}: {manifest}"
+    )
+    assert normalized.endswith((".", "!", "?")), (
+        f"description must be a complete sentence: {manifest}"
+    )
 
 
 def test_frontmatter_lint_reports_an_early_failure(tmp_path: Path) -> None:

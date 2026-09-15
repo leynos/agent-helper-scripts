@@ -1,6 +1,8 @@
 ---
 name: compressed-authority
-description: Write in a compressed, evidence-first voice that is blunt, exact, and conversational without drifting into fluff. Use when the user wants sharper prose, forceful argumentation, deadpan wit, Socratic pressure on weak claims, concise rewrites, opinion columns, debate prep, critiques of bad reasoning, or explanations that should sound authoritative without sounding bloated.
+description: >-
+  Write or rewrite concise, evidence-led, authoritative prose with blunt
+  reasoning, dry wit, and no rhetorical padding.
 ---
 
 # Compressed Authority

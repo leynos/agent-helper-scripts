@@ -57,10 +57,10 @@ def test_skill_discovery_metadata_describes_corruption_recovery() -> None:
         "the skill name must match its directory so discovery resolves it"
     )
     assert isinstance(description, str), "the skill must declare a description"
-    assert "detecting structurally corrupt clean results" in description, (
+    assert "verify clean results" in description, (
         "discovery must advertise silent-corruption detection"
     )
-    assert "bypassing Weave safely" in description, (
+    assert "bypass it safely" in description, (
         "discovery must advertise the safe bypass route"
     )
 

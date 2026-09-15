@@ -1,16 +1,8 @@
 ---
 name: lemmascript
-description: >
-  Verify TypeScript formally with LemmaScript: write `//@` specification
-  annotations in ordinary TypeScript, generate Dafny or Lean artefacts
-  with `lsc`, and discharge proof obligations so properties hold for all
-  inputs, not just sampled ones. Trigger whenever the user mentions
-  LemmaScript, lsc, formal verification or model checking of TypeScript
-  or JavaScript, proving a TypeScript function correct, `//@ requires`
-  / `//@ ensures` annotations, .dfy.gen files, or wants machine-checked
-  guarantees (invariant preservation, conservation, soundness,
-  completeness) for TypeScript code. Covers LemmaScript 0.5.x (tech
-  preview) with the Dafny and Lean backends.
+description: >-
+  Formally verify TypeScript with LemmaScript specifications and Dafny or Lean
+  proofs when sampled tests are insufficient.
 ---
 
 # LemmaScript formal verification for TypeScript

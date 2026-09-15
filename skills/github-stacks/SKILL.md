@@ -1,16 +1,8 @@
 ---
 name: github-stacks
-description: >
-  Create, navigate, and manage stacks of branches and pull requests with the
-  `gh stack` GitHub CLI extension (GitHub's native stacked pull requests,
-  public preview). Use whenever the user wants to split work into stacked or
-  dependent pull requests, or mentions "stacked PRs", "gh stack", "stack of
-  branches", "cascading rebase", "stack sync", "unstack", or asks to submit,
-  rebase, restructure, or merge a stack. Also use when an existing chain of
-  PRs (each based on the branch below) should be linked into a stack, or when
-  branches managed by other tools (Jujutsu, Sapling, git-town) need linking
-  into a stack of PRs. Covers the full lifecycle: init, add, submit, sync,
-  rebase, modify, merge, and conflict recovery.
+description: >-
+  Manage branch and pull-request stacks with `gh stack`, including submission,
+  rebasing, restructuring, and recovery.
 ---
 # GitHub Stacked Pull Requests (`gh stack`)
 

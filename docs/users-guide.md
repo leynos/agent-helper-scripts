@@ -67,6 +67,13 @@ loader uses; a manifest without it is not discoverable.
 Each shipped skill directory matches its manifest `name`, so a skill can be
 referred to by the same identifier on disk and at the point of discovery.
 
+Codex presents only a short prefix of each skill description during discovery.
+Shipped descriptions therefore use one purpose-led sentence of at most 120
+characters. The sentence identifies the user task, the distinctive technology
+or artefact, and any boundary needed to distinguish neighbouring skills.
+Detailed triggers, versions, commands, and procedures live in the skill body,
+which the agent loads only after selecting the skill.
+
 `make lint` validates every shipped manifest, so a malformed or
 non-conformant manifest cannot be installed.
 

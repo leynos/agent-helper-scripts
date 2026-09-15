@@ -1,15 +1,8 @@
 ---
 name: zod4-typescript
-description: >
-  Use Zod 4 idiomatically in TypeScript projects for schema validation, type inference,
-  serialization/deserialization, JSON Schema interop, and error handling. Trigger whenever
-  the user mentions Zod, schema validation in TypeScript, runtime type checking, form
-  validation, API contract validation, z.object, z.string, z.infer, z.parse, or is writing
-  TypeScript code that involves parsing, validating, or transforming untrusted data. Also
-  trigger when migrating from Zod 3 to Zod 4, or when the user references Zod schemas in
-  the context of OpenAPI, JSON Schema, tRPC, React Hook Form, or similar integrations.
-  This skill covers Zod 4.x (including 4.1 codecs, 4.3 features) and explicitly flags
-  Zod 3 assumptions that no longer hold.
+description: >-
+  Design, migrate, and use Zod 4 schemas for TypeScript validation, inference,
+  transformation, errors, and JSON Schema.
 ---
 
 # Zod 4 for TypeScript

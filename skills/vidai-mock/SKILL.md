@@ -1,11 +1,8 @@
 ---
 name: vidai-mock
 description: >-
-  Use VidaiMock as a local, offline, wire-accurate mock server for developing
-  and testing software that targets OpenAI-, Anthropic-, Gemini-, Bedrock-, and
-  compatible chat APIs. Covers startup and run modes, provider and Tera
-  template configuration, streaming physics, tool-call and agentic-loop
-  simulation, chaos and error injection, and observability-driven validation.
+  Test chat-API clients against VidaiMock's offline, wire-accurate server,
+  including streaming, tools, and faults.
 ---
 
 # VidaiMock Skill

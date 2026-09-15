@@ -1,6 +1,8 @@
 ---
 name: code-review
-description: Conduct thorough, actionable code reviews that catch real problems without drowning in noise
+description: >-
+  Review code and pull requests for consequential defects, with actionable
+  findings and minimal noise.
 metadata:
   invocation: /review
   aliases: cr, review-pr

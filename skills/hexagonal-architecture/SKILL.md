@@ -1,6 +1,8 @@
 ---
 name: hexagonal-architecture
-description: Design, implement, and maintain applications using hexagonal architecture (ports and adapters). Use when (1) designing new systems requiring clear separation between domain logic and infrastructure, (2) refactoring monolithic or tightly-coupled codebases toward cleaner boundaries, (3) reviewing architecture for dependency rule violations or layer leakage, (4) establishing testing strategies that isolate domain logic, or (5) evaluating whether hexagonal architecture suits a given problem domain.
+description: >-
+  Design, refactor, or review applications using hexagonal architecture, clear
+  domain boundaries, ports, and adapters.
 ---
 
 # Hexagonal Architecture
