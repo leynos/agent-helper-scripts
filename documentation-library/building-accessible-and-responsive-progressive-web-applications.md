@@ -1074,12 +1074,16 @@ categories.[^15]
 
 #### Checking Installability with Chrome DevTools
 
-Lighthouse 9 removed its dedicated "Progressive Web App" audit category, so
-passing a Lighthouse score is no longer how installability is verified.
-Instead, use the Chrome DevTools **Application** panel: its **Manifest**
-section lists the parsed manifest fields (`name`/`short_name`, `icons`,
-`start_url`, `display`, and so on) and surfaces any installability errors,
-such as a missing required icon size or a manifest that fails to load. The
+Progressive Web App testing in Lighthouse is deprecated, so a Lighthouse
+score is no longer how installability is verified. Chrome documents the
+reasoning and the current requirements in
+[Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria).
+
+Verify installability through the Chrome DevTools **Application** panel
+instead: its **Manifest** section lists the parsed manifest fields
+(`name`/`short_name`, `icons`, `start_url`, `display`, and so on) and
+surfaces any installability errors, such as a missing required icon size or
+a manifest that fails to load. The
 same panel confirms whether the page is served over HTTPS and whether an
 active service worker is currently controlling the page, both of which are
 required for the browser to consider the PWA installable.
