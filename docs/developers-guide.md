@@ -446,8 +446,9 @@ while a local `make ci` still runs it.
 The architecture and trade-offs are recorded in
 [ADR 003](adr/003-shared-oxford-spelling-base.md).
 
-Consumer repositories no longer vendor this generator. The consumer boundary
-is `typos-config-builder gate`, pinned to a released tag:
+The target consumer boundary, once a repository migrates, is
+`typos-config-builder gate`, pinned to a released tag; a migrated consumer
+no longer vendors this generator:
 
 ```bash
 uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
