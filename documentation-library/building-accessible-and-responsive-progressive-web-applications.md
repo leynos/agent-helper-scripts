@@ -1083,10 +1083,10 @@ Verify installability through the Chrome DevTools **Application** panel
 instead: its **Manifest** section lists the parsed manifest fields
 (`name`/`short_name`, `icons`, `start_url`, `display`, and so on) and
 surfaces any installability errors, such as a missing required icon size or
-a manifest that fails to load. The
-same panel confirms whether the page is served over HTTPS and whether an
-active service worker is currently controlling the page, both of which are
-required for the browser to consider the PWA installable.
+a manifest that fails to load. The same panel confirms whether the page is
+served over HTTPS and whether an active service worker is currently
+controlling the page, both of which are required for the browser to consider
+the PWA installable.
 
 #### Testing Offline Reliability
 
