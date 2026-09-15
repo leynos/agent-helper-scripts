@@ -1448,6 +1448,11 @@ straight out of the shipped Markdown and hand it to a test. The marker must
 be the line directly above the fence's opening line; a marker separated from
 its fence by a blank line, or by any other content, does not count.
 
+An opening fence may use a run of three or more backticks, and its closing
+fence must use a run at least as long as its opener. This is what lets a
+three-backtick example nest inside a four-backtick fence without the inner
+run closing the outer block.
+
 `tests/tested_example_test_support.py` is that loader. It exports:
 
 - `load_tested_examples(path)` — reads a Markdown file from disk, by path,

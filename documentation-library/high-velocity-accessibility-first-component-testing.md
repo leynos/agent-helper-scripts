@@ -477,9 +477,9 @@ integrated:
 
 - **ESLint plugins like Testing Library’s `testing-library/no-test-id-queries`,
   `testing-library/prefer-user-event`, and `testing-library/no-node-access`**
-  are enabled, which warn if a test uses `getByTestId` at all, calls low-level
-  DOM methods instead of simulating real user events, or accesses DOM nodes
-  directly instead of through Testing Library queries.
+  are enabled, which warn if a test uses any `*ByTestId` query, calls
+  `fireEvent` where `userEvent` would apply, or accesses DOM nodes directly
+  instead of through Testing Library queries.
 
 - In pull request reviews, the team is instructed to flag any test code that
   doesn’t adhere to accessible-first querying. Over time this becomes second

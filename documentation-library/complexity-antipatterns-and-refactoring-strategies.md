@@ -739,13 +739,13 @@ clear naming conventions, and ensure the logical organization remains
 consistent.[^34]
 
 The **State pattern** is a related behavioural pattern useful when an object's
-behaviour changes depending on its internal state.[^27] Instead of using large
+behaviour changes depending on its internal state.[^35] Instead of using large
 conditionals based on state variables, each state is encapsulated in its own
 object. The context object delegates behaviour to its current state object.
 Transitions involve changing the context's state object. This is particularly
 effective for refactoring state machines implemented with complex
 
-`if/else` or `switch` statements.[^27]
+`if/else` or `switch` statements.[^35]
 
 Thoughtfully apply these refactoring strategies to significantly reduce
 cognitive complexity, and to create codebases that are more understandable,
@@ -793,7 +793,7 @@ to a pattern for its own sake, to avoid pitfalls like Ravioli Code.
 Integrate these principles and techniques into daily development practices
 through a proactive and disciplined approach. This includes regular code
 reviews, monitoring complexity metrics, and fostering a team culture that
-values code quality and continuous improvement.[^35] The oft-quoted wisdom,
+values code quality and continuous improvement.[^36] The oft-quoted wisdom,
 "Good programmers write code that humans can understand"[^1], remains the
 guiding principle. Strive for this ideal. That focus delivers systems that are
 powerful, efficient, and genuinely enjoyable for the team to evolve and
@@ -879,6 +879,8 @@ maintain.
        …, <https://omux.dev/blog/abstraction-refactoring-complexity/>
 [^34]: Don't create over abstractions — Castineiras thoughts -,
        <https://www.castineiras.com/?p=102>
-[^35]: How to *resist* refactoring a large spaghetti codebase? :
+[^35]: State pattern — Wikipedia,
+       <https://en.wikipedia.org/wiki/State_pattern>
+[^36]: How to *resist* refactoring a large spaghetti codebase? :
        r/SoftwareEngineering — Reddit,
        <https://www.reddit.com/r/SoftwareEngineering/comments/11smgtp/how_to_resist_refactoring_a_large_spaghetti/>

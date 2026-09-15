@@ -887,7 +887,6 @@ import asyncio
 import sys  # For platform check
 
 import pytest
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -944,17 +943,6 @@ async def db_session(db_connection: AsyncConnection) -> AsyncSession:
     )
     async_sess = async_session_factory()
 
-    # This event listener ensures that after a test "commits" (releases a savepoint),
-    # a new savepoint is started if the session is used further within the same test.
-    # This is important because session.commit() in "create_savepoint" mode
-    # actually DEACTIVATES the savepoint. The next operation would then be on the main transaction
-    # unless a new savepoint is begun.
-    @event.listens_for(async_sess.sync_session, "after_transaction_end")
-    def restart_savepoint(session, transaction):
-        if transaction.nested and not transaction._parent.nested:  # Check if it was a top-level savepoint for this session
-            # Begin a new savepoint for subsequent operations in the same test if any
-            session.begin_nested()
-
     # Start the initial savepoint for the session to operate on
     await db_connection.begin_nested()
     yield async_sess
@@ -962,10 +950,13 @@ async def db_session(db_connection: AsyncConnection) -> AsyncSession:
     # The db_connection fixture handles the final rollback of the main transaction.
 ```
 
-(This fixture setup is a more detailed interpretation based on SQLAlchemy
-testing patterns and snippets.[^22] The pytest-async-sqlalchemy library offers
-pre-built fixtures that implement similar logic, but understanding the manual
-setup is valuable for customization and deeper comprehension.)
+(This fixture setup follows SQLAlchemy's own recipe for joining a session
+into an external transaction for test suites.[^22] The
+`join_transaction_mode="create_savepoint"` setting is the whole mechanism:
+no event listener is needed to reset the savepoint after a test commits.
+The pytest-async-sqlalchemy library offers pre-built fixtures that
+implement similar logic, but understanding the manual setup is valuable for
+customization and deeper comprehension.)
 
 ### C. Testing Falcon Endpoints with an Injected Test Session
 
@@ -1177,8 +1168,9 @@ Python web services. **Pointers for Further Learning:**
     Reddit, accessed on June 1, 2025,
     [https://www.reddit.com/r/FastAPI/comments/1jcw7l7/trouble\_getting\_testing\_working\_with\_async/](https://www.reddit.com/r/FastAPI/comments/1jcw7l7/trouble_getting_testing_working_with_async/)
 
-[^22]: Pytest \+ FastAPI \+ Async SQLAlchemy · GitHub, accessed on June 1, 2025,
-    [https://gist.github.com/e-kondr01/969ae24f2e2f31bd52a81fa5a1fe0f96](https://gist.github.com/e-kondr01/969ae24f2e2f31bd52a81fa5a1fe0f96)
+[^22]: Joining a Session into an External Transaction (such as for test
+    suites) — SQLAlchemy 2.0 Documentation, accessed on September 15, 2026,
+    [https://docs.sqlalchemy.org/en/20/orm/session_transaction.html](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html)
 
 [^23]: pytest-async-sqlalchemy · PyPI, accessed on June 1, 2025,
     [https://pypi.org/project/pytest-async-sqlalchemy/](https://pypi.org/project/pytest-async-sqlalchemy/)
