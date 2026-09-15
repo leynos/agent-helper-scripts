@@ -149,12 +149,17 @@ Add both `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
 `gate` also rewrites `typos.toml` on every run from the live dictionary. A
 consumer therefore either leaves it untracked, by adding `typos.toml` to
 `.gitignore` and running `git rm --cached typos.toml`, or keeps it tracked
-only as a convenience snapshot that CI never checks for drift.
+only as a convenience snapshot that CI never checks for drift. This differs
+from the check this repository runs on itself: here, `scripts/gate_runner.py`
+requires its own `typos.toml` to stay tracked and undrifted, because this
+repository curates the shared base rather than merely consuming it.
 
-This file is the sole authority for estate-wide spelling policy. Adding an
-accepted word, a correction, or an ignore pattern here reaches every
-migrated consumer on its next `gate` run: no consumer edit, version bump, or
-regenerated commit is required.
+`data/typos-oxendict-base.toml` is the sole authority for estate-wide
+spelling policy. Adding an accepted word, a correction, or an ignore pattern
+here reaches every migrated consumer on its next `gate` run: no consumer
+edit, version bump, or regenerated commit is required. `typos.toml`, in this
+repository and in every consumer, is always generated from that file and is
+never edited directly.
 
 Migrating an existing consumer onto this contract means deleting its
 vendored generator or phrase-check scripts and their tests, replacing its

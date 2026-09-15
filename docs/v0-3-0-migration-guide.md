@@ -40,7 +40,11 @@ shared phrase corrections. The fetched dictionary is cached in ignored
    `gate` call.
 3. Decide whether `typos.toml` stays tracked. Either untrack it — add it to
    `.gitignore` and run `git rm --cached typos.toml` — or keep it tracked
-   only as a convenience snapshot that CI never checks for drift.
+   only as a convenience snapshot that CI never checks for drift. This
+   differs from this repository (agent-helper-scripts) itself, where
+   `scripts/gate_runner.py` requires its own tracked `typos.toml` to stay
+   undrifted, because this repository curates the shared base rather than
+   merely consuming it.
 4. Add `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
    `.gitignore`; `gate` writes them as its own cache, and neither is source.
 5. Run `gate` once to regenerate.
