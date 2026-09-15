@@ -129,8 +129,8 @@ tree.
 
 ### Consumer repositories
 
-Consumer repositories carry no spelling tooling of their own. They run one
-command, pinned to a released tag:
+The target contract for a consumer repository carries no spelling tooling
+of its own: one command, pinned to a released tag:
 
 ```bash
 uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
@@ -143,11 +143,33 @@ uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
 the shared phrase corrections. The fetched copy is cached in ignored
 `.typos-oxendict-base.toml` with freshness metadata in
 `.typos-oxendict-base.json`, so a valid cache still supports offline runs.
+Add both `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
+`.gitignore`; `gate` writes them as its own cache, and neither is source.
+
+`gate` also rewrites `typos.toml` on every run from the live dictionary. A
+consumer therefore either leaves it untracked, by adding `typos.toml` to
+`.gitignore` and running `git rm --cached typos.toml`, or keeps it tracked
+only as a convenience snapshot that CI never checks for drift.
 
 This file is the sole authority for estate-wide spelling policy. Adding an
-accepted word, a correction, or an ignore pattern here reaches every consumer
-on its next `gate` run: no consumer edit, version bump, or regenerated commit
-is required.
+accepted word, a correction, or an ignore pattern here reaches every
+migrated consumer on its next `gate` run: no consumer edit, version bump, or
+regenerated commit is required.
+
+Migrating an existing consumer onto this contract means deleting its
+vendored generator or phrase-check scripts and their tests, replacing its
+spelling Makefile targets with the single `gate` call, and regenerating
+once.
+
+**Rollout status:** as of 2026-09-14 this is the target contract, not the
+estate's current state. The builder work is in progress, and no consumer
+has migrated yet. Twenty-eight repositories invoke the builder pinned to a
+commit, alongside their own phrase-check script; thirty-six still run a
+vendored copy of this repository's generator, which receives dictionary
+updates but enforces no phrase corrections. Until a repository migrates, it
+keeps that legacy tooling. Migration order and status are tracked in
+`docs/execplans/audit-missing-functionality.md` in
+`leynos/typos-config-builder`.
 
 ### Maintaining the shared base in this checkout
 
