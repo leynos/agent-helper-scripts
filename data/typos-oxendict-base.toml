@@ -188,6 +188,8 @@ raizing = "raising"
 ignore = [
   '(?s)```.*?```',
   '\brust-analyzer\b',
+  'Azure\s+Architecture\s+Center\s*\|\s*Microsoft\s+Learn',
+  'GitHub\s+Flavored\s+Markdown(?:\s\(GFM\))?',
 ]
 
 [files]
