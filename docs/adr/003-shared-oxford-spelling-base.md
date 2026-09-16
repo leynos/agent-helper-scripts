@@ -89,9 +89,9 @@ partial scan from being reported as successful.
 ## Amendment 2026-09-14
 
 Consumption of this dictionary moves to `typos-config-builder`. The target
-contract is that consumers no longer vendor a generator, a phrase-check
-script, or a Typos version pin. Instead, they run `typos-config-builder
-gate`, pinned via
+contract is that consumers no longer vendor a generator, a phrase-check script,
+or a Typos version pin. Instead, they run `typos-config-builder gate`, pinned
+via
 `uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0"`,
 which fetches the dictionary live from this repository's `main`, merges the
 consumer's `typos.local.toml` overlay, renders `typos.toml`, runs the pinned
@@ -99,18 +99,17 @@ Typos binary, and enforces the shared phrase corrections.
 
 The decision above is otherwise unchanged. `data/typos-oxendict-base.toml`
 remains the single authority for estate-wide Oxford stems, accepted terms,
-corrections, phrase corrections, ignore patterns, and file exclusions, and
-this repository remains where those entries are curated and reviewed. Only
-the delivery mechanism changes.
+corrections, phrase corrections, ignore patterns, and file exclusions, and this
+repository remains where those entries are curated and reviewed. Only the
+delivery mechanism changes.
 
-This rollout is staged, not complete. As of 2026-09-14 the builder work is
-in progress and no consumer has migrated yet. Twenty-eight repositories
-invoke the builder pinned to a commit, alongside their own phrase-check
-script; thirty-six still run a vendored copy of this repository's
-generator, which receives dictionary updates but enforces no phrase
-corrections. Until a repository migrates, it keeps that legacy tooling.
-Migration order and status are tracked in
-`docs/execplans/audit-missing-functionality.md` in
+This rollout is staged, not complete. As of 2026-09-14 the builder work is in
+progress and no consumer has migrated yet. Twenty-eight repositories invoke the
+builder pinned to a commit, alongside their own phrase-check script; thirty-six
+still run a vendored copy of this repository's generator, which receives
+dictionary updates but enforces no phrase corrections. Until a repository
+migrates, it keeps that legacy tooling. Migration order and status are tracked
+in `docs/execplans/audit-missing-functionality.md` in
 `leynos/typos-config-builder`.
 
 Consequences of the amendment, once a consumer migrates onto this contract:
@@ -120,9 +119,9 @@ Consequences of the amendment, once a consumer migrates onto this contract:
   `.gitignore` lines, and one command, and the generated `typos.toml` is
   rebuilt on every run rather than reviewed as tracked output.
 - A dictionary edit here reaches every migrated consumer on its next `gate`
-  run without a consumer change or version bump, which was previously
-  blocked behind a per-repository commit pin.
+  run without a consumer change or version bump, which was previously blocked
+  behind a per-repository commit pin.
 - The live fetch makes this repository's availability part of every
   migrated consumer's spelling gate. The builder mitigates that with its
-  source-scoped cache, stale fallback, and a bundled bootstrap snapshot of
-  last resort.
+  source-scoped cache, stale fallback, and a bundled bootstrap snapshot of last
+  resort.

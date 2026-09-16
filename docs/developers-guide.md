@@ -445,8 +445,8 @@ The architecture and trade-offs are recorded in
 [ADR 003](adr/003-shared-oxford-spelling-base.md).
 
 The target consumer boundary, once a repository migrates, is
-`typos-config-builder gate`, pinned to a released tag; a migrated consumer
-no longer vendors this generator:
+`typos-config-builder gate`, pinned to a released tag; a migrated consumer no
+longer vendors this generator:
 
 ```bash
 uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
@@ -454,24 +454,23 @@ uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
 ```
 
 `gate` fetches `data/typos-oxendict-base.toml` live from this repository's
-`main`, merges the consumer's optional `typos.local.toml` overlay, and
-rewrites `typos.toml` on every run. The fetched dictionary is cached in
-ignored `.typos-oxendict-base.toml`, with freshness metadata in
+`main`, merges the consumer's optional `typos.local.toml` overlay, and rewrites
+`typos.toml` on every run. The fetched dictionary is cached in ignored
+`.typos-oxendict-base.toml`, with freshness metadata in
 `.typos-oxendict-base.json`, so a valid cache still supports offline runs.
 
 **Rollout status:** as of 2026-09-14 no consumer has migrated onto this
 contract. Twenty-eight repositories invoke the builder pinned to a commit,
-alongside their own phrase-check script; thirty-six still run a vendored
-copy of this repository's generator, which receives dictionary updates but
-enforces no phrase corrections. Migration order and status are tracked in
+alongside their own phrase-check script; thirty-six still run a vendored copy
+of this repository's generator, which receives dictionary updates but enforces
+no phrase corrections. Migration order and status are tracked in
 `docs/execplans/audit-missing-functionality.md` in
 `leynos/typos-config-builder`. See the "Shared spelling tools" section of
 [docs/users-guide.md](users-guide.md) for the full consumer contract.
 
-The rest of this section covers maintaining the shared base in this
-repository: curation rules and the local generator this repository's own
-`make spelling` gate runs. A migrated consumer never invokes that generator
-directly.
+The rest of this section covers maintaining the shared base in this repository:
+curation rules and the local generator this repository's own `make spelling`
+gate runs. A migrated consumer never invokes that generator directly.
 
 The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
 generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
@@ -486,16 +485,16 @@ generator. A pattern cannot appear in both the local `ignore` and `remove`
 lists; removals that no longer exist upstream remain valid no-ops.
 
 The executable `scripts/typos_rollout_cli.py` is the local generator this
-repository's own `make spelling` gate runs to curate and check the shared
-base; it is not what a migrated consumer runs. It provides three commands.
-`harvest` emits JSON Lines evidence for both plain-British `-ise` and Oxford
-`-ize` forms found in Git-tracked UTF-8 text. `generate` conditionally
-refreshes the untracked `.typos-oxendict-base.toml` cache, merges any local
-overlay, validates the result as TOML, and atomically writes deterministic
-`typos.toml` output. `check` rejects curated exact phrase corrections that
-Typos cannot enforce because punctuation separates its word tokens. It masks
-the merged ignore patterns and skips the merged file exclusions before
-reporting a path, line, column and canonical replacement. The companion
+repository's own `make spelling` gate runs to curate and check the shared base;
+it is not what a migrated consumer runs. It provides three commands. `harvest`
+emits JSON Lines evidence for both plain-British `-ise` and Oxford `-ize` forms
+found in Git-tracked UTF-8 text. `generate` conditionally refreshes the
+untracked `.typos-oxendict-base.toml` cache, merges any local overlay,
+validates the result as TOML, and atomically writes deterministic `typos.toml`
+output. `check` rejects curated exact phrase corrections that Typos cannot
+enforce because punctuation separates its word tokens. It masks the merged
+ignore patterns and skips the merged file exclusions before reporting a path,
+line, column and canonical replacement. The companion
 `.typos-oxendict-base.json` stores HTTP validators. When the network is
 unavailable, a valid existing cache remains usable with `--offline`; generation
 fails rather than silently inventing an empty base when no cache exists.
