@@ -165,17 +165,17 @@ ______________________________________________________________________
 
 CodeScene CLI documentation topics: `cs docs <topic>`.
 
-| Topic                                 | Covers                              |
-| ------------------------------------- | ----------------------------------- |
-| `git-hooks`                           | Using delta in a git hook           |
-| `interactive`                         | Delta interactive mode              |
-| `interactive-pre-commit-hook-example` | Example interactive pre-commit hook |
-| `pre-commit-hook-example`             | Example pre-commit hook             |
-| `vim`                                 | `check` integration for (neo)vim    |
-| `license`                             | Setting up a licence                |
-| `file-name`                           | File-name and language support      |
-| `code-health-rules`                   | Customizing code health rules       |
-| `code-health-rules-template`          | Outputs a code health rules template|
+| Topic                                 | Covers                               |
+| ------------------------------------- | ------------------------------------ |
+| `git-hooks`                           | Using delta in a git hook            |
+| `interactive`                         | Delta interactive mode               |
+| `interactive-pre-commit-hook-example` | Example interactive pre-commit hook  |
+| `pre-commit-hook-example`             | Example pre-commit hook              |
+| `vim`                                 | `check` integration for (neo)vim     |
+| `license`                             | Setting up a licence                 |
+| `file-name`                           | File-name and language support       |
+| `code-health-rules`                   | Customizing code health rules        |
+| `code-health-rules-template`          | Outputs a code health rules template |
 
 ______________________________________________________________________
 

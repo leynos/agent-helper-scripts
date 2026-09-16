@@ -80,8 +80,8 @@ items.map((item) => <Item key={`${item.name}-${item.createdAt}`} />)
 
 A key only has to be unique among its siblings and stable across renders. A
 composite key is safe only while its fields cannot collide, so prefer a
-persisted ID whenever one exists. Mint IDs where the data is created or
-written to storage, not in the component body.
+persisted ID whenever one exists. Mint IDs where the data is created or written
+to storage, not in the component body.
 
 **Acceptable suppression:** Static lists that never reorder (rare).
 
@@ -91,8 +91,8 @@ written to storage, not in the component body.
 
 **Why it matters:** This rule name supersedes the older `noConsoleLog`. It
 reports **every** `console.*` call, and nothing is exempt by default —
-`console.error` and `console.warn` are flagged too. Name every method to
-retain in the `allow` option.
+`console.error` and `console.warn` are flagged too. Name every method to retain
+in the `allow` option.
 
 **Proper solutions:**
 

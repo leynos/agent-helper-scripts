@@ -337,8 +337,8 @@ suppressions fail.
 
 ## TypeScript Integration
 
-Biome only reads `tsconfig.json` for import path resolution when the
-**nearest** `tsconfig.json` can supply `compilerOptions.baseUrl` or
+Biome only reads `tsconfig.json` for import path resolution when the **nearest**
+`tsconfig.json` can supply `compilerOptions.baseUrl` or
 `compilerOptions.paths`. Support for both starts in **Biome 2.3**. The examples
 on this page pin 1.9.4, where an alias such as `@app/foo` is **not** resolved —
 use relative imports, or upgrade to 2.3 or newer before relying on an alias:
@@ -356,9 +356,9 @@ use relative imports, or upgrade to 2.3 or newer before relying on an alias:
 ```
 
 With Biome 2.3 or newer, the nearest `tsconfig.json` is picked up without any
-Biome-side setting: `baseUrl` alone resolves bare specifiers from that
-directory (`import { foo } from "foo"` finds `src/foo.ts`), and `paths` adds
-explicit prefix mappings on top of it.
+Biome-side setting: `baseUrl` alone resolves bare specifiers from that directory
+(`import { foo } from "foo"` finds `src/foo.ts`), and `paths` adds explicit
+prefix mappings on top of it.
 
 JSX and globals configuration live under `javascript` and are independent of
 path resolution. The classic JSX runtime needs `React` declared as a global

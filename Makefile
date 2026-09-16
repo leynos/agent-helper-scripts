@@ -39,6 +39,14 @@ SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
 # markdownlint-cli2, and the shared baseline this repository is moving to
 # provisions it globally.
 MDLINT ?= markdownlint-cli2
+# `make fmt` and `make check-fmt` call mdtablefix directly. `--git` selects the
+# Markdown files Git tracks and `--include-untracked` adds the untracked files
+# Git does not ignore, so a new document is formatted before it is staged.
+# Both modes need mdtablefix 0.6.0 or later; CI pins the version at the
+# install-mdtablefix step.
+MDTABLEFIX ?= mdtablefix
+MDTABLEFIX_SELECT = --git --include-untracked
+MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
 
 # Test targets:
@@ -65,10 +73,11 @@ clean:
 	@echo "clean: nothing to clean"
 
 check-fmt:
-	@echo "check-fmt: no formatter configured"
+	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
 fmt:
-	@mdformat-all
+	$(MDTABLEFIX) --in-place $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
+	$(MDLINT) --fix "**/*.md"
 
 # Each gate is one command that discovers its own file list. Piping a producer
 # into a checker reports the checker's status, so without pipefail a producer

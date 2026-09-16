@@ -21,8 +21,8 @@ make spelling
 ```
 
 `make ci` runs the same sequence and mirrors the GitHub Actions workflow,
-except that the workflow runs the Markdown gate through the
-`markdownlint-cli2` action.
+except that the workflow runs the Markdown gate through the `markdownlint-cli2`
+action.
 
 `make nixie` validates Mermaid diagrams and is not part of `make ci`: it needs
 a renderer the CI runner does not provide. Run it alongside the sequence above
@@ -39,8 +39,9 @@ already enforced by the standard gate sequence above. When adding, renaming, or
 editing anything under `skills/`, the following are required:
 
 - Run `make lint`. It runs `skill-frontmatter-lint` (`yamllint` over each
-  extracted frontmatter block) and `skill-manifest-validate` (`skills-ref
-  validate` over each skill directory). Both must pass before committing.
+  extracted frontmatter block) and `skill-manifest-validate`
+  (`skills-ref validate` over each skill directory). Both must pass before
+  committing.
 - Run `make test`. `tests/test_skill_manifests.py` asserts that every shipped
   manifest satisfies the contract, and that `make lint` still enforces it.
 - Keep the directory name equal to the manifest `name`.
@@ -61,6 +62,6 @@ make skill-manifest-check SKILL_DIRS=skills/rebase/
 ## Documentation
 
 Changes that alter skill discovery, installation, or naming belong in
-[the users' guide](docs/users-guide.md). Changes to validation tooling, Makefile
-targets, or development dependencies belong in
+[the users' guide](docs/users-guide.md). Changes to validation tooling,
+Makefile targets, or development dependencies belong in
 [the developers' guide](docs/developers-guide.md).
