@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator
 import importlib.util
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import types
 
@@ -110,3 +111,84 @@ def deny_path_reads(
         return read_text(path, encoding=encoding, errors=errors, newline=newline)
 
     return deny_target
+
+
+def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
+    """Create an indexed consumer fixture for behavioural Makefile checks.
+
+    Parameters
+    ----------
+    tmp_path
+        Temporary directory that receives the ``consumer`` fixture.
+
+    Returns
+    -------
+    Path
+        Root of the initialized repository, with every copied file staged.
+
+    Raises
+    ------
+    AssertionError
+        If ``git`` is unavailable in the test environment.
+    subprocess.CalledProcessError
+        If initializing or staging the fixture repository fails.
+    subprocess.TimeoutExpired
+        If a ``git`` invocation exceeds its timeout.
+    """
+    repository = tmp_path / "consumer"
+    repository.mkdir()
+    for path in ("Makefile", "typos.local.toml", "typos.toml"):
+        shutil.copy2(REPOSITORY_ROOT / path, repository / path)
+    shutil.copytree(REPOSITORY_ROOT / "data", repository / "data")
+    shutil.copytree(REPOSITORY_ROOT / "scripts", repository / "scripts")
+    git = require_executable("git")
+    subprocess.run(
+        [git, "init", "--quiet"],
+        cwd=repository,
+        check=True,
+        timeout=30,
+    )
+    subprocess.run(
+        [git, "add", "."],
+        cwd=repository,
+        check=True,
+        timeout=30,
+    )
+    return repository
+
+
+def run_spelling_gate(
+    repository: Path,
+    scanner: str = "true",
+) -> subprocess.CompletedProcess[str]:
+    """Run the spelling target, doubling the scanner unless one is named.
+
+    Parameters
+    ----------
+    repository
+        Fixture repository the ``make spelling`` target runs in.
+    scanner
+        Command substituted for ``TYPOS``; the default ``true`` doubles the
+        scanner so the target exercises everything but the binary itself.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        Completed process carrying the captured text output and exit status.
+
+    Raises
+    ------
+    AssertionError
+        If ``make`` is unavailable in the test environment.
+    subprocess.TimeoutExpired
+        If the target does not finish within its timeout.
+    """
+    make = require_executable("make")
+    return subprocess.run(
+        [make, "spelling", f"TYPOS={scanner}"],
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
