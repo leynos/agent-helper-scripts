@@ -760,7 +760,7 @@ Use these variables to pin or override versions installed by the home phase:
   - Default: `0.2.6`
   - Version of `whitaker-installer`.
 - `MDTABLEFIX_VERSION`
-  - Default: `0.4.0`
+  - Default: `0.6.0`
   - Version of `mdtablefix`.
 - `ACT_VERSION`
   - Default: `latest`

@@ -215,12 +215,12 @@ Do not reconstruct long SHAs from a remembered prefix; copy executable output.
 
 ## Other reviewers unavailable or analysis scope unmeasured
 
-**Recorded incidents:** Sourcery budget limits were unavailable review, not
-approval, in several Cuprum and OrthoConfig reports. CodeGraph's Rust view
-could be empty or stale. OrthoConfig #486's green CodeScene result expressly
-had no quality gates for that configuration scope. Cuprum #381 also
-distinguished valid empty new-issues output from output lacking useful
-comparison identity.
+**Recorded incidents:** Sourcery budget limits made review unavailable in
+several Cuprum and OrthoConfig reports; that unavailability did not constitute
+approval. CodeGraph's Rust view could be empty or stale. OrthoConfig #486's
+green CodeScene result expressly had no quality gates for that configuration
+scope. Cuprum #381 also distinguished valid empty new-issues output from output
+lacking useful comparison identity.
 
 **Recovery:** Record each service separately with execution result, inspected
 scope, candidate, and limitation. Do not compensate for a failed reviewer by

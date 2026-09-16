@@ -150,8 +150,8 @@ never an authorization to replay.
   (`check_identities()`, `select_boundary()`, `check_range()`,
   `check_unmoved()`, `plan_replay()`, and others); none of these touch a
   `Path`, run a subprocess, parse `gh` JSON, or use Cyclopts. The replay
-  decision `plan_replay()` returns carries no Git command at all: rendering one
-  is an adapter concern, so `REBASE_PREFIX` is referenced only by
+  decision returned by `plan_replay()` carries no Git command at all: rendering
+  one is an adapter concern, so `REBASE_PREFIX` is referenced only by
   `rebase_argv()` and the plan is serialized by `render_document()`. An
   adapters layer (`Subprocess`, `GitGraph`, `GitHubCli`) turns process calls and
   `gh` output into those typed facts. `discover()` is the sole command-layer

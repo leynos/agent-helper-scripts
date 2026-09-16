@@ -347,9 +347,9 @@ future contributions.
 
 ### Ask Questions
 
-If you don't understand why something was done a certain way, ask. The author
-may have context you lack. Or they may realize their approach needs better
-documentation.
+If something is unclear, ask why it was done a certain way. The author may have
+context that is missing from the diff. Or they may realize their approach needs
+better documentation.
 
 ### Consider the Author
 
@@ -358,8 +358,9 @@ your tone and the level of explanation accordingly.
 
 ### Timebox
 
-Diminishing returns set in. If you've spent an hour on a 200-line PR, you're
-likely past the point of useful findings. Note your time limit and move on.
+Diminishing returns set in. After an hour spent on a 200-line PR, further
+review is likely past the point of useful findings. Note the time limit and
+move on.
 
 ## Common Pitfalls
 
@@ -389,9 +390,9 @@ pre-existing problems.
 
 ### Blocking on Preferences
 
-Your preferred approach isn't necessarily better. If the code works, follows
-conventions, and is maintainable, accept it even if you'd have written it
-differently.
+A preferred approach isn't necessarily better. If the code works, follows
+conventions, and is maintainable, accept it even if it differs from how it
+would have been written otherwise.
 
 ## Supplementary Guides
 
@@ -399,7 +400,7 @@ For detailed patterns and examples, see:
 
 - `guides/security-issues.md` — Injection attacks (SQL, shell, log, XSS,
   prompt), TOCTOU race conditions, secret exposure,
-  authentication/authorisation flaws, cryptographic issues, deserialization,
+  authentication/authorization flaws, cryptographic issues, deserialization,
   path traversal
 - `guides/performance-concerns.md` — Algorithmic complexity (accidental
   quadratic), resource leaks, bad neighbour problems, database performance,

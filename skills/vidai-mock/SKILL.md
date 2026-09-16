@@ -228,8 +228,8 @@ back to a bundled default. The equivalent environment variable is
 vidaimock --host 127.0.0.1 --config-dir ./my-config --isolated
 ```
 
-Use isolated mode for CI rigs, security review, and any surface you want pinned
-to exactly what you declare.
+Use isolated mode for CI rigs, security review, and any surface that requires
+an exact declared configuration.
 
 ### Template Runtime Model
 
@@ -471,8 +471,8 @@ bundled Tera template you can override.
 
 - **Docker**:
   `docker run --rm -p 127.0.0.1:8100:8100 ghcr.io/vidaiuk/vidaimock:0.3.1`, or
-  the published Compose file when you want mounted overrides. The container
-  binds `0.0.0.0` internally, so the loopback `-p` mapping is what restricts
+  use the published Compose file for mounted overrides. The container binds
+  `0.0.0.0` internally, so the loopback `-p` mapping is what restricts
   exposure. For immutable pulls, pin the multi-arch index digest
   `sha256:8eb48a3f3016aa0baf105737fc688a59980a267cbfa8c74c501fde915cc138b1`.
 - **Binary**: download an archive from the GitHub releases page and run
