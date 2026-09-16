@@ -114,7 +114,27 @@ def deny_path_reads(
 
 
 def prepare_spelling_gate_repository(tmp_path: Path) -> Path:
-    """Create an indexed consumer fixture for behavioural Makefile checks."""
+    """Create an indexed consumer fixture for behavioural Makefile checks.
+
+    Parameters
+    ----------
+    tmp_path
+        Temporary directory that receives the ``consumer`` fixture.
+
+    Returns
+    -------
+    Path
+        Root of the initialized repository, with every copied file staged.
+
+    Raises
+    ------
+    AssertionError
+        If ``git`` is unavailable in the test environment.
+    subprocess.CalledProcessError
+        If initializing or staging the fixture repository fails.
+    subprocess.TimeoutExpired
+        If a ``git`` invocation exceeds its timeout.
+    """
     repository = tmp_path / "consumer"
     repository.mkdir()
     for path in ("Makefile", "typos.local.toml", "typos.toml"):
@@ -141,7 +161,28 @@ def run_spelling_gate(
     repository: Path,
     scanner: str = "true",
 ) -> subprocess.CompletedProcess[str]:
-    """Run the spelling target, doubling the scanner unless one is named."""
+    """Run the spelling target, doubling the scanner unless one is named.
+
+    Parameters
+    ----------
+    repository
+        Fixture repository the ``make spelling`` target runs in.
+    scanner
+        Command substituted for ``TYPOS``; the default ``true`` doubles the
+        scanner so the target exercises everything but the binary itself.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        Completed process carrying the captured text output and exit status.
+
+    Raises
+    ------
+    AssertionError
+        If ``make`` is unavailable in the test environment.
+    subprocess.TimeoutExpired
+        If the target does not finish within its timeout.
+    """
     make = require_executable("make")
     return subprocess.run(
         [make, "spelling", f"TYPOS={scanner}"],

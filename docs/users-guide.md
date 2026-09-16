@@ -144,7 +144,8 @@ the shared phrase corrections. The fetched copy is cached in ignored
 `.typos-oxendict-base.toml` with freshness metadata in
 `.typos-oxendict-base.json`, so a valid cache still supports offline runs.
 Add both `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
-`.gitignore`; `gate` writes them as its own cache, and neither is source.
+`.gitignore`; `gate` writes both files as cache files, and neither is a
+policy source.
 
 `gate` also rewrites `typos.toml` on every run from the live dictionary. A
 consumer therefore either leaves it untracked, by adding `typos.toml` to

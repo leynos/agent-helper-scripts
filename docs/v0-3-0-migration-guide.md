@@ -46,7 +46,8 @@ shared phrase corrections. The fetched dictionary is cached in ignored
    undrifted, because this repository curates the shared base rather than
    merely consuming it.
 4. Add `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
-   `.gitignore`; `gate` writes them as its own cache, and neither is source.
+   `.gitignore`; `gate` writes both files as cache files, and neither is
+   a policy source.
 5. Run `gate` once to regenerate.
 
 ### Backward compatibility

@@ -31,8 +31,8 @@ extend-exclude = [
 locale = "en-gb"
 extend-ignore-re = [
     "(?s)```.*?```",
-    "Azure\\s+Architecture\\s+Center\\s*\\|\\s*Microsoft\\s+Learn",
-    "GitHub\\s+Flavored\\s+Markdown(?:\\s\\(GFM\\))?",
+    "Azure\\s+Architecture\\s+Center\\s*\\|\\s*Microsoft\\s+Learn\\b",
+    "GitHub\\s+Flavored\\s+Markdown\\b(?:\\s\\(GFM\\))?",
     "RUST_ANALYZER(?:_PRECHECK)?",
     "\\bMOLD\\b",
     "\\bartifact_name\\b",

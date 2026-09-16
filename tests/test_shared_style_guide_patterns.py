@@ -36,9 +36,9 @@ AMERICAN_CENTRE = "Cent" + "er"
 AMERICAN_FLAVOURED = "Flav" + "ored"
 MISSPELLED_ARTICLE = "t" + "eh"
 AZURE_PATTERN = (
-    rf"Azure\s+Architecture\s+{AMERICAN_CENTRE}\s*\|\s*Microsoft\s+Learn"
+    rf"Azure\s+Architecture\s+{AMERICAN_CENTRE}\s*\|\s*Microsoft\s+Learn\b"
 )
-GFM_PATTERN = rf"GitHub\s+{AMERICAN_FLAVOURED}\s+Markdown(?:\s\(GFM\))?"
+GFM_PATTERN = rf"GitHub\s+{AMERICAN_FLAVOURED}\s+Markdown\b(?:\s\(GFM\))?"
 STYLE_GUIDE_PATTERNS = (AZURE_PATTERN, GFM_PATTERN)
 #: Whitespace variants observed in consumer overlays, paired with their mask.
 MASKED_VARIANTS: tuple[tuple[str, str], ...] = (
@@ -55,6 +55,8 @@ UNMASKED_NEAR_MISSES: tuple[str, ...] = (
     f"{AMERICAN_FLAVOURED} Markdown",
     "Microsoft Learn",
     f"Azure {AMERICAN_CENTRE} | Microsoft Learn",
+    f"Azure Architecture {AMERICAN_CENTRE} | Microsoft Learning",
+    f"GitHub {AMERICAN_FLAVOURED} Markdownish",
 )
 
 
