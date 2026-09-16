@@ -37,29 +37,40 @@ configuration, and support.
 ## Shared spelling dictionary
 
 `data/typos-oxendict-base.toml` is the shared en-GB-oxendict dictionary for the
-`leynos` code estate. `scripts/typos_rollout_cli.py` harvests Oxford `-ise` and
-`-ize` evidence, conditionally refreshes an untracked local copy of the shared
-base, and deterministically generates a repository's tracked `typos.toml`.
-Repository-specific product names, identifiers and quoted fixtures belong in a
-local `typos.local.toml` overlay rather than the shared base. The same gate
-checks curated exact phrase corrections, such as `hand-written` to
-`handwritten`, which `typos` cannot enforce after tokenizing punctuation.
+`leynos` code estate, and this repository is its authority: every consumer
+fetches it from `main` at run time. Repository-specific product names,
+identifiers and quoted fixtures belong in a local `typos.local.toml` overlay
+rather than the shared dictionary.
 
-Run the repository's own spelling gate with:
+Consumers, and this repository itself, run one pinned command,
+[`typos-config-builder gate`](https://github.com/leynos/typos-config-builder).
+It renders `typos.toml` from the dictionary and the overlay, runs the Typos
+binary it pins, and enforces the curated exact phrase corrections, such as
+`hand-written` to `handwritten`, that `typos` cannot apply after tokenizing
+punctuation. No repository vendors a generator or a phrase-check script.
+
+Run the gate over this checkout with:
 
 ```bash
 make spelling
 ```
 
+Proposing a new estate-wide word means editing
+`data/typos-oxendict-base.toml` in a pull request here. Nothing else moves: no
+consumer edit, version bump, or regenerated commit is required.
+`scripts/oxford_form_harvest_cli.py` gathers the Oxford-form evidence that
+supports such a proposal.
+
 ## Gate recipes
 
-The shared `spelling`, `markdownlint` and `nixie` recipes in the Makefile are
-each one command that lists the files it examines, so none pipes a producer
-into a checker whose status hides the producer's. `scripts/gate_runner_cli.py`
-runs the spelling, `markdownlint` and `nixie` gates over the list each
-discovers, and fails when that list is empty, when a tool is missing, or when
-the tool reports a finding. Consumers regenerate their recipes from this
-template; see [ADR 006](docs/adr/006-fail-closed-gate-recipes.md).
+The `markdownlint` and `nixie` recipes in the Makefile are each one command
+that lists the files it examines, so neither pipes a producer into a checker
+whose status hides the producer's. `scripts/gate_runner_cli.py` runs both gates
+over the list each discovers, and fails when that list is empty, when a tool is
+missing, or when the tool reports a finding. The `spelling` recipe has the same
+shape: one pinned command that discovers its own files. Consumers regenerate
+their recipes from this template; see
+[ADR 006](docs/adr/006-fail-closed-gate-recipes.md).
 
 ## Developer guide
 
