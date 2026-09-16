@@ -236,7 +236,9 @@ def test_nullish_guidance_rejects_the_conditional_misuse() -> None:
 
 def test_react_key_guidance_requires_identifiers_from_the_data() -> None:
     """Keys must come from the record, not from a value computed while rendering."""
-    solutions = _read(LINT_SOLUTIONS_PATH)
+    # The estate Markdown formatter wraps prose at 80 columns, so compare
+    # against whitespace-normalised text rather than the raw file.
+    solutions = " ".join(_read(LINT_SOLUTIONS_PATH).split())
     assert "written to storage, not in the component body" in solutions, (
         "the reference must say where identifiers are minted"
     )

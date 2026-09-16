@@ -176,15 +176,18 @@ def test_skill_bypasses_ambient_weave_for_unattended_long_rebases() -> None:
 def test_skill_binds_rebase_evidence_to_candidate_identity() -> None:
     """History rewrites invalidate acceptance evidence for the old candidate."""
     _, skill = _skill_frontmatter()
+    # The estate Markdown formatter wraps prose at 80 columns, so phrase
+    # checks compare against whitespace-normalised text.
+    prose = " ".join(skill.split())
 
     for variable in ("OLD_HEAD", "TARGET", "MERGE_BASE"):
         assert f"{variable}=$(git" in skill, (
             f"the workflow must record {variable} before rewriting history"
         )
-    assert "evidence tied to `OLD_HEAD` is stale for acceptance" in skill, (
+    assert "evidence tied to `OLD_HEAD` is stale for acceptance" in prose, (
         "old gate and review evidence must not authorize the replayed candidate"
     )
-    assert "rerun the candidate-bound\nchecks" in skill, (
+    assert "rerun the candidate-bound checks" in prose, (
         "the new candidate must receive fresh acceptance checks"
     )
 
