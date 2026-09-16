@@ -36,6 +36,8 @@
     // Written by pytest and already ignored by Git, so it is a local build
     // artefact rather than documentation this gate should judge.
     ".pytest_cache/**",
-    "CRUSH.md"
+    "CRUSH.md",
+    ".vtcode/**",
+    "memories/**"
   ]
 }

@@ -33,9 +33,16 @@ jobs:
       # validation (make nixie) needs a renderer this runner does not provide,
       # so it stays a local-only gate.
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@4580e1612f6407034edd6c0e4e316d725920867b  # v24.2.0
         with:
           globs: "**/*.md"
+
+      # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the first
+      # release with `--check` and `--git`.
+      - name: Install mdtablefix
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        with:
+          version: "0.6.0"
 
       # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence

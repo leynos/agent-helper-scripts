@@ -118,10 +118,10 @@ standards, and relevant requirement or design-element identifiers. If no such
 artefact exists, say so explicitly rather than inventing one.
 
 Use stable identifiers selectively for propositions whose provenance and
-discharge matter: upstream goals, hard constraints, success criteria,
-important assumptions, architecture requirements and major design elements;
-ExecPlan milestones; and their acceptance evidence. Do not number every
-paragraph. Preserve a chain such as:
+discharge matter: upstream goals, hard constraints, success criteria, important
+assumptions, architecture requirements and major design elements; ExecPlan
+milestones; and their acceptance evidence. Do not number every paragraph.
+Preserve a chain such as:
 
 ```plaintext
 TOR-GOAL-004 -> TDD-REQ-012 -> TDD-COMP-queue-store -> EP-M3 -> tests::queue::persists_reordering
@@ -144,8 +144,8 @@ At each milestone boundary, perform a focused conformance check:
 Tailor this check to the work's material risks; do not create a ceremonial
 enterprise-compliance checklist.
 
-If evidence shows that the approved design cannot or should not be followed,
-do not silently amend the implementation or plan around it. Record a proposed
+If evidence shows that the approved design cannot or should not be followed, do
+not silently amend the implementation or plan around it. Record a proposed
 deviation in `Decision log`, including the affected identifiers, impacts,
 options, and whether the technical design or an ADR must change. Set the plan
 status to `BLOCKED` and wait for explicit acceptance of the deviation before
@@ -252,8 +252,7 @@ Choose methods according to the obligation rather than language or habit:
 - Use property tests for invariants spanning generated inputs, operation
   sequences, orderings, or state transitions.
 - Use bounded model checking when exhaustive exploration within explicit bounds
-  materially strengthens confidence in memory, arithmetic, or transition
-  safety.
+  materially strengthens confidence in memory, arithmetic, or transition safety.
 - Use state-machine model checking for protocols, concurrent actors, retries,
   and temporal or ordering properties.
 - Use a formal prover for introduced lemmas, contractual business logic, or
@@ -263,8 +262,8 @@ Choose methods according to the obligation rather than language or habit:
 
 Any proof must be substantive, rigorous, and well-founded. A restatement of the
 assumed property, a vacuous assertion, or finite examples presented as an
-exhaustive argument do not discharge an obligation. If the change introduces
-no non-trivial invariant or lemma, say so explicitly in the `Verification plan`
+exhaustive argument do not discharge an obligation. If the change introduces no
+non-trivial invariant or lemma, say so explicitly in the `Verification plan`
 and justify that conclusion; do not omit the section.
 
 ### Avoid vacuous verification
@@ -273,8 +272,8 @@ For every obligation, explain why the verification can fail when the
 implementation is wrong. A passing result is vacuous when, for example, an
 unsatisfiable precondition excludes every input, a generator or filter never
 reaches relevant cases, an implication's antecedent is never true, a model's
-target states are unreachable, a bound excludes every meaningful transition,
-or a proof merely assumes the conclusion.
+target states are unreachable, a bound excludes every meaningful transition, or
+a proof merely assumes the conclusion.
 
 Require a non-vacuity argument and evidence appropriate to the method:
 
@@ -329,12 +328,12 @@ for any of the following surfaces:
 - pre-1.0 public APIs; and
 - APIs introduced after the latest formal release tag.
 
-For a released 1.0-or-later API without known external consumers,
-compatibility is normally unnecessary, subject to explicit project policy. For
-a released API with external consumers, preserve compatibility or plan a
-deliberate migration only when an existing commitment requires it. Any
-proposed compatibility layer must name the external consumer, deployed state,
-compatibility commitment, or other concrete requirement that necessitates it.
+For a released 1.0-or-later API without known external consumers, compatibility
+is normally unnecessary, subject to explicit project policy. For a released API
+with external consumers, preserve compatibility or plan a deliberate migration
+only when an existing commitment requires it. Any proposed compatibility layer
+must name the external consumer, deployed state, compatibility commitment, or
+other concrete requirement that necessitates it.
 
 Persisted and wire formats are separate from source API compatibility. A
 private application may still need to migrate data written by an earlier
@@ -416,9 +415,9 @@ prototyping milestones:
 
 ## ExecPlan template
 
-Copy and complete the [ExecPlan template](references/execplan-template.md)
-when starting a new ExecPlan. Keep its mandatory living sections current as
-you research and implement.
+Copy and complete the [ExecPlan template](references/execplan-template.md) when
+starting a new ExecPlan. Keep its mandatory living sections current as you
+research and implement.
 
 ## Revision note (required when editing an ExecPlan)
 

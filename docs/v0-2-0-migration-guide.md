@@ -1,8 +1,8 @@
 # v0.2.0 Migration Guide
 
-This guide records migrations that change how the helper scripts and skills
-in this repository behave, and what to do about work produced under the
-previous behaviour.
+This guide records migrations that change how the helper scripts and skills in
+this repository behave, and what to do about work produced under the previous
+behaviour.
 
 ## Bootstrap phases
 
@@ -130,8 +130,8 @@ It replaces the standalone `leynos/vidai-mock-skill` checkout that
 `install-skills` used to clone and copy.
 
 Deleting `~/.codex/skills/vidai-mock` and `~/.claude/skills/vidai-mock` is
-required before the next `install-skills` run: the installer never deletes,
-and `cp -a` merges into an existing directory, so files unique to the old
+required before the next `install-skills` run: the installer never deletes, and
+`cp -a` merges into an existing directory, so files unique to the old
 standalone copy survive the copy and leave a hybrid skill tree. Deleting the
 `~/git/vidai-mock-skill` checkout is optional cleanup only, because the
 installer no longer reads that path. A reinstated checkout is no longer
@@ -150,15 +150,14 @@ the earlier copy did not:
   `X-Vidai-Chaos-Disconnect` header, and the provider-shaped error envelopes
   each of them returns.
 - Agentic loop termination through `has_tool_result()`, which is what lets an
-  ADK, LangGraph, or LangChain loop finish instead of calling the mock
-  forever.
+  ADK, LangGraph, or LangChain loop finish instead of calling the mock forever.
 - Provider coverage beyond OpenAI and Anthropic: Gemini, Azure OpenAI,
   Bedrock, Vertex AI, Cohere, Mistral, and Groq, plus the embeddings, images,
   moderations, and Responses endpoints.
 
 The `get-ai-tooling` helper still downloads v0.1.2 rather than the 0.3.1
-release the skill documents, so some documented commands and flags may not
-be available until 0.3.1 is installed.
+release the skill documents, so some documented commands and flags may not be
+available until 0.3.1 is installed.
 
 ## Nextest skill
 
@@ -184,8 +183,8 @@ The shipped skill is verified against `cargo-nextest` 0.9.143 and covers
 behaviour the earlier copy did not:
 
 - The version-gated surface added since 0.9.133: the `cargo nextest help`
-  topics and `cargo nextest self schema` config schemas (0.9.134–0.9.140),
-  and the `junit.report-skipped` setting (0.9.143).
+  topics and `cargo nextest self schema` config schemas (0.9.134–0.9.140), and
+  the `junit.report-skipped` setting (0.9.143).
 - The `--workspace-remap` validation change, which now requires both
   `--cargo-metadata` and `--binaries-metadata` (0.9.138).
 - The filterset parsing relaxation that allows `not(...)`, `all()and(...)` and
@@ -198,8 +197,8 @@ behaviour the earlier copy did not:
 
 The skill marks every version-gated feature inline. The `get-rust-tooling`
 bootstrap still installs `cargo-nextest` 0.9.133 through
-`CARGO_NEXTEST_VERSION` with `cargo binstall`, so those features are
-documented but not available until that variable is raised.
+`CARGO_NEXTEST_VERSION` with `cargo binstall`, so those features are documented
+but not available until that variable is raised.
 
 ## Fail-closed gate recipes
 
@@ -216,8 +215,8 @@ last command, and `xargs -r` exits zero when it receives no input, so a
 producer that failed, or that matched nothing, left an empty list and the
 checker never ran. The gate passed having examined nothing.
 
-Any pass recorded by such a recipe over a tree it did not read is not
-evidence: re-earn it by running the gate again.
+Any pass recorded by such a recipe over a tree it did not read is not evidence:
+re-earn it by running the gate again.
 
 ### New model
 
@@ -238,22 +237,22 @@ option, the equivalent `GATE_RUNNER_*` environment variable now carries its
 value.
 
 `set -o pipefail` (or `.SHELLFLAGS := -eo pipefail -c`) is an interim guard for
-a repository that has not regenerated its recipes, and is no longer needed
-once it has. The guard is not the fix: it catches a producer that fails, but
-not one that succeeds with an empty list.
+a repository that has not regenerated its recipes, and is no longer needed once
+it has. The guard is not the fix: it catches a producer that fails, but not one
+that succeeds with an empty list.
 
 ## Markdown lint gate
 
 A bare `markdownlint` invocation previously forwarded its arguments with no
 glob, so `markdownlint-cli2` linted zero files and reported a clean pass. It
 now lints every Markdown file in the tree. A consumer repository whose CI or
-hooks called it with no arguments will start reporting violations it never
-saw; those violations are real and need fixing, or a rule change in that
+hooks called it with no arguments will start reporting violations it never saw;
+those violations are real and need fixing, or a rule change in that
 repository's own configuration.
 
 The wrapper prefers `markdownlint-cli2` on `PATH` and falls back to the bun
-global install, so a consumer that previously relied on one provisioning
-route is unaffected provided one of the two resolves.
+global install, so a consumer that previously relied on one provisioning route
+is unaffected provided one of the two resolves.
 
 `make markdownlint` is now part of `make ci`, so a consumer running `make ci`
 from this checkout lints Markdown as part of the gate sequence.
@@ -266,24 +265,24 @@ the child branch.
 
 ### Previous behaviour
 
-Restacking a child branch after a parent pull request merged commonly relied
-on whichever commit was closest to hand: the target merge-base, the parent's
+Restacking a child branch after a parent pull request merged commonly relied on
+whichever commit was closest to hand: the target merge-base, the parent's
 squash landing SHA, or a clean `gh stack sync` exit taken as acceptance that
 the cascading rebase had replayed only child-owned commits.
 
-None of these establish the exclusive replay boundary. The target merge-base
-is a topology fact, not a squash boundary, and can include inherited parent
-work. The squash SHA is a landing record on the target, not the boundary on
-the child. `gh stack sync` aborting cleanly on divergence is a safety net
-against a diverged remote; it says nothing about which commits each layer
-owns, so it does not establish replay ownership.
+None of these establish the exclusive replay boundary. The target merge-base is
+a topology fact, not a squash boundary, and can include inherited parent work.
+The squash SHA is a landing record on the target, not the boundary on the child.
+`gh stack sync` aborting cleanly on divergence is a safety net against a
+diverged remote; it says nothing about which commits each layer owns, so it
+does not establish replay ownership.
 
 ### New requirement
 
-Whenever the parent pull request's current head is no longer an ancestor of
-the child branch — for example after the parent history was advanced,
-rebased, or otherwise rewritten — a maintained boundary receipt is now
-required before restacking:
+Whenever the parent pull request's current head is no longer an ancestor of the
+child branch — for example after the parent history was advanced, rebased, or
+otherwise rewritten — a maintained boundary receipt is now required before
+restacking:
 
 1. A `refs/stack-bases/<branch>` ref naming the exact exclusive boundary
    commit.
@@ -293,8 +292,8 @@ required before restacking:
 The [`rebase` skill](../skills/rebase/SKILL.md) and its
 [squashed-parent reference](../skills/rebase/references/squashed-parent.md)
 describe how to create and validate this receipt, and the
-[users' guide](users-guide.md#squash-restack-boundaries) documents the
-bundled `plan_restack.py` planner that consumes it.
+[users' guide](users-guide.md#squash-restack-boundaries) documents the bundled
+`plan_restack.py` planner that consumes it.
 
 ### Habits that no longer hold
 
@@ -303,24 +302,24 @@ bundled `plan_restack.py` planner that consumes it.
 - Deriving `OLD_BASE` from the parent's squash landing SHA. The landing
   commit proves the parent merged; it is not the child's replay boundary.
 - Treating a clean `gh stack sync` exit as acceptance evidence for a
-  cascading rebase. Establish and review the boundary evidence before
-  running `sync` unattended, and do not use `gh stack sync --prune` as a
-  discovery command.
+  cascading rebase. Establish and review the boundary evidence before running
+  `sync` unattended, and do not use `gh stack sync --prune` as a discovery
+  command.
 
 ### `weave-git-merge` semantic audit binding
 
-In [`skills/weave-git-merge/SKILL.md`](../skills/weave-git-merge/SKILL.md),
-the semantic audit's `BRANCH_BASE` variable must now be bound explicitly
-before any audit command expands it, rather than left to default to
-`MERGE_BASE` in every case:
+In [`skills/weave-git-merge/SKILL.md`](../skills/weave-git-merge/SKILL.md), the
+semantic audit's `BRANCH_BASE` variable must now be bound explicitly before any
+audit command expands it, rather than left to default to `MERGE_BASE` in every
+case:
 
 - After a rebase, bind `BRANCH_BASE` to the accepted `OLD_BASE`.
 - For an ordinary merge, bind `BRANCH_BASE` to the recorded `MERGE_BASE`.
 
 Existing audit invocations that assumed `MERGE_BASE` applied uniformly need
-reviewing wherever they run after a squash restack, because a target
-merge-base can include inherited parent work that must not be counted as
-child-owned changes.
+reviewing wherever they run after a squash restack, because a target merge-base
+can include inherited parent work that must not be counted as child-owned
+changes.
 
 ## Weave v0.5.1 opt-in baseline
 
@@ -332,37 +331,37 @@ deployment to the `dev-env-rocky` v0.5.1 opt-in baseline.
 The deployment installed Weave 0.3.6 and enrolled thirty file extensions in
 `~/.config/git/attributes`, so every repository routed those paths through
 `weave-driver %O %A %B %L %P`. The skill treated that ambient global rule as
-the typical case, bypassed it with `-c core.attributesFile=/dev/null`, ran
-bare `weave check` after any operation, and documented `WEAVE_TIMEOUT` and a
+the typical case, bypassed it with `-c core.attributesFile=/dev/null`, ran bare
+`weave check` after any operation, and documented `WEAVE_TIMEOUT` and a
 five-second entity-merge watchdog.
 
 ### New model
 
-Weave is pinned to `v0.5.1`. The role-owned global attributes block is
-removed, the driver is registered globally as
+Weave is pinned to `v0.5.1`. The role-owned global attributes block is removed,
+the driver is registered globally as
 `WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, and
-`merge.conflictStyle=zdiff3` is set globally. A repository activates Weave
-only through its own reviewed attributes, such as `src/*.rs merge=weave`.
-The [skill](../skills/weave-git-merge/SKILL.md#know-the-estate-baseline)
-now opens with a host verification block and:
+`merge.conflictStyle=zdiff3` is set globally. A repository activates Weave only
+through its own reviewed attributes, such as `src/*.rs merge=weave`. The
+[skill](../skills/weave-git-merge/SKILL.md#know-the-estate-baseline) now opens
+with a host verification block and:
 
 - bypasses an opted-in driver for unattended replays with a command-scoped
   `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
-  -c merge.weave.recursive=text`, repeated on every `--continue`;
+  -c merge.weave.recursive=text`,
+  repeated on every `--continue`;
 - runs `weave check` only while Git holds a three-way scope, wraps it so a
-  `NOTHING WAS CHECKED` transcript or a non-zero status stops the workflow,
-  and records that no 0.5.1 mode verifies a completed rebase tree;
+  `NOTHING WAS CHECKED` transcript or a non-zero status stops the workflow, and
+  records that no 0.5.1 mode verifies a completed rebase tree;
 - captures `weave-warning:` lines beside `weave-event:` lines, and uses
   `weave explain` on conflict stops;
 - marks `WEAVE_TIMEOUT` and the watchdog as 0.3.x-only, and notes
-  `WEAVE_STATS=1`, `WEAVE_MAX_DUPLICATES`, `WEAVE_AUDIT`, and
-  `WEAVE_FINDINGS`.
+  `WEAVE_STATS=1`, `WEAVE_MAX_DUPLICATES`, `WEAVE_AUDIT`, and `WEAVE_FINDINGS`.
 
 ### Backward compatibility
 
-The attribute-level bypass rows in the scope matrix remain for hosts that
-have not been reconciled and still select Weave from the global attributes
-file. The 0.3.6 corruption incidents in the
+The attribute-level bypass rows in the scope matrix remain for hosts that have
+not been reconciled and still select Weave from the global attributes file. The
+0.3.6 corruption incidents in the
 [behaviour reference](../skills/weave-git-merge/references/behaviour.md#known-clean-exit-corruption)
 are retained as evidence; the pin is a containment change, not a claim that
 they are fixed.

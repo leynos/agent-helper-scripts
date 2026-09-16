@@ -1,37 +1,37 @@
 # Filterset Domain-Specific Language (DSL) Reference
 
-Filtersets are specified with `-E` or `--filterset` on the command line, and
-in configuration (e.g., `filter` in overrides, `default-filter`).
+Filtersets are specified with `-E` or `--filterset` on the command line, and in
+configuration (e.g., `filter` in overrides, `default-filter`).
 
-For the version of this reference that matches the installed binary exactly,
-run `cargo nextest help filterset` (since 0.9.140; `filtersets` is an accepted
+For the version of this reference that matches the installed binary exactly, run
+`cargo nextest help filterset` (since 0.9.140; `filtersets` is an accepted
 alias).
 
 ## Predicates
 
-| Predicate | Description | Default matcher |
-| ----------- | ------------- | ----------------- |
-| `all()` | All tests | — |
-| `none()` | No tests | — |
-| `test(m)` | Tests matching `m` | Contains (`~`) |
-| `package(m)` | Tests in packages matching `m` | Glob (`#`) |
-| `deps(m)` | Package + transitive dependencies | Glob (`#`) |
-| `rdeps(m)` | Package + reverse transitive deps | Glob (`#`) |
-| `binary_id(m)` | By binary ID | Glob (`#`) |
-| `kind(m)` | By binary kind | Equality (`=`) |
-| `binary(m)` | By binary name | Glob (`#`) |
-| `platform(host\|target)` | By build platform | Equality (`=`) |
-| `default()` | The configured default filter | — |
+| Predicate                | Description                       | Default matcher |
+| ------------------------ | --------------------------------- | --------------- |
+| `all()`                  | All tests                         | —               |
+| `none()`                 | No tests                          | —               |
+| `test(m)`                | Tests matching `m`                | Contains (`~`)  |
+| `package(m)`             | Tests in packages matching `m`    | Glob (`#`)      |
+| `deps(m)`                | Package + transitive dependencies | Glob (`#`)      |
+| `rdeps(m)`               | Package + reverse transitive deps | Glob (`#`)      |
+| `binary_id(m)`           | By binary ID                      | Glob (`#`)      |
+| `kind(m)`                | By binary kind                    | Equality (`=`)  |
+| `binary(m)`              | By binary name                    | Glob (`#`)      |
+| `platform(host\|target)` | By build platform                 | Equality (`=`)  |
+| `default()`              | The configured default filter     | —               |
 
 ## Name Matchers
 
-| Prefix | Type | Example |
-| -------- | ------ | --------- |
-| (none) | Default for predicate | `test(foo)` |
-| `=` | Exact match | `test(=my_mod::my_test)` |
-| `~` | Contains | `package(~serde)` |
-| `/regex/` | Regex (matches any part) | `test(/^test_init/)` |
-| `#` | Glob | `package(#my-*)` |
+| Prefix    | Type                     | Example                  |
+| --------- | ------------------------ | ------------------------ |
+| (none)    | Default for predicate    | `test(foo)`              |
+| `=`       | Exact match              | `test(=my_mod::my_test)` |
+| `~`       | Contains                 | `package(~serde)`        |
+| `/regex/` | Regex (matches any part) | `test(/^test_init/)`     |
+| `#`       | Glob                     | `package(#my-*)`         |
 
 **When constructing expressions programmatically, always use a prefix.**
 
@@ -48,8 +48,8 @@ All operators within a group bind left-to-right.
 
 ## Token Boundaries
 
-Since 0.9.137, a closing `)` is a token boundary, so these all parse without
-an intervening space:
+Since 0.9.137, a closing `)` is a token boundary, so these all parse without an
+intervening space:
 
 ```text
 not(test(foo))
@@ -58,17 +58,17 @@ all()or(test(foo))
 ```
 
 Before 0.9.137 the same expressions had to be written `not (test(foo))`,
-`all() and (test(foo))`, and `all() or (test(foo))`. No syntax was removed,
-so the spaced forms still parse on every version; prefer them in shared
-configuration and in any expression that CI may evaluate on an older
-nextest. Anchored expressions such as `all()and(...)` will fail to parse on
-pre-0.9.137 releases.
+`all() and (test(foo))`, and `all() or (test(foo))`. No syntax was removed, so
+the spaced forms still parse on every version; prefer them in shared
+configuration and in any expression that CI may evaluate on an older nextest.
+Anchored expressions such as `all()and(...)` will fail to parse on pre-0.9.137
+releases.
 
 ## Escape Sequences (equality, contains, glob matchers)
 
-`\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash),
-`\/` (forward slash), `\)` (close paren), `\,` (comma),
-`\u{7FFF}` (Unicode code point, up to 6 hex digits).
+`\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\/`
+(forward slash), `\)` (close paren), `\,` (comma), `\u{7FFF}` (Unicode code
+point, up to 6 hex digits).
 
 For glob matchers, escape metacharacters with square brackets: `[*]`, `[?]`.
 
@@ -109,8 +109,8 @@ package(=my-app) and kind(test) - test(slow_)
 
 ## Interaction with Substring Filters
 
-If both filtersets and substring filters are given, tests must match BOTH:
-the union of filtersets is intersected with the union of substring filters.
+If both filtersets and substring filters are given, tests must match BOTH: the
+union of filtersets is intersected with the union of substring filters.
 
 ```bash
 # Tests in package foo matching either test_bar or test_baz

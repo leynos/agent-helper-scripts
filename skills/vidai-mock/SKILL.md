@@ -113,8 +113,8 @@ vidaimock --host 127.0.0.1 --mode realistic --latency 300
 
 `--latency` sets the base delay before the first token in every mode; chunks
 after the first are paced at a fixed interval of roughly 20 ms. So `benchmark`
-is not unpaced, and `realistic` adds no pacing the other modes lack. Setting the
-chaos trickle to `0` does not disable pacing either: `0` is replaced by the
+is not unpaced, and `realistic` adds no pacing the other modes lack. Setting
+the chaos trickle to `0` does not disable pacing either: `0` is replaced by the
 roughly 20 ms default.
 
 ### Configuration Precedence
@@ -151,8 +151,8 @@ redacted.
 
 ### Workspace Layout
 
-Keep simulation assets close to the app under test. Provider YAML and
-templates usually live in a directory passed with `--config-dir`.
+Keep simulation assets close to the app under test. Provider YAML and templates
+usually live in a directory passed with `--config-dir`.
 
 ```text
 .
@@ -228,8 +228,8 @@ back to a bundled default. The equivalent environment variable is
 vidaimock --host 127.0.0.1 --config-dir ./my-config --isolated
 ```
 
-Use isolated mode for CI rigs, security review, and any surface you want
-pinned to exactly what you declare.
+Use isolated mode for CI rigs, security review, and any surface that requires
+an exact declared configuration.
 
 ### Template Runtime Model
 
@@ -288,14 +288,15 @@ phases, and assert on framing as well as content:
   carry `finishReason: null` and no `usageMetadata`, while the terminal frame
   carries `finishReason: STOP` and `usageMetadata`.
 
-Request a usage chunk on OpenAI with `"stream_options": {"include_usage":
-true}`; it arrives as a chunk with an empty `choices` array before `[DONE]`.
+Request a usage chunk on OpenAI with
+`"stream_options": {"include_usage": true}`; it arrives as a chunk with an empty
+`choices` array before `[DONE]`.
 
 Per-request timing overrides: `X-Vidai-Latency` (TTFT) and
 `X-Vidai-Chaos-Trickle` (per-chunk delay). `X-Vidai-Chaos-Disconnect` severs a
-stream mid-generation. A chaos-triggered error on a streaming request returns
-a non-streaming HTTP error with a JSON body, matching what real providers do
-when their upstream fails.
+stream mid-generation. A chaos-triggered error on a streaming request returns a
+non-streaming HTTP error with a JSON body, matching what real providers do when
+their upstream fails.
 
 ### Tool And Function Calling
 
@@ -338,15 +339,15 @@ this is where most parser and integration regressions appear.
 
 ### JSON/Structured Output
 
-Send `response_format` and the response content is valid JSON on success
-paths. Return intentionally invalid JSON on negative paths to exercise both
-your strict parser and your fallback handling.
+Send `response_format` and the response content is valid JSON on success paths.
+Return intentionally invalid JSON on negative paths to exercise both your
+strict parser and your fallback handling.
 
 ### Chaos Injection For Resilience
 
 Every injected failure returns a provider-shaped error envelope, so SDK error
-parsers and retry/fallback logic engage as they would against the real API.
-All four triggers funnel through the provider's `error_template`.
+parsers and retry/fallback logic engage as they would against the real API. All
+four triggers funnel through the provider's `error_template`.
 
 | Trigger                           | Scope             | Use case                                           |
 | --------------------------------- | ----------------- | -------------------------------------------------- |
@@ -384,12 +385,12 @@ The error envelope is provider-shaped: OpenAI returns
 `{"error": {"message", "type", "param", "code"}}`, Anthropic returns
 `{"type": "error", "error": {"type", "message"}}`, and Gemini returns
 `{"error": {"code", "message", "status"}}`. The `type`/`status` value is
-selected per HTTP code, so a 429 is `rate_limit_exceeded`,
-`rate_limit_error`, or `RESOURCE_EXHAUSTED` respectively.
+selected per HTTP code, so a 429 is `rate_limit_exceeded`, `rate_limit_error`,
+or `RESOURCE_EXHAUSTED` respectively.
 
-`?chaos_status=` is the one to reach for when testing primary/fallback
-routing: it is encoded in the URL, so one mock instance can present a broken
-endpoint and a healthy endpoint without the client forwarding headers.
+`?chaos_status=` is the one to reach for when testing primary/fallback routing:
+it is encoded in the URL, so one mock instance can present a broken endpoint
+and a healthy endpoint without the client forwarding headers.
 
 Prefer request-level chaos controls in tests: failures stay explicit and
 reproducible. Reserve `[chaos]` in `mock-server.toml` for ambient resilience
@@ -468,9 +469,10 @@ bundled Tera template you can override.
 
 ## Running It
 
-- **Docker**: `docker run --rm -p 127.0.0.1:8100:8100 ghcr.io/vidaiuk/vidaimock:0.3.1`,
-  or the published Compose file when you want mounted overrides. The container
-  binds `0.0.0.0` internally, so the loopback `-p` mapping is what restricts
+- **Docker**:
+  `docker run --rm -p 127.0.0.1:8100:8100 ghcr.io/vidaiuk/vidaimock:0.3.1`, or
+  use the published Compose file for mounted overrides. The container binds
+  `0.0.0.0` internally, so the loopback `-p` mapping is what restricts
   exposure. For immutable pulls, pin the multi-arch index digest
   `sha256:8eb48a3f3016aa0baf105737fc688a59980a267cbfa8c74c501fde915cc138b1`.
 - **Binary**: download an archive from the GitHub releases page and run
