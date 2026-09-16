@@ -13,10 +13,6 @@ tool's.
 
 Examples
 --------
-Run the shared spelling gate::
-
-    uv run --script scripts/gate_runner_cli.py spelling
-
 Lint every Markdown file in the tree::
 
     uv run --script scripts/gate_runner_cli.py markdownlint
@@ -31,15 +27,8 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
-import sys
 
 import gate_discovery
-import typos_rollout
-
-#: Pinned spelling scanner the shared recipe runs. A repository's Makefile
-#: overrides it with its own ``TYPOS_VERSION``, and the test suite pins the two
-#: together so the default cannot drift from the version that ships.
-DEFAULT_TYPOS = "uv tool run typos@1.48.0"
 
 #: Markdown linter the shared recipe runs.
 DEFAULT_LINTER = "markdownlint-cli2"
@@ -49,9 +38,9 @@ DEFAULT_VALIDATOR = "nixie"
 
 #: Ends option parsing before a discovered file list. Git tracks a name that
 #: begins with a dash, and discovery reports a root-relative name as it found
-#: it, so ``-guide.md`` arrives as the first operand. typos and nixie refuse it
-#: as an unknown flag and read nothing at all; the terminator goes after the
-#: gate's own flags, which still need to parse.
+#: it, so ``-guide.md`` arrives as the first operand. A linter refuses it as an
+#: unknown flag and reads nothing at all; the terminator goes after the gate's
+#: own flags, which still need to parse.
 OPTION_TERMINATOR = "--"
 
 
@@ -60,14 +49,11 @@ class GateExecutionError(RuntimeError):
 
 
 #: Failures a gate reports as a one-line diagnostic rather than a traceback.
-#: Finding no file, and being unable to reach the shared policy, are both
-#: refusals to evaluate the gate; reading them as a stack trace buries the
-#: reason the gate stopped.
+#: Finding no file is a refusal to evaluate the gate; reading it as a stack
+#: trace buries the reason the gate stopped.
 GATE_ERRORS = (
     gate_discovery.GateDiscoveryError,
     GateExecutionError,
-    typos_rollout.NetworkUnavailableError,
-    typos_rollout.InsecureSourceError,
 )
 
 
@@ -136,171 +122,6 @@ def _run(command: Sequence[str], *, cwd: Path) -> None:
         raise GateExecutionError(message) from error
     if completed.returncode != 0:
         raise SystemExit(completed.returncode)
-
-
-def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    """Run Git in a repository with captured output.
-
-    Standard input is closed, as it is for the tools ``_run`` starts. Git does
-    not read it here, but a command double standing in for Git does, and a
-    shim waiting on an inherited terminal would wedge the gate.
-    """
-    return subprocess.run(  # noqa: S603 - fixed executable, no shell.
-        ["git", "-C", str(repository), *arguments],
-        capture_output=True,
-        check=False,
-        stdin=subprocess.DEVNULL,
-        text=True,
-    )
-
-
-def _require_tracked(repository: Path, relative: str) -> None:
-    """Reject a generated file that is not in the index.
-
-    An untracked generated file is written afresh on every run, so drift
-    between the merged policy and what CI checks out is invisible.
-
-    Raises
-    ------
-    GateExecutionError
-        If Git does not know the path.
-    """
-    completed = _git(repository, "ls-files", "--error-unmatch", "--", relative)
-    if completed.returncode != 0:
-        message = (
-            f"{relative} is not tracked; commit it so the generated policy is "
-            "reviewable and drift is detectable"
-        )
-        raise GateExecutionError(message)
-
-
-def _require_undrifted(repository: Path, relative: str) -> None:
-    """Reject a generated file that differs from the merged policy.
-
-    Raises
-    ------
-    GateExecutionError
-        If the worktree copy differs from the index.
-    """
-    completed = _git(
-        repository,
-        "diff",
-        "--no-ext-diff",
-        "--exit-code",
-        "--",
-        relative,
-    )
-    if completed.returncode != 0:
-        sys.stdout.write(completed.stdout)
-        # Flush before the diagnostic so the two streams stay in order when a
-        # caller captures both into one log, as ``tee`` does in CI.
-        sys.stdout.flush()
-        sys.stderr.write(completed.stderr)
-        message = (
-            f"{relative} drifted from the merged spelling policy; commit the "
-            "regenerated configuration"
-        )
-        raise GateExecutionError(message)
-
-
-def _require_correct_phrases(
-    repository: Path,
-    dictionary: typos_rollout.Dictionary,
-) -> None:
-    """Report prohibited exact phrases, failing when any is present.
-
-    Typos splits a form such as ``hand-written`` into two valid tokens, so the
-    curated phrase table needs a pass of its own over tracked UTF-8 text.
-
-    Raises
-    ------
-    SystemExit
-        With status two when at least one prohibited phrase is present.
-    """
-    findings = typos_rollout.check_phrase_corrections(repository, dictionary)
-    for finding in findings:
-        print(
-            f"{finding.path}:{finding.line}:{finding.column}: "
-            f"{finding.phrase} -> {finding.correction}"
-        )
-    if findings:
-        raise SystemExit(2)
-
-
-def spelling(
-    repository: Path = Path(),
-    source: str = typos_rollout.DEFAULT_BASE_URL,
-    typos: str = DEFAULT_TYPOS,
-    config: Path = Path("typos.toml"),
-    offline: bool = False,
-) -> None:
-    """Generate the shared spelling configuration and check tracked text.
-
-    The scanner runs against the generated configuration alone, so policy it
-    would otherwise discover beside the tracked files cannot decide the verdict
-    this gate reports.
-
-    Parameters
-    ----------
-    repository
-        Repository root to generate configuration into and check.
-    source
-        Local path or HTTPS URL for the authoritative shared base.
-    typos
-        Command line of the spelling scanner, split with shell rules.
-    config
-        Repository-relative generated configuration path.
-    offline
-        Reuse an existing valid base cache without contacting the source.
-
-    Raises
-    ------
-    GateDiscoveryError
-        If the tracked file list cannot be produced or is empty.
-    GateExecutionError
-        If the generated configuration is untracked or has drifted, or the
-        scanner is not installed.
-    SystemExit
-        If a prohibited phrase is present, or the scanner reports findings.
-    """
-    # The configuration is generated where the option says it will be, not at
-    # a fixed name. Generated anywhere else, a tracked custom configuration
-    # would satisfy the checks below without ever having been regenerated from
-    # the merged policy, and the scanner would read a stale file the gate had
-    # just certified.
-    generated = typos_rollout.generate_config(
-        repository,
-        source,
-        destination=repository / config,
-        offline=offline,
-    )
-    print(f"{generated.status}: {generated.path}")
-    # Discovery comes first so a producer that fails or lists nothing is
-    # reported as such. Left until later, a broken producer surfaces as an
-    # untracked configuration or, through the phrase checker's own listing, as
-    # an uncaught subprocess failure rather than a named gate diagnostic.
-    paths = gate_discovery.tracked_paths(repository, gate="spelling")
-    relative = config.as_posix()
-    _require_tracked(repository, relative)
-    _require_undrifted(repository, relative)
-    _require_correct_phrases(repository, generated.dictionary)
-    _run(
-        [
-            *shlex.split(typos),
-            # The scan applies the configuration the gate generated and no
-            # other. Without this, typos merges a ``typos.toml`` it discovers
-            # beside a file it reads, so nested or custom-named policy the gate
-            # never tracked or checked for drift could soften a verdict the
-            # gate reports as that configuration's.
-            "--isolated",
-            "--config",
-            relative,
-            "--force-exclude",
-            OPTION_TERMINATOR,
-            *(path.as_posix() for path in paths),
-        ],
-        cwd=repository,
-    )
 
 
 def markdownlint(

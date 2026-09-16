@@ -13,10 +13,6 @@ tool.
 
 Examples
 --------
-Run the shared spelling gate::
-
-    uv run --script scripts/gate_runner_cli.py spelling
-
 Lint every Markdown file in the tree::
 
     uv run --script scripts/gate_runner_cli.py markdownlint
@@ -25,8 +21,8 @@ Validate every Mermaid diagram::
 
     uv run --script scripts/gate_runner_cli.py nixie
 
-Parameters are environment-aware, so a caller can set ``GATE_RUNNER_TYPOS`` or
-``GATE_RUNNER_LINTER`` instead of passing an option.
+Parameters are environment-aware, so a caller can set ``GATE_RUNNER_LINTER``
+instead of passing an option.
 """
 
 import sys
@@ -52,7 +48,6 @@ def cli() -> None:
         config=cyclopts.config.Env("GATE_RUNNER_", command=False),
         help="Run a repository gate over one explicit file list.",
     )
-    app.command(gate_runner.spelling)
     app.command(gate_runner.markdownlint)
     app.command(gate_runner.nixie)
     try:

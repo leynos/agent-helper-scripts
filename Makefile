@@ -25,8 +25,13 @@ HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
 HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|install|realpath|ln)([[:space:]]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
 PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py scripts/*.py tests/*.py))
 PYTEST := uv run --group dev python -m pytest
-TYPOS_VERSION ?= 1.48.0
-TYPOS := uv tool run typos@$(TYPOS_VERSION)
+# The spelling gate is the shared builder, pinned to a released tag. It owns the
+# Typos version, the phrase corrections, and the generated typos.toml, so this
+# repository carries no spelling helper of its own.
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.1
+TYPOS_CONFIG_BUILDER := uv tool run --python 3.14 \
+  --from "git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
+  typos-config-builder
 REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
 TEST_TARGETS := $(REPO_TESTS)
@@ -114,11 +119,15 @@ skill-manifest-check: skill-frontmatter-lint skill-manifest-validate
 typecheck: syntax-check
 	@echo "typecheck: no static type checker configured (ran syntax-check)"
 
+# The source is this checkout's own dictionary rather than the published copy
+# on `main`, so a pull request that edits the shared base is gated against the
+# base it proposes. `--scope all` keeps the whole tracked tree in the scan, as
+# the retired recipe did.
 spelling:
-	@uv run --script scripts/gate_runner_cli.py spelling \
+	@$(TYPOS_CONFIG_BUILDER) gate \
 		--repository . \
 		--source data/typos-oxendict-base.toml \
-		--typos '$(TYPOS)'
+		--scope all
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v
