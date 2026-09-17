@@ -35,6 +35,8 @@ SHARED_DICTIONARY_PATH = Path(__file__).resolve().parents[1] / (
 )
 #: A repository's own overlay, whose exclusions extend the shared ones.
 LOCAL_OVERLAY_NAME = "typos.local.toml"
+#: Globs an overlay may not use: each would silently empty the harvest.
+UNIVERSAL_FILE_GLOBS = frozenset({"*", "**", "**/*", "*.md", "**.md", "**/*.md"})
 OXFORD_FORM = re.compile(
     r"\b[A-Za-z]+(?:isations|izations|isation|ization|isably|izably|isable|izable|"
     r"isers|izers|ising|izing|ised|ized|ises|izes|iser|izer|ise|ize)\b"
@@ -59,6 +61,26 @@ def _excluded_files(path: Path) -> tuple[str, ...]:
     document = tomllib.loads(path.read_text(encoding="utf-8"))
     excluded = document.get("files", {}).get("exclude", ())
     return tuple(str(entry) for entry in excluded)
+
+
+def _validate_local_exclusions(excluded: tuple[str, ...]) -> None:
+    """Reject overlay exclusions that would empty the harvest.
+
+    Parameters
+    ----------
+    excluded
+        Repository-local ``[files] exclude`` entries proposed by an overlay.
+
+    Raises
+    ------
+    ValueError
+        If an entry excludes every file, or every Markdown file.
+    """
+    for pattern in excluded:
+        normalized = Path(pattern.strip()).as_posix().casefold()
+        if normalized in UNIVERSAL_FILE_GLOBS:
+            message = f"local file exclusion is too broad: {pattern!r}"
+            raise ValueError(message)
 
 
 def load_exclusion_policy(
@@ -89,11 +111,16 @@ def load_exclusion_policy(
         If a policy document exists but cannot be read.
     tomllib.TOMLDecodeError
         If a policy document is not valid TOML.
+    ValueError
+        If the overlay excludes every file, or every Markdown file. Such an
+        overlay would let harvesting report no evidence rather than fail.
     """
     excluded = set(_excluded_files(shared))
     overlay = repository / LOCAL_OVERLAY_NAME
     if overlay.exists():
-        excluded.update(_excluded_files(overlay))
+        local = _excluded_files(overlay)
+        _validate_local_exclusions(local)
+        excluded.update(local)
     return ExclusionPolicy(excluded_files=tuple(sorted(excluded)))
 
 
@@ -234,5 +261,8 @@ def harvest(repository: Path) -> tuple[dict[str, object], ...]:
     ------
     OSError, subprocess.CalledProcessError
         If repository discovery or a tracked-file read fails.
+    ValueError
+        If the repository's overlay excludes every file, or every Markdown
+        file.
     """
     return harvest_repository(repository, load_exclusion_policy(repository))

@@ -468,6 +468,11 @@ prints one JSON object per source line:
 uv run --script scripts/oxford_form_harvest_cli.py --repository ../project
 ```
 
+An overlay may extend the shared exclusions but may not empty the harvest:
+`load_exclusion_policy` rejects a universal glob such as `*`, `**/*` or
+`*.md` with a `ValueError`, so a mistaken overlay fails the command instead of
+reporting a repository with nothing to propose.
+
 Harvesting reads only Git-tracked files. A `UnicodeDecodeError` identifies
 non-UTF-8 content and is skipped with a bounded informational record. Every
 `OSError`, including permission and disappearance failures, is logged without a

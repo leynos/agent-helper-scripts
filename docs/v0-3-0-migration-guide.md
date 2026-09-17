@@ -41,7 +41,7 @@ shared phrase corrections. The fetched dictionary is cached in ignored
 3. Decide whether `typos.toml` stays tracked. Either untrack it — add it to
    `.gitignore` and run `git rm --cached typos.toml` — or keep it tracked
    only as a convenience snapshot that continuous integration never checks
-   for drift. This repository (agent-helper-scripts) keeps it tracked,
+   for drift. This repository (agent-helper-scripts) keeps it tracked
    because it curates the shared dictionary the snapshot is rendered from.
 4. Add `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
    `.gitignore`; `gate` writes both files as cache files, and neither is

@@ -224,6 +224,40 @@ def test_no_gate_recipe_pipes_a_producer_into_its_tool() -> None:
     ), "the builder is not pinned to a released tag"
 
 
+def test_the_spelling_recipe_gates_this_checkout_against_its_own_dictionary() -> None:
+    """The recipe names the working-copy source and the whole tracked tree.
+
+    The arguments are the gate's contract: a pull request that edits the shared
+    dictionary must be checked against the file it proposes rather than the
+    published copy, and over every tracked file rather than the diff.
+    """
+    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+    recipe = recipes(makefile)["spelling"]
+    command = " ".join(
+        line.strip().removesuffix("\\").strip() for line in recipe.splitlines()
+    )
+
+    assert "--repository ." in command, (
+        f"the spelling recipe does not gate this checkout: {command}"
+    )
+    assert "--source data/typos-oxendict-base.toml" in command, (
+        "the spelling recipe gates against a source other than the working-copy "
+        f"dictionary: {command}"
+    )
+    assert "--scope all" in command, (
+        f"the spelling recipe narrows the scan below the tracked tree: {command}"
+    )
+    version = re.search(
+        r"^TYPOS_CONFIG_BUILDER_VERSION\s*\?=\s*(v\d+\.\d+\.\d+)$",
+        makefile,
+        re.MULTILINE,
+    )
+    assert version is not None, "the builder is not pinned to a released tag"
+    assert "@$(TYPOS_CONFIG_BUILDER_VERSION)" in makefile, (
+        "the pinned tag does not reach the builder invocation"
+    )
+
+
 @pytest.mark.slow
 def test_the_command_line_reaches_every_gate_the_recipes_run() -> None:
     """The front end the recipes call registers both Markdown gates."""

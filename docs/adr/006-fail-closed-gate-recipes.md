@@ -87,3 +87,20 @@ wrapper.
   them to the runner.
 - Each gate spends one `uv run --script` start-up before the tool runs, which
   is paid once per gate rather than once per batch.
+
+## Amendment 2026-09-17
+
+This record's decision now covers the `markdownlint` and `nixie` recipes only.
+The spelling gate no longer discovers its own file list through
+`scripts/gate_runner_cli.py`: `make spelling` runs `typos-config-builder gate`,
+pinned by `TYPOS_CONFIG_BUILDER_VERSION`, over this checkout and its
+working-copy dictionary.
+
+The property the decision protects is unchanged rather than waived. The recipe
+is still one command whose status is the gate's status, with no pipeline and no
+`xargs`, so a producer's failure cannot be discarded. What moves is ownership of
+the file list: the builder enumerates the tracked tree it was given, refuses an
+empty scan, and reports a missing tool, and `tests/test_gate_runner.py` pins the
+recipe's repository, source, and `--scope all` arguments instead of pinning a
+runner invocation. A consumer that wants the same guarantee for its own
+Markdown or Mermaid gates still calls the runner.

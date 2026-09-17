@@ -163,7 +163,7 @@ continuous integration must never check it for drift: that would fail every
 consumer on every shared dictionary edit. A consumer therefore either leaves
 `typos.toml` untracked, by adding it to `.gitignore` and running
 `git rm --cached typos.toml`, or keeps it tracked only as a reviewable
-snapshot of the merged policy. This repository keeps it tracked, because it
+snapshot of the merged policy. This repository keeps it tracked because it
 curates the dictionary the snapshot is rendered from.
 
 The builder's own
@@ -179,8 +179,9 @@ call, and regenerating once.
 
 Adding an accepted word, a correction, or an ignore pattern to
 `data/typos-oxendict-base.toml` reaches every consumer on its next `gate` run.
-No consumer edit, tag bump, or regenerated commit is required, and the builder
-is not released again for a dictionary change.
+No consumer edit or tag bump is required, and the builder is not released again
+for a dictionary change. This repository tracks `typos.toml`, so a dictionary
+pull request also carries the snapshot `make spelling` regenerates.
 
 Open a pull request against this repository that edits the dictionary. The
 gate runs against the edited file, so the pull request proves its own policy.
@@ -190,7 +191,7 @@ upstream terms and deliberate fixtures belong in a consumer's
 an exact shared ignore expression for one repository that needs stricter
 checking, without weakening the policy anywhere else.
 
-Evidence supports the proposal: a suffix match alone is not one, because
+Evidence supports the proposal: a suffix match alone is not one because
 `advertise`, `exercise`, `promise` and Rust's `usize` all end the way an
 Oxford `-ize` family does. Gather it with the one spelling tool this
 repository still owns:

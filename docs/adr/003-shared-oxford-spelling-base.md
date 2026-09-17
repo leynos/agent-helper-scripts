@@ -142,7 +142,7 @@ builder: deterministic rendering, the companion phrase check, source-scoped
 cache validity, bounded ignore expressions, and the rule that a local overlay
 may not weaken shared policy.
 
-One tool stays here, because it serves curation rather than consumption:
+One tool stays here because it serves curation rather than consumption:
 `scripts/oxford_form_harvest.py` gathers the Oxford-form evidence a curator
 reads before proposing a stem. The cost recorded above, that curators must
 inspect harvested context because a suffix match alone is not evidence, is

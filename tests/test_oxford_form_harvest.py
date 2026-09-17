@@ -11,9 +11,12 @@ import collections.abc as cabc
 import importlib.util
 import subprocess
 import sys
+import tempfile
 import types
 import typing as typ
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
 import pytest
 
 from spelling_policy_support import (
@@ -31,6 +34,35 @@ EXCLUDED_OVERLAY = (
     "schema = 1\n\n[oxford]\nstems = []\n\n[words]\naccepted = []\n\n"
     '[patterns]\nignore = []\n\n[files]\nexclude = ["fixture.md"]\n'
 )
+UNIVERSAL_OVERLAY_TEMPLATE = (
+    "schema = 1\n\n[oxford]\nstems = []\n\n[words]\naccepted = []\n\n"
+    '[patterns]\nignore = []\n\n[files]\nexclude = ["{glob}"]\n'
+)
+#: Exclusion entries a generated policy document may carry: plain, quotable
+#: names that are never one of the universal globs an overlay may not use.
+EXCLUSION_NAMES = st.sampled_from(
+    ("target", "vendor", "fixture.md", "build", "node_modules", "docs/generated")
+)
+
+
+def exclusion_document(excluded: cabc.Sequence[str]) -> str:
+    """Render a minimal policy document carrying only file exclusions.
+
+    Parameters
+    ----------
+    excluded
+        Repository-relative entries for the document's ``[files] exclude``.
+
+    Returns
+    -------
+    str
+        TOML text the harvesting tool can read as a policy document.
+    """
+    entries = ", ".join(f'"{entry}"' for entry in excluded)
+    return (
+        "schema = 1\n\n[oxford]\nstems = []\n\n[words]\naccepted = []\n\n"
+        f"[patterns]\nignore = []\n\n[files]\nexclude = [{entries}]\n"
+    )
 
 
 @pytest.fixture(name="harvest", scope="module")
@@ -158,6 +190,27 @@ def test_the_exclusion_policy_reads_only_the_shared_and_local_documents(
     )
 
 
+@pytest.mark.parametrize(
+    "universal_glob",
+    ["*", "**/*", "*.md", "**/*.MD"],
+)
+def test_the_exclusion_policy_rejects_universal_overlay_globs(
+    harvest: types.ModuleType,
+    tmp_path: Path,
+    universal_glob: str,
+) -> None:
+    """An overlay may not exclude everything, or all Markdown, from harvesting."""
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "typos.local.toml").write_text(
+        UNIVERSAL_OVERLAY_TEMPLATE.format(glob=universal_glob),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="local file exclusion is too broad"):
+        harvest.load_exclusion_policy(repository)
+
+
 def test_harvest_repository_merges_local_exclusions(
     harvest: types.ModuleType,
     tmp_path: Path,
@@ -237,3 +290,74 @@ def test_harvest_repository_skips_non_utf8_files(
     assert str(repository / "binary.dat") not in skipped.getMessage(), (
         "non-UTF-8 diagnostic exposed the repository path"
     )
+
+
+@given(
+    shared_exclusions=st.lists(EXCLUSION_NAMES, max_size=6),
+    local_exclusions=st.lists(EXCLUSION_NAMES, max_size=6),
+)
+@settings(deadline=None, max_examples=50)
+def test_the_exclusion_policy_is_the_sorted_union_of_both_documents(
+    harvest: types.ModuleType,
+    shared_exclusions: list[str],
+    local_exclusions: list[str],
+) -> None:
+    """Merging is set union: deduplicated, sorted, and order-independent.
+
+    The harvest decides what it may skip from this tuple, so a duplicate or an
+    input ordering must not change which paths survive.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        repository = root / "repository"
+        repository.mkdir()
+        shared = root / "shared.toml"
+        shared.write_text(exclusion_document(shared_exclusions), encoding="utf-8")
+        (repository / "typos.local.toml").write_text(
+            exclusion_document(local_exclusions),
+            encoding="utf-8",
+        )
+
+        policy = harvest.load_exclusion_policy(repository, shared=shared)
+
+    expected = tuple(sorted(set(shared_exclusions) | set(local_exclusions)))
+    assert policy.excluded_files == expected, (
+        "the merged exclusions are not the sorted union of both documents"
+    )
+
+
+@pytest.mark.slow
+def test_the_command_line_prints_one_json_object_per_matching_line(
+    tmp_path: Path,
+) -> None:
+    """The front end's JSON Lines output is stable evidence a curator can diff."""
+    uv = require_executable("uv")
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "guide.md").write_text(
+        f"We organize releases.\nThe fixture says {PLAIN_BRITISH_ORGANIZE}.\n"
+        "Nothing here matches.\n",
+        encoding="utf-8",
+    )
+    initialize_repository(repository, "guide.md")
+
+    completed = subprocess.run(
+        [
+            uv,
+            "run",
+            "--script",
+            str(SCRIPTS_PATH / "oxford_form_harvest_cli.py"),
+            "--repository",
+            str(repository),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=REPOSITORY_ROOT,
+        timeout=300,
+    )
+
+    assert completed.stdout == (
+        '{"forms": ["organize"], "line": 1, "path": "guide.md"}\n'
+        f'{{"forms": ["{PLAIN_BRITISH_ORGANIZE}"], "line": 2, "path": "guide.md"}}\n'
+    ), f"the command line changed its evidence format: {completed.stdout!r}"
