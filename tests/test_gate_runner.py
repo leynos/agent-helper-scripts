@@ -18,29 +18,17 @@ import typing as typ
 from cmd_mox import CmdMox, skip_if_unsupported
 import pytest
 
-from gate_runner_test_support import (
-    GIT,
-    SHARED_DICTIONARY_PATH,
-    GateModules,
-    git_handler,
-    write_markdown_tree,
-)
-from typos_rollout_test_support import REPOSITORY_ROOT
+from gate_runner_test_support import GateModules, write_markdown_tree
+from spelling_policy_support import REPOSITORY_ROOT
 
 if typ.TYPE_CHECKING:
     from cmd_mox.ipc import Invocation
 
 skip_if_unsupported()
 
-SCANNER = "stub-scanner"
 LINTER = "stub-linter"
 VALIDATOR = "stub-validator"
 CLI_PATH = REPOSITORY_ROOT / "scripts" / "gate_runner_cli.py"
-NOT_A_REPOSITORY = "fatal: not a git repository (or any of the parent directories)"
-# Split so the repository's own spelling gate does not flag this fixture; the
-# compound it builds is one the shipped policy prohibits.
-HYPHENATED_HANDWRITTEN = "hand" + "-written"
-SAMPLE_FINDING = f"README.md:1:8: {HYPHENATED_HANDWRITTEN} -> handwritten"
 # A name Git tracks and the walk reports unchanged, but which a tool reads as
 # an option unless the operand list is introduced by an option terminator.
 DASH_FILE = "-guide.md"
@@ -49,151 +37,6 @@ DASH_FILE = "-guide.md"
 def silent(_invocation: Invocation) -> tuple[str, str, int]:
     """Answer a doubled tool that reports nothing."""
     return ("", "", 0)
-
-
-def test_the_gate_fails_before_the_scanner_when_nothing_is_tracked(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """An empty producer fails the gate instead of scanning an empty list."""
-    scanner = cmd_mox.spy(SCANNER).runs(silent)
-    cmd_mox.spy(GIT).runs(git_handler(listed=""))
-
-    with pytest.raises(gate.discovery.GateDiscoveryError) as failure:
-        gate.runner.spelling(
-            repository=tmp_path,
-            source=SHARED_DICTIONARY_PATH,
-            typos=SCANNER,
-        )
-
-    assert "found no Git-tracked files" in str(failure.value)
-    assert isinstance(failure.value, gate.runner.GATE_ERRORS), (
-        "a refusal the command line does not catch surfaces as a traceback "
-        "instead of the one diagnostic line the recipe reports"
-    )
-    assert scanner.call_count == 0, (
-        "the scanner ran over a list the gate should have refused; a green "
-        "scan of nothing is the failure this gate exists to prevent"
-    )
-
-
-def test_the_gate_fails_before_the_scanner_when_the_producer_fails(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """A producer that exits non-zero fails the gate with its own diagnostic."""
-    scanner = cmd_mox.spy(SCANNER).runs(silent)
-    cmd_mox.spy(GIT).runs(git_handler(status=128, diagnostic=NOT_A_REPOSITORY))
-
-    with pytest.raises(gate.discovery.GateDiscoveryError) as failure:
-        gate.runner.spelling(
-            repository=tmp_path,
-            source=SHARED_DICTIONARY_PATH,
-            typos=SCANNER,
-        )
-
-    assert NOT_A_REPOSITORY in str(failure.value), (
-        "the failure must name what the producer reported, not the gate's "
-        "next step, or a broken producer reads as a policy problem"
-    )
-    assert scanner.call_count == 0, scanner.invocations
-
-
-def test_the_scanner_runs_once_over_every_tracked_file(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """The whole list reaches one scanner run, in a stable order."""
-    written = write_markdown_tree(tmp_path, ("README.md", "docs/guide.md"))
-    cmd_mox.spy(GIT).runs(
-        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
-    )
-    scanner = cmd_mox.spy(SCANNER).runs(silent)
-
-    gate.runner.spelling(
-        repository=tmp_path,
-        source=SHARED_DICTIONARY_PATH,
-        typos=SCANNER,
-    )
-
-    assert scanner.call_count == 1, scanner.invocations
-    assert list(scanner.invocations[0].args) == [
-        # ``--isolated`` keeps the scan to the configuration the gate
-        # generated; typos otherwise merges a ``typos.toml`` it finds beside
-        # the files it reads, so policy the gate never checked could soften
-        # its verdict.
-        "--isolated",
-        "--config",
-        "typos.toml",
-        "--force-exclude",
-        "--",
-        *(path.as_posix() for path in written),
-    ], "the scanner did not receive the generated config and every file"
-
-
-def test_a_dash_prefixed_name_reaches_the_scanner_as_an_operand(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """A tracked name beginning with a dash is read as a file, not an option.
-
-    Git tracks such a name and discovery reports it as it found it, so
-    ``-guide.md`` reaches the scanner first. Left there unseparated, it is an
-    unknown flag: typos refuses the invocation and reads no file at all, and
-    the gate reports a scanner failure in place of the scan it was asked for.
-    """
-    written = write_markdown_tree(tmp_path, (DASH_FILE,))
-    cmd_mox.spy(GIT).runs(
-        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
-    )
-    scanner = cmd_mox.spy(SCANNER).runs(silent)
-
-    gate.runner.spelling(
-        repository=tmp_path,
-        source=SHARED_DICTIONARY_PATH,
-        typos=SCANNER,
-    )
-
-    assert list(scanner.invocations[0].args) == [
-        "--isolated",
-        "--config",
-        "typos.toml",
-        "--force-exclude",
-        "--",
-        DASH_FILE,
-    ], "a dash-prefixed name was left where the scanner reads it as a flag"
-
-
-def test_the_scanner_status_is_the_gate_status(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """Findings fail the gate with the scanner's own status."""
-    written = write_markdown_tree(tmp_path, ("README.md",))
-    cmd_mox.spy(GIT).runs(
-        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
-    )
-    scanner = cmd_mox.spy(SCANNER).runs(
-        lambda _invocation: (f"{SAMPLE_FINDING}\n", "", 2),
-    )
-
-    with pytest.raises(SystemExit) as exit_info:
-        gate.runner.spelling(
-            repository=tmp_path,
-            source=SHARED_DICTIONARY_PATH,
-            typos=SCANNER,
-        )
-
-    assert exit_info.value.code == 2, (
-        "the recipe must report what the scanner reported, not a status of "
-        "its own invention"
-    )
-    assert scanner.call_count == 1, scanner.invocations
 
 
 def test_a_missing_tool_is_reported_as_not_installed(
@@ -363,27 +206,61 @@ def test_no_gate_recipe_pipes_a_producer_into_its_tool() -> None:
             f"the {target} recipe funnels files through xargs, which exits zero "
             f"on no input: {body}"
         )
-        assert "gate_runner_cli.py" in body, (
-            f"the {target} recipe bypasses the shared gate runner: {body}"
+    for target in ("markdownlint", "nixie"):
+        assert "gate_runner_cli.py" in recipes_by_target[target], (
+            f"the {target} recipe bypasses the shared gate runner"
         )
+    # The spelling gate is not this repository's code to run: the pinned
+    # builder discovers its own file list, runs Typos, and enforces the phrase
+    # corrections. The recipe therefore names the builder variable and nothing
+    # else, and that variable pins a released tag.
+    assert "$(TYPOS_CONFIG_BUILDER) gate" in recipes_by_target["spelling"], (
+        "the spelling recipe no longer calls the pinned builder"
+    )
+    assert re.search(
+        r"^TYPOS_CONFIG_BUILDER_VERSION\s*\?=\s*v\d+\.\d+\.\d+$",
+        makefile,
+        re.MULTILINE,
+    ), "the builder is not pinned to a released tag"
 
 
-def test_the_default_scanner_matches_the_makefile_version_pin(
-    gate: GateModules,
-) -> None:
-    """The runner's default scanner cannot drift from the version that ships."""
+def test_the_spelling_recipe_gates_this_checkout_against_its_own_dictionary() -> None:
+    """The recipe names the working-copy source and the whole tracked tree.
+
+    The arguments are the gate's contract: a pull request that edits the shared
+    dictionary must be checked against the file it proposes rather than the
+    published copy, and over every tracked file rather than the diff.
+    """
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
-    match = re.search(r"^TYPOS_VERSION\s*\?=\s*(\S+)", makefile, re.MULTILINE)
-    assert match is not None, "Makefile does not pin a typos version"
+    recipe = recipes(makefile)["spelling"]
+    command = " ".join(
+        line.strip().removesuffix("\\").strip() for line in recipe.splitlines()
+    )
 
-    assert gate.runner.DEFAULT_TYPOS == f"uv tool run typos@{match.group(1)}", (
-        "the runner's default scanner and the Makefile pin disagree"
+    assert "--repository ." in command, (
+        f"the spelling recipe does not gate this checkout: {command}"
+    )
+    assert "--source data/typos-oxendict-base.toml" in command, (
+        "the spelling recipe gates against a source other than the working-copy "
+        f"dictionary: {command}"
+    )
+    assert "--scope all" in command, (
+        f"the spelling recipe narrows the scan below the tracked tree: {command}"
+    )
+    version = re.search(
+        r"^TYPOS_CONFIG_BUILDER_VERSION\s*\?=\s*(v\d+\.\d+\.\d+)$",
+        makefile,
+        re.MULTILINE,
+    )
+    assert version is not None, "the builder is not pinned to a released tag"
+    assert "@$(TYPOS_CONFIG_BUILDER_VERSION)" in makefile, (
+        "the pinned tag does not reach the builder invocation"
     )
 
 
 @pytest.mark.slow
 def test_the_command_line_reaches_every_gate_the_recipes_run() -> None:
-    """The front end the recipes call registers all three gates."""
+    """The front end the recipes call registers both Markdown gates."""
     uv = shutil.which("uv")
     if uv is None:
         pytest.skip("uv is unavailable to run the gate command line")
@@ -396,7 +273,7 @@ def test_the_command_line_reaches_every_gate_the_recipes_run() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    for command in ("markdownlint", "nixie", "spelling"):
+    for command in ("markdownlint", "nixie"):
         assert command in result.stdout, (
             f"the command line does not expose {command}: {result.stdout}"
         )
@@ -428,43 +305,6 @@ def test_a_multi_token_tool_is_split_into_its_executable_and_arguments(
         "--",
         *(path.as_posix() for path in written),
     ], "the runner treated the configured command line as one executable name"
-
-
-def test_the_config_option_decides_where_the_policy_is_generated(
-    cmd_mox: CmdMox,
-    gate: GateModules,
-    tmp_path: Path,
-) -> None:
-    """A named configuration is written and scanned, not merely scanned.
-
-    Generated at a fixed name instead, a tracked configuration under any other
-    name passes the tracking and drift checks without ever having been
-    regenerated from the merged policy.
-    """
-    written = write_markdown_tree(tmp_path, ("README.md",))
-    cmd_mox.spy(GIT).runs(
-        git_handler(listed="\0".join(path.as_posix() for path in written) + "\0"),
-    )
-    scanner = cmd_mox.spy(SCANNER).runs(silent)
-
-    gate.runner.spelling(
-        repository=tmp_path,
-        source=SHARED_DICTIONARY_PATH,
-        typos=SCANNER,
-        config=Path("spelling-policy.toml"),
-    )
-
-    assert (tmp_path / "spelling-policy.toml").exists(), (
-        "the configuration was generated somewhere other than where the gate "
-        "says it reads it"
-    )
-    assert not (tmp_path / "typos.toml").exists(), (
-        "generation ignored the option and wrote the default name as well"
-    )
-    scanner_args = list(scanner.invocations[0].args)
-    assert scanner_args[scanner_args.index("--config") + 1] == (
-        "spelling-policy.toml"
-    ), scanner_args
 
 
 def test_a_tool_the_operating_system_refuses_to_start_is_a_gate_error(
@@ -509,12 +349,10 @@ def test_the_command_line_reports_a_failure_as_one_diagnostic(
             "run",
             "--script",
             str(CLI_PATH),
-            "spelling",
+            "markdownlint",
             "--repository",
             str(tmp_path),
-            "--source",
-            str(SHARED_DICTIONARY_PATH),
-            "--typos",
+            "--linter",
             "true",
         ],
         check=False,
@@ -528,5 +366,5 @@ def test_the_command_line_reports_a_failure_as_one_diagnostic(
         "the failure did not reach the caller as the gate's own diagnostic"
     )
     assert "Traceback" not in result.stderr, (
-        "a gate that cannot list its files must not report a stack trace"
+        "a gate that finds no file must not report a stack trace"
     )

@@ -22,7 +22,7 @@ and ran its own repository-local phrase-check script over Git-tracked text.
 A consumer runs `typos-config-builder gate`, pinned to a released tag:
 
 ```bash
-uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
   typos-config-builder gate
 ```
 
@@ -40,23 +40,31 @@ shared phrase corrections. The fetched dictionary is cached in ignored
    `gate` call.
 3. Decide whether `typos.toml` stays tracked. Either untrack it — add it to
    `.gitignore` and run `git rm --cached typos.toml` — or keep it tracked
-   only as a convenience snapshot that CI never checks for drift. This
-   differs from this repository (agent-helper-scripts) itself, where
-   `scripts/gate_runner.py` requires its own tracked `typos.toml` to stay
-   undrifted, because this repository curates the shared base rather than
-   merely consuming it.
+   only as a convenience snapshot that continuous integration never checks
+   for drift. This repository (agent-helper-scripts) keeps it tracked
+   because it curates the shared dictionary the snapshot is rendered from.
 4. Add `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
    `.gitignore`; `gate` writes both files as cache files, and neither is
    a policy source.
 5. Run `gate` once to regenerate.
 
+### This repository
+
+As of 2026-09-16 the generator is gone from here too. The
+`scripts/typos_rollout*.py` modules and their tests are deleted, and
+`make spelling` runs the pinned `gate` command against this checkout's own
+`data/typos-oxendict-base.toml` with `--scope all`. A repository that copied
+those scripts should migrate rather than keep a copy: nothing here maintains
+them any longer.
+
+`scripts/oxford_form_harvest_cli.py` remains, because proposing a new shared
+word still starts from evidence. It is a curation tool for this repository,
+not something a consumer runs.
+
 ### Backward compatibility
 
-This rollout is staged, not complete. As of 2026-09-14 no consumer has
-migrated yet. Twenty-eight repositories invoke the builder pinned to a
-commit, alongside their own phrase-check script; thirty-six still run a
-vendored copy of this repository's generator, which receives dictionary
-updates but enforces no phrase corrections. Until a repository migrates, it
-keeps that legacy tooling. Migration order and status are tracked in
-`docs/execplans/audit-missing-functionality.md` in
-`leynos/typos-config-builder`.
+This rollout is staged, not complete. Migration order and status are tracked
+in `docs/execplans/audit-missing-functionality.md` in
+`leynos/typos-config-builder`. Until a repository migrates, it keeps its
+legacy tooling, which receives dictionary updates but enforces no phrase
+corrections.

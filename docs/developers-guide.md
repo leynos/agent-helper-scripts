@@ -303,23 +303,21 @@ over an unread tree. [ADR 006](adr/006-fail-closed-gate-recipes.md) records
 the defect and the decision; `set -o pipefail` remains only as an interim
 guard for a repository that has not regenerated its recipes.
 
-The recipes call `scripts/gate_runner_cli.py`, which exposes three commands.
-`spelling` generates the shared configuration, validates it against the merged
-policy, and scans every Git-tracked file. `markdownlint` and `nixie` walk the
-tree for `*.md`, pruning build, cache and vendored directories. Each command
-raises when discovery produces no file, names a tool it cannot resolve, and
-exits with the tool's own status. `GATE_RUNNER_*` environment variables supply
-the values the options carry, so a consumer can set `GATE_RUNNER_LINTER`
-instead of restating the flag.
+The recipes call `scripts/gate_runner_cli.py`, which exposes two commands.
+`markdownlint` and `nixie` walk the tree for `*.md`, pruning build, cache and
+vendored directories. Each command raises when discovery produces no file,
+names a tool it cannot resolve, and exits with the tool's own status.
+`GATE_RUNNER_*` environment variables supply the values the options carry, so a
+consumer can set `GATE_RUNNER_LINTER` instead of restating the flag. The
+`spelling` recipe has the same fail-closed shape but is not this repository's
+code: `typos-config-builder gate` discovers its own file list and refuses an
+empty one.
 
-Discovery is its own module, `scripts/gate_discovery.py`. Its `tracked_paths()`
-entry point runs `git -C <repo> ls-files -z` and returns the sorted
-repository-relative paths, NUL delimiting each so a name containing a newline
-stays one entry; it raises when Git fails, carrying Git's own diagnostic, or
-when the list is empty. Its `markdown_paths()` entry point walks the tree for
-the `.md` suffix, matched case-insensitively so `README.MD` is a document,
-prunes excluded directory names at any depth, and returns sorted
-repository-relative paths. It passes an `onerror` callback to `os.walk`, so a
+Discovery is its own module, `scripts/gate_discovery.py`. Its
+`markdown_paths()` entry point walks the tree for the `.md` suffix, matched
+case-insensitively so `README.MD` is a document, prunes excluded directory
+names at any depth, and returns sorted repository-relative paths. It passes an
+`onerror` callback to `os.walk`, so a
 directory the walk cannot read fails the gate rather than being silently
 skipped: without that callback a partial list reads as a finished scan. A
 caller-supplied `excludes` replaces the defaults rather than extending them.
@@ -329,8 +327,8 @@ The default pruned names are `.git`, `.hypothesis`, `.mypy_cache`,
 `.venv`, `__pycache__`, `_build`, `build`, `dist`, `htmlcov`, `node_modules`,
 `site` and `target`: version control, tool caches, virtual environments, and
 build, coverage or vendored output. They overlap the directory entries of the
-shared spelling base's `[files] exclude` list, so a gate descends into nothing
-the spelling policy already treats as outside the repository's own sources.
+shared dictionary's `[files] exclude` list, so a gate descends into nothing the
+spelling policy already treats as outside the repository's own sources.
 
 A configured tool is a command line, split with `shlex.split`, so
 `MDLINT='bunx markdownlint-cli2'` works; it is not looked up on `PATH` as one
@@ -339,31 +337,19 @@ rather than passing a glob, and `nixie` keeps `--no-sandbox` for the renderer
 it drives. The discovered list is introduced by an option terminator, placed
 after the tool's own flags so those still parse. Git tracks a name that begins
 with a dash and discovery reports it as it found it, so `-guide.md` arrives as
-the first operand; unseparated, `typos` and `nixie` refuse it as an unknown
-flag and read no file at all. A tool the operating system refuses to start is
-a gate error naming the refusal, such as an argument list too long for
-`execve`, rather than a traceback.
-
-The `spelling` gate generates the shared configuration at the path its
-`--config` option names (default `typos.toml`), requires that file to be
-tracked and undrifted, runs the phrase checker over tracked UTF-8 text, then
-runs the scanner once over every tracked file as `<scanner> --isolated
---config <path> --force-exclude -- <files...>`. Generating where the option says
-matters: a tracked configuration under a custom name cannot satisfy the
-tracking and drift checks without ever having been regenerated from the merged
-policy. `--isolated` keeps the scan to the generated configuration, because
-`typos` otherwise merges a `typos.toml` it discovers beside the files it
-reads, so a nested or custom-named policy the gate never generated, never
-required to be tracked and never checked for drift could soften the verdict
-the gate reports as its own configuration's.
+the first operand; unseparated, a linter refuses it as an unknown flag and
+reads no file at all. A tool the operating system refuses to start is a gate
+error naming the refusal, such as an argument list too long for `execve`,
+rather than a traceback.
 
 The commands themselves live in `scripts/gate_runner.py`, which imports only
 the standard library. The Cyclopts front end is a separate module so tests can
 drive a gate with a command double standing in for its tool.
 `tests/test_gate_discovery.py` and `tests/test_gate_runner.py` pin the
-contract: an empty or failed producer fails the gate before its tool is
-invoked, the tool receives the whole list in one invocation, and a tool that
-reports findings fails the gate with its own status.
+contract: an empty walk fails the gate before its tool is invoked, the tool
+receives the whole list in one invocation, and a tool that reports findings
+fails the gate with its own status. They also pin the recipe shape, including
+that the `spelling` recipe calls the pinned builder and nothing else.
 `tests/test_gate_discovery_properties.py` states the discovery contract as
 Hypothesis properties over generated directory trees: discovery returns
 exactly the Markdown outside the pruned directories, sorted and
@@ -371,25 +357,13 @@ repository-relative, and honours a caller's exclusion list at any depth.
 
 ### Policy merge boundary
 
-`scripts/typos_rollout_merge.py` is the boundary between the shared spelling
-base and a repository's local overlay. `typos_rollout.generate_config()`
-refreshes or reuses the base cache, loads the repository's `typos.local.toml`
-overlay with `local_overlay=True` when one exists — a sparse document that may
-omit the complete-authority fields — and merges it onto the base with
-`merge_dictionaries(base, local)`. The overlay side is merged on top, and the
-result is one deterministically ordered `Dictionary`.
-
-That `Dictionary` is the policy the runner and the phrase checker consume: it
-carries the Oxford stems, accepted words, word corrections, phrase
-corrections, ignore patterns, removed patterns and excluded files. The merge
-refuses to weaken the shared policy. A local correction that contradicts the
-base raises `ValueError`, as does a local overlay that both ignores and removes
-the same pattern, and `typos_rollout_policy.validate_local_exceptions()`
-rejects a local ignore pattern broad enough to mask ordinary prose or a file
-exclusion that names a universal glob such as `*.md` or `**/*`. Ignore patterns
-are checked for backreferences and for repetition that compounds ambiguity
-before any compiled pattern reaches the scanner, so a pattern that would
-introduce unbounded backtracking is refused rather than handed on.
+Merging the shared dictionary with a repository's `typos.local.toml` overlay is
+`typos-config-builder`'s work, and is tested there. The overlay may not weaken
+shared policy: a local correction that contradicts the dictionary is an error,
+as is a local ignore expression broad enough to mask ordinary prose or a file
+exclusion naming a universal glob such as `*.md`. A local `[patterns] remove`
+list withdraws an exact shared ignore expression, which is how a repository
+narrows shared policy without forking anything.
 
 ### Markdown lint configuration
 
@@ -446,121 +420,81 @@ while a local `make ci` still runs it.
 The architecture and trade-offs are recorded in
 [ADR 003](adr/003-shared-oxford-spelling-base.md).
 
-The target consumer boundary, once a repository migrates, is
-`typos-config-builder gate`, pinned to a released tag; a migrated consumer
-no longer vendors this generator:
+This repository curates `data/typos-oxendict-base.toml` and nothing else. The
+generator, the phrase checker, the cache and the scanner all belong to
+[`typos-config-builder`](https://github.com/leynos/typos-config-builder), which
+every repository, including this one, runs as a single pinned command:
 
 ```bash
-uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
   typos-config-builder gate
 ```
 
 `gate` fetches `data/typos-oxendict-base.toml` live from this repository's
-`main`, merges the consumer's optional `typos.local.toml` overlay, and
-rewrites `typos.toml` on every run. The fetched dictionary is cached in
-ignored `.typos-oxendict-base.toml`, with freshness metadata in
-`.typos-oxendict-base.json`, so a valid cache still supports offline runs.
+`main`, merges the consumer's optional `typos.local.toml` overlay, rewrites
+`typos.toml` on every run, runs the Typos binary it pins, and enforces the
+shared phrase corrections. The fetched dictionary is cached in ignored
+`.typos-oxendict-base.toml`, with freshness metadata in
+`.typos-oxendict-base.json`, so a valid cache still supports offline runs. See
+the "Shared spelling tools" section of [docs/users-guide.md](users-guide.md)
+for the consumer contract and the builder's own
+[users' guide](https://github.com/leynos/typos-config-builder/blob/main/docs/users-guide.md)
+for its options.
 
-**Rollout status:** as of 2026-09-14 no consumer has migrated onto this
-contract. Twenty-eight repositories invoke the builder pinned to a commit,
-alongside their own phrase-check script; thirty-six still run a vendored
-copy of this repository's generator, which receives dictionary updates but
-enforces no phrase corrections. Migration order and status are tracked in
-`docs/execplans/audit-missing-functionality.md` in
-`leynos/typos-config-builder`. See the "Shared spelling tools" section of
-[docs/users-guide.md](users-guide.md) for the full consumer contract.
-
-The rest of this section covers maintaining the shared base in this
-repository: curation rules and the local generator this repository's own
-`make spelling` gate runs. A migrated consumer never invokes that generator
-directly.
+`make spelling` runs that command here with two differences from a consumer's
+invocation. `--source data/typos-oxendict-base.toml` reads this checkout's
+working copy rather than published `main`, so a pull request that edits shared
+policy is gated against the policy it proposes; `--scope all` scans every
+tracked file rather than tracked Markdown alone. `TYPOS_CONFIG_BUILDER_VERSION`
+pins the released tag and is the only spelling version this repository carries.
 
 The tracked `data/typos-oxendict-base.toml` file is the estate-wide source of
 generic Oxford `-ize` mappings, accepted words and safe exclusions. Add a word
 there only when it is valid across repositories. Product names, quoted upstream
 terms and fixture-specific vocabulary belong in a consumer's own
-`typos.local.toml` overlay instead.
+`typos.local.toml` overlay instead. An addition here reaches every consumer on
+its next `gate` run: there is no tag to bump and no consumer commit to make.
 
-Local pattern additions merge with the shared ignore list. A local
-`[patterns] remove` list then withdraws exact shared entries, allowing a
-consumer to narrow an overly broad authority pattern without forking the
-generator. A pattern cannot appear in both the local `ignore` and `remove`
-lists; removals that no longer exist upstream remain valid no-ops.
+`scripts/oxford_form_harvest.py` is the one spelling tool this repository still
+owns. It gathers the evidence a curator reads before proposing a stem, because
+a suffix match alone is not evidence: `advertise`, `exercise`, `improvise`,
+`promise`, `resize` and Rust's `usize` must not be treated as Oxford `-ize`
+families. The module imports only the standard library, reading the `[files]
+exclude` lists of the shared dictionary and of a repository's overlay with
+`tomllib`; `scripts/oxford_form_harvest_cli.py` is its Cyclopts front end and
+prints one JSON object per source line:
 
-The executable `scripts/typos_rollout_cli.py` is the local generator this
-repository's own `make spelling` gate runs to curate and check the shared
-base; it is not what a migrated consumer runs. It provides three commands.
-`harvest` emits JSON Lines evidence for both plain-British `-ise` and Oxford
-`-ize` forms found in Git-tracked UTF-8 text. `generate` conditionally
-refreshes the untracked `.typos-oxendict-base.toml` cache, merges any local
-overlay, validates the result as TOML, and atomically writes deterministic
-`typos.toml` output. `check` rejects curated exact phrase corrections that
-Typos cannot enforce because punctuation separates its word tokens. It masks
-the merged ignore patterns and skips the merged file exclusions before
-reporting a path, line, column and canonical replacement. The companion
-`.typos-oxendict-base.json` stores HTTP validators. When the network is
-unavailable, a valid existing cache remains usable with `--offline`; generation
-fails rather than silently inventing an empty base when no cache exists.
+```bash
+uv run --script scripts/oxford_form_harvest_cli.py --repository ../project
+```
 
-Freshness metadata is source-scoped. Local modification times, HTTP validators,
-stale-cache fallback, and `304 Not Modified` reuse apply only when the saved
-source identity exactly matches the requested authority. A missing or different
-identity forces refresh or propagates the authority failure. Standard-library
-logging records these decisions with bounded `operation`, `source_kind`,
-`error_class` and `decision` fields. Never add an authority URL, repository
-path, response body or exception message to these records.
+An overlay may extend the shared exclusions but may not empty the harvest:
+`load_exclusion_policy` rejects a universal glob such as `*`, `**/*` or
+`*.md` with a `ValueError`, so a mistaken overlay fails the command instead of
+reporting a repository with nothing to propose.
 
-Refresh callers bind the metadata path, offline policy and optional test opener
-in an immutable `RefreshOptions` value. The helper owns the private local and
-remote request records that coordinate freshness and persistence; consumers
-should compose the public options value rather than reuse those infrastructure
-details.
+Harvesting reads only Git-tracked files. A `UnicodeDecodeError` identifies
+non-UTF-8 content and is skipped with a bounded informational record. Every
+`OSError`, including permission and disappearance failures, is logged without a
+path and propagated, so an incomplete scan cannot appear successful. Caplog
+tests in `tests/test_oxford_form_harvest.py` assert structured record fields
+rather than rendered log text.
 
-The `typos_rollout.py` facade preserves the public CLI and import surface.
-Sibling modules own one policy boundary each:
+`tests/test_shared_style_guide_patterns.py` pins the two style-guide
+proper-name masks as shared policy, in the dictionary and in the generated
+`typos.toml`, together with the whitespace variants they must mask and the near
+misses they must leave visible.
 
-- `typos_rollout_policy.py` validates schemas, local exceptions, and bounded
-  regular expressions.
-- `typos_rollout_cache.py` owns cache records, validator metadata, and atomic
-  persistence.
-- `typos_rollout_http.py` coordinates source-scoped local and HTTPS refreshes.
-- `typos_rollout_merge.py` merges the shared base with a repository's sparse
-  local overlay, refusing conflicts and exceptions that weaken shared policy.
-- `typos_rollout_render.py` expands Oxford stems and renders deterministic TOML.
-- `typos_rollout_check.py` enforces curated exact phrase corrections.
-- `typos_rollout_harvest.py` gathers contextual Oxford-form evidence.
-
-Keep each source module below 400 lines and route new behaviour to its owning
-boundary rather than expanding the facade. Regular expression validation
-rejects malformed patterns, backreferences, and compounded repetition. The
-scanner recognizes all Python brace forms, including `{n}`, `{n,}`, `{n,m}` and
-`{,n}`. It permits repetitions separated by unquantified atoms. Example
-regressions pin known hazards, while Hypothesis properties generate every brace
-shape and varied safe separators.
-
-Phrase checking and harvesting read only Git-tracked files. A
-`UnicodeDecodeError` identifies non-UTF-8 content and is skipped with a bounded
-informational record. Every `OSError`, including permission and disappearance
-failures, is logged without a path and propagated so the gate fails closed.
-Caplog tests assert structured record fields rather than rendered log text.
-
-Run `make spelling` after dictionary or generator changes. The target generates
-the committed config from the local authoritative base, checks exact phrase
-policy, and runs the version of `typos` pinned by `TYPOS_VERSION`. The full
-`make ci` sequence includes this gate. Tests assert byte-for-byte config drift,
-TOML validity, cache freshness, offline recovery, exact phrase boundaries and
-real-binary Oxford behaviour. Property tests exercise the regular expression
-repetition grammar, and logging tests pin bounded diagnostics for source-scope
-decisions and tracked-file read failures.
+Run `make spelling` after a dictionary change; the full `make ci` sequence
+includes it. The gate rewrites `typos.toml`, so commit the regenerated file
+with the dictionary edit that produced it.
 
 The initial shared stem set was curated on 10 July 2026 from both correct
 Oxford forms and incorrect plain-British forms across the 96 non-empty,
 accessible repositories in the estate inventory. Generated spelling configs,
 local overlays, dependency locks and build output were excluded before
-curation. A suffix match alone is not evidence: `advertise`, `exercise`,
-`improvise`, `promise`, `resize` and Rust's `usize`, for example, must not be
-treated as Oxford `-ize` families. Future harvests must retain per-repository
-JSON Lines evidence until curation and record generic additions here.
+curation. Future harvests must retain per-repository JSON Lines evidence until
+curation and record generic additions here.
 
 The later Dakar audit on 15 July 2026 added the `polymer` stem from four correct
 `polymerization` occurrences when the previously empty repository became the
@@ -593,6 +527,11 @@ recorded drift form now carries one canonical replacement for every consumer.
     (`merman-cli`, or `mmdc` with Chromium), which the CI runner does not
     provide; run it locally before pushing documentation that changes a
     diagram.
+- `make spelling`
+  - Runs `typos-config-builder gate`, pinned by `TYPOS_CONFIG_BUILDER_VERSION`,
+    against this checkout's own `data/typos-oxendict-base.toml` and over every
+    tracked file. It rewrites `typos.toml`, so commit the regenerated file
+    alongside a dictionary edit.
 - `make lint`
   - Runs `syntax-check`, `shell-syntax-check`, `check-home-phase-boundary`,
     and `skill-manifest-check`.

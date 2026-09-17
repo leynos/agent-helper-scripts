@@ -126,3 +126,24 @@ Consequences of the amendment, once a consumer migrates onto this contract:
   migrated consumer's spelling gate. The builder mitigates that with its
   source-scoped cache, stale fallback, and a bundled bootstrap snapshot of
   last resort.
+
+## Amendment 2026-09-16
+
+The generator this ADR describes is retired from this repository. The
+`typos_rollout*.py` modules, their tests, and the repository's own spelling
+gate are removed; `make spelling` now runs `typos-config-builder gate`, pinned
+by `TYPOS_CONFIG_BUILDER_VERSION`, against this checkout's working copy of the
+dictionary. The paragraph above about splitting the implementation across
+policy-boundary modules behind a `typos_rollout.py` facade therefore describes
+the builder's internals rather than anything shipped here.
+
+Everything the decision says about policy still stands and is enforced by the
+builder: deterministic rendering, the companion phrase check, source-scoped
+cache validity, bounded ignore expressions, and the rule that a local overlay
+may not weaken shared policy.
+
+One tool stays here because it serves curation rather than consumption:
+`scripts/oxford_form_harvest.py` gathers the Oxford-form evidence a curator
+reads before proposing a stem. The cost recorded above, that curators must
+inspect harvested context because a suffix match alone is not evidence, is
+unchanged.

@@ -124,96 +124,92 @@ constraints that apply to native worker mode on CI or dedicated runners.
 
 ## Shared spelling tools
 
-Run `make spelling` in this checkout to generate and validate the estate-wide
-en-GB-oxendict configuration. The command uses the tracked shared base in
-`data/typos-oxendict-base.toml`, merges repository-only exceptions from
-`typos.local.toml`, writes generated `typos.toml`, and checks every Git-tracked
-file with the pinned `typos` version. It also rejects curated
-punctuation-separated phrases that `typos` cannot treat as one word, reporting
-the canonical replacement. A file list it cannot produce, or one that comes
-back empty, fails the gate rather than reporting a clean pass over an unread
-tree.
+`data/typos-oxendict-base.toml` in this repository is the sole authority for
+estate-wide spelling policy, and `main` is the copy every repository reads.
+This repository curates that file; it no longer carries a generator, a phrase
+checker or a scanner of its own.
+
+Run `make spelling` in this checkout to gate it the way a consumer is gated:
+the pinned [`typos-config-builder`](https://github.com/leynos/typos-config-builder)
+renders `typos.toml` from the dictionary and this repository's
+`typos.local.toml` overlay, runs the Typos binary it pins over every tracked
+file, and enforces the curated phrase corrections that Typos cannot apply
+because punctuation separates their word tokens. The recipe points `--source`
+at the working copy of the dictionary rather than at `main`, so a pull request
+that edits shared policy is gated against the policy it proposes.
 
 ### Consumer repositories
 
-The target contract for a consumer repository carries no spelling tooling
-of its own: one command, pinned to a released tag:
+A consumer repository carries no spelling tooling of its own: one command,
+pinned to a released tag.
 
 ```bash
-uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.0" \
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
   typos-config-builder gate
 ```
 
-`gate` fetches this repository's `data/typos-oxendict-base.toml` live from
+`gate` fetches `data/typos-oxendict-base.toml` live from this repository's
 `main`, merges the consumer's optional `typos.local.toml` overlay, rewrites
 `typos.toml`, runs the pinned `typos` binary over tracked files, and enforces
-the shared phrase corrections. The fetched copy is cached in ignored
-`.typos-oxendict-base.toml` with freshness metadata in
+the shared phrase corrections. Add `--scope all` where the whole tracked tree
+should be scanned rather than tracked Markdown alone. The fetched copy is
+cached in ignored `.typos-oxendict-base.toml` with freshness metadata in
 `.typos-oxendict-base.json`, so a valid cache still supports offline runs.
-Add both `.typos-oxendict-base.toml` and `.typos-oxendict-base.json` to
-`.gitignore`; `gate` writes both files as cache files, and neither is a
+Add both to `.gitignore`; `gate` writes them as cache files, and neither is a
 policy source.
 
-`gate` also rewrites `typos.toml` on every run from the live dictionary. A
-consumer therefore either leaves it untracked, by adding `typos.toml` to
-`.gitignore` and running `git rm --cached typos.toml`, or keeps it tracked
-only as a convenience snapshot that CI never checks for drift. This differs
-from the check this repository runs on itself: here, `scripts/gate_runner.py`
-requires its own `typos.toml` to stay tracked and undrifted, because this
-repository curates the shared base rather than merely consuming it.
+`gate` rewrites `typos.toml` on every run from the live dictionary, so
+continuous integration must never check it for drift: that would fail every
+consumer on every shared dictionary edit. A consumer therefore either leaves
+`typos.toml` untracked, by adding it to `.gitignore` and running
+`git rm --cached typos.toml`, or keeps it tracked only as a reviewable
+snapshot of the merged policy. This repository keeps it tracked because it
+curates the dictionary the snapshot is rendered from.
 
-`data/typos-oxendict-base.toml` is the sole authority for estate-wide
-spelling policy. Adding an accepted word, a correction, or an ignore pattern
-here reaches every migrated consumer on its next `gate` run: no consumer
-edit, version bump, or regenerated commit is required. `typos.toml`, in this
-repository and in every consumer, is always generated from that file and is
-never edited directly.
+The builder's own
+[users' guide](https://github.com/leynos/typos-config-builder/blob/main/docs/users-guide.md)
+and
+[migration guide](https://github.com/leynos/typos-config-builder/blob/main/docs/migration-guide-0-1-0.md)
+document the command and the one-time migration. Migrating an existing
+consumer means deleting its vendored generator and phrase-check scripts and
+their tests, replacing its spelling Makefile targets with the single `gate`
+call, and regenerating once.
 
-Migrating an existing consumer onto this contract means deleting its
-vendored generator or phrase-check scripts and their tests, replacing its
-spelling Makefile targets with the single `gate` call, and regenerating
-once.
+### Proposing a shared word
 
-**Rollout status:** as of 2026-09-14 this is the target contract, not the
-estate's current state. The builder work is in progress, and no consumer
-has migrated yet. Twenty-eight repositories invoke the builder pinned to a
-commit, alongside their own phrase-check script; thirty-six still run a
-vendored copy of this repository's generator, which receives dictionary
-updates but enforces no phrase corrections. Until a repository migrates, it
-keeps that legacy tooling. Migration order and status are tracked in
-`docs/execplans/audit-missing-functionality.md` in
-`leynos/typos-config-builder`.
+Adding an accepted word, a correction, or an ignore pattern to
+`data/typos-oxendict-base.toml` reaches every consumer on its next `gate` run.
+No consumer edit or tag bump is required, and the builder is not released again
+for a dictionary change. This repository tracks `typos.toml`, so a dictionary
+pull request also carries the snapshot `make spelling` regenerates.
 
-### Maintaining the shared base in this checkout
+Open a pull request against this repository that edits the dictionary. The
+gate runs against the edited file, so the pull request proves its own policy.
+Generic spellings belong in the shared dictionary; product names, quoted
+upstream terms and deliberate fixtures belong in a consumer's
+`typos.local.toml` overlay instead. A local `[patterns] remove` list withdraws
+an exact shared ignore expression for one repository that needs stricter
+checking, without weakening the policy anywhere else.
 
-Cache metadata is scoped to the exact authority that supplied it. A stale cache
-or HTTP `304 Not Modified` response is accepted only when the metadata names
-the requested source and the cached dictionary still validates. Switching local
-paths or HTTPS URLs therefore forces a refresh without reusing another
-authority's validators. Refresh decisions are available through standard Python
-logging with bounded operation, source-kind, error-class and decision fields;
-logs do not contain authority URLs or local paths.
-
-The rollout CLI exposes the underlying operations:
+Evidence supports the proposal: a suffix match alone is not one because
+`advertise`, `exercise`, `promise` and Rust's `usize` all end the way an
+Oxford `-ize` family does. Gather it with the one spelling tool this
+repository still owns:
 
 ```bash
-uv run --script scripts/typos_rollout_cli.py generate --repository .
-uv run --script scripts/typos_rollout_cli.py check --repository .
-uv run --script scripts/typos_rollout_cli.py harvest ../project
+uv run --script scripts/oxford_form_harvest_cli.py --repository ../project
 ```
 
-`generate` accepts a local path or HTTP URL with `--source`, and `--offline`
-requires an existing valid cache. `check` applies curated exact phrase
-corrections to tracked text while respecting the merged ignore and exclusion
-policy. `harvest` emits JSON Lines evidence for Oxford `-ize` and plain-British
-`-ise` candidates in Git-tracked UTF-8 text. Generic spellings belong in the
-shared base; product names, quoted upstream terms, and deliberate fixtures
-belong in a consumer's `typos.local.toml`.
+The command prints one JSON object per source line carrying a candidate
+`-ise` or `-ize` form, reading only Git-tracked UTF-8 text and skipping the
+paths the merged `[files] exclude` lists name. Tracked content that is not
+UTF-8 is skipped with a bounded informational record; any other read failure
+stops the harvest rather than reporting partial evidence.
 
-The curated base also normalizes nine common drift forms that replace `s` with
-`z` in `otherwise`, `exercise` and `raise`. Each drifted form gains exactly one
-canonical replacement, so consumers receive a single correction instead of
-competing candidates:
+The curated dictionary also normalizes nine common drift forms that replace
+`s` with `z` in `otherwise`, `exercise` and `raise`. Each drifted form gains
+exactly one canonical replacement, so consumers receive a single correction
+instead of competing candidates:
 
 ```toml
 "otherwize" = "otherwise"
@@ -227,24 +223,10 @@ competing candidates:
 "raizing" = "raising"
 ```
 
-Consumer repositories receive these mappings on their next `gate` run: the
-corrections are rendered into the generated `typos.toml`, so no local overlay
-change is required.
-
 Inline code is checked by default so misspelled identifiers, flags, module
-paths and file names remain visible. Add exact identifier patterns to the
-local `[patterns] ignore` list when an upstream name is intentionally spelled
-differently. A local `[patterns] remove` list can withdraw an exact shared
-ignore pattern when a repository needs stricter checking; removing a pattern
-that the shared base no longer contains is a harmless no-op. Configuration
-generation rejects an identical pattern in both local lists.
-
-Ignore expressions are validated before scanning. Malformed expressions,
-backreferences, and nested or adjacent repetitions are rejected, including
-Python's `{,n}` upper-bound form; separated bounded repetitions remain valid.
-Phrase checking and harvesting skip tracked files that are not UTF-8. Other
-tracked-file read failures stop the operation and emit a bounded diagnostic, so
-an incomplete repository scan cannot appear successful.
+paths and file names remain visible. Add exact identifier patterns to a
+repository's local `[patterns] ignore` list when an upstream name is
+intentionally spelled differently.
 
 ## Markdown linting
 

@@ -201,8 +201,9 @@ cython_debug/
 
 # memtrace local knowledge-graph database
 .memdb/
-# Untracked cache of the estate-wide en-GB-oxendict dictionary. The generated
-# typos.toml remains tracked and is guarded by a drift test.
+# Untracked cache of the estate-wide en-GB-oxendict dictionary, written by
+# `typos-config-builder gate` along with its freshness metadata. The generated
+# typos.toml remains tracked as a reviewable snapshot of the merged policy.
 .typos-oxendict-base.json
 .typos-oxendict-base.toml
 .vtcode/
