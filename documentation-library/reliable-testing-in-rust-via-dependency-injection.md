@@ -35,7 +35,7 @@ later for end-to-end process tests, belongs under development dependencies.
 
 ```toml
 [dependencies]
-mockable = { version = "0.1.4", default-features = false, features = [
+mockable = { version = "3", default-features = false, features = [
     "clock",
     "mock",
 ] }
