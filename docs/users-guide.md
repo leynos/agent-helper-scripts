@@ -299,7 +299,7 @@ sequenceDiagram
     Owner->>Candidate: Run candidate-bound gates
     Owner->>Remote: git ls-remote
     Remote-->>Owner: EXPECTED_REMOTE_HEAD
-    Owner->>Remote: git push --force-with-lease CANDIDATE
+    Owner->>Remote: git push --no-follow-tags --force-with-lease="refs/heads/$BRANCH:$EXPECTED_REMOTE_HEAD" "$REMOTE" "$CANDIDATE:refs/heads/$BRANCH"
     Remote-->>Owner: Push result
     Owner->>Remote: git ls-remote
     Remote-->>Owner: Published CANDIDATE SHA

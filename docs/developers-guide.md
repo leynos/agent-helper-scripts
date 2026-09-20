@@ -355,6 +355,15 @@ Hypothesis properties over generated directory trees: discovery returns
 exactly the Markdown outside the pruned directories, sorted and
 repository-relative, and honours a caller's exclusion list at any depth.
 
+### GitHub-stacks delivery tests
+
+`make test` runs the committed GitHub-stacks delivery tests. The bare-remote
+tests in `tests/test_github_stacks_delivery.py` execute the extracted reference
+commands and check publication scope, source-SHA selection, and explicit-lease
+rejection. `tests/test_github_stacks_delivery_properties.py` exercises a
+bounded Hypothesis model of the documented workflow offline; it is a
+documentation rehearsal rather than live GitHub or `gh stack` integration.
+
 ### Policy merge boundary
 
 Merging the shared dictionary with a repository's `typos.local.toml` overlay is
