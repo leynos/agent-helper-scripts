@@ -284,6 +284,30 @@ some commands require a TTY, inspect state with `gh stack view --json`, and use
 [detailed skill](../skills/github-stacks/SKILL.md) and
 [CLI reference](../skills/github-stacks/references/cli-reference.md).
 
+The following sequence diagram shows how a publication owner establishes and
+verifies the remote and GitHub receipts for a stack candidate before another
+managed write:
+
+```mermaid
+sequenceDiagram
+    participant Owner
+    participant Candidate
+    participant GitHub
+    participant Remote
+
+    Owner->>Candidate: Establish replay evidence
+    Owner->>Candidate: Run candidate-bound gates
+    Owner->>Remote: git ls-remote
+    Remote-->>Owner: EXPECTED_REMOTE_HEAD
+    Owner->>Remote: git push --force-with-lease CANDIDATE
+    Remote-->>Owner: Push result
+    Owner->>Remote: git ls-remote
+    Remote-->>Owner: Published CANDIDATE SHA
+    Owner->>GitHub: Read headRefOid and base
+    GitHub-->>Owner: Publication receipt
+    Owner->>Candidate: Reconcile tracking before next managed write
+```
+
 ## Entity-aware Git merges
 
 The `weave-git-merge` skill covers Weave as a per-file, entity-aware Git merge
