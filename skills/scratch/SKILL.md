@@ -1,8 +1,8 @@
 ---
 name: scratch
 description: >-
-  Create and safely retire repository scratch sidecars; excludes linked Git
-  worktrees and system temporary files.
+  Create, audit, migrate and retire repository scratch sidecars; excludes linked
+  Git worktrees and system temporary files.
 ---
 
 # Repository Scratch Sidecars

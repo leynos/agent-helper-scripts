@@ -68,6 +68,20 @@ creates a temporary sparse checkout, uses it to run repository-owned system
 helpers, and removes it on exit. This prevents a fresh system-layer bootstrap
 from modifying a warm `$HOME` cache.
 
+## Repository scratch sidecar boundary
+
+The primary checkout remains the repository's coordination anchor and source
+of committed changes. Linked Git worktrees belong under the repository-named
+`<repository>.worktrees` sidecar, where Git worktree state remains managed by
+the worktree workflow. Repository-specific experiments, recovery artefacts,
+evidence and reproducible caches belong under the separate
+`<repository>.scratch` sidecar. Short-lived process scratch that does not need
+to survive a command or session belongs in the system temporary directory.
+
+The [scratch layout contract](../skills/scratch/references/layout.md) is
+authoritative for category placement, `scratch.toml` metadata, provenance,
+retention and cleanup decisions.
+
 ## Bootstrap flags
 
 The supported user-facing flags are documented in

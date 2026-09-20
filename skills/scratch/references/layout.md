@@ -83,8 +83,10 @@ verification = "bundle lists source commit; patch passes git apply --check"
 
 Required fields are `schema_version`, `owner`, `purpose`, `source_repository`,
 `created_at`, `retention` and `reproducible`. Use RFC 3339 UTC timestamps.
-`expires_at` is optional for recovery data and expected for evidence,
-experiments and caches.
+The optional fields are `expires_at`, `related_pull_requests`, `related_issues`
+and `provenance`. `provenance` may be omitted only when no source-specific
+provenance is needed. `expires_at` is optional for recovery data and expected
+for evidence, experiments and caches.
 
 Allowed retention values are `active`, `recovery`, `evidence`, `experiment` and
 `cache`. The value should agree with the parent category. A mismatch blocks
@@ -123,6 +125,6 @@ infer safety from a filename such as `offline`, `review`, `proof` or `old`.
 Move related artefacts into one task directory, write the manifest and verify
 that paths recorded inside patches, receipts or scripts remain meaningful. Keep
 registered worktrees under the worktree manager's layout. After migration, the
-projects directory should contain the repository, its `.worktrees` sidecar and
-its `.scratch` sidecar rather than a flat collection of project-prefixed
-artefacts.
+projects directory should contain the repository, its `<repository>.worktrees`
+sidecar and its `<repository>.scratch` sidecar rather than a flat collection of
+project-prefixed artefacts.

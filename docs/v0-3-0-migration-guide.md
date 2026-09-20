@@ -5,6 +5,25 @@ in this repository behave, and what to do about work produced under the
 previous behaviour. It documents changes staged for the next release and is
 not yet published as a tagged version.
 
+## Repository scratch sidecars
+
+The `scratch` skill standardizes repository-specific experiments, recovery
+artefacts, evidence and reproducible caches in a `<repository>.scratch` sidecar.
+Linked Git worktrees remain in the separate `<repository>.worktrees` sidecar;
+system temporary storage remains for short-lived process scratch. The
+authoritative categories, `scratch.toml` contract, retention rules and cleanup
+checks are in the [scratch layout contract](../skills/scratch/references/layout.md).
+
+### Migrating a flat projects directory
+
+Inventory the projects directory and classify registered worktrees separately
+from standalone repositories, directories, symlinks and files. Move related
+scratch artefacts into a task directory under the matching category in
+`<repository>.scratch`, add `scratch.toml`, and verify paths recorded in patches,
+receipts and scripts. Keep registered worktrees under `<repository>.worktrees`.
+Migration is not mandatory immediately when the existing flat layout remains
+usable; migrate before cleanup or when adopting the sidecar conventions.
+
 ## Shared spelling consumption
 
 Moving from a vendored generator and phrase-check script to the pinned
