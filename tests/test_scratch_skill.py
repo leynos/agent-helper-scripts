@@ -8,10 +8,12 @@ edits cannot silently weaken that contract.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
 import tomllib
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -40,6 +42,14 @@ OPTIONAL_MANIFEST_FIELDS = {
     "provenance",
 }
 RETENTION_VALUES = {"active", "recovery", "evidence", "experiment", "cache"}
+CATEGORY_RETENTION = {
+    "active": "active",
+    "recovery": "recovery",
+    "evidence": "evidence",
+    "experiments": "experiment",
+    "cache": "cache",
+}
+PROVENANCE_FIELDS = {"source_ref", "source_commit", "capture", "verification"}
 
 
 def _read(path: Path) -> str:
@@ -67,6 +77,54 @@ def _manifest_example() -> dict[str, object]:
     match = re.search(r"```toml\n(?P<example>.*?)```", _read(LAYOUT_PATH), re.DOTALL)
     assert match, "the layout contract must contain a scratch.toml example"
     return tomllib.loads(match.group("example"))
+
+
+def _assert_rfc3339_utc(value: object, field: str) -> None:
+    """Require one manifest timestamp to use the documented UTC wire format."""
+    assert isinstance(value, str), f"{field} must be a string"
+    assert value.endswith("Z"), f"{field} must use the RFC 3339 UTC Z suffix"
+    parsed = datetime.fromisoformat(value)
+    assert parsed.tzinfo is timezone.utc, f"{field} must carry UTC timezone data"
+
+
+def _assert_recovery_provenance(manifest: dict[str, object]) -> None:
+    """Apply the schema's conditional provenance requirement."""
+    if manifest["retention"] != "recovery":
+        return
+
+    provenance = manifest.get("provenance")
+    assert isinstance(provenance, dict), "recovery material must have provenance"
+    assert set(provenance) == PROVENANCE_FIELDS, (
+        "recovery provenance must use the documented structured fields"
+    )
+    for field in PROVENANCE_FIELDS:
+        value = provenance[field]
+        assert isinstance(value, str) and value.strip(), (
+            f"recovery provenance.{field} must be a non-empty string"
+        )
+
+
+def _assert_complete_manifest(manifest: dict[str, object], category: str) -> None:
+    """Validate the published example as a task in one sidecar category."""
+    assert set(manifest) == REQUIRED_MANIFEST_FIELDS | OPTIONAL_MANIFEST_FIELDS
+    assert type(manifest["schema_version"]) is int
+    assert manifest["schema_version"] == 1
+    for field in ("owner", "purpose", "source_repository"):
+        assert isinstance(manifest[field], str) and manifest[field].strip(), (
+            f"{field} must be a non-empty string"
+        )
+    _assert_rfc3339_utc(manifest["created_at"], "created_at")
+    _assert_rfc3339_utc(manifest["expires_at"], "expires_at")
+    assert manifest["retention"] in RETENTION_VALUES
+    assert manifest["retention"] == CATEGORY_RETENTION[category], (
+        f"{category} tasks must match CATEGORY_RETENTION"
+    )
+    assert type(manifest["reproducible"]) is bool
+    for field in ("related_pull_requests", "related_issues"):
+        assert isinstance(manifest[field], list) and all(
+            type(identifier) is int for identifier in manifest[field]
+        ), f"{field} must be a list of integer identifiers"
+    _assert_recovery_provenance(manifest)
 
 
 def test_scratch_discovery_advertises_the_complete_lifecycle() -> None:
@@ -105,21 +163,51 @@ def test_sidecars_keep_worktrees_scratch_categories_and_system_temp_separate() -
     assert "system temporary directory" in skill
 
 
-def test_manifest_contract_names_required_optional_retention_and_provenance_rules() -> None:
-    """The example and prose define the task manifest's durable schema."""
+def test_manifest_example_is_a_complete_recovery_task(tmp_path: Path) -> None:
+    """The example parses as the documented recovery task in a real sidecar."""
+    task_dir = tmp_path / "Example.scratch" / "recovery" / "pr-123-rebase"
+    task_dir.mkdir(parents=True)
+    manifest_path = task_dir / "scratch.toml"
+    example = re.search(r"```toml\n(?P<example>.*?)```", _read(LAYOUT_PATH), re.DOTALL)
+
+    assert example, "the layout contract must contain a scratch.toml example"
+    manifest_path.write_text(example.group("example"), encoding="utf-8")
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    _assert_complete_manifest(manifest, task_dir.parent.name)
+
+
+def test_manifest_rejects_a_category_retention_mismatch() -> None:
+    """A cache retention value cannot describe a recovery task directory."""
     manifest = _manifest_example()
+    manifest["retention"] = "cache"
+
+    with pytest.raises(AssertionError, match="CATEGORY_RETENTION"):
+        _assert_complete_manifest(manifest, "recovery")
+
+
+def test_non_recovery_manifest_may_omit_unneeded_provenance() -> None:
+    """Provenance remains optional only outside the recovery retention class."""
+    manifest = _manifest_example()
+    manifest["retention"] = "cache"
+    manifest.pop("provenance")
+
+    _assert_recovery_provenance(manifest)
+
+
+def test_manifest_contract_names_required_optional_and_conditional_rules() -> None:
+    """The prose retains the schema boundaries that the parsed example exercises."""
     layout = _normalize(_read(LAYOUT_PATH))
     retention_start = layout.index("Allowed retention values are")
     retention_end = layout.index("The value should agree with the parent category.")
     retention_clause = layout[retention_start:retention_end]
 
-    assert REQUIRED_MANIFEST_FIELDS <= manifest.keys()
-    assert OPTIONAL_MANIFEST_FIELDS <= manifest.keys()
     assert RETENTION_VALUES <= set(re.findall(r"`([^`]+)`", retention_clause))
     assert "Required fields are `schema_version`, `owner`, `purpose`, " in layout
     assert "The optional fields are `expires_at`, `related_pull_requests`, " in layout
-    assert "`provenance` may be omitted only when no source-specific provenance is needed." in layout
-    assert "Recovery material must describe how its contents were verified." in layout
+    assert 'For `retention = "recovery"`, the structured `[provenance]` table ' in layout
+    assert "is required and its `verification` field must be a non-empty string." in layout
+    assert "For non-recovery material, `provenance` may be omitted when no " in layout
+    assert "source-specific provenance is needed." in layout
     assert "Reproducible data should name the command or source needed to rebuild it." in layout
 
 

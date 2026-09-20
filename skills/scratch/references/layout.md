@@ -84,7 +84,9 @@ verification = "bundle lists source commit; patch passes git apply --check"
 Required fields are `schema_version`, `owner`, `purpose`, `source_repository`,
 `created_at`, `retention` and `reproducible`. Use RFC 3339 UTC timestamps.
 The optional fields are `expires_at`, `related_pull_requests`, `related_issues`
-and `provenance`. `provenance` may be omitted only when no source-specific
+and `provenance`. For `retention = "recovery"`, the structured `[provenance]`
+table is required and its `verification` field must be a non-empty string. For
+non-recovery material, `provenance` may be omitted when no source-specific
 provenance is needed. `expires_at` is optional for recovery data and expected
 for evidence, experiments and caches.
 
