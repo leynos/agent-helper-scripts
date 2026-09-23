@@ -52,10 +52,10 @@ class DeliveryMachine(RuleBasedStateMachine):
         if action == "push":
             accepted = self.delivery.push(index)
             if accepted:
-                assert index == self.delivery.frontier
-                assert lease == before[index]
-                assert gates == replay == candidate
-                assert layer.remote == layer.candidate
+                assert index == self.delivery.frontier, "push bypassed the merge frontier"
+                assert lease == before[index], "push accepted a stale explicit lease"
+                assert gates == replay == candidate, "push lacked candidate-bound gates"
+                assert layer.remote == layer.candidate, "push published a different SHA"
                 self.accepted.add((index, layer.candidate))
             else:
                 assert self.delivery.remote_heads() == before
@@ -68,7 +68,7 @@ class DeliveryMachine(RuleBasedStateMachine):
             self.delivery.observe(index, action)
 
     @rule(index=st.integers(0, 3), field=st.sampled_from(
-        ("candidate", "local", "remote", "github", "github_base")
+        ("candidate", "remote", "github", "github_base")
     ))
     def move(self, index: int, field: str) -> None:
         """Generate new candidates, competing pushes and server rewrites."""
@@ -155,13 +155,12 @@ def test_frontier_receipt_leaves_descendants_pending(depth: int, prefix: int) ->
         assert not delivery.delivered(index)
 
 
-def test_local_movement_cannot_change_explicit_candidate_and_stale_lease_rejects() -> None:
-    """A competing remote update is protected even when local HEAD also moves."""
+def test_stale_lease_rejects_competing_remote_update() -> None:
+    """A stale lease protects competing remote work until candidate reassessment."""
     delivery = Delivery(1)
     for action in ("replay", "gates", "lease"):
         delivery.observe(0, action)
     layer = delivery.layers[0]
-    layer.local = 100
     layer.remote = 200
     assert not delivery.push(0)
     assert layer.remote == 200

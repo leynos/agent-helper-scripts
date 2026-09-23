@@ -16,7 +16,6 @@ class Layer:
     """One PR's candidate and independently observed delivery evidence."""
 
     candidate: int
-    local: int
     remote: int = 0
     github: int = 0
     base: int = -1
@@ -42,7 +41,7 @@ class Delivery:
 
     def __init__(self, depth: int, merged: int = 0) -> None:
         self.layers = [
-            Layer(candidate=i + 1, local=i + 1, base=i - 1, github_base=i - 1)
+            Layer(candidate=i + 1, base=i - 1, github_base=i - 1)
             for i in range(depth)
         ]
         self.frontier = merged

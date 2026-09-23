@@ -61,9 +61,9 @@ class Delivery:
     def read(self, command: str) -> str:
         """Read exactly the frontier ref and return its remote object identity."""
         result = self.run(command)
-        assert result.returncode == 0, result.stderr
+        assert result.returncode == 0, f"frontier remote read failed: {result.stderr}"
         sha, ref = result.stdout.strip().split()
-        assert ref == "refs/heads/frontier"
+        assert ref == "refs/heads/frontier", f"expected frontier readback, observed {ref!r}"
         return sha
 
     def compete(self) -> str:
