@@ -598,10 +598,11 @@ async def process_user_with_audit(session: AsyncSession, user_data: dict):
     # rolls back if an error occurred in the outer block.
 ```
 
-When using nested transactions (savepoints) in an asynchronous environment,
-meticulous error handling around the begin\_nested block is paramount. An
-unhandled exception within this nested block must be caught to allow the outer
-transaction to either proceed or be explicitly rolled back. The await
+When using nested transactions (savepoints) in an asynchronous environment, be
+deliberate about where an exception from the begin\_nested block is allowed to
+surface. Catch it only when the outer transaction should carry on without the
+savepoint's work; otherwise let it propagate, so the enclosing session.begin()
+rolls back the outer transaction rather than committing partial work. The await
 session.rollback() rolls back the outermost transaction, not just the savepoint,
 so calling it directly within an except block that catches an error from a
 begin\_nested operation would discard the whole transaction. Only the
