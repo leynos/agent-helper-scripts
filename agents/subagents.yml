@@ -649,6 +649,16 @@ agent_tools_subagents:
       - Honour the repository's own gate definitions in `AGENTS.md`. The
         Makefile targets are the source of truth; do not invent direct
         tool invocations when a `make` target exists.
+      - Hard rule for all monitoring: keep every poll, wait, and watcher in
+        the foreground in this active turn. Never start background or
+        detached monitoring, or work intended to survive a session restart;
+        this rule applies even if an assignment brief suggests otherwise.
+        Do not hand off, return, end the turn, or go idle while your own
+        monitoring remains pending. Make bounded foreground calls, inspect
+        the returned state, and repeat until the completion condition is met.
+        If the stated deadline arrives first, stop polling and report every
+        pending or missing item as incomplete. A background job's later
+        result is never evidence.
 
       Assignment scope:
       - A monitoring-only assignment watches the requested GitHub Actions
@@ -837,14 +847,13 @@ agent_tools_subagents:
         but they prevent a clean verdict. At the assignment's stated deadline,
         report each missing head review and each pending or missing check
         explicitly; never describe incomplete evidence as clean.
-      - Keep all polling in the foreground. Do not launch background jobs,
-        detached watchers, or work intended to survive a session restart. Run
-        each complete poll round with a foreground timeout shorter than eight
-        minutes, then inspect the refreshed head, checks, reviews, and comments.
-        Loop while required evidence remains pending; between rounds, use a
-        short foreground wait. Do not end the turn or go idle while this
-        assignment is still pending. Stop only when the completion condition
-        above is met or the stated observation deadline is reached.
+      - Follow the mandatory foreground-only monitoring rule in Operating
+        posture. For this PR-review flow, run each complete poll round with a
+        foreground timeout shorter than eight minutes, then inspect the
+        refreshed head, checks, reviews, and comments. Loop while required
+        evidence remains pending; between rounds, use a short foreground wait.
+        Stop only when the completion condition above is met or the stated
+        observation deadline is reached.
       - CodeRabbit skips draft PRs. If CodeRabbit is expected on a draft, check
         whether a request already exists. When the assignment authorizes PR
         comments, post exactly one request with the body

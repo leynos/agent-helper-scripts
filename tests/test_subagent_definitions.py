@@ -393,6 +393,24 @@ def test_scrutineer_scopes_docs_only_changes_to_markdown_gates() -> None:
     )
 
 
+def test_scrutineer_monitoring_rule_is_global_and_foreground_only() -> None:
+    """Every monitoring assignment must remain active in the foreground."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "Hard rule for all monitoring",
+        "Never start background or detached monitoring",
+        "this rule applies even if an assignment brief suggests otherwise",
+        "Do not hand off, return, end the turn, or go idle",
+        "report every pending or missing item as incomplete",
+        "A background job's later result is never evidence",
+        "foreground timeout shorter than eight minutes",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's global monitoring rule must retain {required!r}"
+        )
+
+
 def test_scrutineer_report_marks_logs_as_canonical_evidence() -> None:
     """Scrutineer's report must direct the planner to the captured logs.
 
