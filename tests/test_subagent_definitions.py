@@ -70,7 +70,7 @@ def test_codex_subagent_uses_luna_model(
     """Wyvern and Scribe must request Luna with high effort on Codex."""
     codex = load_provider(name, "codex")
 
-    assert codex["model"] == "gpt-5.6-luna", (
+    assert codex["model"] == "gpt-6-luna", (
         f"{name} must use the Luna Codex model"
     )
     assert codex["reasoning_effort"] == "high", (
@@ -108,12 +108,12 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_alchemist_codex_subagent_uses_terra_model() -> None:
-    """Alchemist's Codex entry must request Terra for falsification work."""
+def test_alchemist_codex_subagent_uses_sol_model() -> None:
+    """Alchemist's Codex entry must request Sol for falsification work."""
     codex = load_provider("alchemist", "codex")
 
-    assert codex["model"] == "gpt-5.6-terra", (
-        "Alchemist must use the Terra Codex model for falsification work"
+    assert codex["model"] == "gpt-6-sol", (
+        "Alchemist must use the Sol Codex model for falsification work"
     )
     assert codex["reasoning_effort"] == "medium", (
         "Alchemist must keep medium reasoning effort"
@@ -150,7 +150,7 @@ def test_scrutineer_codex_subagent_contract() -> None:
     """Scrutineer's Codex entry must retain its gate-runner configuration."""
     codex = load_provider("scrutineer", "codex")
 
-    assert codex["model"] == "gpt-5.6-luna", (
+    assert codex["model"] == "gpt-6-luna", (
         "Scrutineer must use the Luna Codex model for gate runs"
     )
     assert codex["reasoning_effort"] == "medium", (
@@ -180,8 +180,8 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
 @pytest.mark.parametrize(
     ("name", "model", "reasoning_effort"),
     [
-        ("journeyman", "gpt-5.6-terra", "high"),
-        ("artisan", "gpt-5.6-luna", "xhigh"),
+        ("journeyman", "gpt-6-sol", "medium"),
+        ("artisan", "gpt-6-luna", "xhigh"),
     ],
 )
 def test_delivery_subagent_codex_contract(
