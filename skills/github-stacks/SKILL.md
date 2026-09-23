@@ -36,6 +36,38 @@ gh stack alias        # optional: installs `gs` wrapper in ~/.local/bin/
 
 Uses existing `gh` authentication (`gh auth login` if needed).
 
+## Delivery contract
+
+Apply lifecycle actions only within the user's authorized scope. A request to
+inspect or rebase a stack does not itself authorize review requests or merges.
+For an authorized convergence task:
+
+- Treat GitHub as the durable delivery record. Preserve unpublished local
+  work, but do not count a commit, gate report or disposable-remote push as
+  delivered. Verify the actual remote head after publication.
+- Keep one authoritative candidate per PR: repository and Git common directory,
+  branch/worktree, parent PR and boundary, local/remote SHAs, gate/review state,
+  delivery owner, next external action and last PR transition time. Label
+  alternative candidates as preserved evidence, not competing delivery heads.
+- Prioritize the merge frontier: the lowest unmerged layer. Once its parent
+  lands, assign its final synchronization, gates and publication before optional
+  upper-layer refinements. Continue independent work where dependencies permit.
+- Every implementation handoff names who commits and pushes. Local-only work
+  needs a named publication owner; a delivery task ends with verified remote
+  parity and the next authorized hosted stage, or a concrete blocker.
+- Publish a validated candidate promptly. Do not wait for old-head CI to turn
+  green before pushing the fix, or for unrelated upper layers to finish. Never
+  bypass required candidate-bound gates to satisfy a progress deadline.
+- During long-running convergence, after 30 minutes without a PR transition,
+  check for an actionable push, ready transition, review request or merge.
+  Otherwise name the frontier blocker and its owner. Active CI/review is valid
+  waiting; repeated inventories, local reports and issue updates are not PR
+  delivery. Change approach if the same blocker recurs without new evidence.
+
+Before publishing only part of a damaged or partially validated stack, read
+[partial-stack delivery](references/partial-delivery.md). It also defines the
+delivery handoff and publication receipt.
+
 ## Routing guide
 
 | Task | Approach |
@@ -43,7 +75,7 @@ Uses existing `gh` authentication (`gh auth login` if needed).
 | Start a new stack | `gh stack init <branch>` (see workflow below) |
 | Add a layer on top | `gh stack add <branch>` from the topmost branch |
 | Open/update PRs on GitHub | `gh stack submit` |
-| Daily catch-up (fetch, rebase, push, prune) | `gh stack sync --prune` |
+| Daily catch-up (fetch, rebase, push, prune) | Establish replay evidence before `gh stack sync --prune` |
 | Fix something in a lower layer | See "Editing a lower layer" |
 | Trunk moved / history not linear | `gh stack rebase`, then `gh stack push` |
 | Reorder, rename, fold, drop, insert branches | `gh stack modify` (interactive TUI) |
@@ -96,6 +128,16 @@ fresh stack rooted at the trunk for the unmerged branches.
 For agents: prefer `gh stack submit --auto` (add `--open` if the PRs should
 be ready for review), since the interactive editor needs a TTY.
 
+For convergence tasks, publication is not review completion. When the published
+draft satisfies the requested CI/readiness conditions, execute the authorized
+`gh pr ready <pr> --repo <owner/repo>` and read back its state. Where hosted
+CodeRabbit review is requested, use [comenq-coderabbit](../comenq-coderabbit/SKILL.md)
+and track request delivery, completed review and reviewed SHA separately. Local
+CLI review is supplementary, not a substitute or an unbounded extra prerequisite.
+Disposition substantive findings against the published candidate; distinguish
+an unpublished repair from a resolved finding. Required checks and protections
+still apply alongside hosted review.
+
 ## Editing a lower layer
 
 Make the change in the branch it belongs to, not the top:
@@ -108,19 +150,26 @@ gh stack push                # --force-with-lease per branch
 gh stack top                 # return to where you were
 ```
 
+The commands above are separate checkpoints: audit and gate each rewritten
+candidate before the push. If only a lower layer is validated, use the
+partial-delivery procedure instead of publishing unvalidated descendants.
+
 ## Establish replay evidence before synchronization
 
 Before a command that may rewrite, publish or prune stack branches, apply the
 [rebase skill's boundary and acceptance checks](../rebase/SKILL.md). Record each
 layer's old head, exclusive inherited boundary, target and parent PR identity.
 Inspect the managed stack metadata before synchronization; do not bypass it
-with an ad-hoc rebase. A merged parent's squash SHA is a landing record, not
-the child's exclusive boundary. Preserve useful historical refs before pruning.
+with an unrecorded ad-hoc rebase. A merged parent's squash SHA is a landing
+record, not the child's exclusive boundary. Preserve useful historical refs
+before pruning.
 
 Do not use `gh stack sync --prune` as a discovery command: it can rebase, push
 and remove evidence before the proposed ranges receive review. If the tool
-cannot expose a reviewable plan or preserve the required boundaries, stop
-rather than treating its successful exit as acceptance evidence. After replay,
+cannot expose a reviewable plan or preserve the required boundaries, stop that
+operation and assess the bounded recovery route in
+[partial-stack delivery](references/partial-delivery.md). Do not improvise a
+stack-wide adapter or treat a successful exit as acceptance evidence. After replay,
 audit the exact old/new series and rerun candidate-bound gates before accepting
 or publishing the new stack. Prefer separated rebase and push operations when
 that separation is necessary to enforce the acceptance boundary.
@@ -141,8 +190,18 @@ detect a cascading rebase that replays inherited parent work or drops a child
 commit. Establish the replay evidence documented above before running `sync`
 unattended.
 
-After a bottom PR merges: `gh stack sync --prune` fast-forwards trunk,
-rebases the remainder, and deletes local branches for merged PRs.
+After a bottom PR merges, preserve old heads and inspect freshly fetched PR
+heads, bases and stack membership first: GitHub may already have replayed
+descendants. Compare their ancestry and patches before deciding whether local
+replay is still needed. Revalidate rewritten heads; old green checks do not
+transfer. Keep merged-parent refs until dependent boundaries are accounted for.
+`gh stack sync --prune` is a later synchronization/cleanup operation, not the
+first discovery step after merge.
+
+While a prerequisite is still changing, preserve independent child patches and
+avoid repeatedly replaying the whole stack onto provisional foundation SHAs.
+Schedule the final replay against its verified landing. A necessary provisional
+integration experiment is separate evidence, not the authoritative delivery head.
 
 If sync detects a rebase conflict, it restores all branches untouched and
 instructs the operator to run `gh stack rebase` interactively.
@@ -204,6 +263,19 @@ Each selected PR must be open and not a draft. With a merge queue, the selected
 PRs are added together and method flags are ignored; they may land in separate
 merge groups.
 
+Select only the eligible contiguous prefix, not an unready upper layer that
+blocks the entire selection. Before merging, verify the published head, full
+check rollup, required checks, review dispositions and current remote topology;
+neither `reviewDecision` nor `gh pr checks --required` alone is sufficient.
+After merge, verify the landing SHA and assign the successor immediately.
+Record merged-base CI separately from the PR-head checks.
+
+If a last remaining PR has no remote stack membership, local stack metadata
+does not make `gh stack merge` applicable. Verify that topology, then use the
+authorized ordinary protected PR merge with an exact-head guard, such as
+`gh pr merge <pr> --match-head-commit <sha> --repo <owner/repo>` with the
+repository's permitted merge method. Never use an administrator bypass.
+
 ## Interop with other tools (`gh stack link`)
 
 For branches managed with Jujutsu, Sapling, git-town, etc. — creates or
@@ -220,9 +292,9 @@ only — `link` never removes PRs from a stack.
 
 ## Troubleshooting quick hits
 
-- **Merge blocked**: check reviews/checks on the PR *and every PR below it*,
-  and that history is linear — `gh stack rebase && gh stack push` (or the
-  **Rebase stack** button) restores linearity.
+- **Merge blocked**: check reviews/checks on the PR *and every PR below it*.
+  If history is not linear, establish replay evidence, rebase, audit and gate
+  the rewritten heads before publication; do not chain rebase straight to push.
 - **Closed a mid-stack PR**: everything above it is blocked. Unstack (from
   the website or `gh stack unstack`), restructure, and recreate.
 - **PR ejected from the merge queue**: all PRs above it are ejected too;
@@ -238,5 +310,6 @@ only — `link` never removes PRs from a stack.
 - Run `gh stack view --json` to inspect stack state programmatically.
 - `sync` aborts on divergence, but that does not prove replay ownership.
   Establish the boundary, recovery and publication evidence above first.
-- Never `git push --force` stack branches by hand — use `gh stack push`,
-  which applies per-branch `--force-with-lease`.
+- Prefer `gh stack push` when every branch it will publish is validated.
+  Never use unconditional `git push --force`. For a validated frontier in a
+  partially repaired stack, use the explicit-lease partial-delivery procedure.
