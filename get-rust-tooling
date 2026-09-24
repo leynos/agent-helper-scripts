@@ -131,9 +131,12 @@ cargo binstall --locked --no-confirm "kani-verifier@${KANI_VERIFIER_VERSION}"
 
 WITH_WHITAKER=${WITH_WHITAKER:-0}
 WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
-WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.6}
+# 0.2.9 is the first installer with --no-source-fallback. The estate never
+# compiles the lint suite or the Dylint tools: a missing published asset
+# fails the install rather than starting a source build.
+WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.9}
 if ((WITH_WHITAKER)); then
-  whitaker_args=()
+  whitaker_args=(--no-source-fallback)
   if ((WITH_WHITAKER_EXPERIMENTAL)); then
     whitaker_args+=(--experimental)
   fi
