@@ -49,11 +49,17 @@ it appeared in the base itself.
 
 ## Refreshing a repository copy
 
-Copy the canonical file over the repository's `docs/` copy and review the
-diff. If the repository's copy carried a general improvement that the library
-lacks, add it here first and then refresh; if it carried repository-specific
-notes, keep those in a repository-owned document rather than in the shared
-file.
+Merge the canonical file into the repository's `docs/` copy, rather than
+overwriting it outright. Before merging, move repository-specific notes and
+local links (for example, links to the repository's own migration guides or
+issues) into a repository-owned document, or carry them across explicitly; do
+not rely on reviewing the diff to catch them. If the repository's copy carried
+a general improvement that the library lacks, add it here first and then
+refresh; if it carried repository-specific notes, keep those in a
+repository-owned document rather than in the shared file. A library's users'
+guide is owned by its upstream repository; the library snapshots it from
+upstream, so the upstream repository does not refresh its guide from the
+library.
 
 ## Catalogue
 

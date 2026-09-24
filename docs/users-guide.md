@@ -125,7 +125,8 @@ constraints that apply to native worker mode on CI or dedicated runners.
 ## Shared spelling tools
 
 `data/typos-oxendict-base.toml` in this repository is the sole authority for
-estate-wide spelling policy, and `main` is the copy every repository reads.
+estate-wide spelling policy, and `main` is the source consumers normally
+read.
 This repository curates that file; it no longer carries a generator, a phrase
 checker or a scanner of its own.
 
@@ -154,7 +155,10 @@ uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
 the shared phrase corrections. Add `--scope all` where the whole tracked tree
 should be scanned rather than tracked Markdown alone. The fetched copy is
 cached in ignored `.typos-oxendict-base.toml` with freshness metadata in
-`.typos-oxendict-base.json`, so a valid cache still supports offline runs.
+`.typos-oxendict-base.json`, so a valid cache still supports offline runs. A
+run with neither network access nor a valid cache falls back to the
+dictionary snapshot bundled with the pinned `leynos/typos-config-builder`
+release, which can omit exceptions added to `main` since that release.
 Add both to `.gitignore`; `gate` writes them as cache files, and neither is a
 policy source.
 
@@ -278,10 +282,15 @@ the Rust, Python, front-end, and OpenTofu guides, and the users' guides of the
 estate's own libraries. Each canonical edition merges the general improvements
 found across the repository copies and omits repository-specific detail.
 
-Refresh a repository's copy by overwriting it with the library file and
-reviewing the diff. Improvements that belong to every repository go into the
-library first; notes that belong to one repository stay in a document that
-repository owns.
+Refresh a repository's copy by merging the library edition into it, rather
+than overwriting it outright. Before merging, move repository-specific notes
+and local links (for example, links to the repository's own migration guides
+or issues) into a repository-owned document, or carry them across explicitly;
+do not rely on reviewing the diff to catch them. Improvements that belong to
+every repository go into the library first; notes that belong to one
+repository stay in a document that repository owns. A library's users' guide
+is owned by its upstream repository; the library snapshots it from upstream,
+so the upstream repository does not refresh its guide from the library.
 
 ## Stacked pull requests
 

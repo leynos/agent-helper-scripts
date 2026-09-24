@@ -108,7 +108,6 @@ async_session_factory = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
 )
 ```
 
@@ -130,12 +129,11 @@ Several parameters are critical when configuring the async\_sessionmaker:
   implicit I/O by requiring explicit await for operations that load data.[^4]
   Thus, expire\_on\_commit=False ensures that already loaded data remains
   accessible without triggering unexpected, unawaited I/O.
-- autoflush=False: This is generally recommended for asynchronous operations.[^5]
-  Autoflush can trigger database I/O at potentially unexpected moments during a
-  session's lifecycle. In an async context, it is preferable to have explicit
-  control over when data is flushed to the database using await
-  session.flush(). This ensures that all I/O operations are consciously awaited
-  and managed within the asynchronous flow of the application.
+- autoflush (default True): SQLAlchemy's async\_sessionmaker keeps autoflush
+  enabled by default, matching Session.[^4] Under AsyncSession, a pending
+  flush runs inside the awaited query call itself, so it adds no unawaited
+  I/O. Setting autoflush=False is an opt-in for code that manages flush
+  timing explicitly with await session.flush().
 
 **Table 2: async\_sessionmaker Configuration Options**
 
@@ -144,7 +142,7 @@ Several parameters are critical when configuring the async\_sessionmaker:
 | bind               | The AsyncEngine to which new sessions will be bound. | engine instance             | Essential for connecting sessions to the database.                                                                                                                                          |
 | class\_            | The class of session to be generated.                | AsyncSession                | Ensures that sessions are compatible with asynchronous operations.                                                                                                                          |
 | expire\_on\_commit | If True, all instances are expired after commit().   | False                       | Prevents attributes from being expired post-commit, avoiding potential unawaited lazy-loading I/O that can cause errors or block the event loop in an async context.[^4]                    |
-| autoflush          | If True, pending changes are flushed before queries. | False                       | Provides more explicit control over when database I/O occurs via await session.flush(), preventing unexpected blocking or unawaited operations that could arise from automatic flushes.[^5] |
+| autoflush          | If True, pending changes are flushed before queries. | True (default)              | Flushes run inside the awaited query, so there is no unawaited I/O; set False only when flushing explicitly.[^4]                                                                            |
 
 Finally, during application shutdown, it is crucial to dispose of the engine
 using await engine.dispose(). This call gracefully closes all underlying
@@ -939,7 +937,6 @@ async def db_session(db_connection: AsyncConnection) -> AsyncSession:
         bind=db_connection,
         class_=AsyncSession,
         expire_on_commit=False,
-        autoflush=False,
         join_transaction_mode="create_savepoint",  # Key for transactional tests
     )
     async_sess = async_session_factory()
@@ -1044,8 +1041,8 @@ identified include:**
 
 - **Core Setup:** Correctly configuring create\_async\_engine with
   AsyncAdaptedQueuePool and appropriate pooling parameters. Configuring
-  async\_sessionmaker with expire\_on\_commit=False and autoflush=False is
-  paramount for stable asynchronous behaviour.
+  async\_sessionmaker with expire\_on\_commit=False is paramount for stable
+  asynchronous behaviour.
 - **Falcon Integration:** Implementing custom asynchronous middleware in Falcon
   to manage a request-scoped AsyncSession, making it available via req.context.
   This middleware should also handle top-level transaction demarcation (begin,

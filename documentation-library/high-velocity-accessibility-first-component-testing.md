@@ -335,8 +335,11 @@ a **Modal** component which might be hidden or shown based on props:
 ```tsx
 // Modal.a11y.test.tsx
 import { render } from '@testing-library/react';
-import { axe } from 'jest-axe';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import Modal from './Modal';
+
+// Extend expect for the axe matcher (if using jest-axe)
+expect.extend(toHaveNoViolations);
 
 describe('Modal component accessibility', () => {
   test('has no violations when closed', async () => {

@@ -130,7 +130,7 @@ calls the actual `std::env` functions.
 use mockable::DefaultEnv;
 
 fn main() {
-    let env = DefaultEnv::new();
+    let env = DefaultEnv;
     if let Some(api_key) = get_api_key(&env) {
         println!("API Key found!");
     } else {
@@ -234,7 +234,7 @@ mod tests {
 }
 ```
 
-In production, an instance of `DefaultClock::new()` would be used.
+In production, the unit struct `DefaultClock` would be used.
 
 The same pattern applies more generally to internal timing seams. When a
 component measures elapsed time rather than wall-clock time, keep the
@@ -261,9 +261,11 @@ ______________________________________________________________________
   isolated, deterministic control.
 - **`Default*` for Production:** Use `DefaultEnv` and `DefaultClock` in the
   application to interact with the actual system.
-- **`DefaultEnv` is NOT a Scope Guard:** `DefaultEnv` directly mutates the
-  global process environment without automatic cleanup. For integration tests
-  that require modifying the live environment, consider a crate such as
+- **Direct Environment Mutation Has No Scope Guard:** `DefaultEnv` is
+  read-only; it never mutates the process environment. Direct calls to
+  `std::env::set_var` or `std::env::remove_var` mutate the global process
+  environment without automatic cleanup. For integration tests that require
+  modifying the live environment, consider a crate such as
   [temp_env](https://crates.io/crates/temp-env). For unit tests, `MockEnv` is
   preferable. A lock or serialization annotation around such mutation does not
   make it safe; it only serializes it, so prefer injecting the value instead.

@@ -435,7 +435,10 @@ uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
 `typos.toml` on every run, runs the Typos binary it pins, and enforces the
 shared phrase corrections. The fetched dictionary is cached in ignored
 `.typos-oxendict-base.toml`, with freshness metadata in
-`.typos-oxendict-base.json`, so a valid cache still supports offline runs. See
+`.typos-oxendict-base.json`, so a valid cache still supports offline runs. A
+run with neither network access nor a valid cache falls back to the
+dictionary snapshot bundled with the pinned `leynos/typos-config-builder`
+release, which can omit exceptions added to `main` since that release. See
 the "Shared spelling tools" section of [docs/users-guide.md](users-guide.md)
 for the consumer contract and the builder's own
 [users' guide](https://github.com/leynos/typos-config-builder/blob/main/docs/users-guide.md)
