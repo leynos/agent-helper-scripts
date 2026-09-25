@@ -50,6 +50,9 @@ CATEGORY_RETENTION = {
     "cache": "cache",
 }
 PROVENANCE_FIELDS = {"source_ref", "source_commit", "capture", "verification"}
+RFC3339_UTC_PATTERN = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z"
+)
 
 
 def _read(path: Path) -> str:
@@ -82,7 +85,9 @@ def _manifest_example() -> dict[str, object]:
 def _assert_rfc3339_utc(value: object, field: str) -> None:
     """Require one manifest timestamp to use the documented UTC wire format."""
     assert isinstance(value, str), f"{field} must be a string"
-    assert value.endswith("Z"), f"{field} must use the RFC 3339 UTC Z suffix"
+    assert RFC3339_UTC_PATTERN.fullmatch(value), (
+        f"{field} must use the RFC 3339 UTC form YYYY-MM-DDTHH:MM:SS[.fraction]Z"
+    )
     parsed = datetime.fromisoformat(value)
     assert parsed.tzinfo is timezone.utc, f"{field} must carry UTC timezone data"
 
@@ -106,7 +111,11 @@ def _assert_recovery_provenance(manifest: dict[str, object]) -> None:
 
 def _assert_complete_manifest(manifest: dict[str, object], category: str) -> None:
     """Validate the published example as a task in one sidecar category."""
-    assert set(manifest) == REQUIRED_MANIFEST_FIELDS | OPTIONAL_MANIFEST_FIELDS
+    fields = set(manifest)
+    assert REQUIRED_MANIFEST_FIELDS <= fields, "every required field must be present"
+    assert fields <= REQUIRED_MANIFEST_FIELDS | OPTIONAL_MANIFEST_FIELDS, (
+        "the manifest must not carry undocumented fields"
+    )
     assert type(manifest["schema_version"]) is int
     assert manifest["schema_version"] == 1
     for field in ("owner", "purpose", "source_repository"):
@@ -114,13 +123,16 @@ def _assert_complete_manifest(manifest: dict[str, object], category: str) -> Non
             f"{field} must be a non-empty string"
         )
     _assert_rfc3339_utc(manifest["created_at"], "created_at")
-    _assert_rfc3339_utc(manifest["expires_at"], "expires_at")
+    if "expires_at" in manifest:
+        _assert_rfc3339_utc(manifest["expires_at"], "expires_at")
     assert manifest["retention"] in RETENTION_VALUES
     assert manifest["retention"] == CATEGORY_RETENTION[category], (
         f"{category} tasks must match CATEGORY_RETENTION"
     )
     assert type(manifest["reproducible"]) is bool
     for field in ("related_pull_requests", "related_issues"):
+        if field not in manifest:
+            continue
         assert isinstance(manifest[field], list) and all(
             type(identifier) is int for identifier in manifest[field]
         ), f"{field} must be a list of integer identifiers"
@@ -186,12 +198,48 @@ def test_manifest_rejects_a_category_retention_mismatch() -> None:
 
 
 def test_non_recovery_manifest_may_omit_unneeded_provenance() -> None:
-    """Provenance remains optional only outside the recovery retention class."""
+    """A cache task without provenance satisfies the complete manifest contract."""
     manifest = _manifest_example()
     manifest["retention"] = "cache"
+    manifest["reproducible"] = True
     manifest.pop("provenance")
 
-    _assert_recovery_provenance(manifest)
+    _assert_complete_manifest(manifest, "cache")
+
+
+def test_recovery_manifest_requires_provenance() -> None:
+    """Removing ``[provenance]`` from a recovery task violates the contract."""
+    manifest = _manifest_example()
+    manifest.pop("provenance")
+
+    with pytest.raises(AssertionError, match="recovery material must have provenance"):
+        _assert_complete_manifest(manifest, "recovery")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["2026-09-20T12:00:00Z", "2026-09-20T12:00:00.123456Z"],
+)
+def test_manifest_timestamps_accept_rfc3339_utc(value: str) -> None:
+    """Whole and fractional-second UTC timestamps satisfy the wire format."""
+    _assert_rfc3339_utc(value, "created_at")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-09-20Z",
+        "20260920T120000Z",
+        "2026-09-20 12:00:00Z",
+        "2026-09-20T12:00Z",
+        "2026-09-20T12:00:00+00:00",
+        "2026-09-20T12:00:00.Z",
+    ],
+)
+def test_manifest_timestamps_reject_other_iso8601_forms(value: str) -> None:
+    """Forms that ``fromisoformat`` may accept still violate RFC 3339 UTC."""
+    with pytest.raises(AssertionError, match="RFC 3339 UTC form"):
+        _assert_rfc3339_utc(value, "created_at")
 
 
 def test_manifest_contract_names_required_optional_and_conditional_rules() -> None:
