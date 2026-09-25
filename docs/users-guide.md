@@ -754,7 +754,9 @@ helper branch when testing unpublished bootstrap changes.
   - Installs `cargo-llvm-cov` in `get-rust-tooling`.
 - `WITH_WHITAKER`
   - Default: `0`
-  - Installs Whitaker tooling in `get-rust-tooling`.
+  - Installs Whitaker tooling in `get-rust-tooling`. The installer runs with
+    `--no-source-fallback`, so a missing published lint library or Dylint tool
+    fails the install instead of being compiled from source.
 - `WITH_WHITAKER_EXPERIMENTAL`
   - Default: `0`
   - Installs experimental Whitaker pieces when Whitaker is enabled.
@@ -790,8 +792,9 @@ Use these variables to pin or override versions installed by the home phase:
   - Default: `0.14.0`
   - Version of `sccache` when `SCCACHE_BUCKET` is set.
 - `WHITAKER_INSTALLER_VERSION`
-  - Default: `0.2.6`
-  - Version of `whitaker-installer`.
+  - Default: `0.2.9`
+  - Version of `whitaker-installer`. Use 0.2.9 or later: older installers
+    reject `--no-source-fallback`.
 - `MDTABLEFIX_VERSION`
   - Default: `0.4.0`
   - Version of `mdtablefix`.
