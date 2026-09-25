@@ -77,6 +77,22 @@ which the agent loads only after selecting the skill.
 `make lint` validates every shipped manifest, so a malformed or
 non-conformant manifest cannot be installed.
 
+## Repository scratch sidecars
+
+Use [`scratch`](../skills/scratch/SKILL.md) to create, audit, migrate, or retire
+project scratch data under a visible `<repository>.scratch` sibling. The skill
+keeps linked Git worktrees under `<repository>.worktrees`, classifies scratch
+data by recovery value, and requires an inventory and exact review before
+cleanup. Before deleting anything, verify sidecar ownership and process state,
+inspect for unpublished or unique work, produce an exact dry-run inventory, and
+obtain explicit authorization for each recovery item to delete. See the
+[cleanup procedure](../skills/scratch/SKILL.md#clean-up-safely) and the
+[retention and migration contract](../skills/scratch/references/layout.md).
+
+Its [layout and manifest contract](../skills/scratch/references/layout.md)
+defines the standard categories, task-level `scratch.toml` metadata, retention
+rules, and migration procedure for existing flat project directories.
+
 ## CodeScene skills
 
 Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
