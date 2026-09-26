@@ -68,3 +68,26 @@ in `docs/execplans/audit-missing-functionality.md` in
 `leynos/typos-config-builder`. Until a repository migrates, it keeps its
 legacy tooling, which receives dictionary updates but enforces no phrase
 corrections.
+
+## Whitaker installs refuse source builds
+
+`get-rust-tooling` installed `whitaker-installer` 0.2.6 when `WITH_WHITAKER`
+was set. When a published lint library or Dylint tool archive was missing,
+that installer compiled it from source, and the install succeeded slowly.
+
+### New behaviour
+
+The default is now 0.2.9, and the installer always runs with
+`--no-source-fallback`. A missing published lint library or Dylint tool now
+fails the Whitaker install. The script then prints its existing warning,
+"Whitaker is not currently available in this environment", and the rest of
+the bootstrap continues.
+
+### Migrating
+
+- If you set `WHITAKER_INSTALLER_VERSION`, set it to 0.2.9 or later, or unset
+  it to take the default. Older installers reject `--no-source-fallback`, so an
+  older pin always ends in the warning.
+- If you relied on a source build, for example to try an unpublished lint
+  change, run `whitaker-installer` yourself from a Whitaker checkout. This
+  script no longer builds from source.

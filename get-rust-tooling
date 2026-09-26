@@ -129,21 +129,27 @@ export RUSTC_HEARTBEAT_SECS=20
 cargo binstall --locked --no-confirm "cargo-nextest@${CARGO_NEXTEST_VERSION}"
 cargo binstall --locked --no-confirm "kani-verifier@${KANI_VERIFIER_VERSION}"
 
-WITH_WHITAKER=${WITH_WHITAKER:-0}
-WITH_WHITAKER_EXPERIMENTAL=${WITH_WHITAKER_EXPERIMENTAL:-0}
-# 0.2.9 is the first installer with --no-source-fallback. The estate never
-# compiles the lint suite or the Dylint tools: a missing published asset
-# fails the install rather than starting a source build.
-WHITAKER_INSTALLER_VERSION=${WHITAKER_INSTALLER_VERSION:-0.2.9}
-if ((WITH_WHITAKER)); then
-  whitaker_args=(--no-source-fallback)
-  if ((WITH_WHITAKER_EXPERIMENTAL)); then
+# Install the Whitaker lint suite when WITH_WHITAKER is set. The installer is
+# pinned (WHITAKER_INSTALLER_VERSION, default 0.2.9) and always runs with
+# --no-source-fallback, so a missing published lint library or Dylint tool
+# fails the install instead of compiling it; 0.2.9 is the first installer with
+# that flag. A failed install warns rather than stopping the bootstrap, because
+# Whitaker is optional here. Kept as a function so the tests can drive it alone.
+function install_whitaker_tooling() {
+  if ! ((${WITH_WHITAKER:-0})); then
+    return 0
+  fi
+  local installer_version=${WHITAKER_INSTALLER_VERSION:-0.2.9}
+  local whitaker_args=(--no-source-fallback)
+  if ((${WITH_WHITAKER_EXPERIMENTAL:-0})); then
     whitaker_args+=(--experimental)
   fi
   if ! {
-    cargo binstall --locked --no-confirm "whitaker-installer@${WHITAKER_INSTALLER_VERSION}" && \
-    whitaker-installer "${whitaker_args[@]}";
+    cargo binstall --locked --no-confirm "whitaker-installer@${installer_version}" &&
+      whitaker-installer "${whitaker_args[@]}"
   }; then
     echo "Warning: Whitaker is not currently available in this environment"
   fi
-fi
+}
+
+install_whitaker_tooling
