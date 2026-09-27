@@ -41,13 +41,40 @@ NEAR_MISSES: tuple[str, ...] = (
 
 
 def ignore_patterns(path: Path, table: str = "patterns", key: str = "ignore") -> list[str]:
-    """Return one TOML file's ignore patterns."""
+    """Return one TOML file's ignore patterns.
+
+    Parameters
+    ----------
+    path
+        TOML file to read: the shared dictionary, the local overlay, or the
+        generated configuration.
+    table
+        Top-level table holding the pattern list.
+    key
+        Key of the pattern list within that table.
+
+    Returns
+    -------
+    list[str]
+        The patterns, or an empty list when the table or key is absent.
+    """
     document = tomllib.loads(path.read_text(encoding="utf-8"))
     return document.get(table, {}).get(key, [])
 
 
 def naming_the_word(patterns: list[str]) -> list[str]:
-    """Return the patterns that mention the transposed word."""
+    """Return the patterns that mention the transposed word.
+
+    Parameters
+    ----------
+    patterns
+        Ignore patterns to filter.
+
+    Returns
+    -------
+    list[str]
+        The patterns containing the transposed word, in their original order.
+    """
     return [pattern for pattern in patterns if TRANSPOSED in pattern]
 
 
@@ -105,6 +132,19 @@ def run_consumer_gate(repository: Path, files: dict[str, str]) -> subprocess.Com
 
     The consumer tracks the given files and takes this checkout's dictionary as
     its source, exactly as a consumer receives it once this change merges.
+
+    Parameters
+    ----------
+    repository
+        Empty directory that becomes the scratch consumer repository.
+    files
+        Repository-relative file names mapped to their contents; each is
+        written and tracked, alongside the two cache `.gitignore` lines.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The finished gate process, with its exit code and captured output.
     """
     uv = shutil.which("uv")
     git = shutil.which("git")

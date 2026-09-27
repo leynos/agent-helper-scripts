@@ -292,6 +292,12 @@ repository stay in a document that repository owns. A library's users' guide
 is owned by its upstream repository; the library snapshots it from upstream,
 so the upstream repository does not refresh its guide from the library.
 
+The OpenTofu guide misspells a variable reference on purpose, in its worked
+example of an undeclared-variable error. The shared dictionary exempts only
+that example's exact text, so a repository that carries the guide needs no
+exemption of its own, and the same misspelt reference anywhere else, in prose
+or in Terraform or OpenTofu source, is reported by the gate.
+
 ## Stacked pull requests
 
 The `github-stacks` skill covers GitHub's native stacked pull requests through
