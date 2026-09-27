@@ -43,10 +43,6 @@ ignore = [
   # matching the whole event list, bounded at each end, keeps the allowance off
   # the word itself and off any longer name that contains it.
   '\blabeled, ready_for_review\b',
-  # The OpenTofu guide's worked example of an undeclared-variable error
-  # misspells the variable on purpose; only that exact example is exempt, so a
-  # real `var.iamge_id` anywhere else is still reported.
-  '`var\.iamge_id` instead of `var\.image_id`',
 ]
 
 [files]
