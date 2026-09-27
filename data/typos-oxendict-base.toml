@@ -214,8 +214,6 @@ ignore = [
   '\bartifact-(?:name|server-path)\b',
   # A generic parameter in the Wireframe application-factory signature.
   '\bAppFactory<Ser\b',
-  # A deliberately misspelt identifier in a diagnostics example.
-  '\bvar\.iamge_id\b',
   # The US spelling quoted as an example of an API that keeps it.
   '`color`',
 ]
