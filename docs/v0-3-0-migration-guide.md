@@ -22,7 +22,7 @@ and ran its own repository-local phrase-check script over Git-tracked text.
 A consumer runs `typos-config-builder gate`, pinned to a released tag:
 
 ```bash
-uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1" \
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.2" \
   typos-config-builder gate
 ```
 
