@@ -689,6 +689,62 @@ independent scopes:
 A monitoring-only assignment starts neither of the other two scopes and
 records them as `not-requested` rather than passed or silently skipped.
 
+All monitoring is foreground-only: polls, waits and watchers must finish in
+the active turn. Do not start detached work or rely on a background result.
+Before either GitHub monitoring flow, create one private evidence bundle
+under `/tmp` with `umask 077` and `mktemp -d`; retain it for all requested
+flows. If the observation deadline arrives before evidence is complete, stop
+polling and report pending or missing items as incomplete.
+
+GitHub PR agent review monitoring is opt-in and covers reviews and checks
+already posted to a PR, separately from starting `coderabbit review --agent`.
+Establish the repository, PR number, refreshed head SHA, base, required
+checks, exact expected reviewer logins, and deadline before polling. Each
+poll refreshes the PR and required checks together, recording each check's
+terminal conclusion or pending state and URL. Capture every page of the REST
+reviews, inline review comments, and conversation comments collections in
+the evidence bundle.
+
+Filter inline discussions using GraphQL `PullRequest.reviewThreads`:
+resolved threads are dropped, while unresolved threads retain their comments,
+authors, text, paths, anchors and commit SHAs. The outer thread connection
+and each thread's nested comments connection have independent cursors; when
+either reports another page, advance that connection's cursor separately
+until complete and preserve each comment page's thread association. Reviews
+count as current only when their submitted `commit_id` equals the refreshed
+head SHA. A head change invalidates the prior current-review set. Keep older
+reviews as stale evidence. Conversation comments without a commit binding
+must be tied to the current head by their text or linked review; otherwise
+mark them stale or head-unverified. Preserve unresolved old anchors, using
+`originalLine` when the current line is unavailable. Exclude a thread only
+when it is resolved, superseded, or no longer applies, and record that reason.
+
+Inspect conversation comments for CodeRabbit pre-merge reports as well as
+checks. Preserve failed, warning and passed rows, their explanations,
+resolutions and full-details text. A failed pre-merge row remains a finding
+even if GitHub's outer CodeRabbit check is green. Match an abbreviated report
+head to the refreshed SHA; mark mismatches stale and reports without a head
+unverified, so neither can support a clean verdict.
+
+Run complete PR polling rounds in foreground calls shorter than eight
+minutes, then inspect the refreshed head and evidence before continuing.
+Stop at the deadline. Rate-limit backoff is bounded by whole minutes
+remaining: if fewer than 15 remain, report `rate-limited` immediately;
+otherwise sleep a randomly selected 15 minutes up to the smaller of 30
+minutes or the remaining time, then retry the failed request at most once
+and only if the deadline permits. A second rate limit or a deadline before
+retry leaves the evidence incomplete.
+
+PR monitoring is complete only when every required check is terminal and
+each expected reviewer has submitted a review on the current head. Findings
+do not block completion, but they block a clean verdict. At deadline, name
+each missing current-head review and pending or missing check. Preserve
+current-head review findings verbatim, identify their author, ID and
+location, and collapse only exact duplicates at the same location while
+listing all duplicate references. The report distinguishes stale,
+unresolved, head-unverified and incomplete evidence; it never treats an
+outer green check or partial collection as proof of a clean review.
+
 Actions monitoring requires an authenticated `gh` CLI and `jq`.
 `gh run watch` does not support fine-grained PAT authentication, and the
 agent must never broaden permissions or change authentication to make
@@ -760,7 +816,10 @@ procedures. `tests/test_scrutineer_actions_discovery.py` and
 snippets from the manifest's `instructions` body and execute them
 against a `gh` double that validates repository, run ID, attempt,
 commit SHA, and required flags, so the tests cannot drift from the
-published contract.
+published Actions contract. `tests/test_subagent_definitions.py` pins the
+Scrutineer models and load-bearing instruction requirements, including
+foreground-only monitoring and the PR review workflow; update those
+contract assertions when the authoritative manifest changes.
 
 ### Skill manifest tooling dependencies
 
