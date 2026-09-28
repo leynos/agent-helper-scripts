@@ -623,30 +623,30 @@ further enhancing its power.[^28]
 
 Declarative programming focuses on describing what result is desired, rather
 than detailing how to achieve it step-by-step, as is typical in imperative
-programming.[^29] This paradigm shift can significantly reduce cognitive
+programming. This paradigm shift can significantly reduce cognitive
 complexity by abstracting away low-level control flow and state management.
 
 When developers write declarative code, they operate at a higher level of
 abstraction, allowing them to reason about the program's intent more
-directly.[^29] This often leads to more concise, readable, and maintainable
+directly. This often leads to more concise, readable, and maintainable
 code because the "noise" of explicit iteration, temporary variables, and manual
-state updates is minimized.[^29] Many declarative approaches also inherently
+state updates is minimized. Many declarative approaches also inherently
 favour immutability, reduce side effects, and encourage deterministic
 behaviour—common culprits for bugs and increased cognitive load in imperative
-code.[^22]
+code.
 
 Examples include using Structured Query Language for database queries—
 specifying the desired dataset rather than the retrieval algorithm—or employing
 functional programming constructs like `map`, `filter`, and `reduce` on
 collections instead of writing explicit loops. Refactoring imperative code to a
 declarative style can start small, perhaps by converting a loop that filters
-and transforms a list into a chain of `filter` and `map` operations.[^22] The
+and transforms a list into a chain of `filter` and `map` operations. The
 broader adoption of declarative approaches in areas like UI development (e.g.,
 React) and data querying signifies an industry trend towards managing
 complexity by raising abstraction levels. However, the effectiveness of
 declarative programming relies on well-designed underlying abstractions; a
 poorly designed declarative layer might not successfully hide complexity or
-could introduce its own.[^30]
+could introduce its own.
 
 #### 3. Employing dispatcher and command patterns
 
@@ -654,7 +654,7 @@ For managing complex conditional logic that selects different behaviours (often
 found in Bumpy Roads or large switch statements), these complementary patterns
 offer a structured and extensible alternative.
 
-The **Command pattern** encapsulates a request or an action as an object.[^31]
+The **Command pattern** encapsulates a request or an action as an object.
 Each command object implements a common interface (e.g., with an
 
 `execute()` method). This decouples the object that invokes the command from
@@ -663,17 +663,17 @@ checking a type and then executing logic, different command objects can be
 instantiated based on the type, and then their `execute()` method is called.
 This promotes the Single Responsibility Principle, as each command class
 handles a single action, making the system easier to test, extend, and
-evolve.[^32]
+evolve.
 
 The **Dispatcher pattern** often works in conjunction with the Command pattern.
 A dispatcher is a central component that receives requests (which could be
 command objects or simple identifiers) and routes them to the appropriate
-handler.[^32] For instance, a
+handler. For instance, a
 
 `switch` statement where each `case` calls a different method can be refactored
 by creating an interface for handlers, a concrete handler class for each
 original `case`, and a dispatcher (perhaps a map from case identifiers to
-handler instances) that looks up and invokes the correct handler.[^33] This
+handler instances) that looks up and invokes the correct handler. This
 transforms the control flow from a monolithic conditional block into a more
 manageable registration and lookup mechanism. The cognitive load is reduced
 because developers can focus on individual, self-contained handlers while
@@ -867,16 +867,6 @@ maintain.
        <https://github.com/sourcery-ai/sourcery/issues/453>
 [^28]: PEP 636 – Structural Pattern Matching: Tutorial — Python Enhancement
        Proposals, <https://peps.python.org/pep-0636/>
-[^29]: Another pasta-themed programming problem is "ravioli code". That …,
-       <https://news.ycombinator.com/item?id=4537664>
-[^30]: Ravioli code — why an antipattern? — Stack Overflow,
-       <https://stackoverflow.com/questions/2052017/ravioli-code-why-an-anti-pattern>
-[^31]: A Guide to Data Abstraction and Its Significant Benefits — CelerData,
-       <https://celerdata.com/glossary/a-guide-to-data-abstraction>
-[^32]: The Role of Abstraction in Software Development | Bebras Armenia,
-       <https://bebras.am/en/blog/The-Role-of-Abstraction-in-Software-Development>
-[^33]: Abstraction, Refactoring, Complexity, and Tradeoffs — Part 1 | Synth
-       …, <https://omux.dev/blog/abstraction-refactoring-complexity/>
 [^34]: Don't create over abstractions — Castineiras thoughts -,
        <https://www.castineiras.com/?p=102>
 [^35]: State pattern — Wikipedia,
