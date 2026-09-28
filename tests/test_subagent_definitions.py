@@ -411,6 +411,76 @@ def test_scrutineer_monitoring_rule_is_global_and_foreground_only() -> None:
         )
 
 
+def test_scrutineer_initializes_bundle_before_either_monitoring_flow() -> None:
+    """Review-only monitoring must have a private evidence bundle to use."""
+    instructions = _normalized(_scrutineer_instructions())
+    bundle_setup = instructions.index(
+        "Before dispatching either GitHub PR review or GitHub Actions monitoring"
+    )
+
+    for flow in (
+        "GitHub PR agent review monitoring (when requested):",
+        "GitHub Actions monitoring (when requested):",
+    ):
+        assert bundle_setup < instructions.index(flow), (
+            f"Scrutineer must initialize its evidence bundle before {flow}"
+        )
+
+    for required in (
+        "private, uniquely named evidence bundle",
+        "`umask 077`",
+        "`mktemp -d`",
+        "`bundle_dir`",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's shared monitoring setup must retain {required!r}"
+        )
+
+
+def test_scrutineer_paginates_each_review_thread_comment_connection() -> None:
+    """Nested review comments need a cursor independent of reviewThreads."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "`$threadCursor`",
+        "pass that response's `reviewThreads.pageInfo.endCursor` as `"
+        "$threadCursor` for the next outer page",
+        "separate node lookup for that thread using its ID",
+        "passing the initial thread result's `comments.pageInfo.endCursor` "
+        "as `$commentsCursor` to start the next page",
+        "`$commentsCursor`",
+        "pass that same thread's returned `comments.pageInfo.endCursor` as `"
+        "$commentsCursor` in the next node lookup for that thread",
+        "repeating until `comments.pageInfo.hasNextPage` is false",
+        "node(id: $threadId)",
+        "comments(first: 100, after: $commentsCursor)",
+        "Keep the thread ID with every fetched comment page",
+    ):
+        assert required in instructions, (
+            "Scrutineer must retain independent per-thread pagination: "
+            f"{required!r}"
+        )
+
+
+def test_scrutineer_rate_limit_wait_respects_observation_deadline() -> None:
+    """A rate-limit delay must fit before the monitoring deadline."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "compute the remaining whole minutes before sleeping",
+        "If fewer than 15 minutes remain, stop immediately",
+        "upper_delay",
+        'shuf -i "15-${upper_delay}" -n 1',
+        'vsleep "${delay_minutes}m"',
+        "Re-check the deadline afterwards",
+        "only if the deadline still permits it",
+        "do not retry; record the incomplete evidence",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's rate-limit policy must retain {required!r}"
+        )
+
+
 def test_scrutineer_report_marks_logs_as_canonical_evidence() -> None:
     """Scrutineer's report must direct the planner to the captured logs.
 
