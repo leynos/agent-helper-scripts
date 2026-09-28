@@ -214,8 +214,10 @@ ignore = [
   '\bartifact-(?:name|server-path)\b',
   # A generic parameter in the Wireframe application-factory signature.
   '\bAppFactory<Ser\b',
-  # A deliberately misspelt identifier in a diagnostics example.
-  '\bvar\.iamge_id\b',
+  # The OpenTofu guide's worked example of an undeclared-variable error
+  # misspells the variable on purpose. Only that exact example text is exempt,
+  # so a real `var.iamge_id` in any consumer's source or prose is reported.
+  '`var\.iamge_id` instead of `var\.image_id`',
   # The US spelling quoted as an example of an API that keeps it.
   '`color`',
 ]
