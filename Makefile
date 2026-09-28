@@ -28,7 +28,7 @@ PYTEST := uv run --group dev python -m pytest
 # The spelling gate is the shared builder, pinned to a released tag. It owns the
 # Typos version, the phrase corrections, and the generated typos.toml, so this
 # repository carries no spelling helper of its own.
-TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.2
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER := uv tool run --python 3.14 \
   --from "git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
   typos-config-builder

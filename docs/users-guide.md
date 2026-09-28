@@ -145,7 +145,7 @@ A consumer repository carries no spelling tooling of its own: one command,
 pinned to a released tag.
 
 ```bash
-uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.2" \
+uvx --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.3" \
   typos-config-builder gate
 ```
 
