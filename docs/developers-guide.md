@@ -219,6 +219,30 @@ distinction visible when adding new bootstrap behaviour.
 - Must not run package-manager commands, privilege escalation, or mutate
   machine-level package state.
 
+### `get-rust-tooling` Whitaker install
+
+- `install_whitaker_tooling` does nothing unless `WITH_WHITAKER` is set.
+- It installs `whitaker-installer` at `WHITAKER_INSTALLER_VERSION`, default
+  `0.2.9`, with `cargo binstall --locked --no-confirm`.
+- It always runs the installer with `--no-source-fallback`. 0.2.9 is the first
+  release with the flag, so an override must name 0.2.9 or later. When a
+  published lint library or Dylint tool archive is missing, the installer fails
+  instead of compiling it.
+- `--experimental` is added only when `WITH_WHITAKER_EXPERIMENTAL` is set.
+- A failed download or a refused install prints the existing "Whitaker is not
+  currently available" warning and lets the bootstrap continue, because
+  Whitaker is optional in a developer environment.
+- The estate's rule is that the lint suite is a rolling release that is never
+  pinned, the installer is pinned to an exact version, and nothing is built
+  from source. CI provisions Whitaker only through shared-actions'
+  `install-whitaker`. This script is a developer-environment bootstrap that CI
+  never runs, and concordat's `whitaker-provisioning` rule names it as an
+  exemption for that route. It still follows the version pin and the
+  no-source-build clause.
+- `tests/test_get_rust_tooling_whitaker.py` extracts the function and drives it
+  with stubbed `cargo` and `whitaker-installer`, asserting the commands it
+  builds.
+
 ### `install-hooks`
 
 - Reuses the managed helper checkout path when `HELPER_TOOLS_REPO_DIR` is
