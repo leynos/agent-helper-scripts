@@ -95,7 +95,11 @@ mod tests {
         env.expect_string()
             .withf(|key| key == "API_KEY")
             .returning(|_| Some("secret123".to_string()));
-        assert_eq!(get_api_key(&env), Some("secret123".to_string()));
+        assert_eq!(
+            get_api_key(&env),
+            Some("secret123".to_string()),
+            "a present, non-empty API_KEY should be returned",
+        );
     }
 
     #[test]
@@ -104,7 +108,11 @@ mod tests {
         env.expect_string()
             .withf(|key| key == "API_KEY")
             .returning(|_| None);
-        assert_eq!(get_api_key(&env), None);
+        assert_eq!(
+            get_api_key(&env),
+            None,
+            "a missing API_KEY should return None",
+        );
     }
 
     #[test]
@@ -113,7 +121,11 @@ mod tests {
         env.expect_string()
             .withf(|key| key == "API_KEY")
             .returning(|_| Some(String::new()));
-        assert_eq!(get_api_key(&env), None);
+        assert_eq!(
+            get_api_key(&env),
+            None,
+            "an empty API_KEY should be treated as missing",
+        );
     }
 }
 ```
@@ -168,6 +180,13 @@ command
 Configuring a spawned command's environment this way affects only the child
 process. It is not licence to fall back on `std::env::set_var` or
 `std::env::remove_var` in the harness process itself.
+
+This minimal environment assumes the child does not depend on Cargo-built
+dynamically linked libraries. If it does, restore Cargo's platform-specific
+loader path in the child's environment after `env_clear()` (for example,
+`LD_LIBRARY_PATH` on Linux); this includes preserving Cargo's `PATH` entries on
+Windows, combining them with any controlled entries instead of replacing them.
+Apply the values to `command` so the test harness environment remains unchanged.
 
 ______________________________________________________________________
 
