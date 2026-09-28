@@ -295,8 +295,8 @@ so the upstream repository does not refresh its guide from the library.
 The OpenTofu guide misspells a variable reference on purpose, in its worked
 example of an undeclared-variable error. The shared dictionary exempts only
 that example's exact text, so a repository that carries the guide needs no
-exemption of its own, and the same misspelt reference anywhere else, in prose
-or in Terraform or OpenTofu source, is reported by the gate.
+exemption of its own. Other uses of the misspelt reference that do not contain
+the complete phrase are reported by the gate.
 
 ## Stacked pull requests
 
