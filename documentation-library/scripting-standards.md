@@ -31,11 +31,11 @@ as a default.
 - Each script starts with an `uv` script block so runtime and dependency
   expectations travel with the file. Prefer the shebang
   `#!/usr/bin/env -S uv run --script` followed by the metadata block shown in
-  the example below. `uv run --script` reads the PEP 723 inline metadata block
-  and installs its declared dependencies before execution; `uv run python`
-  invokes the interpreter directly and silently ignores the metadata block, so
-  a directly executed script (`./script.py`) fails at import time because its
-  dependencies were never installed.
+  the example below. Running the script directly (for example, `./script.py`)
+  follows that shebang, so `uv run --script` reads the PEP 723 metadata and
+  installs its declared dependencies before execution. By contrast,
+  `uv run python script.py` starts Python directly and does not consume the
+  script's metadata; use it only when dependencies are managed separately.
 - External processes are invoked via
   [`cuprum`](https://github.com/leynos/cuprum/) to provide typed,
   allowlist-based command execution rather than ad‑hoc shell strings. Cuprum's
@@ -61,7 +61,7 @@ from typing import Optional, Annotated
 
 import cyclopts
 from cyclopts import App, Parameter
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
 # Map INPUT_<PARAM> → function parameter without additional glue
 app = App(config=cyclopts.config.Env("INPUT_", command=False))
@@ -105,9 +105,15 @@ def default(
         return
 
     build_dir.mkdir(parents=True, exist_ok=True)
-    catalogue = Catalogue.from_programs("tofu")
-    with sh.scoped(catalogue):
-        result = sh.make("tofu")("plan", cwd=build_dir).run_sync()
+    tofu = Program("tofu")
+    catalogue = ProgramCatalogue(projects=(ProjectSettings(
+        name="packaging",
+        programs=(tofu,),
+        documentation_locations=(),
+        noise_rules=(),
+    ),))
+    with scoped(allowlist=catalogue.allowlist):
+        result = sh.make(tofu, catalogue=catalogue)("plan", cwd=build_dir).run_sync()
         if result.exit_code != 0:
             raise SystemExit(result.exit_code)
 
@@ -160,12 +166,12 @@ list of allowed programs and ensures consistent access control across the
 codebase:
 
 ```python
-from project.utils.commands import PROJECT_CATALOGUE
-from cuprum import Catalogue, sh
+from project.utils.commands import GIT, PROJECT_CATALOGUE
+from cuprum import scoped, sh
 
-with sh.scoped(PROJECT_CATALOGUE):
-    # All project code uses the shared catalogue
-    ...
+with scoped(allowlist=PROJECT_CATALOGUE.allowlist):
+    # GIT is the Program declared in PROJECT_CATALOGUE.
+    sh.make(GIT, catalogue=PROJECT_CATALOGUE)
 ```
 
 For standalone scripts and tests, define a local catalogue scoped to that
@@ -173,21 +179,39 @@ file's requirements. This keeps scripts self-contained and avoids coupling to
 the main application:
 
 ```python
+from cuprum import Program, ProgramCatalogue, ProjectSettings
+
 # In a standalone script or test file
-CATALOGUE = Catalogue.from_programs("git", "cargo")
+GIT = Program("git")
+CARGO = Program("cargo")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="standalone-script",
+    programs=(GIT, CARGO),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 ```
 
 ### Catalogue and allowlisting
 
 ```python
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
 # Define allowed programs for this script
-CATALOGUE = Catalogue.from_programs("git", "cargo", "grep")
+GIT = Program("git")
+CARGO = Program("cargo")
+GREP = Program("grep")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="script",
+    programs=(GIT, CARGO, GREP),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
-# Commands can only be constructed within a scoped catalogue
-with sh.scoped(CATALOGUE):
-    git = sh.make("git")
+# Scope execution to the script's allowed programs. Each builder receives the
+# catalogue explicitly so its program is resolved against that project.
+with scoped(allowlist=CATALOGUE.allowlist):
+    git = sh.make(GIT, catalogue=CATALOGUE)
     result = git("--no-pager", "log", "-1", "--pretty=%H").run_sync()
     last_commit = result.stdout.strip()
 ```
@@ -195,12 +219,19 @@ with sh.scoped(CATALOGUE):
 ### Capturing output and handling failures
 
 ```python
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("git", "grep")
+GIT = Program("git")
+GREP = Program("grep")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="script",
+    programs=(GIT, GREP),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
-with sh.scoped(CATALOGUE):
-    git = sh.make("git")
+with scoped(allowlist=CATALOGUE.allowlist):
+    git = sh.make(GIT, catalogue=CATALOGUE)
 
     # run_sync() returns CommandResult with exit_code, stdout, stderr
     result = git("status").run_sync()
@@ -210,7 +241,7 @@ with sh.scoped(CATALOGUE):
 
     # Pipelines via the | operator with backpressure handling
     log_cmd = git("--no-pager", "log", "--oneline")
-    grep_cmd = sh.make("grep")("fix")
+    grep_cmd = sh.make(GREP, catalogue=CATALOGUE)("fix")
     shortlog = (log_cmd | grep_cmd).run_sync().stdout
 ```
 
@@ -218,13 +249,19 @@ with sh.scoped(CATALOGUE):
 
 ```python
 from pathlib import Path
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("git")
+GIT = Program("git")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="script",
+    programs=(GIT,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 repo_dir = Path(__file__).resolve().parents[1]
 
-with sh.scoped(CATALOGUE):
-    git = sh.make("git")
+with scoped(allowlist=CATALOGUE.allowlist):
+    git = sh.make(GIT, catalogue=CATALOGUE)
 
     # Working directory via cwd parameter
     result = git("tag", "--list", cwd=repo_dir).run_sync()
@@ -243,12 +280,18 @@ Cuprum transforms keyword arguments into `--flag=value` format automatically,
 with underscores converted to hyphens:
 
 ```python
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("cargo")
+CARGO = Program("cargo")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="build",
+    programs=(CARGO,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
-with sh.scoped(CATALOGUE):
-    cargo = sh.make("cargo")
+with scoped(allowlist=CATALOGUE.allowlist):
+    cargo = sh.make(CARGO, catalogue=CATALOGUE)
     # Equivalent to: cargo build --release --target=x86_64-unknown-linux-gnu
     result = cargo("build", release=True, target="x86_64-unknown-linux-gnu").run_sync()
 ```
@@ -257,20 +300,23 @@ with sh.scoped(CATALOGUE):
 
 ```python
 import logging
-from cuprum import Catalogue, sh, Hook
+from cuprum import Program, ProgramCatalogue, ProjectSettings, observe, scoped, sh
 
 LOGGER = logging.getLogger(__name__)
-CATALOGUE = Catalogue.from_programs("cargo")
-
-def log_before(event):
-    LOGGER.info("Executing: %s", event.command)
+CARGO = Program("cargo")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="checks",
+    programs=(CARGO,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
 def log_after(event):
     LOGGER.info("Completed with exit code %d", event.result.exit_code)
 
-with sh.scoped(CATALOGUE):
-    with sh.observe(Hook(before=log_before, after=log_after)):
-        sh.make("cargo")("check").run_sync()
+with scoped(allowlist=CATALOGUE.allowlist):
+    with observe(log_after):
+        sh.make(CARGO, catalogue=CATALOGUE)("check").run_sync()
 ```
 
 ### Async execution
@@ -279,13 +325,20 @@ For I/O-bound workflows, Cuprum supports async execution:
 
 ```python
 import asyncio
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("cargo")
+CARGO = Program("cargo")
+PYTHON = Program("python")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="checks",
+    programs=(CARGO, PYTHON),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
 async def run_checks():
-    with sh.scoped(CATALOGUE):
-        cargo = sh.make("cargo")
+    with scoped(allowlist=CATALOGUE.allowlist):
+        cargo = sh.make(CARGO, catalogue=CATALOGUE)
         # Async execution with run()
         result = await cargo("check", "--all-targets").run()
         return result.exit_code == 0
@@ -295,31 +348,44 @@ asyncio.run(run_checks())
 
 #### Task lifetime and `asyncio.gather`
 
-When multiple async commands run concurrently, each task's lifetime must be
-bounded by the enclosing coroutine. Await the tasks with `asyncio.gather`, or
-with `asyncio.TaskGroup` on Python 3.11 and later, so background command work
-cannot escape the calling coroutine.
+Use structured concurrency when command tasks must not outlive the coroutine
+that starts them. With the default `asyncio.gather` behaviour, the first
+exception raised by an awaitable propagates to the caller; `gather` does not
+cancel or wait for its sibling awaitables. Use `asyncio.TaskGroup` on Python
+3.11 and later when a child failure must cancel the remaining tasks and wait
+for them to finish.
 
 ```python
 import asyncio
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("cargo", "python")
+CARGO = Program("cargo")
+PYTHON = Program("python")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="checks",
+    programs=(CARGO, PYTHON),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
-async def run_all():
-    with sh.scoped(CATALOGUE):
-        cargo = sh.make("cargo")
-        python = sh.make("python")
+async def run_all(catalogue):
+    with scoped(allowlist=catalogue.allowlist):
+        cargo = sh.make(CARGO, catalogue=catalogue)
+        python = sh.make(PYTHON, catalogue=catalogue)
         results = await asyncio.gather(
             cargo("check", "--all-targets").run(),
             python("-m", "pytest", "--tb=short").run(),
-            return_exceptions=True,
         )
     return results
 ```
 
-`return_exceptions=True` prevents a single task failure from cancelling sibling
-tasks. Callers must inspect each result individually.
+The default propagates the first raised exception without cancelling or waiting
+for the other command. Use `asyncio.gather(..., return_exceptions=True)` when
+all commands should finish and every outcome should be inspected; each returned
+item is then either a result or an exception. A `CommandResult` with a non-zero
+`exit_code` is still a result, not a raised exception, so check its exit code
+separately. Use `asyncio.TaskGroup` when a raised exception should cancel and
+await the remaining tasks.
 
 #### Cancellation handling
 
@@ -329,8 +395,8 @@ is cancelled, for example by a timeout or external signal, the coroutine raises
 
 ```python
 async def check_with_timeout():
-    with sh.scoped(CATALOGUE):
-        cargo = sh.make("cargo")
+    with scoped(allowlist=CATALOGUE.allowlist):
+        cargo = sh.make(CARGO, catalogue=CATALOGUE)
         try:
             result = await asyncio.wait_for(
                 cargo("build", "--release").run(), timeout=120.0
@@ -343,20 +409,22 @@ async def check_with_timeout():
 
 #### Error propagation
 
-`run()` returns a `CommandResult` and does not raise on non-zero exit codes.
-Subprocess errors are propagated as field values such as `exit_code` and
-`stderr`, not as exceptions. Callers must check `result.exit_code` explicitly.
-The exceptions raised are those from the Python event loop itself, such as
-`CancelledError` and `TimeoutError`, or from catalogue violations such as
-`UnknownProgramError`.
+`run()` returns a `CommandResult` when the process starts, including when it
+exits with a non-zero status. Check `result.exit_code` explicitly. Failures that
+prevent execution are raised as exceptions: for example, `FileNotFoundError`
+when a registered executable is absent before spawn, `CancelledError` or
+`TimeoutError` from cancellation or a timeout, and catalogue errors such as
+`UnknownProgramError`. A non-zero `exit_code` and a raised exception are
+different failure paths and should be handled separately.
 
 #### Catalogue safety across concurrent tasks
 
-A `Catalogue` instance is safe to share across concurrent tasks because it is
-read-only after construction. `sh.scoped(CATALOGUE)` is a context manager that
-binds the catalogue for the current execution scope. Authors must not mutate
-the catalogue inside a concurrent task. Construct the catalogue once at module
-level and re-use it.
+A `ProgramCatalogue` instance is safe to share across concurrent tasks because
+it is read-only after construction. `scoped(allowlist=...)` narrows execution
+to the listed programs, while each `sh.make(program, catalogue=CATALOGUE)` binds
+the builder to the catalogue used to resolve that program. Authors must not
+mutate a catalogue inside a concurrent task. Construct it once at module level
+and re-use it.
 
 #### Concurrent testing patterns with cmd-mox
 
@@ -373,7 +441,7 @@ async def test_concurrent_commands_all_succeed(mock_catalogue):
     mock_catalogue.register("cargo", exit_code=0, stdout="ok\n")
     mock_catalogue.register("python", exit_code=0, stdout="passed\n")
 
-    results = await run_all()  # function under test
+    results = await run_all(mock_catalogue)  # function under test
 
     assert all(r.exit_code == 0 for r in results)
 
@@ -383,16 +451,16 @@ async def test_gather_continues_after_one_failure(mock_catalogue):
     mock_catalogue.register("cargo", exit_code=1, stderr="error\n")
     mock_catalogue.register("python", exit_code=0, stdout="passed\n")
 
-    results = await run_all()
+    results = await run_all(mock_catalogue)
 
     exit_codes = [r.exit_code for r in results]
     assert 1 in exit_codes
     assert 0 in exit_codes
 ```
 
-The `mock_catalogue` fixture replaces the real `CATALOGUE`. Authors must inject
-it via a parameter or monkeypatch rather than relying on the module-level
-constant directly.
+`run_all` accepts its catalogue as an argument, so both tests pass the fixture
+directly. This keeps the commands under test on the mocked catalogue and avoids
+running real executables.
 
 ## pathlib: robust path manipulation
 
@@ -454,7 +522,7 @@ except FileNotFoundError:
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["cyclopts>=2.9", "cuprum", "cmd-mox"]
+# dependencies = ["cyclopts>=2.9", "cuprum==0.1.0", "cmd-mox"]
 # ///
 
 from __future__ import annotations
@@ -463,9 +531,15 @@ from typing import Optional, Annotated
 
 import cyclopts
 from cyclopts import App, Parameter
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("git")
+GIT = Program("git")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="package-script",
+    programs=(GIT,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
 app = App(config=cyclopts.config.Env("INPUT_", command=False))
 
@@ -483,8 +557,8 @@ def main(
 
     if not dry_run:
         dist.mkdir(parents=True, exist_ok=True)
-        with sh.scoped(CATALOGUE):
-            git = sh.make("git")
+        with scoped(allowlist=CATALOGUE.allowlist):
+            git = sh.make(GIT, catalogue=CATALOGUE)
             tag = f"v{version}"
             result = git("tag", tag, cwd=project_root).run_sync()
             if result.exit_code != 0:
@@ -570,9 +644,15 @@ pytest_plugins = ("cmd_mox.pytest_plugin",)
 ```
 
 ```python
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("git")
+GIT = Program("git")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="git-tests",
+    programs=(GIT,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
 
 def test_git_tag_happy_path(cmd_mox, tmp_path):
@@ -582,8 +662,8 @@ def test_git_tag_happy_path(cmd_mox, tmp_path):
 
     # Run the code under test while shims are active
     cmd_mox.replay()
-    with sh.scoped(CATALOGUE):
-        sh.make("git")("tag", "v1.2.3", cwd=tmp_path).run_sync()
+    with scoped(allowlist=CATALOGUE.allowlist):
+        sh.make(GIT, catalogue=CATALOGUE)("tag", "v1.2.3", cwd=tmp_path).run_sync()
     cmd_mox.verify()
 
 
@@ -592,8 +672,8 @@ def test_git_tag_failure_surface_error(cmd_mox, tmp_path):
     cmd_mox.mock("git").with_args("tag", "v1.2.3").returns(exit_code=1, stderr="denied")
 
     cmd_mox.replay()
-    with sh.scoped(CATALOGUE):
-        result = sh.make("git")("tag", "v1.2.3", cwd=tmp_path).run_sync()
+    with scoped(allowlist=CATALOGUE.allowlist):
+        result = sh.make(GIT, catalogue=CATALOGUE)("tag", "v1.2.3", cwd=tmp_path).run_sync()
         assert result.exit_code == 1
         assert "denied" in result.stderr
     cmd_mox.verify()
@@ -602,9 +682,15 @@ def test_git_tag_failure_surface_error(cmd_mox, tmp_path):
 ### Spies and passthrough capture (turn real calls into fixtures)
 
 ```python
-from cuprum import Catalogue, sh
+from cuprum import Program, ProgramCatalogue, ProjectSettings, scoped, sh
 
-CATALOGUE = Catalogue.from_programs("echo")
+ECHO = Program("echo")
+CATALOGUE = ProgramCatalogue(projects=(ProjectSettings(
+    name="echo-tests",
+    programs=(ECHO,),
+    documentation_locations=(),
+    noise_rules=(),
+),))
 
 
 def test_spy_and_record(cmd_mox, tmp_path):
@@ -613,8 +699,8 @@ def test_spy_and_record(cmd_mox, tmp_path):
     spy = cmd_mox.spy("echo").passthrough()
 
     cmd_mox.replay()
-    with sh.scoped(CATALOGUE):
-        sh.make("echo")("hello world", cwd=tmp_path).run_sync()
+    with scoped(allowlist=CATALOGUE.allowlist):
+        sh.make(ECHO, catalogue=CATALOGUE)("hello world", cwd=tmp_path).run_sync()
     cmd_mox.verify()
 
     # Inspect what happened
@@ -664,11 +750,12 @@ existing error handling logic.
 
 1. Dependencies: replace `plumbum` with `cuprum` in `pyproject.toml` or the
    script's `uv` block.
-2. Define a catalogue: create a `Catalogue.from_programs(...)` listing all
-   executables the script requires.
-3. Scope execution: wrap command construction in `with sh.scoped(CATALOGUE):`.
+2. Define a `ProgramCatalogue` from `ProjectSettings`, listing each executable
+   as a `Program`.
+3. Scope execution with top-level `scoped(allowlist=...)` and construct each
+   command builder with `sh.make(program, catalogue=CATALOGUE)`.
 4. Command construction: replace `local["git"]["args"]` with
-   `sh.make("git")("args")`.
+   `sh.make(GIT, catalogue=CATALOGUE)("args")`.
 5. Execution: replace `command()` with `command.run_sync()` and access
    `result.stdout`, `result.stderr`, `result.exit_code`.
 6. Non‑raising execution: replace `.run(retcode=None)` patterns with
@@ -681,8 +768,10 @@ existing error handling logic.
 9. Pipelines: the `|` operator works identically; ensure both commands are
    constructed via `sh.make()`.
 10. Error handling: replace `CommandNotFound` with cuprum's
-    `UnknownProgramError`; replace `ProcessExecutionError` with exit code
-    checks on `CommandResult`.
+    `UnknownProgramError` for unregistered programs. A registered executable
+    that is absent before spawn raises `FileNotFoundError`; replace
+    `ProcessExecutionError` handling for completed processes with explicit
+    `CommandResult.exit_code` checks.
 
 ## CI wiring: GitHub Actions (Cyclopts‑first)
 
