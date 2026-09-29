@@ -20,7 +20,6 @@ compatible doctests into one generated executable, while keeping each example
 as a separate test function. In either mode, the doctest exercises the
 documented crate from an external consumer's perspective.[^16] When a developer
 executes
-
 `cargo test --doc`, `rustdoc` initiates a multi-stage process for code blocks
 found in the documentation comments[^2]:
 
