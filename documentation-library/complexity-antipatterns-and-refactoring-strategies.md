@@ -591,11 +591,16 @@ represented as dictionaries.
       ):
           x, y = event_data["position"]
           handle_click(x, y)
+      else:
+          handle_unknown_event()
   elif "type" in event_data and event_data["type"] == "keypress":
       if "key_name" in event_data:
           key = event_data["key_name"]
           handle_keypress(key)
-  # … and so on for other event types
+      else:
+          handle_unknown_event()
+  else:
+      handle_unknown_event()
   ```
 
 - *Declarative with Structural Pattern Matching (Python* `match-case`*):*
@@ -604,7 +609,9 @@ represented as dictionaries.
   event_data = get_event()
   match event_data:
       # Matches structure and extracts x, y
-      case {"type": "click", "position": (x, y)}:
+      case {"type": "click", "position": (x, y)} if isinstance(
+          event_data["position"], tuple
+      ):
           handle_click(x, y)
       # Matches structure and extracts key
       case {"type": "keypress", "key_name": key}:
@@ -728,14 +735,13 @@ class MessageDispatcher {
 }
 ```
 
-This approach not only simplifies the original `handleMessage` method but also
-makes the system more extensible, as new message types can be supported by
-adding new handler classes and registering them with the dispatcher, often
-without modifying existing dispatcher code (aligning with the Open/Closed
-Principle). However, it's important to ensure that the dispatch mechanism
-itself remains clear and that the proliferation of small classes doesn't lead
-to Ravioli Code, where the overall system flow becomes obscured.[^23] Maintain
-clear naming conventions, and ensure the logical organization remains
+This approach simplifies the original `handleMessage` method. Adding a new
+message type requires a handler class and a registration in the
+`MessageDispatcher` constructor, so this example modifies the dispatcher.
+However, it's important to ensure that the dispatch mechanism itself remains
+clear and that the proliferation of small classes doesn't lead to Ravioli
+Code, where the overall system flow becomes obscured.[^23] Maintain clear
+naming conventions, and ensure the logical organization remains
 consistent.[^34]
 
 The **State pattern** is a related behavioural pattern useful when an object's
