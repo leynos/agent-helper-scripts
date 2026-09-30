@@ -38,6 +38,9 @@ def run_bootstrap_script(
             "PATH": os.environ["PATH"],
         },
     )
+    # A caller's BASH_ENV can rewrite PATH before the script runs, which
+    # defeats the command shims these tests install.
+    process_env.pop("BASH_ENV", None)
     if env:
         process_env.update(env)
 

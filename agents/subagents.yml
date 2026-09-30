@@ -267,7 +267,7 @@ agent_tools_subagents:
       claude:
         enabled: true
         scope: user
-        model: opus
+        model: sonnet
         tools:
           - Bash
           - Read

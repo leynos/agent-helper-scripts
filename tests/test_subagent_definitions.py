@@ -25,7 +25,7 @@ CLAUDE_SUBAGENT_MODELS = (
     ("scribe", "sonnet", None),
     ("alchemist", "sonnet", None),
     ("scrutineer", "sonnet", None),
-    ("journeyman", "opus", "medium"),
+    ("journeyman", "sonnet", "medium"),
     ("artisan", "sonnet", "medium"),
 )
 SUBAGENT_NAMES = tuple(
