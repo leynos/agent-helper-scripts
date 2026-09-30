@@ -740,7 +740,7 @@ message type requires a handler class and a registration in the
 `MessageDispatcher` constructor, so this example modifies the dispatcher.
 However, it's important to ensure that the dispatch mechanism itself remains
 clear and that the proliferation of small classes doesn't lead to Ravioli
-Code, where the overall system flow becomes obscured.[^23] Maintain clear
+Code, where the overall system flow becomes obscured.[^22] Maintain clear
 naming conventions, and ensure the logical organization remains
 consistent.[^34]
 

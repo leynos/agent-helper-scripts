@@ -7,17 +7,21 @@ first understand the foundational principles upon which the `rustdoc` tool
 operates. Its behaviour, particularly its testing mechanism, is not an
 arbitrary collection of features but a direct consequence of a deliberate
 design philosophy. The core principle is that every doctest should validate
-the public API of a crate from the perspective of an external user. The Rust
-edition determines whether each example receives a separate executable or
-compatible examples share one, but this external-user perspective remains the
-same.
+the public API of a crate from the perspective of an external user. The
+documented crate's Cargo edition determines whether each example receives a
+separate executable or compatible examples share one: crates using editions
+before 2024 compile each doctest separately, while crates using Edition 2024 or
+later may combine compatible examples. An `edition2024` code-block fence sets
+that block's edition but does not enable merging in a crate using an older
+edition. The external-user perspective remains the same.
 
 ### 1.1 Separate-crate testing and combined doctests
 
-Before the 2024 Edition, `rustdoc` compiled each documentation test as its own
-temporary crate and executable. With the 2024 Edition, it attempts to combine
-compatible doctests into one generated executable, while keeping each example
-as a separate test function. In either mode, the doctest exercises the
+For crates using editions before 2024, `rustdoc` compiles each documentation
+test as its own temporary crate and executable. For crates using Edition 2024
+or later, it attempts to combine compatible doctests into one generated
+executable, while keeping each example as a separate test function. In either
+mode, the doctest exercises the
 documented crate from an external consumer's perspective.[^16] When a developer
 executes
 `cargo test --doc`, `rustdoc` initiates a multi-stage process for code blocks
@@ -34,10 +38,12 @@ found in the documentation comments[^2]:
    `fn main()`, the code is wrapped within one. The documented library is made
    available as an external dependency.[^2]
 
-3. **Compilation**: Before the 2024 Edition, `rustdoc` invokes the Rust compiler
-   (`rustc`) separately for each generated program. In the 2024 Edition, it can
-   compile compatible examples together into one executable; examples that
-   cannot be combined remain separate.[^3][^16]
+3. **Compilation**: For crates using editions before 2024, `rustdoc` invokes the
+   Rust compiler (`rustc`) separately for each generated program. For crates
+   using Edition 2024 or later, it can compile compatible examples together
+   into one executable; examples that cannot be combined remain separate. An
+   `edition2024` code-block fence does not enable merging in a crate using an
+   older edition.[^3][^16]
 
 4. **Execution and Verification**: If compilation succeeds, `rustdoc` runs the
    generated test executable or executables. Each example passes if it runs to
