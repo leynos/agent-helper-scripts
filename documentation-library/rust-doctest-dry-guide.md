@@ -6,19 +6,26 @@ To master the art of writing effective documentation tests in Rust, one must
 first understand the foundational principles upon which the `rustdoc` tool
 operates. Its behaviour, particularly its testing mechanism, is not an
 arbitrary collection of features but a direct consequence of a deliberate
-design philosophy. The core of this philosophy is that every doctest should
-validate the public API of a crate from the perspective of an external user.
-This single principle dictates the entire compilation model and explains both
-the power and the inherent limitations of doctests.
+design philosophy. The core principle is that every doctest should validate
+the public API of a crate from the perspective of an external user. The
+documented crate's Cargo edition determines whether each example receives a
+separate executable or compatible examples share one: crates using editions
+before 2024 compile each doctest separately, while crates using Edition 2024 or
+later may combine compatible examples. An `edition2024` code-block fence sets
+that block's edition but does not enable merging in a crate using an older
+edition. The external-user perspective remains the same.
 
-### 1.1 The "Separate Crate" Paradigm
+### 1.1 Separate-crate testing and combined doctests
 
-At its heart, `rustdoc` treats each documentation test not as a snippet of code
-running within the library's own context, but as an entirely separate, temporary
-crate.[^1] When a developer executes
-
-`cargo test --doc`, `rustdoc` initiates a multi-stage process for every code
-block found in the documentation comments[^2]:
+For crates using editions before 2024, `rustdoc` compiles each documentation
+test as its own temporary crate and executable. For crates using Edition 2024
+or later, it attempts to combine compatible doctests into one generated
+executable, while keeping each example as a separate test function. In either
+mode, the doctest exercises the
+documented crate from an external consumer's perspective.[^16] When a developer
+executes
+`cargo test --doc`, `rustdoc` initiates a multi-stage process for code blocks
+found in the documentation comments[^2]:
 
 1. **Parsing and Extraction**: `rustdoc` first parses the source code of the
    library, resolving conditional compilation attributes (`#[cfg]`) to
@@ -26,33 +33,31 @@ block found in the documentation comments[^2]:
    target.[^3] It then extracts all code examples enclosed in triple-backtick
    fences (\`\`\`).
 
-2. **Code Generation**: For each extracted code block, `rustdoc` performs a
-   textual transformation to create a complete, self-contained Rust program. If
-   the block does not already contain a `fn main()`, the code is wrapped within
-   one. Crucially, `rustdoc` also injects an `extern crate <mycrate>;`
-   statement, where `<mycrate>` is the name of the library being documented.
-   This makes the library under test available as an external dependency.[^2]
+2. **Code Generation**: `rustdoc` transforms the extracted code into a complete,
+   self-contained Rust program. If the block does not already contain a
+   `fn main()`, the code is wrapped within one. The documented library is made
+   available as an external dependency.[^2]
 
-3. **Individual Compilation**: `rustdoc` then invokes the Rust compiler
-   (`rustc`) separately for *each* of these newly generated miniature programs.
-   Each one is compiled and linked against the already-compiled version of the
-   main library.[^3]
+3. **Compilation**: For crates using editions before 2024, `rustdoc` invokes the
+   Rust compiler (`rustc`) separately for each generated program. For crates
+   using Edition 2024 or later, it can compile compatible examples together
+   into one executable; examples that cannot be combined remain separate. An
+   `edition2024` code-block fence does not enable merging in a crate using an
+   older edition.[^3][^16]
 
-4. **Execution and Verification**: Finally, if compilation succeeds, the
-   resulting executable is run. The test is considered to have passed if the
-   program runs to completion without panicking. The executable is then
-   deleted.[^3]
+4. **Execution and Verification**: If compilation succeeds, `rustdoc` runs the
+   generated test executable or executables. Each example passes if it runs to
+   completion without panicking.[^3]
 
-The significance of this model cannot be overstated. It effectively transforms
-every doctest into a true integration test.[^4] The test code does not have
-special access to the library's internals; it interacts with the library's API
-precisely as a downstream crate would, providing a powerful guarantee that the
-public-facing examples are correct and functional.[^1]
+This model transforms doctests into integration tests.[^4] The test code does
+not have special access to the library's internals; it interacts with the
+library's public API as a downstream crate would, providing a guarantee that
+the public-facing examples are correct and functional.[^1]
 
 ### 1.2 First-Order Consequences of the Model
 
-This "separate crate" paradigm has two immediate and significant consequences
-that shape all advanced doctesting patterns.
+This external-consumer model has two immediate consequences that shape
+advanced doctesting patterns.
 
 First, **API visibility is strictly limited to public items**. Because the
 doctest is compiled as an external crate, it can only access functions,
@@ -61,12 +66,11 @@ private items or even crate-level public items (e.g., `pub(crate)`). This is
 not a bug or an oversight but a fundamental aspect of the design, enforcing the
 perspective of an external consumer.[^1]
 
-Second, the model has **profound performance implications**. The process of
-invoking `rustc` to compile and link a new executable for every single doctest
-is computationally expensive. For small projects, this overhead is negligible.
-However, for large libraries with hundreds of doctests, the cumulative
-compilation time can become a significant bottleneck in the development and
-CI/CD cycle, a common pain point in the Rust community.[^3]
+Second, doctest compilation cost depends on the edition. Before Rust 2024,
+`rustdoc` compiles and links a separate executable for each doctest, which can
+make suites with hundreds of examples expensive.[^3] Rust 2024 reduces that
+overhead by combining compatible doctests into one executable. Some examples
+cannot be combined and continue to use separate executables.[^16]
 
 The architectural purity of the `rustdoc` model—its insistence on simulating an
 external user—creates a fundamental trade-off. On one hand, it provides an
@@ -310,8 +314,9 @@ any pollution of the final binary or the public API.
 
 The typical implementation pattern is to create a public helper module within
 the library. The doctest must refer to it via the crate name (here `mycrate`,
-standing for the reader's own crate), never via `crate::`, because the
-doctest compiles as its own separate crate:
+standing for the reader's own crate), never via `crate::`, because its generated
+crate is external to the library being documented, even when Rust 2024 combines
+compatible examples:
 
 ```rust
 // In lib.rs or a submodule
@@ -447,28 +452,30 @@ out. The doctest becomes an empty program that runs, does nothing, and is
 reported as `ok`. While simple to write, this can be misleading, as the test
 suite reports a "pass" for a test that was effectively skipped.[^13]
 
-#### Pattern 2: `cfg_attr` to Conditionally Ignore the Test
+#### Pattern 2: `cfg_attr` to conditionally ignore the test
 
-A more explicit and accurate pattern uses the cfg_attr attribute to
-conditionally add the ignore flag to the doctest's header. This is typically
-done with inner doc comments (//!).
+A more explicit pattern uses active crate-level `cfg_attr` attributes to add
+the doctest's opening fence as a documentation attribute. When `serde` is
+disabled, the fence is marked `ignore`; when `serde` is enabled, the same
+example is an ordinary doctest.
 
 ```rust
-//! #![cfg_attr(not(feature = "serde"), doc = "```ignore")]
-//! #![cfg_attr(feature = "serde", doc = "```")]
-//! // Example code that requires the "serde" feature.
+#![cfg_attr(not(feature = "serde"), doc = "```ignore")]
+#![cfg_attr(feature = "serde", doc = "```")]
+//! use my_crate::MyStruct;
+//!
 //! let my_struct = MyStruct::new();
 //! let json = serde_json::to_string(&my_struct).unwrap();
-//! assert_eq!(json, "{}");
+//! assert_eq!(json, r#"{}"#);
 //! ```
 ```
 
-With this pattern, if the `"serde"` feature is disabled, the test is marked as
-`ignored` in the test results, which more accurately reflects its status. If
-the feature is enabled, the `ignore` is omitted, and the test runs normally.
-This approach provides clearer feedback but is significantly more verbose and
-less ergonomic, especially when applied to outer (`///`) doc comments, as the
-`cfg_attr` must be applied to every single line of the comment.[^13]
+This example assumes `my_crate` exposes `MyStruct` and enables the optional
+`serde` and `serde_json` dependencies through its `serde` feature. With that
+feature disabled, the doctest is reported as ignored. With it enabled, the
+opening fence is active, so the example compiles and runs. These `cfg_attr`
+lines are Rust crate attributes; placing `//!` before them would turn them into
+documentation text and leave the doctest fence unchanged.[^13]
 
 ### 5.3 Displaying Feature Requirements in Docs: `#[doc(cfg(...))]`
 
@@ -593,9 +600,9 @@ have evolved to manage its constraints, developers can write doctests that are
 effective, ergonomic, and maintainable. To summarize the key principles for
 mastering doctests:
 
-1. **Embrace the Model**: Treat a doctest as an external integration test
-   compiled in a separate crate; this mental model explains nearly all of its
-   behaviour.
+1. **Embrace the Model**: Treat a doctest as an external integration test.
+   Before Rust 2024, each example is compiled into a separate executable; Rust
+   2024 combines compatible examples while preserving the external API boundary.
 
 2. **Prioritize Clarity**: Write examples that teach the *why*, not just the
    *how*. Use hidden lines (`#`) ruthlessly to eliminate boilerplate and focus
@@ -621,7 +628,7 @@ mastering doctests:
 
 ### Works cited
 
-[^1]: rust - How can I write documentation tests for private modules,
+[^1]: Writing documentation tests for private modules — Stack Overflow,
    accessed on July 15, 2025:
    <https://stackoverflow.com/questions/70111757/how-can-i-write-documentation-tests-for-private-modules>
 
@@ -665,17 +672,20 @@ mastering doctests:
    on July 15, 2025:
    <https://doc.rust-lang.org/rustdoc/advanced-features.html>
 
-[^13]: rust - How can I conditionally execute a module-level doctest based
-   on a feature flag, accessed on July 15, 2025:
+[^13]: Conditional execution of module-level doctests based on a feature flag —
+   Stack Overflow, accessed on July 15, 2025:
    <https://stackoverflow.com/questions/50312190/how-can-i-conditionally-execute-a-module-level-doctest-based-on-a-feature-flag>;
-   How would one achieve conditional compilation with Rust projects that
-   have doctests, accessed on July 15, 2025:
+   Conditional compilation in Rust projects with doctests, accessed on
+   July 15, 2025:
    <https://stackoverflow.com/questions/38292741/how-would-one-achieve-conditional-compilation-with-rust-projects-that-have-doctests>
 
 [^14]: Best practice for doc testing README - help - The Rust Programming
    Language Forum, accessed on July 15, 2025:
    <https://users.rust-lang.org/t/best-practice-for-doc-testing-readme/114862>
 
-[^15]: How do you write your doc tests? : r/rust - Reddit, accessed on
+[^15]: Writing Rust doctests — r/rust, accessed on
    July 15, 2025:
    <https://www.reddit.com/r/rust/comments/ke438a/how_do_you_write_your_doc_tests/>
+
+[^16]: Rustdoc doctests — The Rust Edition Guide,
+       <https://doc.rust-lang.org/edition-guide/rust-2024/rustdoc-doctests.html>
