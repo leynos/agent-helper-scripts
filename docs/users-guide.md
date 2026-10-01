@@ -910,6 +910,9 @@ configuration file. The schema is documented in the manifest's header comment,
 and the deployment contracts are pinned by `tests/test_subagent_definitions.py`
 and `tests/test_natural_philosopher.py`.
 
+For Codex, `journeyman` and `alchemist` use `gpt-6.1-sol` with medium
+reasoning; `natural-philosopher` uses the same model with high reasoning.
+
 `natural-philosopher` designs evidence-led steps for one selected GIST idea
 and its parent goal. Supply the relevant sources, existing IDs, constraints,
 owned document paths, inquiry budget, and experiment permissions. It reads
