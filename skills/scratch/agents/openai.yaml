@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scratch Sidecars"
+  short_description: "Organize and retire project scratch data safely"
+  default_prompt: "Use $scratch to design or audit a repository scratch sidecar and its retention policy."
