@@ -112,7 +112,7 @@ def test_alchemist_codex_subagent_uses_sol_model() -> None:
     """Alchemist's Codex entry must request Sol for falsification work."""
     codex = load_provider("alchemist", "codex")
 
-    assert codex["model"] == "gpt-6-sol", (
+    assert codex["model"] == "gpt-6.1-sol", (
         "Alchemist must use the Sol Codex model for falsification work"
     )
     assert codex["reasoning_effort"] == "medium", (
@@ -180,7 +180,7 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
 @pytest.mark.parametrize(
     ("name", "model", "reasoning_effort"),
     [
-        ("journeyman", "gpt-6-sol", "medium"),
+        ("journeyman", "gpt-6.1-sol", "medium"),
         ("artisan", "gpt-6-luna", "xhigh"),
     ],
 )
