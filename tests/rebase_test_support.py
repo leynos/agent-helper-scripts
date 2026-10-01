@@ -11,6 +11,8 @@ import sys
 import typing as typ
 from pathlib import Path
 
+from cmd_mox import EnvironmentManager
+
 if typ.TYPE_CHECKING:
     import pytest
     from cmd_mox import CmdMox
@@ -265,6 +267,15 @@ def make_graph(
     for name in tuple(os.environ):
         if name.startswith("GIT_"):
             monkeypatch.delenv(name, raising=False)
+    # Keep the planner's real Git calls ahead of Lody's ambient wrapper, and
+    # stop Bash child processes from re-prepending that wrapper through
+    # BASH_ENV. Preserve CmdMox's shim directory so its `gh` double remains
+    # available ahead of the deterministic system path.
+    monkeypatch.delenv("BASH_ENV", raising=False)
+    manager = EnvironmentManager.get_active_manager()
+    path_entries = [str(manager.shim_dir)] if manager and manager.shim_dir else []
+    path_entries.append(os.defpath)
+    monkeypatch.setenv("PATH", os.pathsep.join(path_entries))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
     monkeypatch.setenv("GIT_ALLOW_PROTOCOL", "file")

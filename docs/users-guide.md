@@ -973,6 +973,23 @@ local gates or a new review; those activities are reported as
 where every changed path ends in `.md`, scopes the gate set to
 `make markdownlint` and `make nixie`.
 
+Every monitoring assignment runs its polls and waits in the foreground for
+the duration of the active turn. Scrutineer does not leave detached watchers
+running or treat a later background result as evidence. When requested, it
+can also monitor reviews and checks already posted to a GitHub pull request.
+It collects the required check states and the requested reviewers' submitted
+reviews, binds reviews to the refreshed PR head, and preserves findings from
+review comments and CodeRabbit's pre-merge report, including its failed,
+warning and passed rows. Reviews on an older head are stale; resolved inline
+threads are excluded, while unresolved threads and comments that cannot be
+tied to the current head remain visible as unresolved or unverified evidence.
+A failed CodeRabbit row remains a finding even if its outer GitHub check is
+green. Monitoring is complete only when all required checks are terminal and
+every expected reviewer has submitted a review on the current head; findings
+can still prevent a clean verdict. If the observation deadline arrives
+first, pending checks and missing current-head reviews are reported as
+incomplete, never as clean.
+
 Actions monitoring correlates an explicit repository, expected commit
 SHA, run ID and attempt; PR-head, synthetic-merge and post-merge
 integration evidence are kept distinct, and the latest run on a branch is

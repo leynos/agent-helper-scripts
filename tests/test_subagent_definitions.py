@@ -25,7 +25,7 @@ CLAUDE_SUBAGENT_MODELS = (
     ("scribe", "sonnet", None),
     ("alchemist", "sonnet", None),
     ("scrutineer", "sonnet", None),
-    ("journeyman", "opus", "medium"),
+    ("journeyman", "sonnet", "medium"),
     ("artisan", "sonnet", "medium"),
 )
 SUBAGENT_NAMES = tuple(
@@ -70,7 +70,7 @@ def test_codex_subagent_uses_luna_model(
     """Wyvern and Scribe must request Luna with high effort on Codex."""
     codex = load_provider(name, "codex")
 
-    assert codex["model"] == "gpt-5.6-luna", (
+    assert codex["model"] == "gpt-6-luna", (
         f"{name} must use the Luna Codex model"
     )
     assert codex["reasoning_effort"] == "high", (
@@ -108,12 +108,12 @@ def test_wyvern_claude_subagent_is_read_only() -> None:
     )
 
 
-def test_alchemist_codex_subagent_uses_terra_model() -> None:
-    """Alchemist's Codex entry must request Terra for falsification work."""
+def test_alchemist_codex_subagent_uses_sol_model() -> None:
+    """Alchemist's Codex entry must request Sol for falsification work."""
     codex = load_provider("alchemist", "codex")
 
-    assert codex["model"] == "gpt-5.6-terra", (
-        "Alchemist must use the Terra Codex model for falsification work"
+    assert codex["model"] == "gpt-6-sol", (
+        "Alchemist must use the Sol Codex model for falsification work"
     )
     assert codex["reasoning_effort"] == "medium", (
         "Alchemist must keep medium reasoning effort"
@@ -150,7 +150,7 @@ def test_scrutineer_codex_subagent_contract() -> None:
     """Scrutineer's Codex entry must retain its gate-runner configuration."""
     codex = load_provider("scrutineer", "codex")
 
-    assert codex["model"] == "gpt-5.6-luna", (
+    assert codex["model"] == "gpt-6-luna", (
         "Scrutineer must use the Luna Codex model for gate runs"
     )
     assert codex["reasoning_effort"] == "medium", (
@@ -180,8 +180,8 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
 @pytest.mark.parametrize(
     ("name", "model", "reasoning_effort"),
     [
-        ("journeyman", "gpt-5.6-terra", "high"),
-        ("artisan", "gpt-5.6-luna", "xhigh"),
+        ("journeyman", "gpt-6-sol", "medium"),
+        ("artisan", "gpt-6-luna", "xhigh"),
     ],
 )
 def test_delivery_subagent_codex_contract(
@@ -391,6 +391,94 @@ def test_scrutineer_scopes_docs_only_changes_to_markdown_gates() -> None:
         "The docs-only rule must state that an explicit planner instruction "
         "overrides the scoping so the planner can always demand a full run"
     )
+
+
+def test_scrutineer_monitoring_rule_is_global_and_foreground_only() -> None:
+    """Every monitoring assignment must remain active in the foreground."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "Hard rule for all monitoring",
+        "Never start background or detached monitoring",
+        "this rule applies even if an assignment brief suggests otherwise",
+        "Do not hand off, return, end the turn, or go idle",
+        "report every pending or missing item as incomplete",
+        "A background job's later result is never evidence",
+        "foreground timeout shorter than eight minutes",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's global monitoring rule must retain {required!r}"
+        )
+
+
+def test_scrutineer_initializes_bundle_before_either_monitoring_flow() -> None:
+    """Review-only monitoring must have a private evidence bundle to use."""
+    instructions = _normalized(_scrutineer_instructions())
+    bundle_setup = instructions.index(
+        "Before dispatching either GitHub PR review or GitHub Actions monitoring"
+    )
+
+    for flow in (
+        "GitHub PR agent review monitoring (when requested):",
+        "GitHub Actions monitoring (when requested):",
+    ):
+        assert bundle_setup < instructions.index(flow), (
+            f"Scrutineer must initialize its evidence bundle before {flow}"
+        )
+
+    for required in (
+        "private, uniquely named evidence bundle",
+        "`umask 077`",
+        "`mktemp -d`",
+        "`bundle_dir`",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's shared monitoring setup must retain {required!r}"
+        )
+
+
+def test_scrutineer_paginates_each_review_thread_comment_connection() -> None:
+    """Nested review comments need a cursor independent of reviewThreads."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "`$threadCursor`",
+        "pass that response's `reviewThreads.pageInfo.endCursor` as `"
+        "$threadCursor` for the next outer page",
+        "separate node lookup for that thread using its ID",
+        "passing the initial thread result's `comments.pageInfo.endCursor` "
+        "as `$commentsCursor` to start the next page",
+        "`$commentsCursor`",
+        "pass that same thread's returned `comments.pageInfo.endCursor` as `"
+        "$commentsCursor` in the next node lookup for that thread",
+        "repeating until `comments.pageInfo.hasNextPage` is false",
+        "node(id: $threadId)",
+        "comments(first: 100, after: $commentsCursor)",
+        "Keep the thread ID with every fetched comment page",
+    ):
+        assert required in instructions, (
+            "Scrutineer must retain independent per-thread pagination: "
+            f"{required!r}"
+        )
+
+
+def test_scrutineer_rate_limit_wait_respects_observation_deadline() -> None:
+    """A rate-limit delay must fit before the monitoring deadline."""
+    instructions = _normalized(_scrutineer_instructions())
+
+    for required in (
+        "compute the remaining whole minutes before sleeping",
+        "If fewer than 15 minutes remain, stop immediately",
+        "upper_delay",
+        'shuf -i "15-${upper_delay}" -n 1',
+        'vsleep "${delay_minutes}m"',
+        "Re-check the deadline afterwards",
+        "only if the deadline still permits it",
+        "do not retry; record the incomplete evidence",
+    ):
+        assert required in instructions, (
+            f"Scrutineer's rate-limit policy must retain {required!r}"
+        )
 
 
 def test_scrutineer_report_marks_logs_as_canonical_evidence() -> None:

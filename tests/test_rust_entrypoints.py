@@ -68,8 +68,9 @@ def run_bash(
     The test catalogue allows only the configured Bash executable.
     """
     cmd = sh.make(BASH, catalogue=CATALOGUE)(*args)
+    child_env = {"BASH_ENV": "", **env}
     with scoped(allowlist=CATALOGUE.allowlist):
-        return cmd.run_sync(context=ExecutionContext(cwd=cwd, env=env))
+        return cmd.run_sync(context=ExecutionContext(cwd=cwd, env=child_env))
 
 
 def write_script(path: Path, body: str) -> None:

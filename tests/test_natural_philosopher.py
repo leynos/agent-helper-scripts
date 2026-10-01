@@ -53,11 +53,11 @@ def test_natural_philosopher_codex_contract() -> None:
     """Use the Sol planning tier, inherit MCPs, and name the role fittingly."""
     codex = load_provider(NAME, "codex")
 
-    assert codex["model"] == "gpt-5.6-sol", (
+    assert codex["model"] == "gpt-6-sol", (
         "the Codex contract no longer pins the Sol planning tier"
     )
-    assert codex["reasoning_effort"] == "medium", (
-        "the Codex contract no longer pins the medium reasoning tier"
+    assert codex["reasoning_effort"] == "high", (
+        "the Codex contract no longer pins the high reasoning tier"
     )
     assert codex["sandbox_mode"] == "workspace-write", (
         "the Codex contract no longer pins workspace-write sandboxing"
