@@ -16,9 +16,9 @@ report-skipped = "ignored"          # since 0.9.143; write to a shared path belo
 ```
 
 If you merge JUnit output from several shards, do not set
-`report-skipped = "all"`: every shard reports the tests it filtered out, so
-the merged report contains duplicate skipped entries. Use `"none"` (the
-default) or `"ignored"` for sharded runs.
+`report-skipped = "all"`: every shard reports the tests it filtered out, so the
+merged report contains duplicate skipped entries. Use `"none"` (the default) or
+`"ignored"` for sharded runs.
 
 ## Partitioning / Sharding
 
@@ -70,15 +70,15 @@ cargo nextest run --archive-file tests.tar.zst --workspace-remap /new/path
 ```
 
 Since 0.9.138, `--workspace-remap` is rejected unless **both**
-`--cargo-metadata` and `--binaries-metadata` are also supplied. Older
-versions accepted it silently, which could remap against the wrong metadata.
-The same release made `--cargo-metadata` without `--binaries-metadata`, with
-exactly one default workspace member, anchor the build to that member's
-`Cargo.toml` rather than the entire workspace — a behaviour change for
-single-member workspaces that previously built everything.
+`--cargo-metadata` and `--binaries-metadata` are also supplied. Older versions
+accepted it silently, which could remap against the wrong metadata. The same
+release made `--cargo-metadata` without `--binaries-metadata`, with exactly one
+default workspace member, anchor the build to that member's `Cargo.toml` rather
+than the entire workspace — a behaviour change for single-member workspaces
+that previously built everything.
 
-Cargo does NOT need to be installed on the target machine. If unavailable,
-use `cargo-nextest nextest run` instead of `cargo nextest run`.
+Cargo does NOT need to be installed on the target machine. If unavailable, use
+`cargo-nextest nextest run` instead of `cargo nextest run`.
 
 Since 0.9.143, archiving with a filterset always includes dynamic libraries
 even when the packages' test binaries are all filtered out, so a filtered
@@ -165,8 +165,8 @@ cargo nextest run -E 'platform(target)' \
 ```
 
 Since 0.9.143 the dynamic library search path is ordered like current Cargo's
-(artefact directory before `deps`, which Cargo swapped in 1.93), and
-resolution is fixed for the v2 build directory layout, `build.build-dir`, and
+(artefact directory before `deps`, which Cargo swapped in 1.93), and resolution
+is fixed for the v2 build directory layout, `build.build-dir`, and
 `[[example]]` targets. Cross-compiled archives built with an older nextest
 against a newer Cargo can therefore fail to find their dylibs; rebuild the
 archive with a matching nextest.

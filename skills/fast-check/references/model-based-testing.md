@@ -12,8 +12,8 @@ A command couples a precondition with an action. It implements
 - Synchronous commands implement `Command.run(m: Model, r: Real): void`;
   asynchronous commands implement
   `AsyncCommand.run(m: Model, r: Real): Promise<void>`. Both apply the
-  operation to the real system *and* the model; throw (or fail an assertion)
-  on any inconsistency between the two.
+  operation to the real system *and* the model; throw (or fail an assertion) on
+  any inconsistency between the two.
 - `toString(): string` — how the command appears in the failure
   report. Capture runtime-resolved parameters into fields inside `run` so the
   report shows what actually happened (e.g. the resolved track name, not the
@@ -112,8 +112,8 @@ named regression test that constructs it explicitly.
 ## Race-condition detection with the scheduler
 
 `fc.scheduler()` generates a scheduler `s` whose job is to reorder the async
-work supplied to it, exploring interleavings that the happy-path event loop never
-produces.
+work supplied to it, exploring interleavings that the happy-path event loop
+never produces.
 
 ```typescript
 test("queue loses no items under concurrent producers", async () => {

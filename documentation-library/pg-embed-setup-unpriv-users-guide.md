@@ -93,17 +93,17 @@ cargo binstall pg-embed-setup-unpriv
 
    Without `PG_RUNTIME_DIR` and `PG_DATA_DIR` the helper derives both under
    `/var/tmp/pg-embed-{uid}` on Linux and the BSDs, one tree per user that
-   every project on the host shares. Set `PG_EMBED_ROOT` to give a project or
-   a test run its own base (`<root>/install` and `<root>/data`); the two leaf
+   every project on the host shares. Set `PG_EMBED_ROOT` to give a project or a
+   test run its own base (`<root>/install` and `<root>/data`); the two leaf
    variables still win when set. On macOS and Windows there is no per-user
    default tree: without `PG_EMBED_ROOT` the `postgresql_embedded` defaults
    apply, and with it the same two leaves are derived.
 
    Test clusters cap `max_connections` at 20 (a `postgres` container defaults
-   to 100); set `PG_MAX_CONNECTIONS` when parallel test runners need more.
-   The override applies to plain `bootstrap()` runs as well as test
-   bootstraps, and values below 4 are rejected because PostgreSQL keeps three
-   connection slots for superusers below `max_connections`.
+   to 100); set `PG_MAX_CONNECTIONS` when parallel test runners need more. The
+   override applies to plain `bootstrap()` runs as well as test bootstraps, and
+   values below 4 are rejected because PostgreSQL keeps three connection slots
+   for superusers below `max_connections`.
 
    Optionally set `PG_SHUTDOWN_TIMEOUT_SECS` to override the 15-second drop
    budget. The helper accepts values between `1` and `600` seconds and reports
@@ -723,10 +723,9 @@ still running as `root`, follow these steps:
 ## CI cache hardening
 
 CI failures that surface as `postgresql_embedded::setup()` timeouts, or as
-`error decoding response body`, are often binary-download failures rather
-than PostgreSQL startup failures. The latter message can be emitted when the
-HTTP client reports a stalled release-asset download through a
-body-decoding error.
+`error decoding response body`, are often binary-download failures rather than
+PostgreSQL startup failures. The latter message can be emitted when the HTTP
+client reports a stalled release-asset download through a body-decoding error.
 
 Harden CI in three places:
 
@@ -736,16 +735,16 @@ Harden CI in three places:
    `~/.cache/pg-embedded/binaries`, and finally the platform temporary
    directory. `postgresql_embedded` also uses its own runtime installation
    cache. Cache both persistent locations when the workflow can use both
-   crates, but keep those paths out of a Cargo registry or `target` cache
-   whose key changes on every `Cargo.lock` update.
+   crates, but keep those paths out of a Cargo registry or `target` cache whose
+   key changes on every `Cargo.lock` update.
 2. Pin the release source in test bootstrap:
 
    ```bash
    export POSTGRESQL_RELEASES_URL="https://github.com/theseus-rs/postgresql-binaries"
    ```
 
-   If a test harness sets environment variables itself, set the value only
-   when it is currently absent so callers can override it intentionally.
+   If a test harness sets environment variables itself, set the value only when
+   it is currently absent so callers can override it intentionally.
 3. Pin the PostgreSQL version used by CI, preferably with an exact
    requirement:
 
@@ -753,18 +752,18 @@ Harden CI in three places:
    export POSTGRESQL_VERSION="=16.10.0"
    ```
 
-   Exact versions avoid release-list discovery during every CI run and keep
-   the binary cache key tied to the tested PostgreSQL version.
+   Exact versions avoid release-list discovery during every CI run and keep the
+   binary cache key tied to the tested PostgreSQL version.
 
 Supply `GITHUB_TOKEN` in CI so GitHub release requests avoid anonymous rate
 limits. GitHub Actions exposes this token by default as
 `${{ secrets.GITHUB_TOKEN }}`.
 
-If a test runner starts several PostgreSQL-backed test binaries, serialize
-the first-use bootstrap or warm the cache before running tests. `cargo
-nextest` users can assign those binaries to a test group with
-`max-threads = 1`, or run the job with `NEXTEST_TEST_THREADS=1` when the
-suite cannot safely share a cluster bootstrap concurrently.
+If a test runner starts several PostgreSQL-backed test binaries, serialize the
+first-use bootstrap or warm the cache before running tests. `cargo nextest`
+users can assign those binaries to a test group with `max-threads = 1`, or run
+the job with `NEXTEST_TEST_THREADS=1` when the suite cannot safely share a
+cluster bootstrap concurrently.
 
 ## Known issues and mitigations
 
@@ -775,10 +774,9 @@ suite cannot safely share a cluster bootstrap concurrently.
   Theseus GitHub releases. Supply a `GITHUB_TOKEN` environment variable if you
   hit rate limits in CI.
 - **Download stalls misreported as body decoding errors**: warm and cache
-  PostgreSQL binaries before tests, pin `POSTGRESQL_RELEASES_URL`, and keep
-  the PostgreSQL binary cache independent of Cargo caches. This prevents
-  unrelated dependency updates from forcing cold release downloads during
-  test execution.
+  PostgreSQL binaries before tests, pin `POSTGRESQL_RELEASES_URL`, and keep the
+  PostgreSQL binary cache independent of Cargo caches. This prevents unrelated
+  dependency updates from forcing cold release downloads during test execution.
 - **Windows on ARM**: `aarch64-pc-windows-msvc` is not published or tested
   because upstream PostgreSQL binaries are not available for that target.
 - **Windows directory privacy**: POSIX `0700`/`0755` modes are skipped on

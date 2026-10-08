@@ -2,11 +2,10 @@
 
 Config file: `.config/nextest.toml` at the workspace root.
 
-Validate against the schema for the installed version rather than against
-these tables alone — `cargo nextest self schema repo-config` (since 0.9.134)
-emits the exact JSON Schema nextest enforces, and
-`cargo nextest help repo-config` (since 0.9.140) prints the annotated
-reference.
+Validate against the schema for the installed version rather than against these
+tables alone — `cargo nextest self schema repo-config` (since 0.9.134) emits
+the exact JSON Schema nextest enforces, and `cargo nextest help repo-config`
+(since 0.9.140) prints the annotated reference.
 
 ## Top-level
 
@@ -23,30 +22,30 @@ dir = "target/nextest"    # Default store directory
 
 ## Profile Configuration
 
-All settings below use `profile.<name>.<key>` notation. The default profile
-is `profile.default`.
+All settings below use `profile.<name>.<key>` notation. The default profile is
+`profile.default`.
 
 ### Core Test Execution
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
-| `inherits` | string | `"default"` | Profile to inherit from |
-| `default-filter` | filterset | `"all()"` | Default set of tests to run |
-| `global-timeout` | duration | none | Global timeout for entire run |
-| `test-threads` | int/string | `"num-cpus"` | Number of concurrent tests |
-| `threads-required` | int/string | `1` | Threads each test consumes |
-| `run-extra-args` | string[] | `[]` | Extra args to test binary |
+| Key                | Type       | Default      | Description                   |
+| ------------------ | ---------- | ------------ | ----------------------------- |
+| `inherits`         | string     | `"default"`  | Profile to inherit from       |
+| `default-filter`   | filterset  | `"all()"`    | Default set of tests to run   |
+| `global-timeout`   | duration   | none         | Global timeout for entire run |
+| `test-threads`     | int/string | `"num-cpus"` | Number of concurrent tests    |
+| `threads-required` | int/string | `1`          | Threads each test consumes    |
+| `run-extra-args`   | string[]   | `[]`         | Extra args to test binary     |
 
 `global-timeout` is unset by default, so no global timeout is applied. The
-`30y` value in the embedded configuration below is an internal fallback that
-is effectively infinite (30 years, chosen to avoid duration overflows), not
-the documented user-facing default.
+`30y` value in the embedded configuration below is an internal fallback that is
+effectively infinite (30 years, chosen to avoid duration overflows), not the
+documented user-facing default.
 
 ### Retry
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
-| `retries` | int/object | `0` | Retry policy |
+| Key       | Type       | Default | Description  |
+| --------- | ---------- | ------- | ------------ |
+| `retries` | int/object | `0`     | Retry policy |
 
 Retry object forms:
 
@@ -58,9 +57,9 @@ retries = { backoff = "exponential", count = 4, delay = "2s", max-delay = "10s",
 
 ### Timeouts
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
-| `slow-timeout` | duration/object | `60s` | Slow test threshold |
+| Key            | Type            | Default | Description              |
+| -------------- | --------------- | ------- | ------------------------ |
+| `slow-timeout` | duration/object | `60s`   | Slow test threshold      |
 | `leak-timeout` | duration/object | `200ms` | Leak detection threshold |
 
 Slow-timeout object:
@@ -78,18 +77,18 @@ leak-timeout = { period = "500ms", result = "fail" }
 
 ### Reporter
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
-| `status-level` | string | `"pass"` | Status levels to display during run |
-| `final-status-level` | string | `"flaky"` | Status levels in final summary |
-| `failure-output` | string | `"immediate"` | When to show failure output |
-| `success-output` | string | `"never"` | When to show success output |
+| Key                  | Type   | Default       | Description                         |
+| -------------------- | ------ | ------------- | ----------------------------------- |
+| `status-level`       | string | `"pass"`      | Status levels to display during run |
+| `final-status-level` | string | `"flaky"`     | Status levels in final summary      |
+| `failure-output`     | string | `"immediate"` | When to show failure output         |
+| `success-output`     | string | `"never"`     | When to show success output         |
 
 ### Failure Handling
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
-| `fail-fast` | bool/object | `true` | Stop on first failure |
+| Key         | Type        | Default | Description           |
+| ----------- | ----------- | ------- | --------------------- |
+| `fail-fast` | bool/object | `true`  | Stop on first failure |
 
 ```toml
 fail-fast = true
@@ -101,8 +100,8 @@ fail-fast = { max-fail = "all" }  # Equivalent to false
 
 ### Test Grouping
 
-| Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+| Key          | Type   | Default     | Description            |
+| ------------ | ------ | ----------- | ---------------------- |
 | `test-group` | string | `"@global"` | Assign test to a group |
 
 ### JUnit
@@ -208,16 +207,16 @@ machine-local settings that should not be committed to a repository.
 ### `ui.max-progress-running`
 
 Since 0.9.136 this accepts only a non-negative integer or the string
-`"infinite"`. Numeric strings such as `"8"` were previously accepted through
-an undocumented fallback and now fail validation. If you have
+`"infinite"`. Numeric strings such as `"8"` were previously accepted through an
+undocumented fallback and now fail validation. If you have
 `max-progress-running = "8"`, change it to `max-progress-running = 8`.
 
 ### User-config platform overrides
 
 `platform` in a user-config `[[overrides]]` section is matched against
-nextest's **build target** — the platform nextest was compiled for — and
-since 0.9.134 that is always the case. Earlier versions evaluated it against
-the host in some situations. This is different from per-test overrides in
+nextest's **build target** — the platform nextest was compiled for — and since
+0.9.134 that is always the case. Earlier versions evaluated it against the host
+in some situations. This is different from per-test overrides in
 `.config/nextest.toml`, which match the platform the tests run on.
 
 ## Default Embedded Configuration

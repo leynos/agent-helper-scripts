@@ -62,11 +62,10 @@ Run the gate over this checkout with:
 make spelling
 ```
 
-Proposing a new estate-wide word means editing
-`data/typos-oxendict-base.toml` in a pull request here. No consumer edit or
-version bump is required. This repository tracks `typos.toml`, so regenerate it
-with `make spelling` and commit the result whenever the dictionary change alters
-that snapshot.
+Proposing a new estate-wide word means editing `data/typos-oxendict-base.toml`
+in a pull request here. No consumer edit or version bump is required. This
+repository tracks `typos.toml`, so regenerate it with `make spelling` and
+commit the result whenever the dictionary change alters that snapshot.
 `scripts/oxford_form_harvest_cli.py` gathers the Oxford-form evidence that
 supports such a proposal.
 

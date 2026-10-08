@@ -269,8 +269,8 @@ cloned `Arc` values to `SharedEnvSource` and `SharedScanEnvSource`; the same
 map can therefore drive discovery lookups and merge enumeration. The ordinary
 `load()` and `load_from_iter()` methods continue to use `ProcessEnv` by default.
 
-For an upgrade checklist covering this opt-in API, see the OrthoConfig
-v0.10.0 migration guide.
+For an upgrade checklist covering this opt-in API, see the OrthoConfig v0.10.0
+migration guide.
 
 For a directly composed environment layer, attach the scan source to `CsvEnv`
 with `with_source`:
@@ -682,9 +682,9 @@ sections. A typical progression is:
 5. localize help and initialize tracing at the application boundary; and
 6. generate human and agent documentation once the command surface stabilizes.
 
-The [Hello World application](https://github.com/leynos/ortho-config/tree/main/examples/hello_world)
-demonstrates these pieces in a larger layout. The OrthoConfig v0.9.0
-migration guide explains compatibility changes for existing v0.8.0 users, and
-the
+The
+[Hello World application](https://github.com/leynos/ortho-config/tree/main/examples/hello_world)
+demonstrates these pieces in a larger layout. The OrthoConfig v0.9.0 migration
+guide explains compatibility changes for existing v0.8.0 users, and the
 [API documentation](https://docs.rs/ortho_config) is the source for complete
 type and method signatures.

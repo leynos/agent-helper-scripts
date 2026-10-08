@@ -3259,8 +3259,8 @@ Cargo scans a `rerun-if-changed` **directory** recursively, so a single
 directory line covers new files and subdirectories; a hand-maintained per-file
 list can silently omit a new subdirectory, which is the failure mode this
 mechanism exists to prevent. The snippet above is executed by the `rstest-bdd`
-test suite — it is extracted from this document and run against a scratch
-crate — so it cannot rot.
+test suite — it is extracted from this document and run against a scratch crate
+— so it cannot rot.
 
 #### Cost
 

@@ -11,7 +11,7 @@ author:
 >
 > Library and command-line utility for rendering project templates.
 
----
+______________________________________________________________________
 
 A template is a directory: usually the root folder of a Git repository.
 
@@ -116,8 +116,8 @@ The following variables are always available in Jinja templates:
 ### `_copier_answers`[¶](https://copier.readthedocs.io/en/stable/creating/#_copier_answers "Permanent link")
 
 `_copier_answers` includes the current answers dict, but slightly modified to
-make it suitable to [autoupdate a project
-safely](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file)
+make it suitable to
+[autoupdate a project safely](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file)
 (see "The `.copier-answers.yml` file"):
 
 - It doesn't contain secret answers.

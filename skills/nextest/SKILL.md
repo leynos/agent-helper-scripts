@@ -79,11 +79,10 @@ cargo nextest self schema user-config      # since 0.9.136
 
 The repository-config schema works with Tombi and RustRover. Taplo is
 explicitly unsupported because it cannot handle the schema's conditional
-structure. Persistent URLs:
-<https://nexte.st/schemas/repo-config.json> and
+structure. Persistent URLs: <https://nexte.st/schemas/repo-config.json> and
 <https://nexte.st/schemas/user-config.json>.
 
----
+______________________________________________________________________
 
 ## Parallelism and Thread Control
 
@@ -130,7 +129,7 @@ test-group = 'rate-limited'
 
 Inspect with `cargo nextest show-config test-groups`.
 
----
+______________________________________________________________________
 
 ## Configuration
 
@@ -172,8 +171,8 @@ threads-required = 2
 
 Overrides support: `retries`, `slow-timeout`, `leak-timeout`,
 `threads-required`, `test-group`, `success-output`, `failure-output`,
-`priority`, `run-extra-args`, `default-filter`, `junit.report-skipped`
-(since 0.9.143).
+`priority`, `run-extra-args`, `default-filter`, `junit.report-skipped` (since
+0.9.143).
 
 Two override kinds exist and they are not interchangeable:
 
@@ -186,7 +185,7 @@ Two override kinds exist and they are not interchangeable:
   cross-compile and rely on a `platform` override in the user config, this
   change can silently stop it matching.
 
----
+______________________________________________________________________
 
 ## Retries and Flaky Tests
 
@@ -202,7 +201,7 @@ per-test overrides, and disable backoff delays.
 A test that fails then succeeds on retry is marked **flaky** (ultimately
 passes, exit code 0).
 
----
+______________________________________________________________________
 
 ## Timeouts
 
@@ -235,7 +234,7 @@ filter = 'package(fuzz-targets)'
 slow-timeout = { period = "30s", terminate-after = 1, on-timeout = "pass" }
 ```
 
----
+______________________________________________________________________
 
 ## Filtersets (Domain-specific language, DSL)
 
@@ -257,7 +256,7 @@ releases.
 See `references/filterset-dsl.md` for the complete predicate table, matcher
 rules, operator precedence, escape sequences, and advanced examples.
 
----
+______________________________________________________________________
 
 ## Environment-Aware Configuration
 
@@ -274,9 +273,9 @@ threads-required = 2
 ```
 
 For target triples nextest has no built-in data for, it now shells out to
-`rustc --print=cfg --target=<triple>` before falling back to heuristics
-(since 0.9.134). This makes `platform` overrides correct for custom or very
-new targets, at the cost of one `rustc` invocation.
+`rustc --print=cfg --target=<triple>` before falling back to heuristics (since
+0.9.134). This makes `platform` overrides correct for custom or very new
+targets, at the cost of one `rustc` invocation.
 
 ### Agent sandbox considerations
 
@@ -301,7 +300,7 @@ cargo nextest archive --workspace --archive-file tests.tar.zst
 cargo nextest run --archive-file tests.tar.zst --partition slice:1/3
 ```
 
----
+______________________________________________________________________
 
 ## Archiving and Reusing Builds
 
@@ -315,19 +314,19 @@ cargo nextest run --archive-file tests.tar.zst
 Use `--workspace-remap <path>` when the checkout path differs on the target
 machine. Since 0.9.138 this flag requires **both** `--cargo-metadata` and
 `--binaries-metadata`; supplying it without them is now an up-front error
-rather than a silent misconfiguration. The same release made
-`--cargo-metadata` without `--binaries-metadata`, combined with exactly one
-default workspace member, anchor the build to that member's `Cargo.toml`
-instead of the whole workspace.
+rather than a silent misconfiguration. The same release made `--cargo-metadata`
+without `--binaries-metadata`, combined with exactly one default workspace
+member, anchor the build to that member's `Cargo.toml` instead of the whole
+workspace.
 
-Since 0.9.143, `cargo nextest archive` with a filterset always includes
-dynamic libraries even when the packages' test binaries are all filtered out,
-and the "Archiving" message counts non-test binaries rather than packages.
+Since 0.9.143, `cargo nextest archive` with a filterset always includes dynamic
+libraries even when the packages' test binaries are all filtered out, and the
+"Archiving" message counts non-test binaries rather than packages.
 
 See `references/ci-patterns.md` for full archive patterns, include/exclude
 options, and CI artefact workflows.
 
----
+______________________________________________________________________
 
 ## Stress Testing
 
@@ -337,7 +336,7 @@ cargo nextest run --stress-count infinite test_x   # Run indefinitely
 cargo nextest run --stress-duration 5m test_x      # Run for 5 minutes
 ```
 
----
+______________________________________________________________________
 
 ## Record, Replay, and Rerun (Experimental)
 
@@ -361,11 +360,11 @@ cargo nextest store list            # List recorded runs
 cargo nextest store export latest   # Export portable recording
 ```
 
-Since 0.9.134, `store export` and `store export-chrome-trace` verify the
-store format version before exporting, so a recording made by an incompatible
-nextest version fails loudly instead of producing a corrupt export.
+Since 0.9.134, `store export` and `store export-chrome-trace` verify the store
+format version before exporting, so a recording made by an incompatible nextest
+version fails loudly instead of producing a corrupt export.
 
----
+______________________________________________________________________
 
 ## Test Priorities
 
@@ -379,17 +378,17 @@ filter = 'test(slow_e2e_)'
 priority = -50         # Run late
 ```
 
----
+______________________________________________________________________
 
 ## Reporter and Output Control
 
-| Option | Values | Default |
-| -------- | -------- | --------- |
-| `--failure-output` | `immediate`, `final`, `immediate-final`, `never` | `immediate` |
-| `--success-output` | `immediate`, `final`, `immediate-final`, `never` | `never` |
-| `--status-level` | `none`, `fail`, `retry`, `slow`, `leak`, `pass`, `skip`, `all` | `pass` |
-| `--final-status-level` | `none`, `fail`, `flaky`, `slow`, `skip`, `pass`, `all` | `flaky` |
-| `--show-progress` | `auto`, `none`, `bar`, `counter`, `only` | `auto` |
+| Option                 | Values                                                         | Default     |
+| ---------------------- | -------------------------------------------------------------- | ----------- |
+| `--failure-output`     | `immediate`, `final`, `immediate-final`, `never`               | `immediate` |
+| `--success-output`     | `immediate`, `final`, `immediate-final`, `never`               | `never`     |
+| `--status-level`       | `none`, `fail`, `retry`, `slow`, `leak`, `pass`, `skip`, `all` | `pass`      |
+| `--final-status-level` | `none`, `fail`, `flaky`, `slow`, `skip`, `pass`, `all`         | `flaky`     |
+| `--show-progress`      | `auto`, `none`, `bar`, `counter`, `only`                       | `auto`      |
 
 Press `t` during a run to dump status of currently-running tests (interactive
 terminals only). On macOS, Ctrl-T also works. On any Unix, send `SIGUSR1`.
@@ -407,13 +406,13 @@ report-skipped = "none"   # since 0.9.143: none | ignored | all
 
 `report-skipped` controls whether skipped tests appear in the report. The
 default `none` omits them; `ignored` includes tests skipped by `#[ignore]`;
-`all` includes everything skipped, including by filterset. Use `all` only
-with a single unpartitioned run: merging partitioned reports that each use
-`all` produces duplicate skipped entries, because every shard reports the
-tests it filtered out. It is also settable per-test through
+`all` includes everything skipped, including by filterset. Use `all` only with
+a single unpartitioned run: merging partitioned reports that each use `all`
+produces duplicate skipped entries, because every shard reports the tests it
+filtered out. It is also settable per-test through
 `[[profile.<name>.overrides]]`.
 
----
+______________________________________________________________________
 
 ## Setup Scripts (Experimental)
 
@@ -437,63 +436,62 @@ Scripts write env vars to `$NEXTEST_ENV`:
 echo "DATABASE_URL=postgres://localhost/test" >> "$NEXTEST_ENV"
 ```
 
----
+______________________________________________________________________
 
 ## Key Environment Variables
 
 ### Nextest reads
 
-| Variable | Purpose |
-| ---------- | --------- |
-| `NEXTEST_TEST_THREADS` | Override test thread count |
-| `NEXTEST_RETRIES` | Override retry count |
-| `NEXTEST_PROFILE` | Select profile |
+| Variable                 | Purpose                      |
+| ------------------------ | ---------------------------- |
+| `NEXTEST_TEST_THREADS`   | Override test thread count   |
+| `NEXTEST_RETRIES`        | Override retry count         |
+| `NEXTEST_PROFILE`        | Select profile               |
 | `NEXTEST_FAILURE_OUTPUT` | Override failure output mode |
-| `NEXTEST_VERBOSE` | Verbose output |
+| `NEXTEST_VERBOSE`        | Verbose output               |
 
 ### Nextest sets
 
-| Variable | Value |
-| ---------- | ------- |
-| `NEXTEST` | Always `"1"` |
-| `NEXTEST_RUN_ID` | UUID for the run |
-| `NEXTEST_EXECUTION_MODE` | `"process-per-test"` |
-| `NEXTEST_ATTEMPT` | 1-indexed attempt number |
-| `NEXTEST_TEST_GROUP` | Group name or `"@global"` |
-| `NEXTEST_STRESS_CURRENT` | Current stress iteration (`"none"` outside stress mode) |
-| `NEXTEST_STRESS_TOTAL` | Total stress iterations (`"none"`, or `"unknown"` when no total is given) |
-| `NEXTEST_TEST_THREADS` | Thread count available to the test process and setup scripts |
-| `NEXTEST_BIN_EXE_<name>` | Path to binary target (integration tests) |
-| `NEXTEST_BINARY_ID` | Binary ID of the current test |
-| `NEXTEST_ATTEMPT_ID` | Globally unique attempt identifier |
-| `NEXTEST_TEST_GLOBAL_SLOT` | Global slot number (0-indexed, unique among running tests) |
-| `NEXTEST_TEST_GROUP_SLOT` | Group slot number (`"none"` if not in a group) |
+| Variable                   | Value                                                                     |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `NEXTEST`                  | Always `"1"`                                                              |
+| `NEXTEST_RUN_ID`           | UUID for the run                                                          |
+| `NEXTEST_EXECUTION_MODE`   | `"process-per-test"`                                                      |
+| `NEXTEST_ATTEMPT`          | 1-indexed attempt number                                                  |
+| `NEXTEST_TEST_GROUP`       | Group name or `"@global"`                                                 |
+| `NEXTEST_STRESS_CURRENT`   | Current stress iteration (`"none"` outside stress mode)                   |
+| `NEXTEST_STRESS_TOTAL`     | Total stress iterations (`"none"`, or `"unknown"` when no total is given) |
+| `NEXTEST_TEST_THREADS`     | Thread count available to the test process and setup scripts              |
+| `NEXTEST_BIN_EXE_<name>`   | Path to binary target (integration tests)                                 |
+| `NEXTEST_BINARY_ID`        | Binary ID of the current test                                             |
+| `NEXTEST_ATTEMPT_ID`       | Globally unique attempt identifier                                        |
+| `NEXTEST_TEST_GLOBAL_SLOT` | Global slot number (0-indexed, unique among running tests)                |
+| `NEXTEST_TEST_GROUP_SLOT`  | Group slot number (`"none"` if not in a group)                            |
 
 Slot numbers are useful for assigning resources like port numbers to tests.
 They are unique for the lifetime of the test, stable across retries, and
 compact (each test gets the smallest available slot).
 
 `NEXTEST_VERSION`, `NEXTEST_REQUIRED_VERSION`, `NEXTEST_RECOMMENDED_VERSION`,
-`NEXTEST_RUN_ID`, `NEXTEST_BINARY_ID` and `NEXTEST_WORKSPACE_ROOT` are also
-set during the **list** phase, not only the run phase, since 0.9.138; as of
-0.9.143 the same is true of `NEXTEST_BIN_EXE_<name>`, alongside
-`CARGO_BIN_EXE_<name>` (which has been set in both phases since 0.9.130).
-`NEXTEST_ATTEMPT`, `NEXTEST_TEST_GROUP`, `NEXTEST_STRESS_CURRENT` and
-`NEXTEST_STRESS_TOTAL` remain run-phase only, so a test that reads
-`NEXTEST_ATTEMPT` in a listing context sees nothing. `NEXTEST_TEST_THREADS` is
-set for test processes and setup scripts, and is also read as the
-`--test-threads`/`-j` override.
+`NEXTEST_RUN_ID`, `NEXTEST_BINARY_ID` and `NEXTEST_WORKSPACE_ROOT` are also set
+during the **list** phase, not only the run phase, since 0.9.138; as of 0.9.143
+the same is true of `NEXTEST_BIN_EXE_<name>`, alongside `CARGO_BIN_EXE_<name>`
+(which has been set in both phases since 0.9.130). `NEXTEST_ATTEMPT`,
+`NEXTEST_TEST_GROUP`, `NEXTEST_STRESS_CURRENT` and `NEXTEST_STRESS_TOTAL`
+remain run-phase only, so a test that reads `NEXTEST_ATTEMPT` in a listing
+context sees nothing. `NEXTEST_TEST_THREADS` is set for test processes and
+setup scripts, and is also read as the `--test-threads`/`-j` override.
 
 ### Environment safety
 
 Because nextest runs each test in its own process, calling `std::env::set_var`
 at the beginning of a test is safe provided no other thread concurrently reads
 or writes the environment — which is why such mutations must happen before
-spawning threads. On Rust edition 2024 the call is `unsafe` and must be
-wrapped in an `unsafe` block; pre-2024 editions permit the plain call, but the
-contract is unchanged.
+spawning threads. On Rust edition 2024 the call is `unsafe` and must be wrapped
+in an `unsafe` block; pre-2024 editions permit the plain call, but the contract
+is unchanged.
 
----
+______________________________________________________________________
 
 ## Debugger and Tracer Support
 
@@ -504,15 +502,15 @@ cargo nextest run --tracer strace test_name
 cargo nextest run --tracer "strace -f" test_name     # Follow child processes
 ```
 
-Both modes disable timeouts and output capture, and require exactly one test
-to be selected. Key differences:
+Both modes disable timeouts and output capture, and require exactly one test to
+be selected. Key differences:
 
 - `--debugger`: Passes stdin through, disables signal handling and process
   groups (interactive debugging with gdb, lldb, WinDbg, CodeLLDB)
 - `--tracer`: Null stdin, standard signal handling, process groups for
   isolation (non-interactive tracing with strace, dtruss, truss)
 
----
+______________________________________________________________________
 
 ## Integrations
 
@@ -574,7 +572,7 @@ cargo nextest run --benches       # Only benchmarks
 Requires Criterion 0.5.0+. For actual performance measurement, use the
 experimental `cargo nextest bench` (requires `experimental = ["benchmarks"]`).
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
@@ -587,27 +585,26 @@ assume they run concurrently with a sibling.
 
 ### Dynamic library load failures
 
-Since 0.9.143 the dynamic library search path is ordered the way current
-Cargo orders it: the artefact directory before `deps`. Cargo swapped those
-in 1.93, and this release also fixes dylib resolution under the v2 build
-directory layout (nightly default since 2026-07-30), under
-`build.build-dir`, and for `[[example]]` targets, which Cargo places in
-`examples` rather than `deps`. If you set `LD_LIBRARY_PATH` or `DYLD_*`
-yourself around a nextest run, match that ordering or a pre-0.9.143 nextest
-will disagree with a post-1.93 Cargo.
+Since 0.9.143 the dynamic library search path is ordered the way current Cargo
+orders it: the artefact directory before `deps`. Cargo swapped those in 1.93,
+and this release also fixes dylib resolution under the v2 build directory
+layout (nightly default since 2026-07-30), under `build.build-dir`, and for
+`[[example]]` targets, which Cargo places in `examples` rather than `deps`. If
+you set `LD_LIBRARY_PATH` or `DYLD_*` yourself around a nextest run, match that
+ordering or a pre-0.9.143 nextest will disagree with a post-1.93 Cargo.
 
 ### A test is silently skipped
 
 Check `default-filter`, any `-E` filterset, and the `report-skipped` setting
-above. A test filtered out by a filterset is not a failure and does not
-appear in the report unless `report-skipped = "all"`.
+above. A test filtered out by a filterset is not a failure and does not appear
+in the report unless `report-skipped = "all"`.
 
 ### `cargo nextest list` produced unexpected output
 
 Since 0.9.143, listing draws a progress bar when it exceeds two seconds. Use
 `-T json-pretty` and parse the JSON rather than parsing human-readable output.
 
----
+______________________________________________________________________
 
 ## Reference
 

@@ -1601,13 +1601,12 @@ for the internal stream dispatcher and may change without notice.
 
 `rust_consume_stream` is currently **implemented but not yet integrated**:
 unlike the pump side (which is routed through a Rust-then-Python dispatcher),
-no production code path routes stream consumption through it, and every
-consume uses the pure-Python implementation regardless of the selected
-backend. Consume-side dispatch is planned future work, gated on further
-evidence. The tee hot-path profiling baseline now supports a future
-capture-only dispatcher, but that dispatcher has not landed yet and will be
-limited to fd-backed, UTF-8/replace, capture-only streams without echo sinks
-or line callbacks.
+no production code path routes stream consumption through it, and every consume
+uses the pure-Python implementation regardless of the selected backend.
+Consume-side dispatch is planned future work, gated on further evidence. The
+tee hot-path profiling baseline now supports a future capture-only dispatcher,
+but that dispatcher has not landed yet and will be limited to fd-backed,
+UTF-8/replace, capture-only streams without echo sinks or line callbacks.
 
 The Rust consume helper always decodes UTF-8 with replacement semantics for
 invalid sequences. Other encodings or error modes require the Python
@@ -2213,13 +2212,12 @@ interpreters tracked on an experimental, allowed-to-fail basis), plus
 formatting, lint, and coverage checks.
 
 A benchmark ratchet also runs on changes to performance-relevant code and
-compares the Rust and Python backends against rolling history from prior
-runs. It fails a build when a scenario's `rust_mean / python_mean` ratio
-regresses beyond a fixed, noise-adjusted threshold, so the two backends are
-kept behaviourally and performance-comparable release over release. A single
-noisy measurement is confirmed by a second run before it can fail a build,
-which keeps runner-to-runner variance from being mistaken for a genuine
-regression.
+compares the Rust and Python backends against rolling history from prior runs.
+It fails a build when a scenario's `rust_mean / python_mean` ratio regresses
+beyond a fixed, noise-adjusted threshold, so the two backends are kept
+behaviourally and performance-comparable release over release. A single noisy
+measurement is confirmed by a second run before it can fail a build, which
+keeps runner-to-runner variance from being mistaken for a genuine regression.
 
 To build distributable artefacts:
 

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Configuring a template - copier
 
 ## Configuration sources[¶](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources "Permanent link")
@@ -24,9 +26,7 @@ Info
 Some settings are _only_ available as CLI arguments, and some others _only_ as
 template configurations. Some behave differently depending on where they are
 defined.
-[Check the docs for each specific
-setting](https://copier.readthedocs.io/en/stable/configuring/#available-settings
-"Available settings").
+[Check the docs for each specific setting](https://copier.readthedocs.io/en/stable/configuring/#available-settings "Available settings").
 
 Copier obtains **answers** from these sources, in this order of priority:
 
@@ -447,10 +447,9 @@ a_random_word:
 
 The `copier.yml` file supports multiple documents as well as using the
 `!include` tag to include settings and questions from other YAML files. This
-allows a larger `copier.yml` to be split up and enables reuse of common
-partial sections across templates. When multiple documents are used, care
-has to be taken with questions and settings that are defined in more than one
-document:
+allows a larger `copier.yml` to be split up and enables reuse of common partial
+sections across templates. When multiple documents are used, care has to be
+taken with questions and settings that are defined in more than one document:
 
 - A question with the same name overwrites definitions from an earlier
     document.
@@ -506,8 +505,7 @@ _skip_if_exists:
 ## Conditional files and directories[¶](https://copier.readthedocs.io/en/stable/configuring/#conditional-files-and-directories "Permanent link")
 
 The ability to template file and directory names can be used to make them
-"conditional", i.e. to only generate them based on the answers given by a
-user.
+"conditional", i.e. to only generate them based on the answers given by a user.
 
 For example, users can be asked whether they want to use
 [pre-commit](https://pre-commit.com/):
@@ -538,8 +536,7 @@ Note that the chosen
 be considered a template and will be copied as such in generated projects.
 
 The answers of questions can even be used with
-[choices](https://copier.readthedocs.io/en/stable/configuring/#advanced-prompt-formatting
-"Advanced prompt formatting"):
+[choices](https://copier.readthedocs.io/en/stable/configuring/#advanced-prompt-formatting "Advanced prompt formatting"):
 
 ```copier.yml
 ci:
@@ -565,9 +562,7 @@ ci:
 Important
 
 Contrary to files, directories **must not** end with the
-[template
-suffix](https://copier.readthedocs.io/en/stable/configuring/#templates_suffix
-"templates_suffix").
+[template suffix](https://copier.readthedocs.io/en/stable/configuring/#templates_suffix "templates_suffix").
 
 Warning
 
@@ -712,8 +707,8 @@ Info
 
 Import/Include paths are relative to the template root.
 
-As the number of imported templates and macros grows, it can be useful to
-place them in a dedicated folder such as `includes`:
+As the number of imported templates and macros grows, it can be useful to place
+them in a dedicated folder such as `includes`:
 
 ```text
 📁 the_template
@@ -762,9 +757,7 @@ names. For this reason, Copier provides a function
 ## Available settings[¶](https://copier.readthedocs.io/en/stable/configuring/#available-settings "Permanent link")
 
 Template settings alter how the template is rendered.
-[They come from several
-sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources
-"Configuration sources").
+[They come from several sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources "Configuration sources").
 
 Note that **the key must be prefixed with an underscore when used in
 [the `copier.yml` file](https://copier.readthedocs.io/en/stable/configuring/#the-copieryml-file "The copier.yml file")
@@ -785,9 +778,7 @@ That file should be added to the template's Git repository to support
 [updates](https://copier.readthedocs.io/en/stable/updating/).
 
 Don't forget to read
-[the docs about the answers
-file](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file
-"The .copier-answers.yml file").
+[the docs about the answers file](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file "The .copier-answers.yml file").
 
 Example
 
@@ -843,13 +834,13 @@ the subproject evolution. This way, it can detect what changed, where and how
 to merge those changes.
 [Refer here for more details on this process](https://copier.readthedocs.io/en/stable/updating/).
 
-The more lines used, the more accurate Copier will be when detecting
-conflicts, but there will also be more conflicts to solve manually. FWIW, Git
-uses 3 lines by default.
+The more lines used, the more accurate Copier will be when detecting conflicts,
+but there will also be more conflicts to solve manually. FWIW, Git uses 3 lines
+by default.
 
 The fewer lines used, the fewer conflicts there will be. However, Copier will
-not be so accurate and could even move lines around if the file being
-compared has several similar code chunks.
+not be so accurate and could even move lines around if the file being compared
+has several similar code chunks.
 
 Info
 
@@ -915,8 +906,8 @@ copier copy -d 'user_name=Manuel Calavera' -d 'age=7' -d 'height=1.83' template 
 
 ```
 
-To override some of the answers in the file, `--data` flags
-always take precedence:
+To override some of the answers in the file, `--data` flags always take
+precedence:
 
 ```bash
 copier copy -d 'user_name=Bilbo Baggins' --data-file input.yml template destination
@@ -945,9 +936,7 @@ a dict of strings, where:
 Template composition
 
 If the template is
-[a complement of another
-template](https://copier.readthedocs.io/en/stable/configuring/#applying-multiple-templates-to-the-same-subproject
-"Applying multiple templates to the same subproject"),
+[a complement of another template](https://copier.readthedocs.io/en/stable/configuring/#applying-multiple-templates-to-the-same-subproject "Applying multiple templates to the same subproject"),
 the other template's answers can be accessed with a pattern similar to this:
 
 ```copier.yml
@@ -978,9 +967,7 @@ target_version:
 Loading secrets
 
 If the template has
-[secret
-questions](https://copier.readthedocs.io/en/stable/configuring/#secret_questions
-"secret_questions"),
+[secret questions](https://copier.readthedocs.io/en/stable/configuring/#secret_questions "secret_questions"),
 the secrets can be loaded and used, e.g., as default answers with a pattern
 similar to this:
 
@@ -1018,8 +1005,8 @@ password: "{{ password }}"
 Configurations for the Jinja environment. Copier uses the Jinja defaults
 whenever possible. The only exception at the moment is that
 [Copier keeps trailing newlines](https://github.com/copier-org/copier/issues/464)
-at the end of a template file. To remove those, either remove them
-from the template or set `keep_trailing_newline` to `false`.
+at the end of a template file. To remove those, either remove them from the
+template or set `keep_trailing_newline` to `false`.
 
 See
 [upstream docs](https://jinja.palletsprojects.com/en/3.1.x/api/#jinja2.Environment)
@@ -1029,8 +1016,8 @@ Warning
 
 Copier 5 and older had different, bracket-based defaults.
 
-If the template was created for Copier 5, this configuration must be added
-to `copier.yaml` to keep it working just like before:
+If the template was created for Copier 5, this configuration must be added to
+`copier.yaml` to keep it working just like before:
 
 ```yaml
 _envops:
@@ -1087,8 +1074,8 @@ not.
 
 Info
 
-When this parameter is defined in `copier.yml`, it will **replace** the
-default value.
+When this parameter is defined in `copier.yml`, it will **replace** the default
+value.
 
 In this example, for instance, `"copier.yml"` will **not** be excluded:
 
@@ -1130,9 +1117,7 @@ copier copy --exclude '*' --exclude '!file-i-want' ./template ./destination
 Overwrite files that already exist, without asking.
 
 Also don't ask questions to the user; just use default values
-[obtained from other
-sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources
-"Configuration sources").
+[obtained from other sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources "Configuration sources").
 
 Info
 
@@ -1164,9 +1149,7 @@ Not supported in `copier.yml`.
 
 Overwrite files that already exist, without asking.
 
-[obtained from other
-sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources
-"Configuration sources").
+[obtained from other sources](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources "Configuration sources").
 
 Info
 
@@ -1203,8 +1186,8 @@ Note to template writers
 
 Template users must be informed that they need to install the extensions
 alongside Copier, i.e. in the same virtualenv where Copier is installed. For
-example, if a template uses `jinja2_time.TimeExtension`, its users must
-install the `jinja2-time` Python package.
+example, if a template uses `jinja2_time.TimeExtension`, its users must install
+the `jinja2-time` Python package.
 
 ```bash
 # with pip, in the same virtualenv where Copier is installed
@@ -1507,10 +1490,10 @@ user.
 
 Info
 
-If Copier detects that there is a major version difference, it will warn
-about possible incompatibilities. Remember that a new major release means that
-some features can be dropped or changed, so it's probably a good idea to ask
-the template maintainer to update it.
+If Copier detects that there is a major version difference, it will warn about
+possible incompatibilities. Remember that a new major release means that some
+features can be dropped or changed, so it's probably a good idea to ask the
+template maintainer to update it.
 
 Example
 
@@ -1563,13 +1546,9 @@ Not supported in `copier.yml`.
 
 Question variables to mark as secret questions. This is especially useful when
 questions are provided in the
-[simplified prompt
-format](https://copier.readthedocs.io/en/stable/configuring/#questions
-"Questions").
+[simplified prompt format](https://copier.readthedocs.io/en/stable/configuring/#questions "Questions").
 It's equivalent to configuring `secret: true` in the
-[advanced prompt
-format](https://copier.readthedocs.io/en/stable/configuring/#advanced-prompt-formatting
-"Advanced prompt formatting").
+[advanced prompt format](https://copier.readthedocs.io/en/stable/configuring/#advanced-prompt-formatting "Advanced prompt formatting").
 
 Example
 
@@ -1597,8 +1576,8 @@ Each pattern can be templated using Jinja.
 
 Example
 
-For example, it can be used if a project generates a password the 1st time
-and it should not be overridden on later runs:
+For example, it can be used if a project generates a password the 1st time and
+it should not be overridden on later runs:
 
 ```copier.yml
 _skip_if_exists:
@@ -1627,9 +1606,7 @@ Note
 
 It only skips
 [tasks](https://copier.readthedocs.io/en/stable/configuring/#tasks), not
-[migration
-tasks](https://copier.readthedocs.io/en/stable/configuring/#migrations
-"migrations").
+[migration tasks](https://copier.readthedocs.io/en/stable/configuring/#migrations "migrations").
 
 Does it imply `--trust`?
 
@@ -1675,8 +1652,8 @@ supported.
 
 So, in Copier, the subdirectory option is just there to let template owners
 separate templates metadata from template source code. This way, for example,
-it is possible to have different dotfiles for the template and for the
-projects it generates.
+it is possible to have different dotfiles for the template and for the projects
+it generates.
 
 Example project with different `.gitignore` files
 
@@ -1691,10 +1668,10 @@ Project layout
 
 ```
 
-However, it is true that the value of this option can itself be templated.
-This would allow different templates that all use the same questionnaire, and
-the used template would be saved as an answer. It would let the user update
-safely and change that option in the future.
+However, it is true that the value of this option can itself be templated. This
+would allow different templates that all use the same questionnaire, and the
+used template would be saved as an answer. It would let the user update safely
+and change that option in the future.
 
 Example
 
@@ -1734,8 +1711,8 @@ Project layout
 
 Commands to execute after generating or updating a project from the template.
 
-They run in order, with the `$STAGE=task` variable in their environment.
-Each task runs in its own subprocess.
+They run in order, with the `$STAGE=task` variable in their environment. Each
+task runs in its own subprocess.
 
 If a `dict` is given it can contain the following items:
 
@@ -1796,10 +1773,10 @@ _templates_suffix: .my-custom-suffix
 An empty suffix is also valid, and will instruct Copier to copy and render
 _every file_, except those that are
 [excluded by default](https://copier.readthedocs.io/en/stable/configuring/#exclude).
-If an error happens while trying to read a file as a template, it will
-fall back to a simple copy (it will typically happen for binary files like
-images). By contrast, if such an error happens and the templates suffix is
-_not_ empty, Copier will abort and print an error message.
+If an error happens while trying to read a file as a template, it will fall
+back to a simple copy (it will typically happen for binary files like images).
+By contrast, if such an error happens and the templates suffix is _not_ empty,
+Copier will abort and print an error message.
 
 Example
 
@@ -1821,8 +1798,8 @@ one without suffix will be ignored.
 
 Warning
 
-Copier 5 and older had a different default value: `.tmpl`. To keep it, add it
-to `copier.yml` to keep it future-proof.
+Copier 5 and older had a different default value: `.tmpl`. To keep it, add it to
+`copier.yml` to keep it future-proof.
 
 Copier 6 will apply that old default if the template's
 [min\_copier\_version](https://copier.readthedocs.io/en/stable/configuring/#min_copier_version)
@@ -1874,9 +1851,7 @@ Imagine that the template supports updates and contains these 2 Git tags:
 `--prereleases` is added.
 
 Also, when running
-[`copier
-update`](https://copier.readthedocs.io/en/stable/reference/cli/#copier._cli.CopierUpdateSubApp
-"CopierUpdateSubApp"),
+[`copier update`](https://copier.readthedocs.io/en/stable/reference/cli/#copier._cli.CopierUpdateSubApp "CopierUpdateSubApp"),
 Copier would ignore the `v2.0.0a1` tag unless this flag is enabled.
 
 Warning
@@ -1915,8 +1890,8 @@ gitignore syntax is supported via
 [pathspec](https://github.com/cpburnz/python-path-specification).
 
 For example, the following settings in a `copier.yml` file would exclude all
-files ending with `txt` from being copied to the destination folder, except
-the file `a.txt`.
+files ending with `txt` from being copied to the destination folder, except the
+file `a.txt`.
 
 ```yaml
 _exclude:
@@ -1931,27 +1906,19 @@ _exclude:
 
 If the destination path exists and a `.copier-answers.yml` file is present
 there, it will be used to load the last user's answers to the questions made in
-[the `copier.yml`
-file](https://copier.readthedocs.io/en/stable/configuring/#the-copieryml-file
-"The copier.yml file").
+[the `copier.yml` file](https://copier.readthedocs.io/en/stable/configuring/#the-copieryml-file "The copier.yml file").
 
 This makes projects easier to update because when the user is asked, the
 default answers will be the last ones they used.
 
 The file **must be called exactly `{{ _copier_conf.answers_file }}.jinja`** (or
 ended with
-[the chosen
-suffix](https://copier.readthedocs.io/en/stable/configuring/#templates_suffix
-"templates_suffix"))
+[the chosen suffix](https://copier.readthedocs.io/en/stable/configuring/#templates_suffix "templates_suffix"))
 in the template's root folder) to allow
-[applying multiple templates to the same
-subproject](https://copier.readthedocs.io/en/stable/configuring/#applying-multiple-templates-to-the-same-subproject
-"Applying multiple templates to the same subproject").
+[applying multiple templates to the same subproject](https://copier.readthedocs.io/en/stable/configuring/#applying-multiple-templates-to-the-same-subproject "Applying multiple templates to the same subproject").
 
 The default name will be `.copier-answers.yml`, but
-[a different default path for this
-file can be defined](https://copier.readthedocs.io/en/stable/configuring/#answers_file
-"answers_file").
+[a different default path for this file can be defined](https://copier.readthedocs.io/en/stable/configuring/#answers_file "answers_file").
 
 The file must have this content:
 
@@ -1964,13 +1931,11 @@ The file must have this content:
 The builtin `_copier_answers` variable includes all data needed to smooth
 future updates of this project. This includes (but is not limited to) all
 JSON-serializable values declared as user questions in
-[the `copier.yml`
-file](https://copier.readthedocs.io/en/stable/configuring/#the-copieryml-file
-"The copier.yml file").
+[the `copier.yml` file](https://copier.readthedocs.io/en/stable/configuring/#the-copieryml-file "The copier.yml file").
 
-As shown, it is also possible to customize what will be logged here.
-Keys that start with an underscore (`_`) are specific to Copier. Other keys
-should match questions in `copier.yml`.
+As shown, it is also possible to customize what will be logged here. Keys that
+start with an underscore (`_`) are specific to Copier. Other keys should match
+questions in `copier.yml`.
 
 The path to the answers file must be expressed relative to the project root,
 because:
@@ -2006,9 +1971,7 @@ All 3 templates are completely independent:
 Well, no need to worry. Copier has this covered: a different answers file is
 needed for each one. All of them contain a
 `{{ _copier_conf.answers_file }}.jinja` file
-[as specified
-above](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file
-"The .copier-answers.yml file").
+[as specified above](https://copier.readthedocs.io/en/stable/configuring/#the-copier-answersyml-file "The .copier-answers.yml file").
 Then all the templates are applied to the same project:
 
 ```bash

@@ -7,18 +7,18 @@ description: >-
 
 # Use Weave with Git
 
-Treat Weave as a per-file Git merge driver, not as a replacement for `git merge`
-or `git rebase`. Git selects it through attributes and invokes the command
-recorded in `merge.weave.driver` for each selected path. Upstream setup records
-`weave-driver %O %A %B %L %P`; the estate baseline described below records a
-quoted absolute driver path with `WEAVE_EVENT=1` in front of it.
+Treat Weave as a per-file Git merge driver, not as a replacement for
+`git merge` or `git rebase`. Git selects it through attributes and invokes the
+command recorded in `merge.weave.driver` for each selected path. Upstream setup
+records `weave-driver %O %A %B %L %P`; the estate baseline described below
+records a quoted absolute driver path with `WEAVE_EVENT=1` in front of it.
 
 Read [behaviour.md](references/behaviour.md) before diagnosing a surprising
 result or deciding whether an unresolved file is safe to edit. In particular,
 Weave 0.3.6 has produced clean-exit semantic corruption that parses, compiles,
 and passes tests, so neither the driver's exit code nor a structural gate is
-sufficient evidence on its own. The 0.5.1 baseline is a containment change,
-not evidence that those defects are fixed.
+sufficient evidence on its own. The 0.5.1 baseline is a containment change, not
+evidence that those defects are fixed.
 
 Every shell example below requires Bash. This matters for the stage-validation
 commands and stderr capture in particular: `set -o pipefail` and process
@@ -58,15 +58,15 @@ git check-attr merge -- src/lib.rs README.md Cargo.toml
 Both binaries must report `0.5.1`, the versions resolved on `PATH` must match
 the canonical `~/.cargo/bin` binaries, and ordinary paths must report
 `merge: unspecified` unless the repository has opted in. A host that still
-selects Weave from the global attributes file, or that reports `0.3.6`, has
-not been reconciled; record that as an environment finding and apply the
-unattended bypass below rather than assuming the baseline.
+selects Weave from the global attributes file, or that reports `0.3.6`, has not
+been reconciled; record that as an environment finding and apply the unattended
+bypass below rather than assuming the baseline.
 
 ## Establish the operation and evidence boundary
 
 Perform unattended merge and rebase work in a linked worktree. Treat the
-primary checkout as a read-only coordination anchor: do not use it as a scratch,
-formatting, conflict-repair, or rebase surface.
+primary checkout as a read-only coordination anchor: do not use it as a
+scratch, formatting, conflict-repair, or rebase surface.
 
 Before a rebase or merge, record the candidate and target identities before any
 history rewrite:
@@ -100,10 +100,10 @@ Assign `BRANCH_BASE` before any audit command below expands it. A target
 merge-base is not a squash-restack boundary; it can include inherited parent
 work that must not count as child-owned changes.
 
-A completed rebase creates a new candidate. Any gate, review, or merge-eligibility
-evidence tied to `OLD_HEAD` is stale for acceptance after the replay. Preserve
-it as historical evidence, record the new `HEAD`, and rerun the candidate-bound
-checks required by the repository.
+A completed rebase creates a new candidate. Any gate, review, or
+merge-eligibility evidence tied to `OLD_HEAD` is stale for acceptance after the
+replay. Preserve it as historical evidence, record the new `HEAD`, and rerun
+the candidate-bound checks required by the repository.
 
 Before any destructive `reset`, `clean`, abort-and-retry sequence, or recovery
 that could discard manual resolution work, either prove there is no unrelated
@@ -132,9 +132,9 @@ source supplied them. Inspect `.git/info/attributes`, applicable
 the default `$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes`
 when no file is configured). Locate an explicitly configured file with
 `git config --path --get core.attributesFile`. That command prints nothing and
-exits non-zero when the setting is absent, which means the default path applies,
-not that no global rule exists; read the default path before concluding that
-Weave was selected somewhere else.
+exits non-zero when the setting is absent, which means the default path
+applies, not that no global rule exists; read the default path before
+concluding that Weave was selected somewhere else.
 
 For unattended agents, ambient selection is not repository consent. When an
 operation will replay multiple commits, or a long-lived branch is being rebased
@@ -200,17 +200,17 @@ unreliable. Prefer a stable installed path over a versioned build directory.
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:
 
-| Setup scope | Rule location | Make `merge` unspecified | Verify, then retry |
-| --- | --- | --- | --- |
-| Any (driver override) | Any attribute source; the rule stays in place | Run Git with `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text`. `merge` stays `weave`; the named driver is replaced for that command. | `git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text config --get merge.weave.driver` must print the `git merge-file` command; rerun the original operation, and every `--continue`, under the same `-c` overrides. |
-| Global | Configured global attributes file (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`. | `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments under the same `-c`. |
-| Tracked | Repository `.gitattributes` | Preserve `.git/info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
-| Clone-local | `.git/info/attributes` | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore `.git/info/attributes` only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments. |
+| Setup scope           | Rule location                                                 | Make `merge` unspecified                                                                                                                                                                      | Verify, then retry                                                                                                                                                                                                                                                          |
+| --------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any (driver override) | Any attribute source; the rule stays in place                 | Run Git with `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text`. `merge` stays `weave`; the named driver is replaced for that command. | `git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text config --get merge.weave.driver` must print the `git merge-file` command; rerun the original operation, and every `--continue`, under the same `-c` overrides. |
+| Global                | Configured global attributes file (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`.                                                                                                                                              | `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments under the same `-c`.                                                                                             |
+| Tracked               | Repository `.gitattributes`                                   | Preserve `.git/info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore `.git/info/attributes` only after the operation completes.                                 | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                  |
+| Clone-local           | `.git/info/attributes`                                        | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore `.git/info/attributes` only after the operation completes.                                                     | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                  |
 
 Prefer the driver override for an opted-in repository: it leaves the tracked
 and clone-local attribute files untouched and needs no restore step. Use the
-attribute rows when the override is unavailable or when the goal is to make
-Git report the path as unselected.
+attribute rows when the override is unavailable or when the goal is to make Git
+report the path as unselected.
 
 ## Preview before changing Git state
 
@@ -225,9 +225,9 @@ pre-existing conflicted stage exactly.
 
 ## Merge or rebase with observable driver output
 
-Run the ordinary Git operation. During a rebase, remember that Git's labels
-and the human meaning of “ours” and “theirs” are easy to misread. Reason from
-the desired rebased result and inspect the stage blobs when provenance matters.
+Run the ordinary Git operation. During a rebase, remember that Git's labels and
+the human meaning of “ours” and “theirs” are easy to misread. Reason from the
+desired rebased result and inspect the stage blobs when provenance matters.
 
 Never discard driver stderr. A line such as
 `weave: 5 entities auto-resolved (conflict confidence)` identifies a file or
@@ -235,8 +235,8 @@ operation whose clean reconstruction deserves scrutiny; it is not proof of
 correctness. Weave 0.5.x adds two machine-parseable channels with stable
 prefixes, each followed by one space: `weave-warning:` carries one JSON line
 per semantic warning, and a merge can exit `0` while emitting these, which is
-the "clean with warnings" state; `weave-event:` carries one JSON line per
-merge when `WEAVE_EVENT=1` is set. The baseline driver command already sets
+the "clean with warnings" state; `weave-event:` carries one JSON line per merge
+when `WEAVE_EVENT=1` is set. The baseline driver command already sets
 `WEAVE_EVENT=1`. On an installation that does not, keep the environment
 override command-scoped rather than exporting it across an agent session:
 
@@ -259,9 +259,9 @@ printf 'rebase_status=%s\nevidence=%s\n' "$REBASE_STATUS" "$WEAVE_STDERR"
 ```
 
 Read the captured stderr after the operation and correlate every auto-resolved,
-warning-reported, or event-reported path with the post-operation audit below.
-A clean exit and a high-confidence label are evidence about Weave's decision,
-not evidence that the merged semantics are correct.
+warning-reported, or event-reported path with the post-operation audit below. A
+clean exit and a high-confidence label are evidence about Weave's decision, not
+evidence that the merged semantics are correct.
 
 After Git stops on a conflict:
 
@@ -273,8 +273,8 @@ weave summary path/to/file.ts
 weave explain path/to/file.ts
 ```
 
-In 0.5.x each enhanced marker box opens with a `refused_by:` comment naming
-the guard that declined to auto-merge and quoting the disputed lines, and the
+In 0.5.x each enhanced marker box opens with a `refused_by:` comment naming the
+guard that declined to auto-merge and quoting the disputed lines, and the
 driver appends one trailing comment to a conflicted file of the form
 `# weave: run 'weave explain <path>' ...` in the file's own comment syntax.
 `weave explain` reads the three index stages and reports the guard, confidence,
@@ -298,8 +298,8 @@ python -m py_compile path/to/file.py
 ```
 
 If the merged file is unexpectedly large, duplicated, truncated, or contains
-garbled markers, parse each available stage as well. These commands inspect
-the blobs without changing the working file:
+garbled markers, parse each available stage as well. These commands inspect the
+blobs without changing the working file:
 
 ```bash
 set -o pipefail
@@ -313,9 +313,9 @@ git show :3:path/to/file.py | python -c \
 
 Run only the stage commands for stages that exist. A parsing stage 3 does not
 make a non-parsing stage 2 safe: during a multi-commit rebase, stage 2 can
-already contain an earlier silently corrupted replay.
-A stage must both exist and parse before it is trusted as a baseline, and the
-resolved working file must parse before `git add` records the resolution.
+already contain an earlier silently corrupted replay. A stage must both exist
+and parse before it is trusted as a baseline, and the resolved working file
+must parse before `git add` records the resolution.
 
 During rebase, do not attach branch names to stages 2 and 3 from memory;
 identify them from their content and the rebase operation.
@@ -340,8 +340,8 @@ A cleanly returned but corrupted early replay becomes an input to later
 replays. In a later conflict it may appear as stage 2, so reconstruction damage
 can compound before an end-of-rebase test ever runs. Each replayed commit's
 stage 2 derives from the previous replay's accepted result. The transition rule
-is therefore strict: even when the next replay's own output parses,
-never accept a structurally invalid result as a safe stage 2 for the next replay.
+is therefore strict: even when the next replay's own output parses, never
+accept a structurally invalid result as a safe stage 2 for the next replay.
 
 For agents, a per-replay guard is the default whenever Weave participates in a
 multi-commit rebase. Use `git rebase --exec` with the repository's cheapest
@@ -354,9 +354,9 @@ For Python, for example:
 git rebase --exec 'python -m compileall -q -f path/to/package' origin/main
 ```
 
-For Rust, `rustfmt` is a useful parser-level tripwire, but it does not establish
-workspace type correctness. `cargo check --workspace` is the honest default
-when its cost is acceptable:
+For Rust, `rustfmt` is a useful parser-level tripwire, but it does not
+establish workspace type correctness. `cargo check --workspace` is the honest
+default when its cost is acceptable:
 
 ```bash
 git rebase --exec 'cargo check --workspace' origin/main
@@ -366,8 +366,8 @@ A deliberately cheaper Rust parse guard such as `cargo fmt --all -- --check`
 may be used when a workspace check per commit would be prohibitive, but record
 that reduced scope explicitly. In every language, the per-replay structural
 gate is necessary but not sufficient: the cfg-gated Rust test replacement
-recorded in [behaviour.md](references/behaviour.md) parsed, compiled, and passed
-tests. Do not rely solely on the full test suite after the final commit.
+recorded in [behaviour.md](references/behaviour.md) parsed, compiled, and
+passed tests. Do not rely solely on the full test suite after the final commit.
 
 When dogfooding Weave during the rebase, combine the guard with command-scoped
 event capture:
@@ -407,13 +407,15 @@ Then enforce these three checks:
    had no branch-side change to reconcile in that path.
 2. **Every deletion against the target in a branch-touched file is explained.**
    Read each deletion hunk in `git diff "$TARGET"..HEAD -- <path>` and map it
-   to an intended branch change from `git diff "$BRANCH_BASE".."$OLD_HEAD" --
-   <path>` or to a named, reviewed conflict-resolution decision. An unexplained
-   deletion is an andon event even if the file compiles and tests pass.
+   to an intended branch change from
+   `git diff "$BRANCH_BASE".."$OLD_HEAD" -- <path>` or to a named, reviewed
+   conflict-resolution decision. An unexplained deletion is an andon event even
+   if the file compiles and tests pass.
 3. **Look for newly repeated blocks.** Scan each resulting text file for a
-   multi-line block repeated more often at `HEAD` than at `TARGET`, then inspect
-   every new repetition. This catches duplicated re-export/import blocks and
-   similar reconstruction artefacts that may remain syntactically valid.
+   multi-line block repeated more often at `HEAD` than at `TARGET`, then
+   inspect every new repetition. This catches duplicated re-export/import
+   blocks and similar reconstruction artefacts that may remain syntactically
+   valid.
 
 The first check can be automated directly. Compute the set difference between
 the NUL-delimited target and branch path manifests above, bind each remaining
@@ -463,17 +465,17 @@ weave check
 
 `weave check` with no arguments verifies the working tree against the merge
 inputs and can report leftover markers, including its own trailing comment,
-lines present on both sides that went missing, content repeated more often
-than either side supplied, and dangling references. Exit `0` means nothing was
-found and exit `1` means findings.
+lines present on both sides that went missing, content repeated more often than
+either side supplied, and dangling references. Exit `0` means nothing was found
+and exit `1` means findings.
 
 Know what the no-argument mode can see. In 0.5.1 it finds a three-way scope
 only when `MERGE_HEAD` exists or `HEAD` is a merge commit. A rebase or
 cherry-pick stop has `REBASE_HEAD` or `CHERRY_PICK_HEAD` but no `MERGE_HEAD`,
 and a completed rebase leaves a single-parent `HEAD`, so in those states the
-command prints a sentence containing `NOTHING WAS CHECKED` and exits `0`.
-That is an explicit "unchecked" state, never a pass. Confirm the scope
-before running it and fail closed on the sentence:
+command prints a sentence containing `NOTHING WAS CHECKED` and exits `0`. That
+is an explicit "unchecked" state, never a pass. Confirm the scope before
+running it and fail closed on the sentence:
 
 ```bash
 if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
@@ -502,12 +504,12 @@ fi
 
 The wrapper keeps the evidence file and then propagates the checker's own
 status: `1` for findings, `127` for a missing `weave`, and any other non-zero
-value for a checker failure. A workflow that gates on the wrapper's exit
-status therefore cannot accept a result the checker rejected.
+value for a checker failure. A workflow that gates on the wrapper's exit status
+therefore cannot accept a result the checker rejected.
 
 For a merge, run it after resolving and before `git commit`, or immediately
-after the merge commit while `HEAD` still has two parents. For a rebase, run
-it per file while the conflict stop still has unmerged index stages, or use
+after the merge commit while `HEAD` still has two parents. For a rebase, run it
+per file while the conflict stop still has unmerged index stages, or use
 `weave check --base <rev> --ours <rev> --theirs <rev>`; that mode runs a
 cross-file binding pass between two revisions and emits findings JSON, so it
 describes a three-input comparison rather than the exact resolved tree being
@@ -531,7 +533,8 @@ working tree. Unexpected mutation is an andon event.
 - Exit `1`: Weave wrote a partially merged result with conflicts to `%A`; Git
   keeps the path unmerged for manual or agent resolution.
 - Exit `2`: invocation, input, output, or binary-file failure. Do not treat
-  this as a semantic conflict; inspect stderr and repair the driver/configuration.
+  this as a semantic conflict; inspect stderr and repair the
+  driver/configuration.
 
 The Git driver uses enhanced seven-character markers with entity names and
 hints. The `-l` option selects standard diff3-compatible markers and is meant
@@ -551,10 +554,9 @@ environment switches:
   baseline does not enable them, and an unexpected untracked file would
   contaminate recovery evidence.
 
-`WEAVE_TIMEOUT` and the five-second entity-merge watchdog belong to 0.3.x
-only. Version 0.5.x removed the watchdog thread, so a slow merge no longer
-falls back to `git merge-file` on its own; setting `WEAVE_TIMEOUT` there has
-no effect.
+`WEAVE_TIMEOUT` and the five-second entity-merge watchdog belong to 0.3.x only.
+Version 0.5.x removed the watchdog thread, so a slow merge no longer falls back
+to `git merge-file` on its own; setting `WEAVE_TIMEOUT` there has no effect.
 
 ## Andon triggers
 
@@ -587,8 +589,8 @@ or investigate the specific reconstruction before continuing.
 ## Recover safely
 
 Before rerunning or replacing a result, preserve it or inspect the index
-stages. Commands that recreate conflict markers can overwrite Weave's
-partially merged `%A` file. Do not perform a destructive abort until any manual
+stages. Commands that recreate conflict markers can overwrite Weave's partially
+merged `%A` file. Do not perform a destructive abort until any manual
 resolution work or unrelated local state that matters has verified recovery
 coverage, including intended untracked files.
 
@@ -652,12 +654,11 @@ This override disables only the user attributes file for those commands.
 Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
 it preserves unrelated repository merge rules. It is suitable when
 `weave setup --global` supplied the `merge=weave` rule and no higher-precedence
-source selects Weave. For tracked or clone-local setup, use the driver
-override or the corresponding matrix row above, because
-`/dev/null` alone cannot override those rules. A later path-specific `!merge`
-line in `.git/info/attributes` outranks every attribute source for that path,
-which is why it is the attribute-level bypass for tracked and clone-local
-rules.
+source selects Weave. For tracked or clone-local setup, use the driver override
+or the corresponding matrix row above, because `/dev/null` alone cannot
+override those rules. A later path-specific `!merge` line in
+`.git/info/attributes` outranks every attribute source for that path, which is
+why it is the attribute-level bypass for tracked and clone-local rules.
 
 For an opted-in repository, the retry with the driver override is:
 

@@ -1,9 +1,9 @@
 # `<Short, action-oriented description>`
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision log`, `Outcomes & retrospective`, `Conformance basis`, and
-`Verification plan` must be kept up to date as work proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision log`,
+`Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
+be kept up to date as work proceeds.
 
 Status: DRAFT | APPROVED | IN PROGRESS | BLOCKED | COMPLETE
 
@@ -30,8 +30,8 @@ Document the conflict in `Decision Log` and escalate.
 Thresholds that trigger escalation when breached. These define the boundaries
 of autonomous action, not quality criteria.
 
-- Scope: if implementation requires changes to more than `<N>` files or `<M>` lines
-  of code (net), stop and escalate.
+- Scope: if implementation requires changes to more than `<N>` files or `<M>`
+  lines of code (net), stop and escalate.
 - Interface: if a public API signature must change, stop and escalate.
 - Dependencies: if a new external dependency is required, stop and escalate.
 - Iterations: if tests still fail after `<K>` attempts, stop and escalate.
@@ -49,9 +49,8 @@ update as work proceeds. Each risk should note severity, likelihood, and
 mitigation or contingency.
 
 - Risk: `<description>`
-  Severity: low | medium | high
-  Likelihood: low | medium | high
-  Mitigation: `<how to prevent or reduce impact>`.
+  Severity: low | medium | high Likelihood: low | medium | high Mitigation:
+  `<how to prevent or reduce impact>`.
 
 Risks differ from Surprises: risks are anticipated; surprises are not.
 
@@ -74,8 +73,8 @@ Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
 - Observation: `<what was unexpected>`.
-  Evidence: `<how you know>`.
-  Impact: `<how it affects this plan or future work>`.
+  Evidence: `<how you know>`. Impact:
+  `<how it affects this plan or future work>`.
 
 ## Decision log
 
@@ -86,19 +85,20 @@ options, required upstream-document changes, and approving authority. Set the
 plan status to `BLOCKED` until the deviation is accepted.
 
 - Decision: `<what was decided>`
-  Rationale: `<why this choice over alternatives>`
-  Date/Author: `<timestamp and who decided>`.
+  Rationale: `<why this choice over alternatives>` Date/Author:
+  `<timestamp and who decided>`.
 
 ## Outcomes & retrospective
 
 Summarize outcomes, gaps, and lessons learned at major milestones or at
 completion. Compare the result against the original purpose. Note what would be
 done differently next time. Before marking the plan `COMPLETE`, reconcile every
-implementation discovery with the upstream artefacts listed in `Conformance
-basis`: update a falsified Terms of Reference assumption and impact-check the
-design; update the technical design or ADR for an architectural change; or
-record a purely mechanical difference in `Decision log`. An upstream change or
-deviation must not remain unrecorded or unaccepted at completion.
+implementation discovery with the upstream artefacts listed in
+`Conformance basis`: update a falsified Terms of Reference assumption and
+impact-check the design; update the technical design or ADR for an
+architectural change; or record a purely mechanical difference in
+`Decision log`. An upstream change or deviation must not remain unrecorded or
+unaccepted at completion.
 
 Once the original implementation has merged, a completed plan is a historical
 document reflecting the repository state at the time of implementation. Later
@@ -171,8 +171,8 @@ do not omit this section.
 For each obligation, explain why the verification can fail when the
 implementation is wrong. Show that preconditions are satisfiable, generators
 reach material classes and boundaries, model states and transitions are
-reachable within meaningful bounds, and proof antecedents are inhabited. Plan
-a negative control, seeded fault, or representative mutation that must be
+reachable within meaningful bounds, and proof antecedents are inhabited. Plan a
+negative control, seeded fault, or representative mutation that must be
 rejected for the intended reason. If a negative control is impractical, justify
 that exception and provide independent counterexample or witness evidence.
 Treat excessive filtering, missing classifications, unreachable model states,
@@ -189,8 +189,8 @@ Structure as stages with explicit go/no-go points where appropriate:
 
 - Stage A: understand and propose (no code changes)
 - Stage B: red tests or BDD feature specification plus the smallest verification
-  artefacts that fail, find a counterexample, or leave the proof obligation open
-  for the expected reason
+  artefacts that fail, find a counterexample, or leave the proof obligation
+  open for the expected reason
 - Stage C: implementation and verification scaffold developed together to
   discharge the planned obligations
 - Stage D: refactor, documentation, proof cleanup, and wider validation
@@ -208,13 +208,19 @@ interfaces. For each milestone record:
 - Identifier and outcome: `<EP-M1 and the coherent end state>`.
 - Requirements and gaps: `<upstream identifiers discharged or advanced>`.
 - Acceptance evidence: `<observable behaviour and stable evidence identifier>`.
-- Conformance check: `<requirements satisfied; design still followed; upstream
-  assumptions still valid; no unapproved public interface, dependency, trust
-  boundary, or persisted-format change; trace links current>`.
+- Conformance check, one line per item:
+  - `<requirements satisfied>`.
+  - `<design still followed>`.
+  - `<upstream assumptions still valid>`.
+  - `<no unapproved public interface or dependency change>`.
+  - `<no unapproved trust boundary or persisted-format change>`.
+  - `<trace links current>`.
 - Recovery: `<how to retry, revert, or safely continue>`.
 - Remaining gaps: `<work deliberately left for later milestones>`.
-- Compatibility decision: `<none, or the named consumer, deployed state,
-  commitment, or migration requirement that makes compatibility necessary>`.
+- Compatibility decision, one of:
+  - `<none>`.
+  - `<the named consumer or deployed state that requires compatibility>`.
+  - `<the commitment or migration requirement that requires compatibility>`.
 
 Never introduce compatibility machinery merely to create an incremental
 milestone. If compatibility would not be required for one atomic change, update
@@ -233,9 +239,9 @@ requirement.
 
 ## Concrete steps
 
-State the exact commands to run and where to run them (working directory).
-When a command generates output, show a short expected transcript so the
-reader can compare. This section must be updated as work proceeds.
+State the exact commands to run and where to run them (working directory). When
+a command generates output, show a short expected transcript so the reader can
+compare. This section must be updated as work proceeds.
 
 ## Validation and acceptance
 
@@ -259,8 +265,8 @@ For verification obligations, record the command and the initial failure,
 counterexample, open goal, or model-checking result. After implementation,
 record the passing result, explored bounds where applicable, axioms relied on,
 and any obligation that remains undischarged. An implementation change that
-requires an unplanned invariant, lemma, or axiom must return to `Verification
-plan` before further elaboration.
+requires an unplanned invariant, lemma, or axiom must return to
+`Verification plan` before further elaboration.
 
 At each milestone boundary, record the focused architecture-conformance check
 from `Milestones and plateaus`. If implementation evidence requires an

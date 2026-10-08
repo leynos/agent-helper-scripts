@@ -8,19 +8,18 @@ description: >-
 # LemmaScript formal verification for TypeScript
 
 LemmaScript is a verification toolchain for TypeScript. Ordinary TypeScript
-carries `//@` specification comments; the `lsc` CLI generates formal
-artefacts that a backend prover (Dafny, or Lean via Velvet/Loom) checks. The
-annotations are comments — invisible to tsc, bundlers, and the runtime — and
-the annotated TypeScript source remains the shipped production code.
-LemmaScript verifies a formal model of that source; proofs apply only within
-the supported TypeScript fragment and documented modelling assumptions. See
+carries `//@` specification comments; the `lsc` CLI generates formal artefacts
+that a backend prover (Dafny, or Lean via Velvet/Loom) checks. The annotations
+are comments — invisible to tsc, bundlers, and the runtime — and the annotated
+TypeScript source remains the shipped production code. LemmaScript verifies a
+formal model of that source; proofs apply only within the supported TypeScript
+fragment and documented modelling assumptions. See
 [`references/annotations.md`](references/annotations.md) for semantic limits:
 `number` uses mathematical-integer rather than IEEE-754 semantics, Map/Record
 values can differ at runtime, lifted method calls lose JavaScript short-circuit
 behaviour, and cross-file calls are axiomatized rather than body-verified.
 UI/I/O/auth/clock/adapter code is trusted unless separately covered. Think
-"Verus is to Rust as
-LemmaScript is to TypeScript".
+"Verus is to Rust as LemmaScript is to TypeScript".
 
 Where fast-check samples inputs and can only find bugs, LemmaScript proves
 properties for every input. It costs far more effort per property, so reserve

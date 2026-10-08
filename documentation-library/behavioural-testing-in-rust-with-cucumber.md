@@ -1,9 +1,9 @@
 # A Developer's Guide to Behavioural Testing in Rust with Cucumber
 
-Status: historical reference. This document preserves earlier Cucumber
-guidance and BDD rationale. Many projects have since migrated their
-behavioural testing to `rstest-bdd`; see
-[rstest-bdd-users-guide.md](rstest-bdd-users-guide.md) for current guidance.
+Status: historical reference. This document preserves earlier Cucumber guidance
+and BDD rationale. Many projects have since migrated their behavioural testing
+to `rstest-bdd`; see [rstest-bdd-users-guide.md](rstest-bdd-users-guide.md) for
+current guidance.
 
 ## Part 1: The Philosophy and Practice of Behaviour-Driven Development (BDD)
 
@@ -110,7 +110,7 @@ runner to take control of the process and print its own formatted output to the
 console.[^9]
 
 | Section            | Key      | Value / Description                                                                                        |
-|--------------------|----------|------------------------------------------------------------------------------------------------------------|
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
 | [dependencies]     | tokio    | The async runtime. Required with features like macros and rt-multi-thread.[^9]                             |
 | [dev-dependencies] | cucumber | The main testing framework crate.[^10]                                                                     |
 | [dev-dependencies] | futures  | Often needed for async operations, particularly with older examples or for specific combinators.[^11][^12] |
@@ -208,8 +208,8 @@ function in the test target file (for example, `tests/cucumber.rs`). This
 function acts as the entry point for the test suite.
 
 Because `cucumber-rs` is async, the `main` function must be an `async fn` and
-is typically annotated with `#[tokio::main]`.[^9] The core of the function is
-a single line that invokes the test runner:
+is typically annotated with `#[tokio::main]`.[^9] The core of the function is a
+single line that invokes the test runner:
 
 `YourWorld::run("path/to/features").await`.[^10]
 
@@ -440,8 +440,8 @@ repetitive. Gherkin solves this with the `Scenario Outline` keyword.[^3]
 
 A `Scenario Outline` acts as a template. The steps are written using
 placeholders enclosed in angle brackets, like `<input>` or `<output>`. Below
-the outline, an `Examples` table provides the concrete values. Each row in
-this table represents a concrete run of the scenario, with the column headers
+the outline, an `Examples` table provides the concrete values. Each row in this
+table represents a concrete run of the scenario, with the column headers
 matching the placeholders in the steps.[^17]
 
 **Worked Example:**
@@ -590,8 +590,8 @@ this in mind, making it an excellent choice for integration and end-to-end
 
 Step definition functions can be declared as `async fn`.[^8] Inside these
 functions, any `Future` – such as a database query or HTTP request – can be
-`.await`-ed. This requires that the test runner's `main` function is powered
-by an async runtime like `tokio`.[^9]
+`.await`-ed. This requires that the test runner's `main` function is powered by
+an async runtime like `tokio`.[^9]
 
 The async-first design of `cucumber-rs` is one of its most powerful features.
 It allows for writing tests that accurately reflect the asynchronous nature of
@@ -599,8 +599,7 @@ the application under test. Furthermore, because `cucumber` can run scenarios
 concurrently by default, I/O-bound tests can execute in parallel, dramatically
 reducing the total runtime of the test suite compared with traditional
 synchronous, serial test runners.[^14] This makes it feasible to run
-comprehensive integration test suites as part of a regular development
-workflow.
+comprehensive integration test suites as part of a regular development workflow.
 
 **Worked Example (Async Step):**
 
@@ -701,9 +700,8 @@ async fn main() {
 ```
 
 Note the use of `#[world(init = Self::new)]` and the `async fn new()`
-implementation. This is necessary because starting the `MockServer` is an
-async operation and cannot be done in a `Default::default()`
-implementation.[^14]
+implementation. This is necessary because starting the `MockServer` is an async
+operation and cannot be done in a `Default::default()` implementation.[^14]
 
 ### 5.3 Mocking Dependencies with `wiremock-rs`
 

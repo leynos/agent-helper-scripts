@@ -1,8 +1,8 @@
 # Wireframe library guide
 
 Wireframe is a Rust library for building asynchronous binary protocol servers
-with pluggable routing, middleware, and connection utilities. The guide
-below walks through the components that exist today and explains how they work
+with pluggable routing, middleware, and connection utilities. The guide below
+walks through the components that exist today and explains how they work
 together when assembling an application.
 
 ## API discovery and imports
@@ -135,20 +135,19 @@ async fn main() -> Result<(), ServerError> {
 
 Route identifiers must be unique; the builder returns
 `wireframe::WireframeError::DuplicateRoute` when a handler is registered twice,
-keeping the dispatch table unambiguous. The crate-level
-`wireframe::Result<T>` alias always resolves to this canonical
-`wireframe::WireframeError` surface, so setup-time and streaming failures share
-one error contract. New applications default to the bundled bincode
-serializer, a length-delimited codec capped at 1024 bytes per frame, and a 100
-ms read timeout. Clamp the length-delimited limit with `buffer_capacity`
-(length-delimited only), swap codecs with `with_codec`, and override the
-serializer with `with_serializer` when a different encoding strategy is
-required. Use `memory_budgets(...)` to set explicit per-connection
-buffering caps for inbound assembly paths. Custom protocols implement
-`FrameCodec` to describe their framing rules. Changing frame budgets with
-`buffer_capacity` or swapping codecs with `with_codec` clears fragmentation
-settings, so call `enable_fragmentation()` (or `fragmentation(Some(cfg))`)
-again when transport fragmentation is required.
+keeping the dispatch table unambiguous. The crate-level `wireframe::Result<T>`
+alias always resolves to this canonical `wireframe::WireframeError` surface, so
+setup-time and streaming failures share one error contract. New applications
+default to the bundled bincode serializer, a length-delimited codec capped at
+1024 bytes per frame, and a 100 ms read timeout. Clamp the length-delimited
+limit with `buffer_capacity` (length-delimited only), swap codecs with
+`with_codec`, and override the serializer with `with_serializer` when a
+different encoding strategy is required. Use `memory_budgets(...)` to set
+explicit per-connection buffering caps for inbound assembly paths. Custom
+protocols implement `FrameCodec` to describe their framing rules. Changing
+frame budgets with `buffer_capacity` or swapping codecs with `with_codec`
+clears fragmentation settings, so call `enable_fragmentation()` (or
+`fragmentation(Some(cfg))`) again when transport fragmentation is required.
 
 `WireframeError` defaults to `WireframeError<NoProtocolError>`. The marker
 means an API does not carry protocol-defined error payloads, while still
@@ -188,8 +187,8 @@ consecutive deserialization errors.
 
 `WireframeServer::new` accepts an app factory rather than a pre-built
 `WireframeApp`. The server calls that factory for each accepted connection so
-handlers, middleware state, and connection-scoped resources can be assembled
-at connection start.
+handlers, middleware state, and connection-scoped resources can be assembled at
+connection start.
 
 Wireframe models this through two traits:
 
@@ -1366,8 +1365,7 @@ response editing before the response is serialized. `HandlerService` rebuilds a
 packet from the request bytes, invokes the registered handler, and by default
 returns the original payload; replies are crafted in middleware (or custom
 packet types with interior mutability). Decode typed payloads via the `Message`
-helpers, then write the encoded response into
-`ServiceResponse::frame_mut()`.
+helpers, then write the encoded response into `ServiceResponse::frame_mut()`.
 
 ```rust
 use std::convert::Infallible;
@@ -1415,11 +1413,11 @@ additional ergonomics on top of the core primitives.
 
 `WireframeApp` supports optional setup and teardown callbacks that run once per
 connection. Setup can return arbitrary state retained until teardown executes
-after the stream finishes processing. During `handle_connection` the
-framework caches middleware chains, enforces read timeouts, and records metrics
-for inbound frames, serialization failures, and handler errors before logging
-warnings. `PacketParts::inherit_correlation` ensures response packets
-carry the correct correlation identifier even when middleware omits it.
+after the stream finishes processing. During `handle_connection` the framework
+caches middleware chains, enforces read timeouts, and records metrics for
+inbound frames, serialization failures, and handler errors before logging
+warnings. `PacketParts::inherit_correlation` ensures response packets carry the
+correct correlation identifier even when middleware omits it.
 
 Immediate responses are available through `send_response` and
 `send_response_framed`, both of which report serialization or I/O problems via
@@ -1507,20 +1505,19 @@ outbound fragmentation and inbound reassembly.
 
 Install a custom protocol with `with_protocol`. `protocol_hooks()` converts the
 stored implementation into `ProtocolHooks`, which the connection actor consumes
-when draining responses and push queues. `WireframeProtocol` exposes
-callbacks for connection setup, per-frame mutation, command completion,
-protocol errors, and optional end-of-stream frames. The connection actor
-invokes these hooks around every outbound frame and when response streams end
-or emit errors.
+when draining responses and push queues. `WireframeProtocol` exposes callbacks
+for connection setup, per-frame mutation, command completion, protocol errors,
+and optional end-of-stream frames. The connection actor invokes these hooks
+around every outbound frame and when response streams end or emit errors.
 
 ## Running servers
 
 `WireframeServer::new` clones the application factory per worker, defaults the
 worker count to the host CPU total (never below one), supports a readiness
-signal, and normalizes accept-loop backoff settings through
-`accept_backoff`. Servers start in an unbound state; call `bind` or
-`bind_existing_listener` to transition into the `Bound` typestate, inspect the
-bound address, or rebind later.
+signal, and normalizes accept-loop backoff settings through `accept_backoff`.
+Servers start in an unbound state; call `bind` or `bind_existing_listener` to
+transition into the `Bound` typestate, inspect the bound address, or rebind
+later.
 
 `run` awaits Ctrl+C, while `run_with_shutdown` cancels the worker accept loops
 and waits for tracked work when the supplied future resolves. Dropping the
@@ -1531,16 +1528,16 @@ cancellation. In-flight connection tasks are not cancelled and may continue
 until they finish. Each worker runs `accept_loop`, which clones the factory,
 rewinds leftover preamble bytes, and hands the stream to the application.
 Transient accept failures trigger exponential backoff capped by the configured
-maximum delay. Preamble hooks support asynchronous success handlers
-and asynchronous failure callbacks that receive the stream, enabling replies
-or decode-error logging before the application runs. An optional
+maximum delay. Preamble hooks support asynchronous success handlers and
+asynchronous failure callbacks that receive the stream, enabling replies or
+decode-error logging before the application runs. An optional
 `preamble_timeout` caps how long `read_preamble` waits; timeouts use the
 failure callback path.
 
 `spawn_connection_task` wraps each accepted stream in `read_preamble` and
 `RewindStream`, records connection panics, and logs failures without crashing
-worker tasks. `ServerError` surfaces bind and accept failures as
-typed errors so callers can react appropriately.
+worker tasks. `ServerError` surfaces bind and accept failures as typed errors
+so callers can react appropriately.
 
 ## Client runtime
 
@@ -2129,14 +2126,13 @@ match client.call(&request).await {
 
 Background work interacts with connections through `PushQueues`. The fluent
 builder configures high- and low-priority capacities, optional rate limits, and
-an optional dead-letter queue with tunable logging cadence for dropped
-frames. Queue construction validates capacities and rate limits, clamping
-rates to the supported range. `PushHandle` exposes async
-`push_high_priority` and `push_low_priority` helpers that honour the rate
-limiter before awaiting channel capacity, while `try_push` implements
-policy-controlled drops with optional warnings and dead-letter forwarding.
-Cloneable handles downgrade to `Weak` references for registration in a session
-registry.
+an optional dead-letter queue with tunable logging cadence for dropped frames.
+Queue construction validates capacities and rate limits, clamping rates to the
+supported range. `PushHandle` exposes async `push_high_priority` and
+`push_low_priority` helpers that honour the rate limiter before awaiting
+channel capacity, while `try_push` implements policy-controlled drops with
+optional warnings and dead-letter forwarding. Cloneable handles downgrade to
+`Weak` references for registration in a session registry.
 
 `PushQueues::recv` prefers high-priority frames but eventually drains the
 low-priority queue; `close` lets tests release resources when no actor is
@@ -2145,16 +2141,16 @@ response, and a cancellation token.
 
 `FairnessConfig` and `FairnessTracker` limit consecutive high-priority frames
 and optionally enforce a time slice. Resetting the tracker after low-priority
-work keeps fairness predictable. `ConnectionActor::run` polls the
-shutdown token, push queues, and response stream using a biased `select!` loop,
-invokes protocol hooks, records metrics for outbound frames, and returns a
+work keeps fairness predictable. `ConnectionActor::run` polls the shutdown
+token, push queues, and response stream using a biased `select!` loop, invokes
+protocol hooks, records metrics for outbound frames, and returns a
 `WireframeError` when the response stream hits an I/O problem. Active
 connection counts are tracked with a guard that increments on creation and
 decrements on drop; the `active_connection_count()` helper exposes the current
-gauge. Interleaved high- and low-priority push behaviour is validated by
-the test suite: the shared rate limiter enforces symmetrical throughput caps
-across both queues, and `FairnessConfig` prevents low-priority starvation
-during sustained high-priority bursts.
+gauge. Interleaved high- and low-priority push behaviour is validated by the
+test suite: the shared rate limiter enforces symmetrical throughput caps across
+both queues, and `FairnessConfig` prevents low-priority starvation during
+sustained high-priority bursts.
 
 ## Session management
 
@@ -2467,8 +2463,8 @@ channel until the client drains data. No explicit flow-control messages are
 required.
 
 Interleaved high- and low-priority push behaviour is validated against this
-streaming path. The parity suite confirms fairness-driven low-priority
-progress and shared cross-priority rate limiting without changing the public
+streaming path. The parity suite confirms fairness-driven low-priority progress
+and shared cross-priority rate limiting without changing the public
 `WireframeClient` interface.
 
 ### Error handling
@@ -2598,8 +2594,8 @@ When the optional `metrics` feature is enabled, Wireframe updates the
 `wireframe_connections_active` gauge, frame counters tagged by direction, error
 counters tagged by kind, and a counter for panicking connection tasks. All
 helpers become no-ops when the feature is disabled so instrumentation can stay
-in place. `handle_connection`, the connection actor, and the panic wrapper
-call these helpers to maintain consistent telemetry.
+in place. `handle_connection`, the connection actor, and the panic wrapper call
+these helpers to maintain consistent telemetry.
 
 ## Mutation testing
 

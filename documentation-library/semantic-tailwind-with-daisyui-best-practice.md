@@ -90,8 +90,7 @@ ______________________________________________________________________
 ## 3) Semantic class names: where they help
 
 Create **domain‑level** classes only when they encode reused intent (CTA
-buttons, product cards, page headers) or when bridging third‑party
-markup.
+buttons, product cards, page headers) or when bridging third‑party markup.
 
 ```css
 /* app.css */
@@ -241,8 +240,8 @@ ______________________________________________________________________
   `@reference` when applying inside component‑scoped styles.
 - Use **`@utility`** to register a **custom utility** (or a small family of
   them) that participates in Tailwind’s variant system (`hover:`, `md:`,
-  `data-[state=…]:`, etc.). Prefer this for _project‑specific shorthands_
-  meant to behave like first‑class utilities.
+  `data-[state=…]:`, etc.). Prefer this for _project‑specific shorthands_ meant
+  to behave like first‑class utilities.
 
 Examples:
 

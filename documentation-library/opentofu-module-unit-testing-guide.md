@@ -256,8 +256,8 @@ variable.
 
 `main.tf`
 
-The example intentionally uses a placeholder Amazon Machine Image (AMI), so
-the test can focus on assertion mechanics rather than cloud inventory churn.
+The example intentionally uses a placeholder Amazon Machine Image (AMI), so the
+test can focus on assertion mechanics rather than cloud inventory churn.
 
 ```terraform
 variable "instance_name" {

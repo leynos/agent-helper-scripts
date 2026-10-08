@@ -838,12 +838,12 @@ re-pinning runbook in Whitaker's own developer's guide.
 ## Agent skills
 
 Whitaker ships an agent-facing skill under
-`skills/addressing-whitaker-findings/`.
-It distils the remediation patterns from adopting the suite across more than
-forty repositories: what each lint expects, which fixes hold up under review,
-when an exclusion is legitimate, and the traps that cost earlier adopters
-rework. The skill is written for an agent rather than a human reader, and it
-covers the lints described in [Available Lints](#available-lints).
+`skills/addressing-whitaker-findings/`. It distils the remediation patterns
+from adopting the suite across more than forty repositories: what each lint
+expects, which fixes hold up under review, when an exclusion is legitimate, and
+the traps that cost earlier adopters rework. The skill is written for an agent
+rather than a human reader, and it covers the lints described in
+[Available Lints](#available-lints).
 
 The skill lives in the Whitaker repository rather than in a separate package,
 so it tracks the suite as the lints change.
@@ -856,10 +856,9 @@ the skill both on disk and at the point of discovery.
 
 Making the skill available means copying its directory into the skills
 directory that an agent tool reads. For Claude Code that directory is
-`~/.claude/skills/`; other tools that consume Agent Skills use their own.
-Clone a reviewed tag or commit rather than the default branch tip, and verify
-the checkout resolves to the expected revision before copying the skill
-directory:
+`~/.claude/skills/`; other tools that consume Agent Skills use their own. Clone
+a reviewed tag or commit rather than the default branch tip, and verify the
+checkout resolves to the expected revision before copying the skill directory:
 
 ```sh
 git clone --branch v0.2.7 --depth 1 https://github.com/leynos/whitaker.git /tmp/whitaker

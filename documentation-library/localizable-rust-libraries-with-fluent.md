@@ -148,9 +148,9 @@ unic-langid = "0.9"
 `my-app/i18n.toml`
 
 The `fluent_language_loader!()` macro reads this file at compile time to learn
-where the application's own Fluent resources live and which domain to
-request. The `errors` domain makes the loader request `en-US/errors.ftl`,
-matching the file that `MyLibLocalizations` embeds.
+where the application's own Fluent resources live and which domain to request.
+The `errors` domain makes the loader request `en-US/errors.ftl`, matching the
+file that `MyLibLocalizations` embeds.
 
 ```toml
 fallback_language = "en-US"
