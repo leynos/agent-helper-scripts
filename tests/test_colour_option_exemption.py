@@ -4,8 +4,8 @@ Command-line flags such as `--no-color` and CSS custom properties such as
 `--color-primary` carry the US spelling in the tools that define them, so the
 shared dictionary exempts them. The exemption once matched any run of flag
 characters around the word `color`, which also hid a misspelling elsewhere in
-the same token. It now ends at the word `color` (or `colors`, `colored`), so a
-misspelling after it is reported. The prefix stays open, because custom
+the same token. It now ends at the word `color`, with an optional `s` or `ed`,
+so a misspelling after it is reported. The prefix stays open, because custom
 properties are named freely; a misspelling in the prefix is still hidden.
 
 Misspelt words are assembled from fragments so that this module's own source
