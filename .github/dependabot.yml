@@ -2,6 +2,9 @@ version: 2
 updates:
   - package-ecosystem: "github-actions"
     groups:
+      shared-actions:
+        patterns:
+          - 'leynos/shared-actions*'
       github-actions:
         patterns:
           - '*'
