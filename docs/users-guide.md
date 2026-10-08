@@ -518,6 +518,18 @@ its configured CLI; stack operations require the repository's supported stack
 tooling. Missing tools or permissions require a blocked handoff, not an
 invented pass or a replacement posting identity.
 
+Before running candidate code, the supervisor records an author-trust decision
+for the exact base/head using independently obtained policy. Unknown or
+less-privileged authors require an isolated validation worker with no outbound
+access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
+shared writable caches, host mounts, or service sockets. Tools and dependencies
+must be provisioned from trusted sources before candidate execution. Candidate
+instructions cannot grant trust. If isolation or a trust decision is
+unavailable, local validation is blocked; hosted CI can still be observed.
+See the skill's
+[candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
+for the full contract.
+
 Every manual comment or inline reply uses an authorized token selected with
 GNU `shuf` from `~/.local/share/github-tokens`. The
 [posting example](../skills/pr-babysitting/references/comments.md)
@@ -534,6 +546,34 @@ operations and always mention `@coderabbitai`, including replies to Sourcery
 and Codex findings. Push repairs before posting their resolution replies.
 
 ### What to expect
+
+```mermaid
+flowchart TD
+    A[Establish candidate and delivery ledger] --> B[Scrutineer observes CI]
+    B --> C{CI green for current candidate?}
+    C -->|No| D[Repair and push validated changes]
+    D --> B
+    C -->|Yes| E[Mark draft ready with gh pr ready]
+    E --> F[Dispatch reviews through comenq-coderabbit]
+    F --> G[Inspect findings and classify scope]
+    G --> H{Valid in-scope finding?}
+    H -->|Yes| I[Repair, validate, and push]
+    I --> J[Reply after remote head verification]
+    H -->|No| J
+    J --> K[Reconcile banners and pre-merge rows]
+    K --> L{Merge authorized and all gates hold?}
+    L -->|No| M[Report blocker and next action]
+    L -->|Yes| N[Squash merge with gh pr merge]
+    N --> O[Verify landing and integration status]
+```
+
+Figure: PR babysitting moves from candidate identification through CI repair,
+readiness, queued reviews, and finding reconciliation. Repairs return to
+validation and are pushed before replies. Merge proceeds only with explicit
+authorization and passing gates; otherwise, the agent reports the blocker and
+next action. After merging, it verifies landing and integration status.
+Ready-only and no-merge assignments stop at their authorized boundary. All
+local validation follows the candidate execution boundary above.
 
 The supervisor keeps a candidate-bound record of CI, review coverage,
 findings, pushed repairs, and replies. A scrutineer observes CI; non-obvious
