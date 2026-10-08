@@ -4,8 +4,9 @@ Command-line flags such as `--no-color` and CSS custom properties such as
 `--color-primary` carry the US spelling in the tools that define them, so the
 shared dictionary exempts them. The exemption once matched any run of flag
 characters around the word `color`, which also hid a misspelling elsewhere in
-the same token. It now ends at the word `color`, with an optional `s` or `ed`,
-so a misspelling after it is reported. The prefix stays open, because custom
+the same token. It now ends at the word `color`, with an optional inflection
+(`s`, `ed`, `ing`, or `ize` forms), at a word boundary or an underscore, so a
+misspelling after it is reported. The prefix stays open, because custom
 properties are named freely; a misspelling in the prefix is still hidden.
 
 Misspelt words are assembled from fragments so that this module's own source
@@ -19,6 +20,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from spelling_policy_support import REPOSITORY_ROOT, SHARED_DICTIONARY_PATH
 
@@ -40,6 +43,13 @@ GENUINE: tuple[tuple[str, str], ...] = (
     (f"--tw-shadow-{COLOUR}ed", f"--tw-shadow-{COLOUR}ed"),
     (f"--{COLOUR}s", f"--{COLOUR}s"),
     (f"--{COLOUR}-*", f"--{COLOUR}"),
+    (f"--{COLOUR}_primary", f"--{COLOUR}_"),
+    (f"--my_{COLOUR}_primary", f"--my_{COLOUR}_"),
+    (f"--{COLOUR}ing-mode", f"--{COLOUR}ing"),
+    (f"--{COLOUR}ize-output", f"--{COLOUR}ize"),
+    (f"--{COLOUR}ized", f"--{COLOUR}ized"),
+    (f"--{COLOUR}izes", f"--{COLOUR}izes"),
+    (f"--{COLOUR}izing-mode", f"--{COLOUR}izing"),
 )
 #: Tokens with a misspelling after the colour word, which must stay visible:
 #: the pattern must either not match at all or stop before the misspelt word.
@@ -48,10 +58,18 @@ NEAR_MISSES: tuple[tuple[str, str], ...] = (
     (f"--{COLOUR}r", f"{COLOUR}r"),
     (f"--{COLOUR}-mode-{SUFFIX_MISSPELLING}", SUFFIX_MISSPELLING),
     (f"--tw-{COLOUR}-{SUFFIX_MISSPELLING}", SUFFIX_MISSPELLING),
+    (f"--{COLOUR}_{SUFFIX_MISSPELLING}", SUFFIX_MISSPELLING),
+    (f"--{COLOUR}ing-{SUFFIX_MISSPELLING}", SUFFIX_MISSPELLING),
 )
 #: Near misses the real gate reports: typos only flags known misspellings, so the
 #: transposed-letter cases above are covered by the pattern checks alone.
-CONSUMER_REPORTED = (NEAR_MISSES[0], NEAR_MISSES[2], NEAR_MISSES[3])
+CONSUMER_REPORTED = (
+    NEAR_MISSES[0],
+    NEAR_MISSES[2],
+    NEAR_MISSES[3],
+    NEAR_MISSES[4],
+    NEAR_MISSES[5],
+)
 #: The known residual. Custom properties are named freely, so the prefix is
 #: open and a misspelling in the prefix of a flag that also contains the colour
 #: word is hidden. This is recorded rather than asserted away, so that a
@@ -110,14 +128,51 @@ def test_a_misspelling_in_the_same_token_stays_visible(text: str, misspelling: s
     assert misspelling not in match.group(0), f"{pattern!r} also masks {misspelling!r}"
 
 
+#: Letters that cannot spell the colour word, so a generated prefix or tail never
+#: contains a second occurrence that would legitimately move the match.
+NEUTRAL_LETTERS = "abdefghijkmnpqstuvwxyz0123456789"
+COLOUR_WORDS = tuple(
+    COLOUR + inflection
+    for inflection in ("", "s", "ed", "ing", "ize", "ized", "izes", "izing")
+)
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    prefix=st.text(alphabet=NEUTRAL_LETTERS + "-_", max_size=12),
+    word=st.sampled_from(COLOUR_WORDS),
+    separator=st.sampled_from(("-", "_", "=", " ", ":", "/")),
+    tail=st.text(alphabet=NEUTRAL_LETTERS, min_size=1, max_size=12),
+)
+def test_the_match_never_reaches_past_the_colour_word(
+    prefix: str, word: str, separator: str, tail: str
+) -> None:
+    """For any open prefix, inflection and boundary, the tail stays visible.
+
+    The pattern may cover the whole prefix and the colour word, and the
+    underscore that follows it, but never the words after the boundary.
+    """
+    (pattern,) = colour_patterns()
+    text = f"--{prefix}{word}{separator}{tail}"
+    match = re.search(pattern, text)
+
+    assert match is not None, f"{pattern!r} does not exempt {text!r}"
+    covered = f"--{prefix}{word}" + ("_" if separator == "_" else "")
+    assert match.group(0) == covered, (
+        f"{pattern!r} matched {match.group(0)!r} in {text!r}, not {covered!r}"
+    )
+
+
 @pytest.mark.parametrize(("text", "misspelling"), PREFIX_RESIDUAL)
 def test_a_misspelling_in_the_prefix_is_the_known_residual(text: str, misspelling: str) -> None:
     """A prefix misspelling is hidden: the documented limit of the open prefix."""
     (pattern,) = colour_patterns()
     match = re.search(pattern, text)
 
-    assert match is not None
-    assert misspelling in match.group(0)
+    assert match is not None, f"{pattern!r} no longer matches the open prefix of {text!r}"
+    assert misspelling in match.group(0), (
+        f"{pattern!r} no longer hides {misspelling!r} in the prefix of {text!r}"
+    )
 
 
 def run_consumer_gate(repository: Path, files: dict[str, str]) -> subprocess.CompletedProcess[str]:

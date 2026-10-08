@@ -314,6 +314,17 @@ that example's exact text, so a repository that carries the guide needs no
 exemption of its own. Other uses of the misspelt reference that do not contain
 the complete phrase are reported by the gate.
 
+The shared dictionary also exempts command-line flags and CSS custom
+properties that carry the US spelling of "colour", such as `--no-color`,
+`--color-primary`, `--color_primary`, `--coloring-mode`, and
+`--tw-color-red-500`. The exemption stops at the word `color`, optionally
+followed by an `s`, `ed`, `ing`, or `ize` inflection, and at the next word
+boundary or underscore. A misspelling in the words after that point stays
+visible to the gate. The prefix before the colour word is open, because custom
+properties are named freely, so a misspelling in the prefix of a flag that also
+contains the colour word is still hidden. A repository never needs a local
+exemption for these forms.
+
 ## Stacked pull requests
 
 The `github-stacks` skill covers GitHub's native stacked pull requests through
