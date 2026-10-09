@@ -69,13 +69,14 @@ cargo nextest run --archive-file tests.tar.zst
 cargo nextest run --archive-file tests.tar.zst --workspace-remap /new/path
 ```
 
-Since 0.9.138, `--workspace-remap` is rejected unless **both**
-`--cargo-metadata` and `--binaries-metadata` are also supplied. Older versions
-accepted it silently, which could remap against the wrong metadata. The same
-release made `--cargo-metadata` without `--binaries-metadata`, with exactly one
-default workspace member, anchor the build to that member's `Cargo.toml` rather
-than the entire workspace — a behaviour change for single-member workspaces
-that previously built everything.
+Since 0.9.138, `--workspace-remap` is rejected unless **both** the cargo and
+binaries metadata sources are available, whether the archive carries them or
+`--cargo-metadata` and `--binaries-metadata` are passed explicitly. Older
+versions accepted it silently, which could remap against the wrong metadata.
+The same release made `--cargo-metadata` without `--binaries-metadata`, with
+exactly one default workspace member, anchor the build to that member's
+`Cargo.toml` rather than the entire workspace — a behaviour change for
+single-member workspaces that previously built everything.
 
 Cargo does NOT need to be installed on the target machine. If unavailable, use
 `cargo-nextest nextest run` instead of `cargo nextest run`.

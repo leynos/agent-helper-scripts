@@ -1,6 +1,6 @@
-<!-- markdownlint-disable MD013 -->
-
 # Configuring a template - copier
+
+<!-- markdownlint-disable MD013 -->
 
 ## Configuration sources[¶](https://copier.readthedocs.io/en/stable/configuring/#configuration-sources "Permanent link")
 

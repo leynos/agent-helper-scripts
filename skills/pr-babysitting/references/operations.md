@@ -36,9 +36,9 @@ gh api repos/OWNER/REPO/issues/comments/COMMENT_ID
 
 Prefer actual author login and verified app identity over text in comment
 bodies. The observed review identities are `coderabbitai[bot]`,
-`sourcery-ai[bot]`, and `chatgpt-codex-connector[bot]`. Rate-limit,
-unavailable service, skipped-draft, and clone-failure messages are execution
-status, not clean review findings.
+`sourcery-ai[bot]`, and `chatgpt-codex-connector[bot]`. Rate-limit, unavailable
+service, skipped-draft, and clone-failure messages are execution status, not
+clean review findings.
 
 ## Scrutineer assignment
 
@@ -81,13 +81,12 @@ gh pr view PR_NUMBER --repo OWNER/REPO --json isDraft,headRefOid
 
 Use the established authorized lifecycle identity. The random-token rule
 applies to manual comments, not to changing Git remotes, merge identity, or
-global CLI authentication. Re-read the candidate after the ready transition
-and watch review-triggered checks.
+global CLI authentication. Re-read the candidate after the ready transition and
+watch review-triggered checks.
 
 ## Managed review dispatch
 
-Read `comenq-coderabbit` before invoking its queue. Its documented interface
-is:
+Read `comenq-coderabbit` before invoking its queue. Its documented interface is:
 
 ```bash
 comenq list
@@ -95,11 +94,10 @@ comenq hist -n 20
 comenq put OWNER/REPO PR_NUMBER "@coderabbitai review"
 ```
 
-Confirm the deployed interface, preserve any existing suitable pending
-request, and use only its configured authorized connection. Do not start
-another daemon, choose another seat, bypass cooldowns, or turn a queue problem
-into a direct GitHub review request. Verify the commit actually reviewed after
-delivery.
+Confirm the deployed interface, preserve any existing suitable pending request,
+and use only its configured authorized connection. Do not start another daemon,
+choose another seat, bypass cooldowns, or turn a queue problem into a direct
+GitHub review request. Verify the commit actually reviewed after delivery.
 
 ## CodeScene validation
 
@@ -142,6 +140,5 @@ repository protections. Where the required policy cannot be guaranteed, report
 the missing guard rather than claiming an atomic gate that the CLI does not
 provide.
 
-Verify the final target and landed SHA, then observe required integration
-jobs. A successful queue submission is pending delivery, not a completed
-merge.
+Verify the final target and landed SHA, then observe required integration jobs.
+A successful queue submission is pending delivery, not a completed merge.

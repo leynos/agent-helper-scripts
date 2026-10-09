@@ -73,7 +73,7 @@ Unexpected findings during implementation that were not anticipated as risks.
 Document with evidence so future work benefits.
 
 - Observation: `<what was unexpected>`.
-  Evidence: `<how you know>`. Impact:
+  Evidence: `<how this is known>`. Impact:
   `<how it affects this plan or future work>`.
 
 ## Decision log

@@ -1048,7 +1048,7 @@ To help manage this, severity tagging is integrated:
 - Tests or checks can be annotated with severity levels (for example, using
   axe’s impact ratings). The CI parser can distinguish and perhaps post a
   comment on the PR: “⚠️ Accessibility issue detected: **low contrast on button
-  text** (critical). This must be resolved before merge.”
+  text** (serious). This must be resolved before merge.”
 
 - For less critical issues that slip through, backlog tickets are created
   automatically. But ideally, the gating ensures everything important is caught

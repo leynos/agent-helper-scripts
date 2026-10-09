@@ -661,14 +661,13 @@ found in Bumpy Roads or large switch statements), these complementary patterns
 offer a structured and extensible alternative.
 
 The **Command pattern** encapsulates a request or an action as an object. Each
-command object implements a common interface (e.g., with an
-
-`execute()` method). This decouples the object that invokes the command from
-the object that knows how to perform it. Instead of a large conditional
-checking a type and then executing logic, different command objects can be
-instantiated based on the type, and then their `execute()` method is called.
-This promotes the Single Responsibility Principle, as each command class
-handles a single action, making the system easier to test, extend, and evolve.
+command object implements a common interface (e.g., with an `execute()`
+method). This decouples the object that invokes the command from the object
+that knows how to perform it. Instead of a large conditional checking a type
+and then executing logic, different command objects can be instantiated based
+on the type, and then their `execute()` method is called. This promotes the
+Single Responsibility Principle, as each command class handles a single action,
+making the system easier to test, extend, and evolve.
 
 The **Dispatcher pattern** often works in conjunction with the Command pattern.
 A dispatcher is a central component that receives requests (which could be

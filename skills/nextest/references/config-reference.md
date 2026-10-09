@@ -208,8 +208,8 @@ machine-local settings that should not be committed to a repository.
 
 Since 0.9.136 this accepts only a non-negative integer or the string
 `"infinite"`. Numeric strings such as `"8"` were previously accepted through an
-undocumented fallback and now fail validation. If you have
-`max-progress-running = "8"`, change it to `max-progress-running = 8`.
+undocumented fallback and now fail validation. Change
+`max-progress-running = "8"` to `max-progress-running = 8`.
 
 ### User-config platform overrides
 

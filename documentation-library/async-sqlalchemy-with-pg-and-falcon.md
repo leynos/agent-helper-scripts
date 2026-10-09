@@ -1030,7 +1030,7 @@ async def client(db_session: AsyncSession):  # Uses the transactional db_session
 It is also beneficial to test the session middleware itself in isolation to
 verify its session creation, provision, and cleanup logic, separate from
 testing the business logic within the resource responders. This layered testing
-strategy improves the maintainability and diagnostic capability of your test
+strategy improves the maintainability and diagnostic capability of the test
 suite.
 
 ## IX. Conclusion: Building Scalable and Reliable Async Services

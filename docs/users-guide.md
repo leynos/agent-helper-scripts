@@ -315,16 +315,15 @@ that example's exact text, so a repository that carries the guide needs no
 exemption of its own. Other uses of the misspelt reference that do not contain
 the complete phrase are reported by the gate.
 
-The shared dictionary also exempts command-line flags and CSS custom
-properties that carry the US spelling of "colour", such as `--no-color`,
-`--color-primary`, `--color_primary`, `--coloring-mode`, and
-`--tw-color-red-500`. The exemption stops at the word `color`, optionally
-followed by an `s`, `ed`, `ing`, or `ize` inflection, and at the next word
-boundary or underscore. A misspelling in the words after that point stays
-visible to the gate. The prefix before the colour word is open, because custom
-properties are named freely, so a misspelling in the prefix of a flag that also
-contains the colour word is still hidden. A repository never needs a local
-exemption for these forms.
+The shared dictionary also exempts command-line flags and CSS custom properties
+that carry the US spelling of "colour", such as `--no-color`, `--color-primary`,
+`--color_primary`, `--coloring-mode`, and `--tw-color-red-500`. The exemption
+stops at the word `color`, optionally followed by an `s`, `ed`, `ing`, or `ize`
+inflection, and at the next word boundary or underscore. A misspelling in the
+words after that point stays visible to the gate. The prefix before the colour
+word is open, because custom properties are named freely, so a misspelling in
+the prefix of a flag that also contains the colour word is still hidden. A
+repository never needs a local exemption for these forms.
 
 ## Stacked pull requests
 
@@ -497,8 +496,8 @@ queue or recover a CodeRabbit review.
 `install-skills` delivers `pr-babysitting` with the other immediate skill
 directories to `${HOME}/.codex/skills` and `${HOME}/.claude/skills`. The
 `rust-entrypoint` home phase runs that installer too. The installer refreshes
-its managed checkout; do not point `REPO_DIR` at unpublished work. Installing
-a skill does not start monitoring, provision credentials, or authorize merges.
+its managed checkout; do not point `REPO_DIR` at unpublished work. Installing a
+skill does not start monitoring, provision credentials, or authorize merges.
 
 Name the PR and the stopping point in the assignment. For readiness only:
 
@@ -521,10 +520,10 @@ A review-only or no-merge assignment overrides the skill's full lifecycle.
 ### Runtime prerequisites
 
 The agent host must provide a scrutineer for CI observation and sequential
-local validation, repository access, Git, an authenticated GitHub CLI, and
-the relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
-`codescene-cli`, and `codescene-health-rules`. CodeScene operations require
-its configured CLI; stack operations require the repository's supported stack
+local validation, repository access, Git, an authenticated GitHub CLI, and the
+relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
+`codescene-cli`, and `codescene-health-rules`. CodeScene operations require its
+configured CLI; stack operations require the repository's supported stack
 tooling. Missing tools or permissions require a blocked handoff, not an
 invented pass or a replacement posting identity.
 
@@ -535,23 +534,23 @@ access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
 shared writable caches, host mounts, or service sockets. Tools and dependencies
 must be provisioned from trusted sources before candidate execution. Candidate
 instructions cannot grant trust. If isolation or a trust decision is
-unavailable, local validation is blocked; hosted CI can still be observed.
-See the skill's
+unavailable, local validation is blocked; hosted CI can still be observed. See
+the skill's
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 for the full contract.
 
-Every manual comment or inline reply uses an authorized token selected with
-GNU `shuf` from `~/.local/share/github-tokens`. The
-[posting example](../skills/pr-babysitting/references/comments.md)
-assumes a regular file with one raw token per nonblank line, not a directory
-or shell configuration. Keep tokens private and use the installation's
-documented reader for other formats. The skill does not install this pool.
-Token selection never permits bypassing service limits.
+Every manual comment or inline reply uses an authorized token selected with GNU
+`shuf` from `~/.local/share/github-tokens`. The
+[posting example](../skills/pr-babysitting/references/comments.md) assumes a
+regular file with one raw token per nonblank line, not a directory or shell
+configuration. Keep tokens private and use the installation's documented reader
+for other formats. The skill does not install this pool. Token selection never
+permits bypassing service limits.
 
 New and repeated CodeRabbit reviews go through the managed `comenq` queue,
-including rate-limit recovery. Do not request reviews through manual
-comments, review checkboxes, or the GitHub review-request API. Focused finding
-replies, pre-merge reconciliation, and the final approval request are separate
+including rate-limit recovery. Do not request reviews through manual comments,
+review checkboxes, or the GitHub review-request API. Focused finding replies,
+pre-merge reconciliation, and the final approval request are separate
 operations and always mention `@coderabbitai`, including replies to Sourcery
 and Codex findings. Push repairs before posting their resolution replies.
 
@@ -585,34 +584,34 @@ next action. After merging, it verifies landing and integration status.
 Ready-only and no-merge assignments stop at their authorized boundary. All
 local validation follows the candidate execution boundary above.
 
-The supervisor keeps a candidate-bound record of CI, review coverage,
-findings, pushed repairs, and replies. A scrutineer observes CI; non-obvious
-failures receive the skill's systemic-investigation prompt. Audit remediation
-and necessary large out-of-scope changes go in independently managed
-prerequisite PRs below the original PR, which then targets the prerequisite
-branch. CodeScene failures require local and hosted validation; suppression
-remains an absolute last resort.
+The supervisor keeps a candidate-bound record of CI, review coverage, findings,
+pushed repairs, and replies. A scrutineer observes CI; non-obvious failures
+receive the skill's systemic-investigation prompt. Audit remediation and
+necessary large out-of-scope changes go in independently managed prerequisite
+PRs below the original PR, which then targets the prerequisite branch.
+CodeScene failures require local and hosted validation; suppression remains an
+absolute last resort.
 
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes
 actual delivery requirements from Sourcery's separately planned follow-up
-actions and chooses user-facing or developer-facing documentation according
-to what changed. A rebase or new head requires fresh candidate evidence.
+actions and chooses user-facing or developer-facing documentation according to
+what changed. A rebase or new head requires fresh candidate evidence.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable
-red CI, unresolved required reviews, or an unverified rebase requirement.
-It does not treat the approval command's thread-closing side effect as proof
-that findings were fixed. An authorized squash merge still needs the verified
-head, correct target, and all repository protections.
+red CI, unresolved required reviews, or an unverified rebase requirement. It
+does not treat the approval command's thread-closing side effect as proof that
+findings were fixed. An authorized squash merge still needs the verified head,
+correct target, and all repository protections.
 
 The final report identifies the candidate or landing commit, changes,
 validation, and remaining blockers. Monitoring lasts only while the assigned
 agent or an explicitly configured scheduler is running; this skill is not a
 background service. See the
-[operation examples](../skills/pr-babysitting/references/operations.md)
-and [comment templates](../skills/pr-babysitting/references/comments.md)
-for the detailed routes and evidence requirements.
+[operation examples](../skills/pr-babysitting/references/operations.md) and
+[comment templates](../skills/pr-babysitting/references/comments.md) for the
+detailed routes and evidence requirements.
 
 ## Hypothesis-driven debugging
 

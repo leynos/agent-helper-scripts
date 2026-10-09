@@ -590,8 +590,8 @@ orders it: the artefact directory before `deps`. Cargo swapped those in 1.93,
 and this release also fixes dylib resolution under the v2 build directory
 layout (nightly default since 2026-07-30), under `build.build-dir`, and for
 `[[example]]` targets, which Cargo places in `examples` rather than `deps`. If
-you set `LD_LIBRARY_PATH` or `DYLD_*` yourself around a nextest run, match that
-ordering or a pre-0.9.143 nextest will disagree with a post-1.93 Cargo.
+`LD_LIBRARY_PATH` or `DYLD_*` is set around a nextest run, match that ordering
+or a pre-0.9.143 nextest will disagree with a post-1.93 Cargo.
 
 ### A test is silently skipped
 

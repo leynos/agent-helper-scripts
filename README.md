@@ -16,10 +16,10 @@ merges, CodeRabbit reviews through the `comenq` queue, local LLM mock testing
 with VidaiMock, and Rust test execution with cargo-nextest.
 
 For end-to-end pull-request supervision, use
-[`pr-babysitting`](skills/pr-babysitting/SKILL.md). It coordinates CI,
-review findings, prerequisite fixes, and an explicitly authorized squash merge.
-The [PR babysitting guide](docs/users-guide.md#pr-babysitting) covers
-installation, runtime prerequisites, comment identities, and ready-only versus
+[`pr-babysitting`](skills/pr-babysitting/SKILL.md). It coordinates CI, review
+findings, prerequisite fixes, and an explicitly authorized squash merge. The
+[PR babysitting guide](docs/users-guide.md#pr-babysitting) covers installation,
+runtime prerequisites, comment identities, and ready-only versus
 merge-authorized assignments.
 
 The main bootstrap entrypoint is [`rust-entrypoint`](rust-entrypoint). It

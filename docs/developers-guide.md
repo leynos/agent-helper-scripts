@@ -577,6 +577,9 @@ recorded drift form now carries one canonical replacement for every consumer.
     executes, except that the workflow runs the Markdown gate through the
     `markdownlint-cli2` action and so passes `CI_SKIP_MARKDOWNLINT=1`.
 - `make check-fmt`
+  - Requires `mdtablefix` 0.6.1 or later on `PATH` (`get-markdown-tooling`
+    installs it; CI installs 0.6.1 through the shared `install-mdtablefix`
+    action).
   - Runs `mdtablefix --check` over the Markdown files Git tracks plus the
     untracked files Git does not ignore, and fails when a document is not in
     the estate's Markdown formatting.

@@ -104,12 +104,13 @@ repository remains where those entries are curated and reviewed. Only the
 delivery mechanism changes.
 
 This rollout is staged, not complete. As of 2026-09-14 the builder work is in
-progress and no consumer has migrated yet. Twenty-eight repositories invoke the
-builder pinned to a commit, alongside their own phrase-check script; thirty-six
-still run a vendored copy of this repository's generator, which receives
-dictionary updates but enforces no phrase corrections. Until a repository
-migrates, it keeps that legacy tooling. Migration order and status are tracked
-in `docs/execplans/audit-missing-functionality.md` in
+progress and no consumer has completed migration to the new contract.
+Twenty-eight repositories invoke the builder pinned to a commit, alongside
+their own phrase-check script, as a transitional integration; thirty-six still
+run a vendored copy of this repository's generator, which receives dictionary
+updates but enforces no phrase corrections. Until a repository migrates, it
+keeps that legacy tooling. Migration order and status are tracked in
+`docs/execplans/audit-missing-functionality.md` in
 `leynos/typos-config-builder`.
 
 Consequences of the amendment, once a consumer migrates onto this contract:
@@ -155,10 +156,10 @@ colour word, which exempted the whole flag-shaped token, so a misspelling after
 the colour word was hidden. The exact pattern is in
 `data/typos-oxendict-base.toml`. The match ends at the colour word, with the
 inflections custom properties use, at a word boundary or an underscore, so the
-words after it are scanned like any other. The prefix stays open because
-custom properties are named freely; a misspelling in the prefix of a flag that
-also contains the colour word is therefore still hidden. A closed prefix would
-leave about a quarter of the 1,127 distinct flag-shaped tokens in the estate
+words after it are scanned like any other. The prefix stays open because custom
+properties are named freely; a misspelling in the prefix of a flag that also
+contains the colour word is therefore still hidden. A closed prefix would leave
+about a quarter of the 1,127 distinct flag-shaped tokens in the estate
 uncovered and needs constructs the builder's bounded-expression rule rejects,
 so the residual is accepted and recorded as an expectation in
 `tests/test_colour_option_exemption.py`. It is tracked as the prefix half of

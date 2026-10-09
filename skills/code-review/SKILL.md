@@ -354,7 +354,7 @@ better documentation.
 ### Consider the Author
 
 A junior contributor needs different feedback than a senior maintainer. Adjust
-your tone and the level of explanation accordingly.
+the tone and the level of explanation accordingly.
 
 ### Timebox
 
@@ -391,8 +391,8 @@ pre-existing problems.
 ### Blocking on Preferences
 
 A preferred approach isn't necessarily better. If the code works, follows
-conventions, and is maintainable, accept it even if it differs from how it
-would have been written otherwise.
+conventions, and is maintainable, accept it even when another reviewer prefers
+a different approach.
 
 ## Supplementary Guides
 
