@@ -30,9 +30,10 @@ rewriting approved scope. Use the candidate execution boundary in
 `pr-babysitting` before running repository-defined commands.
 
 Read the effective `wyvern`, `artisan`, `journeyman`, and `scrutineer` entries
-in `agents/subagents.yml` in `leynos/agent-helper-scripts`. Record their
-revision and actual tool access, not remembered models or provider defaults.
-Load `firecrawl-mcp` for external evidence and read
+in `agents/subagents.yml` before dispatch. Use the
+[helper manifest lookup](references/delegation.md#locate-the-effective-agent-manifest)
+to verify its repository, revision, and actual tool access. Load
+`firecrawl-mcp` for external evidence and read
 [reconnaissance and delegation](references/delegation.md) before dispatch.
 The supervisor or owning journeyman retains integration, architecture,
 tolerance decisions, and acceptance. Give artisans only complete, bounded

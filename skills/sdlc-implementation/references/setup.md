@@ -69,20 +69,42 @@ branch conventions rather than forcing the ordinary `origin` recipe.
 
 ## PR title and Lody session
 
-Read the live title and remove only the exact leading prefix. Keep the
-remainder unchanged, and do not write an empty title.
+Read the live title and remove only the exact leading `Plan:` prefix and
+its following space. Keep the remainder unchanged, and do not write an empty
+title. Compare a fresh title read with the original immediately before editing,
+then read the title back and verify the result. Stop and reconcile if either
+comparison fails.
 
 ```bash
-title=$(gh pr view "$pr" --repo "$repo" --json title --jq '.title')
-if [[ "$title" == 'Plan: '* ]]; then
-  title=${title#'Plan: '}
+original_title=$(gh pr view "$pr" --repo "$repo" --json title --jq '.title') || exit
+title=$original_title
+if [[ "$original_title" == 'Plan: '* ]]; then
+  title=${original_title#'Plan: '}
   [[ -n "${title//[[:space:]]/}" ]] || {
     printf '%s\n' 'Removing the prefix would leave an empty title.' >&2
     exit 2
   }
-  gh pr edit "$pr" --repo "$repo" --title "$title"
+
+  current_title=$(gh pr view "$pr" --repo "$repo" --json title --jq '.title') || exit
+  [[ "$current_title" == "$original_title" ]] || {
+    printf '%s\n' 'The PR title changed; reconcile before editing.' >&2
+    exit 2
+  }
+
+  gh pr edit "$pr" --repo "$repo" --title "$title" || exit
+
+  readback_title=$(gh pr view "$pr" --repo "$repo" --json title --jq '.title') || exit
+  [[ "$readback_title" == "$title" ]] || {
+    printf '%s\n' 'The PR title read-back differs; reconcile before continuing.' >&2
+    exit 2
+  }
 fi
 ```
+
+The compare and edit are not atomic: `gh pr edit` has no conditional title-update
+flag, so another writer could change the title after the comparison. Serialize
+title edits across writers when excluding that race is required. Read-back
+verifies the observed result but cannot prevent a later concurrent edit.
 
 Confirm that this is an active Lody session, the CLI is installed, and the
 identifier is present before changing its title. A missing capability in a Lody

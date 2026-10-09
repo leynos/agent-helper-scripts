@@ -1,12 +1,18 @@
 # Reconnaissance and tightly scoped delegation
 
-## Role contracts and ownership
+## Locate the effective agent manifest
 
-Read the effective definitions in `agents/subagents.yml` in
-`leynos/agent-helper-scripts` before dispatch. Record the helper revision and
-actual installed tool access. The manifest defines roles, not permission to
-expand this assignment. Do not copy model selections into this skill or assume
-that all providers expose the same tools.
+When working in a `leynos/agent-helper-scripts` checkout, use that checkout.
+Otherwise resolve the helper checkout in this order: `REPO_DIR`,
+`HELPER_TOOLS_REPO_DIR`, then `${HOME}/git/agent-helper-scripts`. Verify that
+the checkout is `leynos/agent-helper-scripts` and that
+`agents/subagents.yml` is readable. Record the helper revision and actual
+installed tool access before dispatch. If the manifest is missing, repair or
+reinstall the helper checkout; do not infer roles from the task repository or
+remembered model or provider defaults. The manifest defines roles, not
+permission to expand this assignment.
+
+## Role contracts and ownership
 
 The supervisor or owning journeyman retains the approved plan or plateau,
 architecture and tolerance decisions, integration, plan maintenance, and final

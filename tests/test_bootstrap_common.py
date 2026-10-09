@@ -701,6 +701,8 @@ def test_clone_or_update_helper_tools_repo_uses_adapter_overrides(
     assert any(line.startswith("git_sparse_set --skip-checks") for line in log_lines), (
         log_lines
     )
+    sparse_line = next(line for line in log_lines if line.startswith("git_sparse_set "))
+    assert "agents" in shlex.split(sparse_line), sparse_line
     assert not any(line.startswith("git_fetch ") for line in log_lines), log_lines
     assert not any(line.startswith("git_reset ") for line in log_lines), log_lines
 

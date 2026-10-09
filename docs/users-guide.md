@@ -495,7 +495,10 @@ implementation, not another copy of the PR lifecycle.
 
 `install-skills` installs the new skill and its references alongside the
 other skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
-`rust-entrypoint` home phase runs that installer too. Installation supplies
+`rust-entrypoint` home phase runs that installer too. Its managed helper
+checkout retains both `skills/` and `agents/`, so the workflow can read the
+provider-neutral `agents/subagents.yml` manifest. The installer copies skills,
+not agent definitions, into the user skill directories. Installation supplies
 instructions, not CodeRabbit or Firecrawl credentials, Lody, agent processes,
 or permission to publish or merge.
 

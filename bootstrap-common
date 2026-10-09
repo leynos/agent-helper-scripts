@@ -54,6 +54,7 @@ function needs()
 
 HELPER_TOOLS_SPARSE_PATHS=(
   add-repositories
+  agents
   apt-update-if-stale
   bootstrap-common
   get-ai-tooling

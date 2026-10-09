@@ -84,6 +84,7 @@ function clone_or_update_repo() {
 }
 
 clone_or_update_repo "${REPO_URL}" "${REPO_DIR}" "skills" "${HELPER_TOOLS_REPO_BRANCH}"
+git -C "${REPO_DIR}" sparse-checkout add agents
 clone_or_update_repo "${RUST_SKILL_REPO_URL}" "${RUST_SKILL_REPO_DIR}" "skills"
 
 # Purpose:

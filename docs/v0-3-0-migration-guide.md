@@ -5,6 +5,30 @@ in this repository behave, and what to do about work produced under the
 previous behaviour. It documents changes staged for the next release and is
 not yet published as a tagged version.
 
+## ExecPlan implementation and PR delivery
+
+The `sdlc-implementation` skill now implements an approved ExecPlan and hands
+the candidate, delivery ledger, acceptance and validation evidence, pending
+work, and mutation authority to `pr-babysitting`. Invoke the implementation
+skill for the plan, then hand off to PR babysitting even when CI is red or the
+PR is still a draft. `pr-babysitting` is the single owner of hosted CI, review
+convergence, readiness, rebase, authorized merge, and post-merge integration.
+
+Refresh the skills with `install-skills` before using the workflow. The managed
+helper checkout now retains `agents/` alongside `skills/`, so workflow skills
+can read `agents/subagents.yml`; agent definitions are not copied into user
+skill directories. Existing skills-only sparse checkouts are updated by the
+installer.
+
+For implementation PRs, applicable hosted completeness/correctness and
+proof-specific assessments must clear before a draft is marked ready. An
+already-ready PR stays ready when evidence is missing or invalidated, while
+merge remains blocked until the applicable assessment clears. See the
+[users' guide](users-guide.md#execplan-implementation) and the
+[`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) and
+[`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
+assessment, and delivery details.
+
 ## Repository scratch sidecars
 
 The `scratch` skill standardizes repository-specific experiments, recovery

@@ -82,11 +82,19 @@ def test_contract_rejects_reintroduced_delivery_commands(command: str) -> None:
 def test_handoff_accepts_red_draft_candidate() -> None:
     """Delivery starts before hosted success, with explicit assessment state."""
     text = _normalize(_read(IMPLEMENTATION / "SKILL.md"))
-    assert "even if the published PR is still draft or its CI is red" in text
-    assert "existing ledger" in text
-    assert "Proof inventory and verifier evidence" in text
-    assert "Authorized publication/merge actions" in text
-    assert "milestone CLI" in text
+    assert (
+        "even if the published PR is still draft or its CI is red" in text
+    ), "missing red/draft candidate handoff contract"
+    assert "existing ledger" in text, "handoff must retain the existing ledger"
+    assert "Proof inventory and verifier evidence" in text, (
+        "handoff must include the proof inventory and verifier evidence"
+    )
+    assert "Authorized publication/merge actions" in text, (
+        "handoff must document authorized publication and merge actions"
+    )
+    assert "milestone CLI" in text, (
+        "implementation must retain milestone CLI assessments"
+    )
 
 
 def test_assessments_remain_in_babysitting() -> None:
@@ -95,12 +103,16 @@ def test_assessments_remain_in_babysitting() -> None:
     assert (
         "@coderabbitai please assess the implementation in this PR for "
         "completeness and correctness against the execplan:"
-    ) in text
+    ) in text, (
+        "missing ExecPlan completeness and correctness assessment question"
+    )
     assert (
         "@coderabbitai are you satisfied that the introduced proof(s) "
         "(<proof file paths with named proof references>) is substantive, "
         "rigorous, and well-founded?"
-    ) in text
+    ) in text, (
+        "missing substantive, rigorous, well-founded proof assessment question"
+    )
     normalized = _normalize(text)
     for requirement in (
         "CrossHair, Kani, Verus, LemmaScript",
@@ -113,7 +125,7 @@ def test_assessments_remain_in_babysitting() -> None:
         "Do not set the PR back to draft",
         "Generic approval cannot discharge missing proof scrutiny",
     ):
-        assert requirement in normalized
+        assert requirement in normalized, f"missing requirement: {requirement}"
 
 
 def test_pr_rebase_contract() -> None:
@@ -125,7 +137,9 @@ def test_pr_rebase_contract() -> None:
 def test_contract_rejects_missing_rebase_safeguard(requirement: str) -> None:
     """Removing each safeguard makes the contract fail independently."""
     text = _normalize(_read(DELIVERY / "rebase.md"))
-    assert requirement in text
+    assert requirement in text, (
+        f"mutation fixture is missing rebase requirement: {requirement}"
+    )
     mutated = text.replace(requirement, "")
     with pytest.raises(AssertionError, match="missing rebase requirement"):
         _assert_rebase_contract(mutated)
@@ -144,4 +158,4 @@ def test_bounded_delegation_and_external_evidence() -> None:
         "monitoring-only scrutineer workflow",
         "pr-babysitting",
     ):
-        assert requirement in text
+        assert requirement in text, f"missing requirement: {requirement}"
