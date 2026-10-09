@@ -19,9 +19,9 @@ The completeness/correctness and proof-specific questions in
 [ExecPlan assessments](execplan-assessment.md) are assessment conversations,
 not formal review requests. Each initial question and necessary candidate-bound
 follow-up uses this manual-token procedure after its prerequisites hold.
-Assessment conversations never go through `comenq`. Formal review requests
-and their recovery require verified readiness and `comenq-coderabbit`.
-Neither route authorizes duplicate requests or cooldown bypasses.
+Assessment conversations never go through `comenq`. Formal review requests and
+their recovery require verified readiness and `comenq-coderabbit`. Neither
+route authorizes duplicate requests or cooldown bypasses.
 
 Before a question is posted, capture its observation baseline. Afterwards,
 record its ID, URL, server timestamps, and candidate, then actively await the

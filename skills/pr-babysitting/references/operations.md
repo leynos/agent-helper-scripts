@@ -77,8 +77,8 @@ watcher, decides whether a rerun or a repair is appropriate.
 Require green current-candidate CI, clear CodeScene findings, and substantive
 responses clearing all applicable assessments first. Follow
 [awaiting CodeRabbit](awaiting-coderabbit.md) for issue-comment answers; the
-formal-review check does not answer those questions. Do not queue a review on
-a draft to obtain them.
+formal-review check does not answer those questions. Do not queue a review on a
+draft to obtain them.
 
 ```bash
 gh pr ready PR_NUMBER --repo OWNER/REPO
@@ -97,9 +97,9 @@ Read `comenq-coderabbit` before invoking its queue. First verify
 rate-limit status. In the readiness path, use the queue for a current explicit
 review rate limit, not for an unanswered assessment or a draft-skip notice.
 Await an active review without enqueueing a duplicate; without a rate limit,
-await the automatic review and allow bounded startup time for its check.
-Other confirmed review failures need a separately justified recovery decision.
-See [formal review observation](awaiting-coderabbit.md#formal-review-after-readiness).
+await the automatic review and allow bounded startup time for its check. Other
+confirmed review failures need a separately justified recovery decision. See
+[formal review observation](awaiting-coderabbit.md#formal-review-after-readiness).
 The managed interface is:
 
 ```bash

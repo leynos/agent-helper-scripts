@@ -553,10 +553,10 @@ LemmaScript, or comparable proofs also require the separate substantive,
 rigorous, well-founded assessment, with actual paths and named references.
 Generic approval cannot replace it. Initial questions and necessary
 candidate-bound follow-ups use the assigned manual-token procedure as
-assessment conversations, not formal review requests. The agent actively
-awaits and reads the substantive issue-comment replies before readiness.
-Assessment conversations never enter `comenq`; formal review dispatch and its
-rate-limit recovery belong after the verified ready transition. See
+assessment conversations, not formal review requests. The agent actively awaits
+and reads the substantive issue-comment replies before readiness. Assessment
+conversations never enter `comenq`; formal review dispatch and its rate-limit
+recovery belong after the verified ready transition. See
 [awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md).
 
 ## PR babysitting
@@ -592,10 +592,10 @@ Manage necessary prerequisite fixes in separate PRs underneath this PR.
 ```
 
 Supply the original issue and accepted scope when they are not already linked.
-A review-only or no-merge assignment overrides the skill's full lifecycle.
-An initial request to create a draft sets its publication state; later
-babysitting permits readiness unless the user explicitly requires it to remain
-draft or sets an earlier stopping point. No-merge does not prohibit readiness.
+A review-only or no-merge assignment overrides the skill's full lifecycle. An
+initial request to create a draft sets its publication state; later babysitting
+permits readiness unless the user explicitly requires it to remain draft or
+sets an earlier stopping point. No-merge does not prohibit readiness.
 
 ### Runtime prerequisites
 
@@ -629,14 +629,14 @@ for other formats. The skill does not install this pool. Token selection never
 permits bypassing service limits.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
-queue only after verified readiness, including review rate-limit recovery.
-Do not request formal reviews through manual comments, review checkboxes, or
-the GitHub review-request API. Assessment questions and their necessary
-follow-ups use the separate manual-comment route and require substantive
-replies; a draft-skip notice does not prevent that conversation. Focused
-finding replies, pre-merge reconciliation, and the final approval request are
-also separate operations and always mention `@coderabbitai`, including replies
-to Sourcery and Codex findings. Push repairs before posting resolution replies.
+queue only after verified readiness, including review rate-limit recovery. Do
+not request formal reviews through manual comments, review checkboxes, or the
+GitHub review-request API. Assessment questions and their necessary follow-ups
+use the separate manual-comment route and require substantive replies; a
+draft-skip notice does not prevent that conversation. Focused finding replies,
+pre-merge reconciliation, and the final approval request are also separate
+operations and always mention `@coderabbitai`, including replies to Sourcery
+and Codex findings. Push repairs before posting resolution replies.
 
 ### Conflicted or outdated PRs
 
@@ -662,12 +662,12 @@ then be reconciled before merge.
 
 ### What to expect
 
-The readiness sequence is explicit: green CI and clear CodeScene findings,
-then substantive CodeRabbit correctness/completeness and applicable proof
-assessment replies, then a verified ready transition. Only afterwards does the
-agent inspect formal review progress and rate limiting. If the current review
-is rate-limited, it reuses or queues one managed request; otherwise it awaits
-the automatic review. An active GitHub review check means wait, not dispatch
+The readiness sequence is explicit: green CI and clear CodeScene findings, then
+substantive CodeRabbit correctness/completeness and applicable proof assessment
+replies, then a verified ready transition. Only afterwards does the agent
+inspect formal review progress and rate limiting. If the current review is
+rate-limited, it reuses or queues one managed request; otherwise it awaits the
+automatic review. An active GitHub review check means wait, not dispatch
 another review. A ready-only assignment stops before that dispatch stage.
 
 ```mermaid
@@ -706,8 +706,8 @@ candidate evidence and are pushed before replies. Merge requires explicit
 authorization and all gates; integration remains a separate observation.
 
 Both applicable assessment gates must clear before readiness. A proof inventory
-with no affected proofs gets an evidence-backed not-applicable disposition.
-An already-ready PR stays ready while missing or invalidated assessments block
+with no affected proofs gets an evidence-backed not-applicable disposition. An
+already-ready PR stays ready while missing or invalidated assessments block
 merge; the workflow never sets it back to draft. Ready-only and no-merge
 assignments stop at their authorized boundary, and all local validation follows
 the candidate execution boundary above.

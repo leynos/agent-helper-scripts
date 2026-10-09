@@ -92,10 +92,10 @@ them as disguised full-review requests. Respect queue cooldowns and service
 limits; random token selection is not a rate-limit escape hatch.
 
 Keep assessment conversations separate from formal CodeRabbit reviews.
-[ExecPlan assessments](references/execplan-assessment.md) uses tagged
-issue comments for completeness/correctness and proof scrutiny, including
-necessary candidate-bound follow-ups. Post through the assigned manual-comment
-route and actively await the substantive replies. These questions are not
+[ExecPlan assessments](references/execplan-assessment.md) uses tagged issue
+comments for completeness/correctness and proof scrutiny, including necessary
+candidate-bound follow-ups. Post through the assigned manual-comment route and
+actively await the substantive replies. These questions are not
 `@coderabbitai review` requests and must not go through `comenq`. Formal review
 dispatch belongs after verified readiness. Their prerequisites and outcomes
 belong to this lifecycle, not a second implementation-skill review loop.
@@ -269,8 +269,8 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
 
 1. **Establish green gates.** Require passing applicable deterministic gates
    and hosted CI for the published candidate, and reconcile CodeScene issues
-   using section 4. A formal review intentionally waiting for readiness is
-   not a draft-time CI failure or a prerequisite for the assessment chat.
+   using section 4. A formal review intentionally waiting for readiness is not
+   a draft-time CI failure or a prerequisite for the assessment chat.
 2. **Ask and await assessments.** Obtain applicable completeness/correctness
    and proof assessments using
    [ExecPlan assessments](references/execplan-assessment.md). These are tagged
@@ -279,21 +279,21 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    request, actively wait for its substantive response, read the full body,
    repair valid findings, push, and obtain affected follow-up confirmation.
    Silence, an acknowledgement, a queued request, or a generic approval never
-   clears an assessment. Record a justified `not applicable` for an
-   unaffected proof inventory; do not ask about nonexistent proofs.
+   clears an assessment. Record a justified `not applicable` for an unaffected
+   proof inventory; do not ask about nonexistent proofs.
 3. **Mark ready and verify.** Only when CI is green, CodeScene is clear, and
    all applicable pre-readiness assessments hold for the accepted base/head, run
    `gh pr ready` as the currently logged-in Linux user with that user's normal
-   `gh` authentication, not a comment token. Read back `isDraft=false` and
-   the unchanged base/head before any formal review dispatch. Do not wait for
-   the formal review to complete before this transition. Never set it back
-   to draft. An already-ready PR remains ready while missing or invalidated
+   `gh` authentication, not a comment token. Read back `isDraft=false` and the
+   unchanged base/head before any formal review dispatch. Do not wait for the
+   formal review to complete before this transition. Never set it back to
+   draft. An already-ready PR remains ready while missing or invalidated
    assessments block merge.
 4. **Inspect formal review status.** After readiness, inspect CodeRabbit's
-   current GitHub check, review submissions, and latest rate-limit notice.
-   If the current-candidate review is `queued` or `in_progress`, await it;
-   do not add another request. A newer active or completed review can supersede
-   an older rate-limit notice. If a current explicit review rate limit prevents
+   current GitHub check, review submissions, and latest rate-limit notice. If
+   the current-candidate review is `queued` or `in_progress`, await it; do not
+   add another request. A newer active or completed review can supersede an
+   older rate-limit notice. If a current explicit review rate limit prevents
    that review and no suitable request or review is active, use
    `comenq-coderabbit` for one retry, reusing an existing suitable queue entry.
    Without a rate limit, await the automatic review and consume it if already
@@ -302,9 +302,10 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    stalled review separately instead of reflexively enqueueing.
 5. **Await formal review completion.** Monitor the CodeRabbit check to a
    terminal state and fetch the corresponding current-candidate review and
-   findings. Use the GitHub Checks API, not `gh run watch`, for this non-Actions
-   check. A completed or green wrapper check alone does not establish completed
-   inspection, approval, or resolved findings. Continue with section 6 and the
+   findings. Use the GitHub Checks API, not `gh run watch`, for this
+   non-Actions check. A completed or green wrapper check alone does not
+   establish completed inspection, approval, or resolved findings. Continue
+   with section 6 and the
    [observation procedure](references/awaiting-coderabbit.md#formal-review-after-readiness).
 
 The draft-skip notice describes automatic formal reviews, not the separate
@@ -312,8 +313,8 @@ assessment conversation. It is neither an assessment failure nor evidence that
 CodeRabbit cannot answer on a draft. Keep waiting for the requested assessment
 within the observation contract; do not turn an empty poll into a queued
 assessment or review. If CodeRabbit explicitly reports that the assessment
-itself cannot run, preserve that response and report the specific blocker.
-Do not waive the assessment gate or request a formal review to work around it.
+itself cannot run, preserve that response and report the specific blocker. Do
+not waive the assessment gate or request a formal review to work around it.
 
 An initial instruction to create a draft specifies the publication state; a
 later babysitting assignment permits the readiness transition unless the user

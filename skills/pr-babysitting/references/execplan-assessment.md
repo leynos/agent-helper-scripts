@@ -38,8 +38,8 @@ prepared comment and a blocker, not a fallback account.
 
 Assessment conversations never go through `comenq`. Use the same manual-comment
 route for necessary follow-ups after repairs or changed assessment scope,
-linking the original request and response and identifying the new base/head.
-Do not add formal `review`, `full review`, or `resume` commands. Fresh formal
+linking the original request and response and identifying the new base/head. Do
+not add formal `review`, `full review`, or `resume` commands. Fresh formal
 reviews and their rate-limit recovery use `comenq-coderabbit` only after the
 parent skill verifies readiness.
 
@@ -53,10 +53,10 @@ was posted or a few polls found nothing; preserve the pending request until a
 response, an explicit service blocker, or the observation deadline.
 
 Do not repeat an unanswered request or enqueue it because a draft-skip notice
-exists. That notice concerns automatic reviews. A genuine chat failure or
-chat rate limit remains an assessment blocker: honour its retry advice and
-record it separately. Any authorized retry retains this assessment route and
-first checks for a late reply; token rotation cannot bypass the limit.
+exists. That notice concerns automatic reviews. A genuine chat failure or chat
+rate limit remains an assessment blocker: honour its retry advice and record it
+separately. Any authorized retry retains this assessment route and first checks
+for a late reply; token rotation cannot bypass the limit.
 
 ## ExecPlan completeness and correctness
 
