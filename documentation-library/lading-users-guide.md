@@ -43,8 +43,8 @@ python -m pip install dist/*.whl
 
 ### Install for development (using uv)
 
-From a `lading` checkout, create a development environment and run
-`lading` via `uv`:
+From a `lading` checkout, create a development environment and run `lading` via
+`uv`:
 
 ```bash
 make build

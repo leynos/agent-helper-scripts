@@ -16,10 +16,10 @@ merges, CodeRabbit reviews through the `comenq` queue, local LLM mock testing
 with VidaiMock, and Rust test execution with cargo-nextest.
 
 For end-to-end pull-request supervision, use
-[`pr-babysitting`](skills/pr-babysitting/SKILL.md). It coordinates CI,
-review findings, prerequisite fixes, and an explicitly authorized squash merge.
-The [PR babysitting guide](docs/users-guide.md#pr-babysitting) covers
-installation, runtime prerequisites, comment identities, and ready-only versus
+[`pr-babysitting`](skills/pr-babysitting/SKILL.md). It coordinates CI, review
+findings, prerequisite fixes, and an explicitly authorized squash merge. The
+[PR babysitting guide](docs/users-guide.md#pr-babysitting) covers installation,
+runtime prerequisites, comment identities, and ready-only versus
 merge-authorized assignments.
 
 The main bootstrap entrypoint is [`rust-entrypoint`](rust-entrypoint). It
@@ -62,11 +62,10 @@ Run the gate over this checkout with:
 make spelling
 ```
 
-Proposing a new estate-wide word means editing
-`data/typos-oxendict-base.toml` in a pull request here. No consumer edit or
-version bump is required. This repository tracks `typos.toml`, so regenerate it
-with `make spelling` and commit the result whenever the dictionary change alters
-that snapshot.
+Proposing a new estate-wide word means editing `data/typos-oxendict-base.toml`
+in a pull request here. No consumer edit or version bump is required. This
+repository tracks `typos.toml`, so regenerate it with `make spelling` and
+commit the result whenever the dictionary change alters that snapshot.
 `scripts/oxford_form_harvest_cli.py` gathers the Oxford-form evidence that
 supports such a proposal.
 

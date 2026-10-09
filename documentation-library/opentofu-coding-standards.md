@@ -103,8 +103,8 @@ variable "bucket_name" {
 - Use generated fixtures only within the test directory; clean temporary
   files.
 - `tofu test` discovers its `tests/` directory relative to the module under
-  test, so run it separately from each `modules/<name>` directory rather
-  than once from the repository root, for example:
+  test, so run it separately from each `modules/<name>` directory rather than
+  once from the repository root, for example:
 
   ```bash
   for module_dir in modules/*/; do

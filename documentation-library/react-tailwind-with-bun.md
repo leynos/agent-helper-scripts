@@ -230,8 +230,8 @@ ______________________________________________________________________
   outside Tailwind's automatic scan roots.
 - **404s in production for client‑side routes**: add the SPA fallback (see
   server example) or configure the static host’s rewrite rules.
-- **HMR not triggering**: ensure the dev server started via `bun
-  './**/*.html'` or a `Bun.serve()` with `development.hmr: true`.
+- **HMR not triggering**: ensure the dev server started via `bun './**/*.html'`
+  or a `Bun.serve()` with `development.hmr: true`.
 - **TypeScript module quirks**: Bun defaults to `"module": "Preserve"`; avoid
   incompatible TS transforms in the project's own config.
 

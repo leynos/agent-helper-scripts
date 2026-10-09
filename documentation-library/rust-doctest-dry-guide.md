@@ -6,14 +6,14 @@ To master the art of writing effective documentation tests in Rust, one must
 first understand the foundational principles upon which the `rustdoc` tool
 operates. Its behaviour, particularly its testing mechanism, is not an
 arbitrary collection of features but a direct consequence of a deliberate
-design philosophy. The core principle is that every doctest should validate
-the public API of a crate from the perspective of an external user. The
-documented crate's Cargo edition determines whether each example receives a
-separate executable or compatible examples share one: crates using editions
-before 2024 compile each doctest separately, while crates using Edition 2024 or
-later may combine compatible examples. An `edition2024` code-block fence sets
-that block's edition but does not enable merging in a crate using an older
-edition. The external-user perspective remains the same.
+design philosophy. The core principle is that every doctest should validate the
+public API of a crate from the perspective of an external user. The documented
+crate's Cargo edition determines whether each example receives a separate
+executable or compatible examples share one: crates using editions before 2024
+compile each doctest separately, while crates using Edition 2024 or later may
+combine compatible examples. An `edition2024` code-block fence sets that
+block's edition but does not enable merging in a crate using an older edition.
+The external-user perspective remains the same.
 
 ### 1.1 Separate-crate testing and combined doctests
 
@@ -21,11 +21,10 @@ For crates using editions before 2024, `rustdoc` compiles each documentation
 test as its own temporary crate and executable. For crates using Edition 2024
 or later, it attempts to combine compatible doctests into one generated
 executable, while keeping each example as a separate test function. In either
-mode, the doctest exercises the
-documented crate from an external consumer's perspective.[^16] When a developer
-executes
-`cargo test --doc`, `rustdoc` initiates a multi-stage process for code blocks
-found in the documentation comments[^2]:
+mode, the doctest exercises the documented crate from an external consumer's
+perspective.[^16] When a developer executes `cargo test --doc`, `rustdoc`
+initiates a multi-stage process for code blocks found in the documentation
+comments[^2]:
 
 1. **Parsing and Extraction**: `rustdoc` first parses the source code of the
    library, resolving conditional compilation attributes (`#[cfg]`) to
@@ -56,8 +55,8 @@ the public-facing examples are correct and functional.[^1]
 
 ### 1.2 First-Order Consequences of the Model
 
-This external-consumer model has two immediate consequences that shape
-advanced doctesting patterns.
+This external-consumer model has two immediate consequences that shape advanced
+doctesting patterns.
 
 First, **API visibility is strictly limited to public items**. Because the
 doctest is compiled as an external crate, it can only access functions,
@@ -109,10 +108,10 @@ Doctests reside within documentation comments. Rust recognizes two types:
   `lib.rs` or `mod.rs` to provide crate- or module-level documentation.[^6]
 
 Within these comments, a code block is denoted by triple back-ticks. While
-`rustdoc` defaults to Rust syntax, explicitly add the `rust` language
-specifier for clarity.[^2] A doctest "passes" when it compiles and runs
-without panicking. To assert specific outcomes, use the standard macros
-`assert!`, `assert_eq!`, and `assert_ne!`.[^2]
+`rustdoc` defaults to Rust syntax, explicitly add the `rust` language specifier
+for clarity.[^2] A doctest "passes" when it compiles and runs without
+panicking. To assert specific outcomes, use the standard macros `assert!`,
+`assert_eq!`, and `assert_ne!`.[^2]
 
 ### 2.2 The Philosophy of a Good Example
 
@@ -314,9 +313,9 @@ any pollution of the final binary or the public API.
 
 The typical implementation pattern is to create a public helper module within
 the library. The doctest must refer to it via the crate name (here `mycrate`,
-standing for the reader's own crate), never via `crate::`, because its generated
-crate is external to the library being documented, even when Rust 2024 combines
-compatible examples:
+standing for the reader's own crate), never via `crate::`, because its
+generated crate is external to the library being documented, even when Rust
+2024 combines compatible examples:
 
 ```rust
 // In lib.rs or a submodule
@@ -406,20 +405,19 @@ builds.[^12]
 pub struct UnixSocket;
 ```
 
-This `any` directive ensures the struct is compiled either when the `unix`
-cfg is set OR when `rustdoc` is running. This correctly makes the item
-visible in the generated HTML. However, it is crucial to understand that
-this **does not** make the doctest for `UnixSocket` pass on non-Unix
-platforms.
+This `any` directive ensures the struct is compiled either when the `unix` cfg
+is set OR when `rustdoc` is running. This correctly makes the item visible in
+the generated HTML. However, it is crucial to understand that this **does not**
+make the doctest for `UnixSocket` pass on non-Unix platforms.
 
 This distinction highlights the "cfg duality." The `#[cfg(doc)]` attribute
 controls the *table of contents* of the documentation; it determines which
 items are parsed and rendered. The actual compilation of a doctest, however,
 happens in a separate, later stage. In that stage, the `doc` cfg is *not*
 passed to the compiler.[^12] The compiler only sees the host cfg (e.g., the
-absence of `unix` on Windows), so the `UnixSocket` type is not available,
-and the test fails to compile. `#[cfg(doc)]` affects what is documented, not
-what is testable.
+absence of `unix` on Windows), so the `UnixSocket` type is not available, and
+the test fails to compile. `#[cfg(doc)]` affects what is documented, not what
+is testable.
 
 ### 5.2 Executing Doctests Conditionally: Feature Flags
 
@@ -483,8 +481,8 @@ To complement conditional execution, Rust provides a way to visually flag
 feature-gated items in the generated documentation. This is achieved with the
 `#[doc(cfg(...))]` attribute, which requires enabling the
 `#![feature(doc_cfg)]` feature gate at the crate root. Both the attribute and
-the feature gate are nightly-only; the example below does not compile on
-stable Rust, and it does not compile under this repository's default
+the feature gate are nightly-only; the example below does not compile on stable
+Rust, and it does not compile under this repository's default
 `RUST_CHANNEL=stable`. It is retained here purely as a reference for projects
 that build their documentation on nightly (for example, via `docs.rs`, which
 runs nightly `rustdoc`).
@@ -640,8 +638,7 @@ mastering doctests:
    <https://swatinem.de/blog/fix-rustdoc/>
 
 [^4]: How to organise your Rust tests - LogRocket Blog, accessed on
-   July 15, 2025:
-   <https://blog.logrocket.com/how-to-organize-rust-tests/>
+   July 15, 2025: <https://blog.logrocket.com/how-to-organize-rust-tests/>
 
 [^5]: Writing Rust Documentation - DEV Community, accessed on July 15, 2025:
    <https://dev.to/gritmax/writing-rust-documentation-5hn5>
@@ -669,8 +666,7 @@ mastering doctests:
    <https://docs.rs/quote-doctest>
 
 [^12]: Advanced features - The rustdoc book - Rust Documentation, accessed
-   on July 15, 2025:
-   <https://doc.rust-lang.org/rustdoc/advanced-features.html>
+   on July 15, 2025: <https://doc.rust-lang.org/rustdoc/advanced-features.html>
 
 [^13]: Conditional execution of module-level doctests based on a feature flag —
    Stack Overflow, accessed on July 15, 2025:

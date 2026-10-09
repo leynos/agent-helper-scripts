@@ -630,17 +630,16 @@ further enhancing its power.[^28]
 
 Declarative programming focuses on describing what result is desired, rather
 than detailing how to achieve it step-by-step, as is typical in imperative
-programming. This paradigm shift can significantly reduce cognitive
-complexity by abstracting away low-level control flow and state management.
+programming. This paradigm shift can significantly reduce cognitive complexity
+by abstracting away low-level control flow and state management.
 
 When developers write declarative code, they operate at a higher level of
-abstraction, allowing them to reason about the program's intent more
-directly. This often leads to more concise, readable, and maintainable
-code because the "noise" of explicit iteration, temporary variables, and manual
-state updates is minimized. Many declarative approaches also inherently
-favour immutability, reduce side effects, and encourage deterministic
-behaviour—common culprits for bugs and increased cognitive load in imperative
-code.
+abstraction, allowing them to reason about the program's intent more directly.
+This often leads to more concise, readable, and maintainable code because the
+"noise" of explicit iteration, temporary variables, and manual state updates is
+minimized. Many declarative approaches also inherently favour immutability,
+reduce side effects, and encourage deterministic behaviour—common culprits for
+bugs and increased cognitive load in imperative code.
 
 Examples include using Structured Query Language for database queries—
 specifying the desired dataset rather than the retrieval algorithm—or employing
@@ -661,16 +660,14 @@ For managing complex conditional logic that selects different behaviours (often
 found in Bumpy Roads or large switch statements), these complementary patterns
 offer a structured and extensible alternative.
 
-The **Command pattern** encapsulates a request or an action as an object.
-Each command object implements a common interface (e.g., with an
-
-`execute()` method). This decouples the object that invokes the command from
-the object that knows how to perform it. Instead of a large conditional
-checking a type and then executing logic, different command objects can be
-instantiated based on the type, and then their `execute()` method is called.
-This promotes the Single Responsibility Principle, as each command class
-handles a single action, making the system easier to test, extend, and
-evolve.
+The **Command pattern** encapsulates a request or an action as an object. Each
+command object implements a common interface (e.g., with an `execute()`
+method). This decouples the object that invokes the command from the object
+that knows how to perform it. Instead of a large conditional checking a type
+and then executing logic, different command objects can be instantiated based
+on the type, and then their `execute()` method is called. This promotes the
+Single Responsibility Principle, as each command class handles a single action,
+making the system easier to test, extend, and evolve.
 
 The **Dispatcher pattern** often works in conjunction with the Command pattern.
 A dispatcher is a central component that receives requests (which could be
@@ -739,10 +736,9 @@ This approach simplifies the original `handleMessage` method. Adding a new
 message type requires a handler class and a registration in the
 `MessageDispatcher` constructor, so this example modifies the dispatcher.
 However, it's important to ensure that the dispatch mechanism itself remains
-clear and that the proliferation of small classes doesn't lead to Ravioli
-Code, where the overall system flow becomes obscured.[^22] Maintain clear
-naming conventions, and ensure the logical organization remains
-consistent.[^34]
+clear and that the proliferation of small classes doesn't lead to Ravioli Code,
+where the overall system flow becomes obscured.[^22] Maintain clear naming
+conventions, and ensure the logical organization remains consistent.[^34]
 
 The **State pattern** is a related behavioural pattern useful when an object's
 behaviour changes depending on its internal state.[^35] Instead of using large

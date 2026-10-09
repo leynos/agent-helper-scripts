@@ -126,8 +126,8 @@ Watch for stale 3.x idioms in existing suites and in generated code:
   `{ noInvalidDate: true }` if the code under test cannot take one.
 - `fc.record(model, { withDeletedKeys: true })` becomes `{ requiredKeys: [] }`;
   `withDeletedKeys: false` retains the default required-key behaviour. `record`
-  and `dictionary` may now generate
-  null-prototype objects unless `{ noNullPrototype: true }`.
+  and `dictionary` may now generate null-prototype objects unless
+  `{ noNullPrototype: true }`.
 - Failures now attach the original error as `Error.cause` instead of
   splicing messages; pass `{ includeErrorInReport: true }` to restore the old
   report text.

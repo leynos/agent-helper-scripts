@@ -75,8 +75,8 @@ skip_if_unsupported()
 ```
 
 `skip_if_unsupported` defers to `pytest.skip` on unsupported platforms. For
-code-path gating only, `cmd_mox.is_supported()` returns a boolean
-instead. Advanced tests can override the detected platform by setting the
+code-path gating only, `cmd_mox.is_supported()` returns a boolean instead.
+Advanced tests can override the detected platform by setting the
 `CMD_MOX_PLATFORM_OVERRIDE` environment variable (also exported as
 `PLATFORM_OVERRIDE_ENV`), which is primarily useful for simulating alternative
 environments inside CI pipelines (for example to exercise Windows-specific
@@ -431,9 +431,8 @@ assert len(fixture.recordings) == 1
 Fixture files include a `version` field following semantic versioning. CmdMox
 automatically migrates older fixture files to the current schema when loading
 via `FixtureFile.load()` or `FixtureFile.from_dict()`. Minor version
-differences within the same major version are tolerated -- for example, a
-1.1.0 fixture loads correctly into 1.0.0 code because unknown fields are
-ignored.
+differences within the same major version are tolerated -- for example, a 1.1.0
+fixture loads correctly into 1.0.0 code because unknown fields are ignored.
 Incompatible major versions with no registered migration path raise
 `ValueError`.
 
@@ -819,18 +818,18 @@ with CustomIPCServer(socket_path):
     ...
 ```
 
-The same dispatch contract applies to both the Unix-domain-socket transport
-and the Windows named-pipe transport. Use callbacks for simple composition and
+The same dispatch contract applies to both the Unix-domain-socket transport and
+the Windows named-pipe transport. Use callbacks for simple composition and
 subclassing for behaviour that requires overridden hooks.
 
 On Windows the transport can be forced explicitly by swapping `IPCServer` for
 :class:`NamedPipeServer`; `CmdMox` selects it automatically based on
 ``os.name``.
 
-Both transports emit bounded, structured observability events with
-correlation identifiers, and the Windows named-pipe transport bounds
-concurrent clients, message size, and per-client read time. See the CmdMox
-design documentation for the event vocabulary and the specific limits.
+Both transports emit bounded, structured observability events with correlation
+identifiers, and the Windows named-pipe transport bounds concurrent clients,
+message size, and per-client read time. See the CmdMox design documentation for
+the event vocabulary and the specific limits.
 
 Projects that rely on :class:`CallbackIPCServer` can still customize startup
 and accept timeouts by passing a :class:`TimeoutConfig` dataclass:

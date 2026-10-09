@@ -211,18 +211,18 @@ easier to maintain at scale.
 
 Zustand's API is intentionally minimalist, centred around a single function:
 `create`. This function takes a "creator" function as an argument, which
-defines the initial state and the actions that can modify it.[^10] The
-`create` function returns a custom hook that can be used to access the store
-from any component in the application.
+defines the initial state and the actions that can modify it.[^10] The `create`
+function returns a custom hook that can be used to access the store from any
+component in the application.
 
 A key feature of Zustand is its developer-friendly approach to state updates.
 The `set` function, which is provided to the creator function, handles state
 merging by default. This means developers can update a single property of an
 object without needing to manually spread the rest of the state (`{...state}`),
 reducing boilerplate and a common source of errors.[^10] Furthermore, the
-creator function also receives a
-`get` function, which allows actions to access the current state, enabling
-complex logic where the next state depends on the current one.[^10]
+creator function also receives a `get` function, which allows actions to access
+the current state, enabling complex logic where the next state depends on the
+current one.[^10]
 
 ```javascript
 // src/stores/uiStore.js
@@ -360,8 +360,8 @@ export default useSettingsStore;
 ```
 
 This simple example provides a gentle introduction to the concept of state
-persistence, which is explored in much greater depth when this report
-discusses persisting the server state cache in Section 6.
+persistence, which is explored in much greater depth when this report discusses
+persisting the server state cache in Section 6.
 
 ## Server State Synchronization with Tanstack Query
 
@@ -416,9 +416,9 @@ cached query and are often a point of confusion.
 (300,000 ms). This means that if a user navigates away from a page, the data
 for that page will be kept in the cache for 5 minutes. If they navigate back
 within that window, the data will be instantly available. After 5 minutes of
-inactivity, the data is deleted from the cache. As Section 6 shows,
-this setting has critical implications for building a local-first application,
-as the default value is insufficient for offline persistence.
+inactivity, the data is deleted from the cache. As Section 6 shows, this
+setting has critical implications for building a local-first application, as
+the default value is insufficient for offline persistence.
 
 ### The Power of Query Keys: The Cache's Primary Identifier
 
@@ -693,9 +693,9 @@ imperative approach that manually synchronizes two separate state containers.
 
 A core ideal of local-first software is that the network is optional. To
 achieve this, the application's state must be persisted locally on the user's
-device. For this architecture, this means persisting the in-memory cache managed
-by Tanstack Query to a durable storage layer. This transforms the cache from a
-transient, session-based optimization into a robust, local database that
+device. For this architecture, this means persisting the in-memory cache
+managed by Tanstack Query to a durable storage layer. This transforms the cache
+from a transient, session-based optimization into a robust, local database that
 enables full offline functionality.
 
 ### Enabling Offline Mode with `persistQueryClient`
@@ -831,15 +831,14 @@ application goes offline, any attempt to execute a mutation will be paused. The
 mutation will be held in a pending state and will automatically be fired as
 soon as network connectivity is restored.[^29] This works seamlessly with the
 persistence layer for mutations that resume within the same page session. A
-user can perform multiple actions while offline; these actions are queued up
-as paused mutations, and the UI can be updated optimistically (as described in
-the next section). When the user comes back online, Tanstack Query will
+user can perform multiple actions while offline; these actions are queued up as
+paused mutations, and the UI can be updated optimistically (as described in the
+next section). When the user comes back online, Tanstack Query will
 automatically execute the queued mutations, synchronizing the local changes
-with the server.[^26] If the page is reloaded while mutations are still
-paused, resumption is not automatic: the mutation must have a default
-`mutationFn` registered via `setMutationDefaults`, and
-`queryClient.resumePausedMutations()` must be called explicitly, typically
-from the persister's `onSuccess` callback.
+with the server.[^26] If the page is reloaded while mutations are still paused,
+resumption is not automatic: the mutation must have a default `mutationFn`
+registered via `setMutationDefaults`, and `queryClient.resumePausedMutations()`
+must be called explicitly, typically from the persister's `onSuccess` callback.
 
 ______________________________________________________________________
 
@@ -998,9 +997,9 @@ class AppDB extends Dexie {
 ```
 
 MapLibre in particular supports custom protocols; `app://bundle/z/x/y` can be
-wired to an IndexedDB lookup that returns an `ArrayBuffer`. This route
-provides deterministic storage and predictable purging, at the cost of
-more bespoke integration code.
+wired to an IndexedDB lookup that returns an `ArrayBuffer`. This route provides
+deterministic storage and predictable purging, at the cost of more bespoke
+integration code.
 
 ### Computing Tile URLs from Bounds
 
@@ -1081,8 +1080,8 @@ of ground. However, an explicit **durable outbox** is often still wanted when:
   or
 - an audit trail of "what was attempted?" is wanted.
 
-This is the "Query as the authoritative local view, outbox as sync
-bookkeeping" approach.
+This is the "Query as the authoritative local view, outbox as sync bookkeeping"
+approach.
 
 ### Outbox Data Model
 
@@ -1150,11 +1149,11 @@ data synchronization layer.
 
 - **REST (Representational State Transfer):** Built on top of HTTP, REST is a
   stateless, request-response protocol. Each interaction is a discrete
-  request-response exchange, although the underlying connection may remain
-  open and be reused for later requests (as with HTTP keep-alive). This model
-  is simple, scalable, and well-supported by web infrastructure. It is ideal
-  for standard CRUD (Create, Read, Update, Delete) operations, such as
-  fetching the initial state of a resource or submitting a form.[^31]
+  request-response exchange, although the underlying connection may remain open
+  and be reused for later requests (as with HTTP keep-alive). This model is
+  simple, scalable, and well-supported by web infrastructure. It is ideal for
+  standard CRUD (Create, Read, Update, Delete) operations, such as fetching the
+  initial state of a resource or submitting a form.[^31]
 - **WebSockets:** The WebSocket protocol provides a stateful, persistent, and
   bidirectional (full-duplex) communication channel over a single TCP
   connection. Once the initial handshake is complete, the connection remains
@@ -1658,8 +1657,7 @@ However, some requirements change the game:
 - **Strong guarantees about convergence** (every replica ends up identical)
   without user mediation.
 
-When those show up, purpose-built local-first databases and
-sync engines:
+When those show up, purpose-built local-first databases and sync engines:
 
 - **RxDB:** a browser/Node database on top of IndexedDB/SQLite with
   replication and conflict handling. It can integrate with Query, but in

@@ -1074,32 +1074,31 @@ categories.[^15]
 
 #### Checking Installability with Chrome DevTools
 
-Progressive Web App testing in Lighthouse is deprecated, so a Lighthouse
-score is no longer how installability is verified. Chrome documents the
-reasoning and the current requirements in
+Progressive Web App testing in Lighthouse is deprecated, so a Lighthouse score
+is no longer how installability is verified. Chrome documents the reasoning and
+the current requirements in
 [Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria).
 
 Verify installability through the Chrome DevTools **Application** panel
 instead: its **Manifest** section lists the parsed manifest fields
-(`name`/`short_name`, `icons`, `start_url`, `display`, and so on) and
-surfaces any installability errors, such as a missing required icon size or
-a manifest that fails to load. The same panel confirms whether the page is
-served over HTTPS, which alongside a valid manifest is required for the
-browser to consider the PWA installable. Chrome has removed the requirement
-for a service worker implementing `fetch()` when installing from the menu,
-though the automatic install prompt still depends on one until further
-changes are made, so a missing or inactive service worker no longer blocks
-menu installation but can still suppress the prompt.
+(`name`/`short_name`, `icons`, `start_url`, `display`, and so on) and surfaces
+any installability errors, such as a missing required icon size or a manifest
+that fails to load. The same panel confirms whether the page is served over
+HTTPS, which alongside a valid manifest is required for the browser to consider
+the PWA installable. Chrome has removed the requirement for a service worker
+implementing `fetch()` when installing from the menu, though the automatic
+install prompt still depends on one until further changes are made, so a
+missing or inactive service worker no longer blocks menu installation but can
+still suppress the prompt.
 
 #### Testing Offline Reliability
 
-Offline reliability is checked separately from installability, either
-manually or with DevTools. In the **Application** panel's **Service
-Workers** section, confirm that a service worker has registered and
-activated; then use the **Network** panel's offline mode (or disconnect the
-network) and reload the page to verify that the current page, and the
-manifest's `start_url`, still respond rather than showing the browser's
-default offline error page.
+Offline reliability is checked separately from installability, either manually
+or with DevTools. In the **Application** panel's **Service Workers** section,
+confirm that a service worker has registered and activated; then use the
+**Network** panel's offline mode (or disconnect the network) and reload the
+page to verify that the current page, and the manifest's `start_url`, still
+respond rather than showing the browser's default offline error page.
 
 #### Holistic Quality Audits
 

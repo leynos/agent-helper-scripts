@@ -8,8 +8,8 @@ required gates, repository protections or the user's mutation scope.
 
 1. Inspect the installed `gh stack` version and command help. Do not invent a
    single-branch flag: `push` can publish every active layer, while `submit` and
-   `link` can also change PR metadata. Prefer a supported scoped operation when
-   its complete mutation set is known and validated.
+   `link` can also change PR metadata. Prefer a supported scoped operation
+   when its complete mutation set is known and validated.
 2. Record live remote topology and local stack metadata before mutation. For
    each affected layer, retain its PR/base, branch, old head, exclusive replay
    boundary and expected remote head. Record the authoritative candidate's
@@ -30,13 +30,13 @@ required gates, repository protections or the user's mutation scope.
    provisional experiment or earlier green ancestor as this evidence.
 
 If the boundary, topology or supported reconciliation route remains uncertain,
-stop this mutation and report the exact missing evidence. Keep independent
-work moving; do not turn uncertainty into repeated speculative stack rewrites.
+stop this mutation and report the exact missing evidence. Keep independent work
+moving; do not turn uncertainty into repeated speculative stack rewrites.
 
 ## Publish one existing PR branch
 
-This fallback is for an existing, unqueued frontier PR with a verified base
-and an authorized branch update. It does not create or retarget PRs. If a base
+This fallback is for an existing, unqueued frontier PR with a verified base and
+an authorized branch update. It does not create or retarget PRs. If a base
 change is needed, handle it as a separately reviewed metadata operation.
 
 Assign `REMOTE`, `BRANCH`, `EXPECTED_REMOTE_HEAD` and `CANDIDATE` from the
@@ -55,10 +55,10 @@ git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH"
 
 Run these individually and inspect each result. Verify that the final remote
 SHA equals `CANDIDATE`, then read the PR's `headRefOid` and base from GitHub.
-An explicit source SHA prevents a concurrent local branch movement from changing
-the content being pushed. Do not refresh a rejected lease blindly: inspect the
-new remote work and reassess the candidate. Never add `--force`, a wildcard
-refspec, `--all` or `--mirror` to get past a rejection.
+An explicit source SHA prevents a concurrent local branch movement from
+changing the content being pushed. Do not refresh a rejected lease blindly:
+inspect the new remote work and reassess the candidate. Never add `--force`, a
+wildcard refspec, `--all` or `--mirror` to get past a rejection.
 
 Record that descendant branches were deliberately not published and may now
 need replay. Re-read remote descendants in case GitHub changed them, then
@@ -80,8 +80,8 @@ describe this partial-success behaviour.
 When a team is already authorized, assign one owner through replay, gates,
 publication and the next hosted handoff. Include owned paths/review findings,
 candidate identities, allowed mutations, gate commands and a measurable
-completion condition. A reconnaissance task names the delivery owner that
-will consume its answer; it does not end in another unowned investigation.
+completion condition. A reconnaissance task names the delivery owner that will
+consume its answer; it does not end in another unowned investigation.
 
 Keep gates sequential where required, with frontier work first. A terminal
 candidate-specific failure releases the gate queue to independent work; reserve
@@ -93,5 +93,5 @@ Return the PR and parent identity, old/new local and remote SHAs, replay
 boundary, exact candidate gate results, push result and GitHub read-back.
 Include untouched descendants, pending metadata reconciliation, the next
 authorized hosted action and its owner. Once published, readiness, review
-request delivery, completed review and merge are separate state transitions.
-Do not close a delivery task merely because its local patch or report is ready.
+request delivery, completed review and merge are separate state transitions. Do
+not close a delivery task merely because its local patch or report is ready.

@@ -46,8 +46,9 @@ shared libraries required by the user tools.
 
 ## Upgrading
 
-See the [migration guide](v0-2-0-migration-guide.md) when moving from the previous
-single-phase `rust-entrypoint` bootstrap to the system/home phase split.
+See the [migration guide](v0-2-0-migration-guide.md) when moving from the
+previous single-phase `rust-entrypoint` bootstrap to the system/home phase
+split.
 
 ### Post-turn quality stop hook removed
 
@@ -74,19 +75,19 @@ or artefact, and any boundary needed to distinguish neighbouring skills.
 Detailed triggers, versions, commands, and procedures live in the skill body,
 which the agent loads only after selecting the skill.
 
-`make lint` validates every shipped manifest, so a malformed or
-non-conformant manifest cannot be installed.
+`make lint` validates every shipped manifest, so a malformed or non-conformant
+manifest cannot be installed.
 
 ## Repository scratch sidecars
 
-Use [`scratch`](../skills/scratch/SKILL.md) to create, audit, migrate, or retire
-project scratch data under a visible `<repository>.scratch` sibling. The skill
-keeps linked Git worktrees under `<repository>.worktrees`, classifies scratch
-data by recovery value, and requires an inventory and exact review before
-cleanup. Before deleting anything, verify sidecar ownership and process state,
-inspect for unpublished or unique work, produce an exact dry-run inventory, and
-obtain explicit authorization for each recovery item to delete. See the
-[cleanup procedure](../skills/scratch/SKILL.md#clean-up-safely) and the
+Use [`scratch`](../skills/scratch/SKILL.md) to create, audit, migrate, or
+retire project scratch data under a visible `<repository>.scratch` sibling. The
+skill keeps linked Git worktrees under `<repository>.worktrees`, classifies
+scratch data by recovery value, and requires an inventory and exact review
+before cleanup. Before deleting anything, verify sidecar ownership and process
+state, inspect for unpublished or unique work, produce an exact dry-run
+inventory, and obtain explicit authorization for each recovery item to delete.
+See the [cleanup procedure](../skills/scratch/SKILL.md#clean-up-safely) and the
 [retention and migration contract](../skills/scratch/references/layout.md).
 
 Its [layout and manifest contract](../skills/scratch/references/layout.md)
@@ -96,10 +97,12 @@ rules, and migration procedure for existing flat project directories.
 ## CodeScene skills
 
 Use [`codescene-cli`](../skills/codescene-cli/SKILL.md) to run local CodeScene
-analysis with [`cs delta`](../skills/codescene-cli/references/command-reference.md#cs-delta),
+analysis with
+[`cs delta`](../skills/codescene-cli/references/command-reference.md#cs-delta),
 [`cs review`](../skills/codescene-cli/references/command-reference.md#cs-review),
 [`cs check`](../skills/codescene-cli/references/command-reference.md#cs-check),
-and [`cs rules-config`](../skills/codescene-cli/references/command-reference.md#cs-rules-config).
+and
+[`cs rules-config`](../skills/codescene-cli/references/command-reference.md#cs-rules-config).
 Use [`codescene-health-rules`](../skills/codescene-health-rules/SKILL.md) to
 configure CodeScene rule weights, thresholds, and source directives.
 
@@ -112,17 +115,17 @@ Invoke it to adopt mutation testing in a new repository, to triage the output
 of scheduled runs, or to run an estate-wide sweep.
 
 The skill documents the shared `mutation-cargo.yml` and `mutation-mutmut.yml`
-reusable workflows behind thin, SHA-pinned callers, the adoption recipe and
-its baseline hazards, the caller contract test, survivor triage, and run
-sweeps. Run `install-skills` to copy it into `${HOME}/.codex/skills` and
+reusable workflows behind thin, SHA-pinned callers, the adoption recipe and its
+baseline hazards, the caller contract test, survivor triage, and run sweeps. Run
+`install-skills` to copy it into `${HOME}/.codex/skills` and
 `${HOME}/.claude/skills`; the `rust-entrypoint` home phase runs it too.
 
 ## Ansible testing
 
 Use [`ansible-testing`](../skills/ansible-testing/SKILL.md) for local-first
 Ansible testing of collections, roles, and modules: Molecule with Podman for
-role behaviour, and `ansible-test` for sanity, unit, and integration tests.
-For shared agent workspaces the skill's scheduling rules are:
+role behaviour, and `ansible-test` for sanity, unit, and integration tests. For
+shared agent workspaces the skill's scheduling rules are:
 
 - Agents must not apply external parallelism to repository gates.
 - Agents must not run overlapping repository gates.
@@ -141,19 +144,19 @@ constraints that apply to native worker mode on CI or dedicated runners.
 ## Shared spelling tools
 
 `data/typos-oxendict-base.toml` in this repository is the sole authority for
-estate-wide spelling policy, and `main` is the source consumers normally
-read.
+estate-wide spelling policy, and `main` is the source consumers normally read.
 This repository curates that file; it no longer carries a generator, a phrase
 checker or a scanner of its own.
 
 Run `make spelling` in this checkout to gate it the way a consumer is gated:
-the pinned [`typos-config-builder`](https://github.com/leynos/typos-config-builder)
-renders `typos.toml` from the dictionary and this repository's
-`typos.local.toml` overlay, runs the Typos binary it pins over every tracked
-file, and enforces the curated phrase corrections that Typos cannot apply
-because punctuation separates their word tokens. The recipe points `--source`
-at the working copy of the dictionary rather than at `main`, so a pull request
-that edits shared policy is gated against the policy it proposes.
+the pinned
+[`typos-config-builder`](https://github.com/leynos/typos-config-builder) renders
+`typos.toml` from the dictionary and this repository's `typos.local.toml`
+overlay, runs the Typos binary it pins over every tracked file, and enforces
+the curated phrase corrections that Typos cannot apply because punctuation
+separates their word tokens. The recipe points `--source` at the working copy
+of the dictionary rather than at `main`, so a pull request that edits shared
+policy is gated against the policy it proposes.
 
 ### Consumer repositories
 
@@ -172,19 +175,18 @@ the shared phrase corrections. Add `--scope all` where the whole tracked tree
 should be scanned rather than tracked Markdown alone. The fetched copy is
 cached in ignored `.typos-oxendict-base.toml` with freshness metadata in
 `.typos-oxendict-base.json`, so a valid cache still supports offline runs. A
-run with neither network access nor a valid cache falls back to the
-dictionary snapshot bundled with the pinned `leynos/typos-config-builder`
-release, which can omit exceptions added to `main` since that release.
-Add both to `.gitignore`; `gate` writes them as cache files, and neither is a
-policy source.
+run with neither network access nor a valid cache falls back to the dictionary
+snapshot bundled with the pinned `leynos/typos-config-builder` release, which
+can omit exceptions added to `main` since that release. Add both to
+`.gitignore`; `gate` writes them as cache files, and neither is a policy source.
 
 `gate` rewrites `typos.toml` on every run from the live dictionary, so
 continuous integration must never check it for drift: that would fail every
 consumer on every shared dictionary edit. A consumer therefore either leaves
 `typos.toml` untracked, by adding it to `.gitignore` and running
-`git rm --cached typos.toml`, or keeps it tracked only as a reviewable
-snapshot of the merged policy. This repository keeps it tracked because it
-curates the dictionary the snapshot is rendered from.
+`git rm --cached typos.toml`, or keeps it tracked only as a reviewable snapshot
+of the merged policy. This repository keeps it tracked because it curates the
+dictionary the snapshot is rendered from.
 
 The builder's own
 [users' guide](https://github.com/leynos/typos-config-builder/blob/main/docs/users-guide.md)
@@ -203,8 +205,8 @@ No consumer edit or tag bump is required, and the builder is not released again
 for a dictionary change. This repository tracks `typos.toml`, so a dictionary
 pull request also carries the snapshot `make spelling` regenerates.
 
-Open a pull request against this repository that edits the dictionary. The
-gate runs against the edited file, so the pull request proves its own policy.
+Open a pull request against this repository that edits the dictionary. The gate
+runs against the edited file, so the pull request proves its own policy.
 Generic spellings belong in the shared dictionary; product names, quoted
 upstream terms and deliberate fixtures belong in a consumer's
 `typos.local.toml` overlay instead. A local `[patterns] remove` list withdraws
@@ -212,22 +214,22 @@ an exact shared ignore expression for one repository that needs stricter
 checking, without weakening the policy anywhere else.
 
 Evidence supports the proposal: a suffix match alone is not one because
-`advertise`, `exercise`, `promise` and Rust's `usize` all end the way an
-Oxford `-ize` family does. Gather it with the one spelling tool this
-repository still owns:
+`advertise`, `exercise`, `promise` and Rust's `usize` all end the way an Oxford
+`-ize` family does. Gather it with the one spelling tool this repository still
+owns:
 
 ```bash
 uv run --script scripts/oxford_form_harvest_cli.py --repository ../project
 ```
 
-The command prints one JSON object per source line carrying a candidate
-`-ise` or `-ize` form, reading only Git-tracked UTF-8 text and skipping the
-paths the merged `[files] exclude` lists name. Tracked content that is not
-UTF-8 is skipped with a bounded informational record; any other read failure
-stops the harvest rather than reporting partial evidence.
+The command prints one JSON object per source line carrying a candidate `-ise`
+or `-ize` form, reading only Git-tracked UTF-8 text and skipping the paths the
+merged `[files] exclude` lists name. Tracked content that is not UTF-8 is
+skipped with a bounded informational record; any other read failure stops the
+harvest rather than reporting partial evidence.
 
-The curated dictionary also normalizes nine common drift forms that replace
-`s` with `z` in `otherwise`, `exercise` and `raise`. Each drifted form gains
+The curated dictionary also normalizes nine common drift forms that replace `s`
+with `z` in `otherwise`, `exercise` and `raise`. Each drifted form gains
 exactly one canonical replacement, so consumers receive a single correction
 instead of competing candidates:
 
@@ -250,19 +252,18 @@ intentionally spelled differently.
 
 ## Markdown linting
 
-`make markdownlint` lints every Markdown file it discovers under this
-checkout and reads this checkout's `.markdownlint-cli2.jsonc`. The walk prunes
-these directory names at any depth by default: `.git`, `.hypothesis`,
-`.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.terraform`, `.tox`,
-`.uv-cache`, `.uv-tools`, `.venv`, `__pycache__`, `_build`, `build`, `dist`,
-`htmlcov`, `node_modules`, `site`, and `target`. Passing `--exclude` (or
-setting `GATE_RUNNER_EXCLUDE`) replaces that default list rather than
-extending it; `--empty-exclude` clears it entirely. A directory the walk
-cannot read fails the gate instead of being skipped. Linting nothing is a
-failure: the gate stops with a diagnostic when discovery finds no Markdown
-file or when the linter is not installed. It is one of the gates `make ci`
-runs, in order: `check-fmt`, `markdownlint`, `lint`, `typecheck`, `test`, then
-`spelling`.
+`make markdownlint` lints every Markdown file it discovers under this checkout
+and reads this checkout's `.markdownlint-cli2.jsonc`. The walk prunes these
+directory names at any depth by default: `.git`, `.hypothesis`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `.terraform`, `.tox`, `.uv-cache`, `.uv-tools`,
+`.venv`, `__pycache__`, `_build`, `build`, `dist`, `htmlcov`, `node_modules`,
+`site`, and `target`. Passing `--exclude` (or setting `GATE_RUNNER_EXCLUDE`)
+replaces that default list rather than extending it; `--empty-exclude` clears
+it entirely. A directory the walk cannot read fails the gate instead of being
+skipped. Linting nothing is a failure: the gate stops with a diagnostic when
+discovery finds no Markdown file or when the linter is not installed. It is one
+of the gates `make ci` runs, in order: `check-fmt`, `markdownlint`, `lint`,
+`typecheck`, `test`, then `spelling`.
 
 `make nixie` validates Mermaid diagrams with `nixie` over the same discovered
 files. It is deliberately not part of `make ci`, because it renders through an
@@ -272,20 +273,20 @@ does not provide. Run it locally when a change touches a diagram.
 CI delegates the Markdown gate to the pinned
 `DavidAnson/markdownlint-cli2-action` and therefore runs
 `make ci CI_SKIP_MARKDOWNLINT=1`; that variable filters the Markdown gate out
-of the gate list, which keeps the workflow and the Makefile in step rather
-than restating the list.
+of the gate list, which keeps the workflow and the Makefile in step rather than
+restating the list.
 
 `get-markdown-tooling` installs the `markdownlint` wrapper into consumer
-repositories. A bare invocation appends the `**/*.md` glob, so it cannot
-report a clean pass without having read a file. Explicit paths are honoured
-as given, and two argument forms are deliberately not treated as paths, so no
-glob is appended: a standalone `-`, which makes `markdownlint-cli2` read its
-file list from standard input, and the operand of `--config` or
-`--configPointer`, which names a configuration file. The wrapper uses the
-repository's `.markdownlint-cli2.jsonc` when present, and otherwise supplies
-a bundled default, so it works unchanged in a consumer repository that has
-none. It resolves the linter from `PATH`, falling back to the bun global
-install (`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
+repositories. A bare invocation appends the `**/*.md` glob, so it cannot report
+a clean pass without having read a file. Explicit paths are honoured as given,
+and two argument forms are deliberately not treated as paths, so no glob is
+appended: a standalone `-`, which makes `markdownlint-cli2` read its file list
+from standard input, and the operand of `--config` or `--configPointer`, which
+names a configuration file. The wrapper uses the repository's
+`.markdownlint-cli2.jsonc` when present, and otherwise supplies a bundled
+default, so it works unchanged in a consumer repository that has none. It
+resolves the linter from `PATH`, falling back to the bun global install
+(`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
 
 Its rationale and rule set are in the [developers' guide](developers-guide.md).
 
@@ -298,15 +299,15 @@ the Rust, Python, front-end, and OpenTofu guides, and the users' guides of the
 estate's own libraries. Each canonical edition merges the general improvements
 found across the repository copies and omits repository-specific detail.
 
-Refresh a repository's copy by merging the library edition into it, rather
-than overwriting it outright. Before merging, move repository-specific notes
-and local links (for example, links to the repository's own migration guides
-or issues) into a repository-owned document, or carry them across explicitly;
-do not rely on reviewing the diff to catch them. Improvements that belong to
-every repository go into the library first; notes that belong to one
-repository stay in a document that repository owns. A library's users' guide
-is owned by its upstream repository; the library snapshots it from upstream,
-so the upstream repository does not refresh its guide from the library.
+Refresh a repository's copy by merging the library edition into it, rather than
+overwriting it outright. Before merging, move repository-specific notes and
+local links (for example, links to the repository's own migration guides or
+issues) into a repository-owned document, or carry them across explicitly; do
+not rely on reviewing the diff to catch them. Improvements that belong to every
+repository go into the library first; notes that belong to one repository stay
+in a document that repository owns. A library's users' guide is owned by its
+upstream repository; the library snapshots it from upstream, so the upstream
+repository does not refresh its guide from the library.
 
 The OpenTofu guide misspells a variable reference on purpose, in its worked
 example of an undeclared-variable error. The shared dictionary exempts only
@@ -314,16 +315,15 @@ that example's exact text, so a repository that carries the guide needs no
 exemption of its own. Other uses of the misspelt reference that do not contain
 the complete phrase are reported by the gate.
 
-The shared dictionary also exempts command-line flags and CSS custom
-properties that carry the US spelling of "colour", such as `--no-color`,
-`--color-primary`, `--color_primary`, `--coloring-mode`, and
-`--tw-color-red-500`. The exemption stops at the word `color`, optionally
-followed by an `s`, `ed`, `ing`, or `ize` inflection, and at the next word
-boundary or underscore. A misspelling in the words after that point stays
-visible to the gate. The prefix before the colour word is open, because custom
-properties are named freely, so a misspelling in the prefix of a flag that also
-contains the colour word is still hidden. A repository never needs a local
-exemption for these forms.
+The shared dictionary also exempts command-line flags and CSS custom properties
+that carry the US spelling of "colour", such as `--no-color`, `--color-primary`,
+`--color_primary`, `--coloring-mode`, and `--tw-color-red-500`. The exemption
+stops at the word `color`, optionally followed by an `s`, `ed`, `ing`, or `ize`
+inflection, and at the next word boundary or underscore. A misspelling in the
+words after that point stays visible to the gate. The prefix before the colour
+word is open, because custom properties are named freely, so a misspelling in
+the prefix of a flag that also contains the colour word is still hidden. A
+repository never needs a local exemption for these forms.
 
 ## Stacked pull requests
 
@@ -373,51 +373,49 @@ installs the skill only and does not run `weave setup`; Weave itself must be
 configured separately.
 
 Treat the primary checkout as a read-only coordination anchor for unattended
-merge and rebase work; never use it as a scratch, formatting,
-conflict-repair, or rebase surface. Before any history rewrite, record the
-candidate head (`OLD_HEAD`), the exact fetched target commit, and their merge
-base. A completed rebase creates a new candidate, so gate and review evidence
-tied to the old head is stale for acceptance and the candidate-bound checks
-must be rerun against the new `HEAD`.
+merge and rebase work; never use it as a scratch, formatting, conflict-repair,
+or rebase surface. Before any history rewrite, record the candidate head
+(`OLD_HEAD`), the exact fetched target commit, and their merge base. A
+completed rebase creates a new candidate, so gate and review evidence tied to
+the old head is stale for acceptance and the candidate-bound checks must be
+rerun against the new `HEAD`.
 
 The skill assumes the `dev-env-rocky` baseline: Weave `v0.5.1`, a globally
 registered driver command that carries `WEAVE_EVENT=1` and a quoted absolute
-path, no global attributes rule, `merge.conflictStyle=zdiff3` set globally,
-and activation only through a repository's own reviewed attributes such as
+path, no global attributes rule, `merge.conflictStyle=zdiff3` set globally, and
+activation only through a repository's own reviewed attributes such as
 `src/*.rs merge=weave`. The skill shows how to verify a host against that
 baseline before trusting it.
 
-For unattended multi-commit or long-lived-branch rebases, the workflow
-bypasses Weave by default, using Git's built-in merge machinery with
+For unattended multi-commit or long-lived-branch rebases, the workflow bypasses
+Weave by default, using Git's built-in merge machinery with
 `merge.conflictStyle=zdiff3` instead. Ambient global or clone-local selection
-is never repository consent; a tracked `.gitattributes` rule is explicit
-opt-in for attended merges and requested dogfooding, and for unattended
-replays the skill bypasses it with a command-scoped override of the named
-driver, repeated on every `--continue`, rather than by editing attribute
-files. This matters because Weave 0.3.6 has recorded clean-exit corruption
-modes that pass parsers, compilers, and tests, so a clean exit and a green
-suite are never acceptance evidence on their own, and the 0.5.1 pin is not a
-claim that those modes are fixed.
+is never repository consent; a tracked `.gitattributes` rule is explicit opt-in
+for attended merges and requested dogfooding, and for unattended replays the
+skill bypasses it with a command-scoped override of the named driver, repeated
+on every `--continue`, rather than by editing attribute files. This matters
+because Weave 0.3.6 has recorded clean-exit corruption modes that pass parsers,
+compilers, and tests, so a clean exit and a green suite are never acceptance
+evidence on their own, and the 0.5.1 pin is not a claim that those modes are
+fixed.
 
 When Weave is deliberately kept active, per-replay structural checks via
 `git rebase --exec` are the default, and driver stderr — including
 `weave: N entities auto-resolved` summaries, `weave-warning:` lines, and
 `weave-event:` JSON lines — must be preserved and read. A mandatory semantic
-post-operation audit then runs independently of the driver's exit code and
-the structural gates: target-changed but branch-untouched files must be
+post-operation audit then runs independently of the driver's exit code and the
+structural gates: target-changed but branch-untouched files must be
 byte-identical to the target, every deletion against the target in a
 branch-touched file must be explained, and newly repeated multi-line blocks
-need inspection. Record `weave --version` and `weave-driver --version`, and
-run `weave check` (or the MCP `weave_check` tool) when supported, knowing
-that its working-tree mode verifies merges only and reports
-`NOTHING WAS CHECKED` after a rebase; the independent audit stays
-authoritative.
+need inspection. Record `weave --version` and `weave-driver --version`, and run
+`weave check` (or the MCP `weave_check` tool) when supported, knowing that its
+working-tree mode verifies merges only and reports `NOTHING WAS CHECKED` after
+a rebase; the independent audit stays authoritative.
 
-Failures of any of these checks are andon events: stop, preserve evidence,
-and do not guess a repair. The `rebase` skill routes garbled or non-parsing
-resolutions here. See the
-[detailed skill](../skills/weave-git-merge/SKILL.md) and
-[behaviour reference](../skills/weave-git-merge/references/behaviour.md).
+Failures of any of these checks are andon events: stop, preserve evidence, and
+do not guess a repair. The `rebase` skill routes garbled or non-parsing
+resolutions here. See the [detailed skill](../skills/weave-git-merge/SKILL.md)
+and [behaviour reference](../skills/weave-git-merge/references/behaviour.md).
 
 ## CodeRabbit reviews via comenq
 
@@ -493,8 +491,8 @@ and hand PR delivery to `pr-babysitting`. The existing `execplans` skill owns
 plan authoring and the living-document contract; `sdlc-implementation` owns
 implementation, not another copy of the PR lifecycle.
 
-`install-skills` installs the new skill and its references alongside the
-other skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
+`install-skills` installs the new skill and its references alongside the other
+skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
 `rust-entrypoint` home phase runs that installer too. Its managed helper
 checkout retains both `skills/` and `agents/`, so the workflow can read the
 provider-neutral `agents/subagents.yml` manifest. The installer copies skills,
@@ -510,21 +508,21 @@ PR. Follow its approved scope and tolerances, and use pr-babysitting to take
 the PR through review and merge when the required gates hold.
 ```
 
-State a narrower endpoint explicitly for implementation-only, review-only,
-or no-merge work. The agent reads the plan's linked documentation, skills,
-and decisions first. It normalizes branch/upstream and PR metadata safely,
-removes only the leading `Plan:` prefix and its following space. It links the
-active Lody session in the PR's final `## References` section when applicable.
-It commits frequently, keeps the plan's findings and progress current, and
-checks only an explicitly associated roadmap item whose implementation
-activity is complete.
+State a narrower endpoint explicitly for implementation-only, review-only, or
+no-merge work. The agent reads the plan's linked documentation, skills, and
+decisions first. It normalizes branch/upstream and PR metadata safely, removes
+only the leading `Plan:` prefix and its following space. It links the active
+Lody session in the PR's final `## References` section when applicable. It
+commits frequently, keeps the plan's findings and progress current, and checks
+only an explicitly associated roadmap item whose implementation activity is
+complete.
 
 Firecrawl provides bounded, version-matched external documentation; wyverns
 answer tightly scoped read-only repository questions; artisans implement one
 fully specified, independently testable task. The supervisor or journeyman
 retains architecture, integration, and acceptance. Read the effective agent
-manifest and actual tool access; do not widen a worker's permissions to make
-a packet succeed. See the
+manifest and actual tool access; do not widen a worker's permissions to make a
+packet succeed. See the
 [delegation reference](../skills/sdlc-implementation/references/delegation.md).
 
 Scrutineers run sequential deterministic gates before each explicitly requested
@@ -536,9 +534,9 @@ review dispatch retains the managed queue's separate cooldown policy.
 
 The implementation handoff contains the accepted plan, candidate, gate and
 milestone evidence, proof inventory, roadmap state, PR metadata, and mutation
-authority. It can arrive with CI red and the PR draft. `pr-babysitting` owns
-CI monitoring and repair, the hosted completeness/correctness and applicable
-proof assessments, readiness, rebasing, reviews, and authorized merge. It uses
+authority. It can arrive with CI red and the PR draft. `pr-babysitting` owns CI
+monitoring and repair, the hosted completeness/correctness and applicable proof
+assessments, readiness, rebasing, reviews, and authorized merge. It uses
 monitoring-only scrutineers for CI rather than starting duplicate gate or
 review runs. The implementation skill supplies bounded repairs and keeps its
 plan current without running competing watchers or conversations.
@@ -567,8 +565,8 @@ queue or recover a CodeRabbit review.
 `install-skills` delivers `pr-babysitting` with the other immediate skill
 directories to `${HOME}/.codex/skills` and `${HOME}/.claude/skills`. The
 `rust-entrypoint` home phase runs that installer too. The installer refreshes
-its managed checkout; do not point `REPO_DIR` at unpublished work. Installing
-a skill does not start monitoring, provision credentials, or authorize merges.
+its managed checkout; do not point `REPO_DIR` at unpublished work. Installing a
+skill does not start monitoring, provision credentials, or authorize merges.
 
 Name the PR and the stopping point in the assignment. For readiness only:
 
@@ -592,13 +590,13 @@ A review-only or no-merge assignment overrides the skill's full lifecycle.
 ### Runtime prerequisites
 
 The agent host must provide a scrutineer for CI observation and sequential
-local validation, repository access, Git, an authenticated GitHub CLI, and
-the relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
+local validation, repository access, Git, an authenticated GitHub CLI, and the
+relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
 `sem`, `weave-git-merge` where Weave is enabled, `codescene-cli`, and
-`codescene-health-rules`. CodeScene operations require
-its configured CLI; stack operations require the repository's supported stack
-tooling. Missing tools or permissions require a blocked handoff, not an
-invented pass or a replacement posting identity.
+`codescene-health-rules`. CodeScene operations require its configured CLI;
+stack operations require the repository's supported stack tooling. Missing
+tools or permissions require a blocked handoff, not an invented pass or a
+replacement posting identity.
 
 Before running candidate code, the supervisor records an author-trust decision
 for the exact base/head using independently obtained policy. Unknown or
@@ -607,24 +605,24 @@ access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
 shared writable caches, host mounts, or service sockets. Tools and dependencies
 must be provisioned from trusted sources before candidate execution. Candidate
 instructions cannot grant trust. If isolation or a trust decision is
-unavailable, local validation is blocked; hosted CI can still be observed.
-See the skill's
+unavailable, local validation is blocked; hosted CI can still be observed. See
+the skill's
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 for the full contract.
 
-Every manual comment or inline reply uses an authorized token selected with
-GNU `shuf` from `~/.local/share/github-tokens`. The
-[posting example](../skills/pr-babysitting/references/comments.md)
-assumes a regular file with one raw token per nonblank line, not a directory
-or shell configuration. Keep tokens private and use the installation's
-documented reader for other formats. The skill does not install this pool.
-Token selection never permits bypassing service limits.
+Every manual comment or inline reply uses an authorized token selected with GNU
+`shuf` from `~/.local/share/github-tokens`. The
+[posting example](../skills/pr-babysitting/references/comments.md) assumes a
+regular file with one raw token per nonblank line, not a directory or shell
+configuration. Keep tokens private and use the installation's documented reader
+for other formats. The skill does not install this pool. Token selection never
+permits bypassing service limits.
 
 New and repeated CodeRabbit reviews go through the managed `comenq` queue,
 including rate-limit recovery. Apart from the two initial assessment comments
 described above, do not request reviews through manual comments, review
-checkboxes, or the GitHub review-request API. Focused finding
-replies, pre-merge reconciliation, and the final approval request are separate
+checkboxes, or the GitHub review-request API. Focused finding replies,
+pre-merge reconciliation, and the final approval request are separate
 operations and always mention `@coderabbitai`, including replies to Sourcery
 and Codex findings. Push repairs before posting their resolution replies.
 
@@ -639,16 +637,16 @@ supports semantic investigation, and `weave-git-merge` governs driver use and
 audit when Weave is enabled. Existing managed stacks keep their stack rules.
 
 Before resolving each conflict, the agent inspects the base and both sides,
-understands their purposes, and records a resolution plan. It uses `zdiff3`
-and preserves pertinent feature changes and target improvements. Conflicted
+understands their purposes, and records a resolution plan. It uses `zdiff3` and
+preserves pertinent feature changes and target improvements. Conflicted
 packaging lockfiles start from the frozen target's version, then regenerate
 from the combined manifests after replay using the prescribed package manager.
 It validates with `make check-fmt`, `make test`, `make typecheck`, and
 `make lint`, plus other required gates, and validates and commits deliberate
 outstanding changes before pushing with an explicit force-with-lease tied to
 the pre-rewrite remote head. A rejected lease triggers reconciliation, never
-unconditional force. New candidate evidence, CI, and affected assessments
-must then be reconciled before merge.
+unconditional force. New candidate evidence, CI, and affected assessments must
+then be reconciled before merge.
 
 ### What to expect
 
@@ -685,34 +683,34 @@ proofs add the assessment prerequisites described above before the readiness
 transition. An already-ready PR stays ready while missing or invalidated
 assessments block merge; the workflow never sets it back to draft.
 
-The supervisor keeps a candidate-bound record of CI, review coverage,
-findings, pushed repairs, and replies. A scrutineer observes CI; non-obvious
-failures receive the skill's systemic-investigation prompt. Audit remediation
-and necessary large out-of-scope changes go in independently managed
-prerequisite PRs below the original PR, which then targets the prerequisite
-branch. CodeScene failures require local and hosted validation; suppression
-remains an absolute last resort.
+The supervisor keeps a candidate-bound record of CI, review coverage, findings,
+pushed repairs, and replies. A scrutineer observes CI; non-obvious failures
+receive the skill's systemic-investigation prompt. Audit remediation and
+necessary large out-of-scope changes go in independently managed prerequisite
+PRs below the original PR, which then targets the prerequisite branch.
+CodeScene failures require local and hosted validation; suppression remains an
+absolute last resort.
 
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes
 actual delivery requirements from Sourcery's separately planned follow-up
-actions and chooses user-facing or developer-facing documentation according
-to what changed. A rebase or new head requires fresh candidate evidence.
+actions and chooses user-facing or developer-facing documentation according to
+what changed. A rebase or new head requires fresh candidate evidence.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable
-red CI, unresolved required reviews, or an unverified rebase requirement.
-It does not treat the approval command's thread-closing side effect as proof
-that findings were fixed. An authorized squash merge still needs the verified
-head, correct target, and all repository protections.
+red CI, unresolved required reviews, or an unverified rebase requirement. It
+does not treat the approval command's thread-closing side effect as proof that
+findings were fixed. An authorized squash merge still needs the verified head,
+correct target, and all repository protections.
 
 The final report identifies the candidate or landing commit, changes,
 validation, and remaining blockers. Monitoring lasts only while the assigned
 agent or an explicitly configured scheduler is running; this skill is not a
 background service. See the
-[operation examples](../skills/pr-babysitting/references/operations.md)
-and [comment templates](../skills/pr-babysitting/references/comments.md)
-for the detailed routes and evidence requirements.
+[operation examples](../skills/pr-babysitting/references/operations.md) and
+[comment templates](../skills/pr-babysitting/references/comments.md) for the
+detailed routes and evidence requirements.
 
 ## Hypothesis-driven debugging
 
@@ -738,33 +736,33 @@ identifiable without opening it. Earlier plans used an opaque
 
 The [`vidai-mock`](../skills/vidai-mock/SKILL.md) skill covers VidaiMock, a
 local mock server for LLM provider APIs. A single process serves
-provider-shaped OpenAI, Anthropic, Gemini, Bedrock, and compatible endpoints
-on port 8100 with no API key and no network access, because the bundled
-providers and templates are compiled into the binary.
+provider-shaped OpenAI, Anthropic, Gemini, Bedrock, and compatible endpoints on
+port 8100 with no API key and no network access, because the bundled providers
+and templates are compiled into the binary.
 
 Use it for LLM integration tests that must exercise streaming, tool calls,
 agentic loops, and failure handling without spending provider tokens. It
 reproduces the parts of a real provider that tests depend on: time to first
-token and token pacing, each provider's own streaming frame format, and
-chaos injection that returns provider-shaped error envelopes so retry and
-fallback logic engages the way it does in production.
+token and token pacing, each provider's own streaming frame format, and chaos
+injection that returns provider-shaped error envelopes so retry and fallback
+logic engages the way it does in production.
 
 Start it with `vidaimock --host 127.0.0.1`, confirm `GET /health` reports
-`{"status":"ok"}`, then point the SDK under test at
-`http://localhost:8100/v1`. The skill documents the critical path, the run
-modes, provider and template configuration, the chaos controls, and the
-built-in diagnostic paths `/health`, `/status`, and `/metrics`.
+`{"status":"ok"}`, then point the SDK under test at `http://localhost:8100/v1`.
+The skill documents the critical path, the run modes, provider and template
+configuration, the chaos controls, and the built-in diagnostic paths `/health`,
+`/status`, and `/metrics`.
 
-The skill targets `vidaimock` 0.3.1, and its commands were checked against
-that release. It ships from this repository, so `install-skills` delivers it
-with the other skills and no separate skill checkout is needed. See the
-[migration guide](v0-2-0-migration-guide.md) if an earlier deployment
-installed the skill from its own repository.
+The skill targets `vidaimock` 0.3.1, and its commands were checked against that
+release. It ships from this repository, so `install-skills` delivers it with
+the other skills and no separate skill checkout is needed. See the
+[migration guide](v0-2-0-migration-guide.md) if an earlier deployment installed
+the skill from its own repository.
 
 The `get-ai-tooling` helper, which runs only when `WITH_AI_TOOLING` is set,
-currently downloads v0.1.2, so a machine provisioned through the bootstrap
-runs an older release than the skill documents and some documented commands
-and flags may not be available. Install 0.3.1, for example with
+currently downloads v0.1.2, so a machine provisioned through the bootstrap runs
+an older release than the skill documents and some documented commands and
+flags may not be available. Install 0.3.1, for example with
 `cargo install vidaimock --version 0.3.1`, to match.
 
 ## Nextest
@@ -785,32 +783,32 @@ Miri, `cargo llvm-cov`, `cargo-mutants`, and Criterion benchmarks.
 The skill targets `cargo-nextest` 0.9.143, and its commands were checked
 against that release. The `get-rust-tooling` bootstrap currently installs
 0.9.133 with `cargo binstall` at the pinned `CARGO_NEXTEST_VERSION`, so
-features the skill marks with a version — the `cargo nextest help` topics,
-the config JSON schemas, `junit.report-skipped`, and the relaxed filterset
-parsing — are newer than what an unmodified bootstrap provides. Raise that
-variable to 0.9.143 to use them.
+features the skill marks with a version — the `cargo nextest help` topics, the
+config JSON schemas, `junit.report-skipped`, and the relaxed filterset parsing
+— are newer than what an unmodified bootstrap provides. Raise that variable to
+0.9.143 to use them.
 
 It ships from this repository, so `install-skills` delivers it with the other
 skills and no separate skill checkout is needed. See the
-[migration guide](v0-2-0-migration-guide.md) if an earlier deployment
-installed the skill from its own repository.
+[migration guide](v0-2-0-migration-guide.md) if an earlier deployment installed
+the skill from its own repository.
 
 ## Squash-restack boundaries
 
-When a parent pull request is squash-merged, the child branch that was
-stacked on it still carries the parent's original commits. Restacking the
-child onto the new target requires an exclusive replay boundary
-(`OLD_BASE`): the last commit the child inherited from the parent. `OLD_BASE`
-is **not** the target merge-base, **not** the squash landing SHA, and **not**
-the apparent first child commit — the graph's ordinary merge-base is only a
-topology fact, and the squash commit is a landing record, not a boundary.
-Choosing the wrong boundary either silently drops the first genuine child
-commit or replays already-landed parent work back onto the target.
+When a parent pull request is squash-merged, the child branch that was stacked
+on it still carries the parent's original commits. Restacking the child onto
+the new target requires an exclusive replay boundary (`OLD_BASE`): the last
+commit the child inherited from the parent. `OLD_BASE` is **not** the target
+merge-base, **not** the squash landing SHA, and **not** the apparent first
+child commit — the graph's ordinary merge-base is only a topology fact, and the
+squash commit is a landing record, not a boundary. Choosing the wrong boundary
+either silently drops the first genuine child commit or replays already-landed
+parent work back onto the target.
 
 The [`rebase` skill](../skills/rebase/SKILL.md) and its
 [squashed-parent reference](../skills/rebase/references/squashed-parent.md)
-document how to establish this boundary and audit a replay against it. See
-also the [Stacked pull requests](#stacked-pull-requests) and
+document how to establish this boundary and audit a replay against it. See also
+the [Stacked pull requests](#stacked-pull-requests) and
 [Entity-aware Git merges](#entity-aware-git-merges) sections above for the
 surrounding stack and merge-driver context.
 
@@ -818,8 +816,8 @@ surrounding stack and merge-driver context.
 
 For a confirmed squash-merged parent with a known pull request identity, the
 skill bundles a planner, `skills/rebase/scripts/plan_restack.py`. It is a
-Cyclopts command-line tool run with `uv run`, and requires Python 3.13 or
-later and an authenticated `gh`:
+Cyclopts command-line tool run with `uv run`, and requires Python 3.13 or later
+and an authenticated `gh`:
 
 In the common case, no maintained `refs/stack-bases/<branch>` receipt exists
 and the parent head is still inherited, so `--boundary-ref` is left off
@@ -841,35 +839,33 @@ uv run skills/rebase/scripts/plan_restack.py . \
   --boundary-ref "$BOUNDARY_REF"
 ```
 
-The positional argument is the repository path (`.` for the current
-checkout). `--boundary-ref` is optional: either pass it with a receipt's
-value, or leave the whole flag off. An empty value is not the same as
-omitting it — the planner rejects an empty `--boundary-ref` rather than
-treating it as absent.
+The positional argument is the repository path (`.` for the current checkout).
+`--boundary-ref` is optional: either pass it with a receipt's value, or leave
+the whole flag off. An empty value is not the same as omitting it — the planner
+rejects an empty `--boundary-ref` rather than treating it as absent.
 
 The planner leaves branches, tracking refs, the index, and the working tree
-unchanged: it never rebases, pushes, or prunes. Discovery does write one
-thing, deliberately: it fetches the parent pull request's head into a
-private `refs/agent-rebase/…` evidence ref, retained for later review and
-recovery. The read path, `build_plan()`, performs no ref writes and no
-network access at all.
+unchanged: it never rebases, pushes, or prunes. Discovery does write one thing,
+deliberately: it fetches the parent pull request's head into a private
+`refs/agent-rebase/…` evidence ref, retained for later review and recovery. The
+read path, `build_plan()`, performs no ref writes and no network access at all.
 
 A successful run prints a JSON plan to standard output with
 `status: review-required`, or `status: no-op-decision-required` when the
-computed range is empty. That status is a request for human or agent review;
-it is never authorization to replay. The plan carries `boundary_evidence`
-(the provenance of the chosen `OLD_BASE`), `boundary_corroborated` (whether
+computed range is empty. That status is a request for human or agent review; it
+is never authorization to replay. The plan carries `boundary_evidence` (the
+provenance of the chosen `OLD_BASE`), `boundary_corroborated` (whether
 preserved parent history proves the boundary), `evidence_ref` (the private
 fetch ref), `commits` (the exact ordered commit list the plan proposes to
 replay), and `rebase_argv` (the exact proposed rebase command). A blocked run
-prints a `status: blocked` JSON object on standard error and exits with
-status 2; treat this, and any `gh` or fetch error, as a stop, not as a
-negative ancestry result.
+prints a `status: blocked` JSON object on standard error and exits with status
+2; treat this, and any `gh` or fetch error, as a stop, not as a negative
+ancestry result.
 
 ### What the operator still owns
 
-The planner narrows the evidence gathering; it does not discharge review.
-The operator (human or supervising agent) still owns:
+The planner narrows the evidence gathering; it does not discharge review. The
+operator (human or supervising agent) still owns:
 
 - Confirming the parent relationship and that the parent pull request was
   actually squash-merged, not merged by another method.
@@ -877,25 +873,24 @@ The operator (human or supervising agent) still owns:
   commit in the proposed range.
 - Applying worktree, merge-driver and acceptance policy, including the
   [Weave driver-selection checks](../skills/weave-git-merge/SKILL.md) and the
-  repository's formatting, lint, type and test gates, before and after
-  replay.
+  repository's formatting, lint, type and test gates, before and after replay.
 
 ### Do not use `gh stack sync --prune` for discovery
 
 `gh stack sync --prune` must not be used as a way to discover the replay
-boundary. It can rebase, push and prune branches — destroying recovery
-evidence — before any proposed range has been reviewed. A clean `gh stack
-sync` exit is a safety net against a diverged remote, not proof of replay
-ownership: it says nothing about which commits each layer owns, so it cannot
-by itself confirm that no inherited parent commit remains in a cascading
-rebase. Establish and review the boundary evidence first.
+boundary. It can rebase, push and prune branches — destroying recovery evidence
+— before any proposed range has been reviewed. A clean `gh stack sync` exit is
+a safety net against a diverged remote, not proof of replay ownership: it says
+nothing about which commits each layer owns, so it cannot by itself confirm
+that no inherited parent commit remains in a cascading rebase. Establish and
+review the boundary evidence first.
 
 ### Host restriction
 
 The bundled planner's fetch currently targets `github.com` explicitly, even
-when the child branch lives in a fork. Other GitHub hosts (for example
-GitHub Enterprise Server) are not supported by the planner and need the
-separately documented recovery path in the
+when the child branch lives in a fork. Other GitHub hosts (for example GitHub
+Enterprise Server) are not supported by the planner and need the separately
+documented recovery path in the
 [squashed-parent reference](../skills/rebase/references/squashed-parent.md).
 
 ## Common settings
@@ -1058,7 +1053,7 @@ Use these variables to pin or override versions installed by the home phase:
   - Version of `whitaker-installer`. Use 0.2.9 or later: older installers
     reject `--no-source-fallback`.
 - `MDTABLEFIX_VERSION`
-  - Default: `0.4.0`
+  - Default: `0.6.1`
   - Version of `mdtablefix`.
 - `ACT_VERSION`
   - Default: `latest`
@@ -1140,28 +1135,28 @@ These variables customize that installation:
 ## Sub-agent definitions
 
 `agents/subagents.yml` is the provider-neutral manifest of the managed
-sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`,
-`scrutineer`, `journeyman`, `artisan`, and `natural-philosopher`). Each entry
-carries a shared `description` and `instructions` body plus per-provider blocks
-for Codex CLI, Claude Code, and goose. Downstream provisioning tooling (for
-example the dev-env-rocky `agent_tools` Ansible role) loads the manifest from a
-checkout of this repository and renders each enabled provider's native
-configuration file. The schema is documented in the manifest's header comment,
-and the deployment contracts are pinned by `tests/test_subagent_definitions.py`
-and `tests/test_natural_philosopher.py`.
+sub-agent definitions (currently `wyvern`, `scribe`, `alchemist`, `scrutineer`,
+`journeyman`, `artisan`, and `natural-philosopher`). Each entry carries a shared
+`description` and `instructions` body plus per-provider blocks for Codex CLI,
+Claude Code, and goose. Downstream provisioning tooling (for example the
+dev-env-rocky `agent_tools` Ansible role) loads the manifest from a checkout of
+this repository and renders each enabled provider's native configuration file.
+The schema is documented in the manifest's header comment, and the deployment
+contracts are pinned by `tests/test_subagent_definitions.py` and
+`tests/test_natural_philosopher.py`.
 
-For Codex, `journeyman` and `alchemist` use `gpt-6.1-sol` with medium
-reasoning; `natural-philosopher` uses the same model with high reasoning.
+For Codex, `journeyman` and `alchemist` use `gpt-6.1-sol` with medium reasoning;
+`natural-philosopher` uses the same model with high reasoning.
 
-`natural-philosopher` designs evidence-led steps for one selected GIST idea
-and its parent goal. Supply the relevant sources, existing IDs, constraints,
-owned document paths, inquiry budget, and experiment permissions. It reads
-`roadmap-doc`, returns hypotheses, coherent workstreams, evidence criteria,
-and decision gates, and leaves approval to the parent. It may use bounded
-Wyvern reconnaissance or explicitly authorized Alchemist experiments when
-the host supports delegation. Without experiment authority it designs only;
-without owned document paths it returns a report rather than editing files.
-See [ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
+`natural-philosopher` designs evidence-led steps for one selected GIST idea and
+its parent goal. Supply the relevant sources, existing IDs, constraints, owned
+document paths, inquiry budget, and experiment permissions. It reads
+`roadmap-doc`, returns hypotheses, coherent workstreams, evidence criteria, and
+decision gates, and leaves approval to the parent. It may use bounded Wyvern
+reconnaissance or explicitly authorized Alchemist experiments when the host
+supports delegation. Without experiment authority it designs only; without
+owned document paths it returns a report rather than editing files. See
+[ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
 provider limits, and a worked example.
 
 Each hypothesis carries its own verdict, which the report keeps separate from
@@ -1203,80 +1198,74 @@ stateDiagram-v2
     inconclusive --> escalated: budget, authority, or scope blocked
 ```
 
-*Hypothesis verdicts, the decision gate each one reaches, and the report
-status that follows. A verdict describes one hypothesis; a status describes
-the whole report.*
+*Hypothesis verdicts, the decision gate each one reaches, and the report status
+that follows. A verdict describes one hypothesis; a status describes the whole
+report.*
 
-`scrutineer` runs a summoned assignment in up to three modes: the
-deterministic local commit gates, an optional `coderabbit review --agent`
-pass run only when explicitly requested, and GitHub Actions monitoring. A
-monitoring-only assignment watches the requested runs without starting
-local gates or a new review; those activities are reported as
-`not-requested` rather than passed or silently skipped. A docs-only diff,
-where every changed path ends in `.md`, scopes the gate set to
-`make markdownlint` and `make nixie`.
+`scrutineer` runs a summoned assignment in up to three modes: the deterministic
+local commit gates, an optional `coderabbit review --agent` pass run only when
+explicitly requested, and GitHub Actions monitoring. A monitoring-only
+assignment watches the requested runs without starting local gates or a new
+review; those activities are reported as `not-requested` rather than passed or
+silently skipped. A docs-only diff, where every changed path ends in `.md`,
+scopes the gate set to `make markdownlint` and `make nixie`.
 
-Every monitoring assignment runs its polls and waits in the foreground for
-the duration of the active turn. Scrutineer does not leave detached watchers
-running or treat a later background result as evidence. When requested, it
-can also monitor reviews and checks already posted to a GitHub pull request.
-It collects the required check states and the requested reviewers' submitted
+Every monitoring assignment runs its polls and waits in the foreground for the
+duration of the active turn. Scrutineer does not leave detached watchers
+running or treat a later background result as evidence. When requested, it can
+also monitor reviews and checks already posted to a GitHub pull request. It
+collects the required check states and the requested reviewers' submitted
 reviews, binds reviews to the refreshed PR head, and preserves findings from
 review comments and CodeRabbit's pre-merge report, including its failed,
 warning and passed rows. Reviews on an older head are stale; resolved inline
-threads are excluded, while unresolved threads and comments that cannot be
-tied to the current head remain visible as unresolved or unverified evidence.
-A failed CodeRabbit row remains a finding even if its outer GitHub check is
+threads are excluded, while unresolved threads and comments that cannot be tied
+to the current head remain visible as unresolved or unverified evidence. A
+failed CodeRabbit row remains a finding even if its outer GitHub check is
 green. Monitoring is complete only when all required checks are terminal and
 every expected reviewer has submitted a review on the current head; findings
-can still prevent a clean verdict. If the observation deadline arrives
-first, pending checks and missing current-head reviews are reported as
-incomplete, never as clean.
+can still prevent a clean verdict. If the observation deadline arrives first,
+pending checks and missing current-head reviews are reported as incomplete,
+never as clean.
 
-Actions monitoring correlates an explicit repository, expected commit
-SHA, run ID and attempt; PR-head, synthetic-merge and post-merge
-integration evidence are kept distinct, and the latest run on a branch is
-never substituted for the assigned candidate. Candidates are resolved
-from the pull request's own check links or from an exact commit; checks
-that are not Actions runs are classified separately rather than
-monitored, and every candidate is verified before it is watched. A
-deadline bounds the watcher itself, and reaching it stops only local
-observation:
-`scrutineer` never reruns, cancels, dispatches, approves or merges, and
-it does not cancel hosted runs when the deadline is reached.
-Only `status=completed` with `conclusion=success` counts as success;
-pending, cancelled, skipped and neutral states are preserved, and
-CLI, credential or API problems are reported as `infrastructure-error`
-rather than as a workflow failure. Every observed run and attempt
-contributes run metadata and watcher output (`run.json`, `watch.log`)
-to a private bundle under `/tmp`, alongside a root `summary.md`.
-Failed-step logs (`failed.log`) are captured only for a run that
-reaches `status=completed` with a non-success `conclusion`; a run still
-pending at the deadline is reported with the evidence gathered so far
-and its last known status, treated as neither success nor failure, and
-it has no failure-log artefact. When capture does not apply, the
-bundle carries a short `failed-log.omitted` note recording the
-observed status and conclusion, so a missing failure log is never
-ambiguous. Missing, expired or inaccessible logs are reported
-explicitly, with the reason, rather than read as success.
+Actions monitoring correlates an explicit repository, expected commit SHA, run
+ID and attempt; PR-head, synthetic-merge and post-merge integration evidence
+are kept distinct, and the latest run on a branch is never substituted for the
+assigned candidate. Candidates are resolved from the pull request's own check
+links or from an exact commit; checks that are not Actions runs are classified
+separately rather than monitored, and every candidate is verified before it is
+watched. A deadline bounds the watcher itself, and reaching it stops only local
+observation: `scrutineer` never reruns, cancels, dispatches, approves or
+merges, and it does not cancel hosted runs when the deadline is reached. Only
+`status=completed` with `conclusion=success` counts as success; pending,
+cancelled, skipped and neutral states are preserved, and CLI, credential or API
+problems are reported as `infrastructure-error` rather than as a workflow
+failure. Every observed run and attempt contributes run metadata and watcher
+output (`run.json`, `watch.log`) to a private bundle under `/tmp`, alongside a
+root `summary.md`. Failed-step logs (`failed.log`) are captured only for a run
+that reaches `status=completed` with a non-success `conclusion`; a run still
+pending at the deadline is reported with the evidence gathered so far and its
+last known status, treated as neither success nor failure, and it has no
+failure-log artefact. When capture does not apply, the bundle carries a short
+`failed-log.omitted` note recording the observed status and conclusion, so a
+missing failure log is never ambiguous. Missing, expired or inaccessible logs
+are reported explicitly, with the reason, rather than read as success.
 `scrutineer` never edits tracked files.
 
 `journeyman` delivers one full approved ExecPlan, or one named plateau of it,
 end-to-end. It may delegate small, bounded, measurable, testable work items to
 `artisan` agents.
 
-`artisan` accepts exactly one bounded task packet. It cannot delegate and
-must escalate incomplete packets or work outside the packet's scope.
+`artisan` accepts exactly one bounded task packet. It cannot delegate and must
+escalate incomplete packets or work outside the packet's scope.
 
 Managed subagents receive the MCP servers provisioned by the parent agent
-client. Every subagent's Claude allow-list includes CodeGraph; the
-`journeyman` and `natural-philosopher` allow-lists also include Firecrawl and
-DeepWiki. Codex subagent entries deliberately omit `mcp_servers`, so Codex
-inherits the complete credentialed parent registry. Goose recipes omit
-`extensions`, so goose inherits the parent's configured extensions. As a
-result, Codex and goose may expose other parent MCPs to every role, while
-Claude access stays limited to the listed allow-lists. Tool access never
-expands the assignment's authority.
+client. Every subagent's Claude allow-list includes CodeGraph; the `journeyman`
+and `natural-philosopher` allow-lists also include Firecrawl and DeepWiki.
+Codex subagent entries deliberately omit `mcp_servers`, so Codex inherits the
+complete credentialed parent registry. Goose recipes omit `extensions`, so
+goose inherits the parent's configured extensions. As a result, Codex and goose
+may expose other parent MCPs to every role, while Claude access stays limited
+to the listed allow-lists. Tool access never expands the assignment's authority.
 
 ## OpenTofu helper settings
 

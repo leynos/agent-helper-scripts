@@ -32,9 +32,9 @@ short, it provides:
 **py-pglite** achieves this by running a WebAssembly-based Postgres engine
 under the hood (PGlite) inside a Node.js
 runtime([2](https://void.abn.is/a-python-project-postgresql-and-wasm/)).
-(Node.js 18+ must be installed; the first run fetches the PGlite WASM
-package.) Once installed with `pip install py-pglite[sqlalchemy]`, it
-integrates with PyTest to make database testing almost seamless.
+(Node.js 18+ must be installed; the first run fetches the PGlite WASM package.)
+Once installed with `pip install py-pglite[sqlalchemy]`, it integrates with
+PyTest to make database testing almost seamless.
 
 ## Setting Up **py-pglite** Fixtures in PyTest
 
@@ -249,12 +249,12 @@ state**([3](https://hoop.dev/blog/the-simplest-way-to-make-postgresql-pytest-wor
 
 When a shared py-pglite instance is also shared across `pytest-xdist` workers,
 guard schema resets with an inter-process file lock acquired around the whole
-drop-and-recreate sequence, or give each worker a separate database or
-schema. A module-level `asyncio.Lock` does not help here: `pytest-xdist`
-workers are separate OS processes, each with its own Python interpreter and
-event loop, so an `asyncio.Lock` in one process is invisible to the others.
-Without process-level coordination, one worker can drop the schema while
-another is mid-migration, producing intermittent, hard-to-reproduce failures.
+drop-and-recreate sequence, or give each worker a separate database or schema.
+A module-level `asyncio.Lock` does not help here: `pytest-xdist` workers are
+separate OS processes, each with its own Python interpreter and event loop, so
+an `asyncio.Lock` in one process is invisible to the others. Without
+process-level coordination, one worker can drop the schema while another is
+mid-migration, producing intermittent, hard-to-reproduce failures.
 
 ## Applying Alembic Migrations in Tests
 
@@ -311,13 +311,12 @@ migrations or mismatches between models and DB (a common source of bugs) early
 in development. Migrations that add seed data or required setup then benefit
 the tests automatically.
 
-**Checking for migration drift:** As a separate, complementary check (often
-its own script or CI step rather than a pytest fixture), start a fresh
-py-pglite instance, apply the full Alembic migration set to it, and compare
-the resulting schema against the ORM's `Base.metadata`. Any mismatch signals
-that a model change was made without a corresponding migration, or vice versa.
-This check is independent of the main fixture stack and can run outside pytest
-entirely.
+**Checking for migration drift:** As a separate, complementary check (often its
+own script or CI step rather than a pytest fixture), start a fresh py-pglite
+instance, apply the full Alembic migration set to it, and compare the resulting
+schema against the ORM's `Base.metadata`. Any mismatch signals that a model
+change was made without a corresponding migration, or vice versa. This check is
+independent of the main fixture stack and can run outside pytest entirely.
 
 ## Injecting Test Database into Your Application (Dependency Injection)
 

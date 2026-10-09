@@ -716,8 +716,8 @@ integrating with common async runtimes and offering syntactic sugar for
 managing futures.
 
 The examples below use `async-std` for `async_std::task::sleep` and the
-`#[async_std::test]` attribute macro. Add it under `[dev-dependencies]` with
-the `attributes` feature enabled:
+`#[async_std::test]` attribute macro. Add it under `[dev-dependencies]` with the
+`attributes` feature enabled:
 
 ```toml
 [dev-dependencies]
@@ -873,15 +873,15 @@ async fn test_operation_exceeds_timeout() {
 ```
 
 A default timeout for `rstest` tests can also be set using the `RSTEST_TIMEOUT`
-environment variable. Its value is in seconds and is evaluated at test
-compile time. This built-in timeout support is a practical feature for ensuring
-test suite stability.
+environment variable. Its value is in seconds and is evaluated at test compile
+time. This built-in timeout support is a practical feature for ensuring test
+suite stability.
 
 Table: Environment variables for `rstest` fixture execution
 
-| Variable name    | Meaning                                                          | Default or rule                                                  |
-| ---------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `RSTEST_TIMEOUT` | Sets a default timeout, in seconds, for `rstest` tests           | Value in seconds; evaluated at compile time; no default if unset |
+| Variable name    | Meaning                                                | Default or rule                                                  |
+| ---------------- | ------------------------------------------------------ | ---------------------------------------------------------------- |
+| `RSTEST_TIMEOUT` | Sets a default timeout, in seconds, for `rstest` tests | Value in seconds; evaluated at compile time; no default if unset |
 
 ## VII. Working with external resources and test data
 

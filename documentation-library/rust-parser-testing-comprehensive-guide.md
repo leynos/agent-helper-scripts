@@ -664,10 +664,10 @@ fn snapshot_recovery_from_missing_semicolon() {
 neither the exact diagnostic text nor the extent of recovery is guaranteed by
 this example alone; the generated snapshot must be reviewed to confirm which
 error message is produced and whether the parser recovers both `let`
-statements, or only the first. Experimenting with different recovery
-strategies (e.g., `recover_with(skip_then_retry_until(…))`), and snapshotting
-the results, is the most effective way to fine-tune how the parser responds to
-invalid input.[^23]
+statements, or only the first. Experimenting with different recovery strategies
+(e.g., `recover_with(skip_then_retry_until(…))`), and snapshotting the results,
+is the most effective way to fine-tune how the parser responds to invalid
+input.[^23]
 
 ### 3.4 Validating Pratt parsers (expression parsing)
 

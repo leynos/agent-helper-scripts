@@ -53,11 +53,11 @@ Error recovery is what turns the parser from Vogon poetry into a Babel fish.
 3. **Tri-state nodes:** Return `Option<AstNode>`; missing bits propagate, but
    the parser soldiers on.
 
-In practice, it is common to compose the built-ins, sketched here as
-pseudocode — `recover_with(nested_delimiters(<open>, <close>, <other pairs>,
-<fallback>))` and `recover_with(skip_until(<skip parser>, <fallback>))` —
-threading in a couple of bespoke closures, and quickly look like the local
-authority on parser resilience.
+In practice, it is common to compose the built-ins, sketched here as pseudocode
+— `recover_with(nested_delimiters(<open>, <close>, <other pairs>, <fallback>))`
+and `recover_with(skip_until(<skip parser>, <fallback>))` — threading in a
+couple of bespoke closures, and quickly look like the local authority on parser
+resilience.
 
 ## 5 Getting the Codex to behave (or: how to babysit a 2-metre tall neural net)
 

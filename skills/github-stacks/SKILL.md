@@ -7,14 +7,13 @@ description: >-
 # GitHub Stacked Pull Requests (`gh stack`)
 
 Stacked pull requests split a large change into a chain of small, dependent
-pull requests. Each branch ("layer") builds on the one below it; each PR's
-base is the branch beneath, so reviewers see only that layer's diff. GitHub
-links the PRs into a first-class stack object with a stack map in the merge
-box.
+pull requests. Each branch ("layer") builds on the one below it; each PR's base
+is the branch beneath, so reviewers see only that layer's diff. GitHub links
+the PRs into a first-class stack object with a stack map in the merge box.
 
-**Status**: public preview — behaviour is subject to change. Requires GitHub
-CLI (`gh`) 2.90.0+, Git 2.20+, and stacked PRs enabled for the repository
-(exit code 9 means they are not).
+**Status**: public preview — behaviour is subject to change. Requires GitHub CLI
+(`gh`) 2.90.0+, Git 2.20+, and stacked PRs enabled for the repository (exit
+code 9 means they are not).
 
 ## Hard constraints
 
@@ -46,12 +45,14 @@ For an authorized convergence task:
   work, but do not count a commit, gate report or disposable-remote push as
   delivered. Verify the actual remote head after publication.
 - Keep one authoritative candidate per PR: repository and Git common directory,
-  branch/worktree, parent PR and boundary, local/remote SHAs, gate/review state,
-  delivery owner, next external action and last PR transition time. Label
-  alternative candidates as preserved evidence, not competing delivery heads.
+  branch/worktree, parent PR and boundary, local/remote SHAs, gate/review
+  state, delivery owner, next external action and last PR transition time.
+  Label alternative candidates as preserved evidence, not competing delivery
+  heads.
 - Prioritize the merge frontier: the lowest unmerged layer. Once its parent
-  lands, assign its final synchronization, gates and publication before optional
-  upper-layer refinements. Continue independent work where dependencies permit.
+  lands, assign its final synchronization, gates and publication before
+  optional upper-layer refinements. Continue independent work where
+  dependencies permit.
 - Every implementation handoff names who commits and pushes. Local-only work
   needs a named publication owner; a delivery task ends with verified remote
   parity and the next authorized hosted stage, or a concrete blocker.
@@ -70,21 +71,21 @@ delivery handoff and publication receipt.
 
 ## Routing guide
 
-| Task | Approach |
-| ---- | -------- |
-| Start a new stack | `gh stack init <branch>` (see workflow below) |
-| Add a layer on top | `gh stack add <branch>` from the topmost branch |
-| Open/update PRs on GitHub | `gh stack submit` |
-| Daily catch-up (fetch, rebase, push, prune) | Establish replay evidence before `gh stack sync --prune` |
-| Fix something in a lower layer | See "Editing a lower layer" |
-| Trunk moved / history not linear | `gh stack rebase`, then `gh stack push` |
-| Reorder, rename, fold, drop, insert branches | `gh stack modify` (interactive TUI) |
-| Merge some or all of the stack | `gh stack merge` |
-| Link pre-existing PRs/branches into a stack | `gh stack link` (no local tracking) |
-| Move between layers | `gh stack up`, `gh stack down`, `gh stack top`, `gh stack bottom`, `gh stack trunk`, `gh stack switch` |
-| Check out someone else's stack | `gh stack checkout <stack-or-pr-number>` |
-| Dissolve a stack | `gh stack unstack` (`--local` to keep it on GitHub) |
-| Full flags, exit codes, env vars | `references/cli-reference.md` |
+| Task                                         | Approach                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Start a new stack                            | `gh stack init <branch>` (see workflow below)                                                          |
+| Add a layer on top                           | `gh stack add <branch>` from the topmost branch                                                        |
+| Open/update PRs on GitHub                    | `gh stack submit`                                                                                      |
+| Daily catch-up (fetch, rebase, push, prune)  | Establish replay evidence before `gh stack sync --prune`                                               |
+| Fix something in a lower layer               | See "Editing a lower layer"                                                                            |
+| Trunk moved / history not linear             | `gh stack rebase`, then `gh stack push`                                                                |
+| Reorder, rename, fold, drop, insert branches | `gh stack modify` (interactive TUI)                                                                    |
+| Merge some or all of the stack               | `gh stack merge`                                                                                       |
+| Link pre-existing PRs/branches into a stack  | `gh stack link` (no local tracking)                                                                    |
+| Move between layers                          | `gh stack up`, `gh stack down`, `gh stack top`, `gh stack bottom`, `gh stack trunk`, `gh stack switch` |
+| Check out someone else's stack               | `gh stack checkout <stack-or-pr-number>`                                                               |
+| Dissolve a stack                             | `gh stack unstack` (`--local` to keep it on GitHub)                                                    |
+| Full flags, exit codes, env vars             | `references/cli-reference.md`                                                                          |
 
 ## Core workflow
 
@@ -105,37 +106,38 @@ gh stack add frontend
 gh stack submit
 ```
 
-`gh stack init` enables `git rerere` automatically, so conflict resolutions
-are remembered across rebases. Passing multiple branch names to `init` adopts
+`gh stack init` enables `git rerere` automatically, so conflict resolutions are
+remembered across rebases. Passing multiple branch names to `init` adopts
 existing branches and creates missing ones — this is also the recovery path
 after unstacking.
 
-`gh stack add` can stage and commit in one step: `gh stack add -Am "Add
-login"` stages everything, commits, and auto-generates a date-slug branch
-name (e.g. `03-24-add_login`). `-u` stages tracked files only; `-A` and `-u`
-are mutually exclusive and both require `-m`.
+`gh stack add` can stage and commit in one step: `gh stack add -Am "Add login"`
+stages everything, commits, and auto-generates a date-slug branch name (e.g.
+`03-24-add_login`). `-u` stages tracked files only; `-A` and `-u` are mutually
+exclusive and both require `-m`.
 
 ### Submitting
 
-`gh stack submit` pushes all branches, creates a PR per branch with the
-correct base chaining, and links them into a stack on GitHub. Interactively
-it opens a full-screen editor (select branches, draft titles/descriptions,
-toggle draft state; `Ctrl+S` submits). Non-interactive contexts and `--auto`
-skip the editor; with `--auto`, new PRs are created as **drafts** unless
-`--open` is passed. If all PRs in a stack have merged, `submit` starts a
-fresh stack rooted at the trunk for the unmerged branches.
+`gh stack submit` pushes all branches, creates a PR per branch with the correct
+base chaining, and links them into a stack on GitHub. Interactively it opens a
+full-screen editor (select branches, draft titles/descriptions, toggle draft
+state; `Ctrl+S` submits). Non-interactive contexts and `--auto` skip the
+editor; with `--auto`, new PRs are created as **drafts** unless `--open` is
+passed. If all PRs in a stack have merged, `submit` starts a fresh stack rooted
+at the trunk for the unmerged branches.
 
-For agents: prefer `gh stack submit --auto` (add `--open` if the PRs should
-be ready for review), since the interactive editor needs a TTY.
+For agents: prefer `gh stack submit --auto` (add `--open` if the PRs should be
+ready for review), since the interactive editor needs a TTY.
 
 For convergence tasks, publication is not review completion. When the published
 draft satisfies the requested CI/readiness conditions, execute the authorized
 `gh pr ready <pr> --repo <owner/repo>` and read back its state. Where hosted
-CodeRabbit review is requested, use [comenq-coderabbit](../comenq-coderabbit/SKILL.md)
-and track request delivery, completed review and reviewed SHA separately. Local
-CLI review is supplementary, not a substitute or an unbounded extra prerequisite.
-Disposition substantive findings against the published candidate; distinguish
-an unpublished repair from a resolved finding. Required checks and protections
+CodeRabbit review is requested, use
+[comenq-coderabbit](../comenq-coderabbit/SKILL.md) and track request delivery,
+completed review and reviewed SHA separately. Local CLI review is
+supplementary, not a substitute or an unbounded extra prerequisite. Disposition
+substantive findings against the published candidate; distinguish an
+unpublished repair from a resolved finding. Required checks and protections
 still apply alongside hosted review.
 
 ## Editing a lower layer
@@ -157,32 +159,32 @@ partial-delivery procedure instead of publishing unvalidated descendants.
 ## Establish replay evidence before synchronization
 
 Before a command that may rewrite, publish or prune stack branches, apply the
-[rebase skill's boundary and acceptance checks](../rebase/SKILL.md). Record each
-layer's old head, exclusive inherited boundary, target and parent PR identity.
-Inspect the managed stack metadata before synchronization; do not bypass it
-with an unrecorded ad-hoc rebase. A merged parent's squash SHA is a landing
-record, not the child's exclusive boundary. Preserve useful historical refs
-before pruning.
+[rebase skill's boundary and acceptance checks](../rebase/SKILL.md). Record
+each layer's old head, exclusive inherited boundary, target and parent PR
+identity. Inspect the managed stack metadata before synchronization; do not
+bypass it with an unrecorded ad-hoc rebase. A merged parent's squash SHA is a
+landing record, not the child's exclusive boundary. Preserve useful historical
+refs before pruning.
 
 Do not use `gh stack sync --prune` as a discovery command: it can rebase, push
 and remove evidence before the proposed ranges receive review. If the tool
 cannot expose a reviewable plan or preserve the required boundaries, stop that
 operation and assess the bounded recovery route in
 [partial-stack delivery](references/partial-delivery.md). Do not improvise a
-stack-wide adapter or treat a successful exit as acceptance evidence. After replay,
-audit the exact old/new series and rerun candidate-bound gates before accepting
-or publishing the new stack. Prefer separated rebase and push operations when
-that separation is necessary to enforce the acceptance boundary.
+stack-wide adapter or treat a successful exit as acceptance evidence. After
+replay, audit the exact old/new series and rerun candidate-bound gates before
+accepting or publishing the new stack. Prefer separated rebase and push
+operations when that separation is necessary to enforce the acceptance boundary.
 
 ## Keeping in sync
 
 `gh stack sync` in one command: fetch → reconcile the remote stack →
 fast-forward trunk → cascading rebase (only if trunk moved) → push → sync PR
 state → link the stack → prune prompt (interactive terminals only). It never
-opens PRs (that is
-`submit`'s job). A clean remote-ahead update (PRs added on GitHub on top of
-the local stack) is pulled down without prompting; a genuine divergence aborts
-the sync in non-interactive terminals without pushing anything.
+opens PRs (that is `submit`'s job). A clean remote-ahead update (PRs added on
+GitHub on top of the local stack) is pulled down without prompting; a genuine
+divergence aborts the sync in non-interactive terminals without pushing
+anything.
 
 That abort is a safety net against a diverged remote, not proof of replay
 ownership. It says nothing about which commits each layer owns, so it cannot
@@ -201,15 +203,16 @@ first discovery step after merge.
 While a prerequisite is still changing, preserve independent child patches and
 avoid repeatedly replaying the whole stack onto provisional foundation SHAs.
 Schedule the final replay against its verified landing. A necessary provisional
-integration experiment is separate evidence, not the authoritative delivery head.
+integration experiment is separate evidence, not the authoritative delivery
+head.
 
 If sync detects a rebase conflict, it restores all branches untouched and
 instructs the operator to run `gh stack rebase` interactively.
 
-**Diverged stacks** (neither local nor remote is a clean prefix of the
-other): interactive sync offers three options — adopt the remote as source
-of truth, delete the stack object on GitHub (then recreate with `gh stack
-submit`, running `gh stack modify` first if restructuring), or cancel.
+**Diverged stacks** (neither local nor remote is a clean prefix of the other):
+interactive sync offers three options — adopt the remote as source of truth,
+delete the stack object on GitHub (then recreate with `gh stack submit`, running
+`gh stack modify` first if restructuring), or cancel.
 
 ## Rebasing and conflicts
 
@@ -235,14 +238,14 @@ commits, always rebase locally with `gh stack rebase` and push with
 
 ## Restructuring (`gh stack modify`)
 
-Interactive TUI for drop (`x`), fold down/up (`d`/`u`), insert (`i`/`I`),
-rename (`r`), reorder (`Shift+↑/↓`), undo (`z`). Changes are staged and
-applied together on `Ctrl+S`. Reordering and structural changes cannot mix
-in one session. Preconditions: active stack checked out, clean working tree,
-no rebase in progress, no PR queued, linear history. Recovery:
-`--continue` after resolving an apply-phase conflict, `--abort` to restore
-the pre-modify snapshot (works even after a crash). After modifying, run
-`gh stack submit` to push and recreate the stack on GitHub.
+Interactive TUI for drop (`x`), fold down/up (`d`/`u`), insert (`i`/`I`), rename
+(`r`), reorder (`Shift+↑/↓`), undo (`z`). Changes are staged and applied
+together on `Ctrl+S`. Reordering and structural changes cannot mix in one
+session. Preconditions: active stack checked out, clean working tree, no rebase
+in progress, no PR queued, linear history. Recovery: `--continue` after
+resolving an apply-phase conflict, `--abort` to restore the pre-modify snapshot
+(works even after a crash). After modifying, run `gh stack submit` to push and
+recreate the stack on GitHub.
 
 `gh stack modify` needs a TTY. The non-interactive alternative is:
 `gh stack unstack` → `gh stack init <branches in new order>` →
@@ -278,8 +281,8 @@ repository's permitted merge method. Never use an administrator bypass.
 
 ## Interop with other tools (`gh stack link`)
 
-For branches managed with Jujutsu, Sapling, git-town, etc. — creates or
-updates the stack on GitHub with **no local tracking**:
+For branches managed with Jujutsu, Sapling, git-town, etc. — creates or updates
+the stack on GitHub with **no local tracking**:
 
 ```shell
 gh stack link feat-a feat-b feat-c     # bottom → top order
@@ -287,8 +290,8 @@ gh stack link 7 48 feature-ui          # append to existing stack number 7
 ```
 
 Branches are pushed automatically; missing PRs are created with correct base
-chaining; wrong bases on existing PRs are corrected. Updates are additive
-only — `link` never removes PRs from a stack.
+chaining; wrong bases on existing PRs are corrected. Updates are additive only —
+`link` never removes PRs from a stack.
 
 ## Troubleshooting quick hits
 

@@ -10,8 +10,8 @@ schemas, localization rules, and migration steps needed to align a codebase
 with that principle.
 
 For a backend-compatible perspective (hexagonal domain boundaries, ports, and
-offline-first persistence), see the backend architecture documentation for
-the project.
+offline-first persistence), see the backend architecture documentation for the
+project.
 
 ## Principles to enforce
 
@@ -23,15 +23,15 @@ the project.
 - Numeric values are stored in SI base units; conversion happens at render
   time via shared unit-format helpers.
 - Currency is an explicit exception to SI base-unit storage: prices are
-  stored as integer ISO 4217 minor units, and every price carries an ISO
-  4217 currency code.
+  stored as integer ISO 4217 minor units, and every price carries an ISO 4217
+  currency code.
 - Counts stay as integers; pluralization belongs to the translation system.
 - Components receive fully formed entities and only format/present them.
 
 ## Auditing existing card usage
 
-Before migrating, inventory every screen or view that renders cards. For
-each one, record:
+Before migrating, inventory every screen or view that renders cards. For each
+one, record:
 
 - the component file that owns the card markup;
 - the entities and fields it renders;
@@ -76,13 +76,12 @@ export type ImageAsset = {
 `EntityLocalizations` and `LocalizedAltText` are `Partial` records because a
 newly added locale will not have every entity translated immediately.
 
-Fallback rule: resolve using a deterministic order — the current user
-locale, then the designated default locale, then an explicit, stable
-fallback locale list — and take the first locale in that order that has
-the required value. Do not fall back to object insertion order or to any
-arbitrary available locale. Components must not construct names from
-translation keys. The same ordered fallback governs both entity names and
-localized image alt text.
+Fallback rule: resolve using a deterministic order — the current user locale,
+then the designated default locale, then an explicit, stable fallback locale
+list — and take the first locale in that order that has the required value. Do
+not fall back to object insertion order or to any arbitrary available locale.
+Components must not construct names from translation keys. The same ordered
+fallback governs both entity names and localized image alt text.
 
 ## Entity schemas by card type
 
@@ -290,16 +289,15 @@ classDiagram
 - Every entity exposes `localizations`; UI selects the matching locale once
   per render using a `pickLocalization(entity, locale)` helper.
 - Translation bundles (for example Fluent) keep only chrome (button labels,
-  aria labels, unit labels, plural rules). Remove entity names,
-  descriptions, and badges from translation bundles once migration lands.
+  aria labels, unit labels, plural rules). Remove entity names, descriptions,
+  and badges from translation bundles once migration lands.
 - Descriptor registries store `localizations` instead of a `labelKey` and
   `defaultLabel` pair.
 - Component props shift from `title`/`description` strings to entire entity
-  objects. Non-currency helpers (e.g., a weight formatter) continue to
-  format numbers with translated unit labels. `formatPrice` instead
-  receives the minor-unit value together with its `currencyCode` and
-  selects currency formatting from that code, never from translated unit
-  labels.
+  objects. Non-currency helpers (e.g., a weight formatter) continue to format
+  numbers with translated unit labels. `formatPrice` instead receives the
+  minor-unit value together with its `currencyCode` and selects currency
+  formatting from that code, never from translated unit labels.
 
 ## Attribute identifier strategy
 

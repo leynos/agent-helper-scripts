@@ -19,8 +19,8 @@ input. A producer that fails, or that matches nothing because the checkout is
 shallow, the branch is dead, or the paths root is wrong, therefore leaves the
 gate green having examined no file. A read-only sample of 41 estate
 repositories found the shape in 39 of them; the same shape reached the spelling
-gate's `git ls-files -z '*.md' | xargs -0 -r ... typos` and the Mermaid
-recipe's `find ... | xargs -0 -r nixie`.
+gate's `git ls-files -z '*.md' | xargs -0 -r ... typos` and the Mermaid recipe's
+`find ... | xargs -0 -r nixie`.
 
 The failure is silent in the direction that matters. A gate that examines no
 file and a gate that examines a clean tree report the same status, so anything
@@ -74,8 +74,8 @@ wrapper.
 - Discovery, invocation and error reporting are tested once here rather than
   re-tested in every consumer.
 - A missing tool is reported as `'<tool>' is required, but not installed`,
-  which is actionable where a shell's `command not found` inside a pipeline
-  was not.
+  which is actionable where a shell's `command not found` inside a pipeline was
+  not.
 
 **Costs and trade-offs:**
 
@@ -98,9 +98,9 @@ working-copy dictionary.
 
 The property the decision protects is unchanged rather than waived. The recipe
 is still one command whose status is the gate's status, with no pipeline and no
-`xargs`, so a producer's failure cannot be discarded. What moves is ownership of
-the file list: the builder enumerates the tracked tree it was given, refuses an
-empty scan, and reports a missing tool, and `tests/test_gate_runner.py` pins the
-recipe's repository, source, and `--scope all` arguments instead of pinning a
-runner invocation. A consumer that wants the same guarantee for its own
+`xargs`, so a producer's failure cannot be discarded. What moves is ownership
+of the file list: the builder enumerates the tracked tree it was given, refuses
+an empty scan, and reports a missing tool, and `tests/test_gate_runner.py` pins
+the recipe's repository, source, and `--scope all` arguments instead of pinning
+a runner invocation. A consumer that wants the same guarantee for its own
 Markdown or Mermaid gates still calls the runner.

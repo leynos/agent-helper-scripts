@@ -448,18 +448,17 @@ return the coroutine object itself rather than its awaited result.
 ### Creating async fixtures with @pytest_asyncio.fixture
 
 To define an asynchronous fixture, the @pytest\_asyncio.fixture decorator is
-the explicit, mode-independent way to mark an async def function as a
-fixture. In strict mode (the pytest-asyncio default), it must be used instead
-of the standard @pytest.fixture: if @pytest.fixture is used on an async def
-fixture under strict mode, the test function receives the raw coroutine
-object rather than its awaited result, leading to AttributeError or other
-unexpected behaviour. This guide configures asyncio\_mode = auto (see Section
-2), under which pytest-asyncio also detects and awaits async def fixtures
-declared with the plain @pytest.fixture, so the failure mode above does not
-apply. Even so, using @pytest\_asyncio.fixture explicitly is recommended in
-both modes, because it makes a fixture's asynchronous nature unambiguous to
-readers regardless of the configured asyncio\_mode. An example of a simple
-asynchronous fixture:
+the explicit, mode-independent way to mark an async def function as a fixture.
+In strict mode (the pytest-asyncio default), it must be used instead of the
+standard @pytest.fixture: if @pytest.fixture is used on an async def fixture
+under strict mode, the test function receives the raw coroutine object rather
+than its awaited result, leading to AttributeError or other unexpected
+behaviour. This guide configures asyncio\_mode = auto (see Section 2), under
+which pytest-asyncio also detects and awaits async def fixtures declared with
+the plain @pytest.fixture, so the failure mode above does not apply. Even so,
+using @pytest\_asyncio.fixture explicitly is recommended in both modes, because
+it makes a fixture's asynchronous nature unambiguous to readers regardless of
+the configured asyncio\_mode. An example of a simple asynchronous fixture:
 
 ```python
 import asyncio
@@ -626,11 +625,11 @@ specifies what this awaitable will resolve to when awaited.
 
 ### Patching asynchronous methods and functions
 
-Patching suits a free function or a third-party entry point that the code
-under test cannot be handed. Prefer injecting a collaborator through a
-constructor or factory argument where the design allows it, as the Falcon
-resource example below does: an injected fake needs no import path, so the test
-does not break when a module is reorganized.
+Patching suits a free function or a third-party entry point that the code under
+test cannot be handed. Prefer injecting a collaborator through a constructor or
+factory argument where the design allows it, as the Falcon resource example
+below does: an injected fake needs no import path, so the test does not break
+when a module is reorganized.
 
 The mocker.patch utility (from pytest-mock) or unittest.mock.patch can be used
 to replace asynchronous functions or methods with an AsyncMock instance. The
@@ -717,8 +716,8 @@ with its asynchronous dependencies in the expected manner.
 
 Consider a Falcon resource that depends on an external asynchronous service.
 The resource receives that service through its constructor, and the real
-service is constructed in one place only, the application's composition root.
-A test then passes a narrow fake directly, so no patching by import path is
+service is constructed in one place only, the application's composition root. A
+test then passes a narrow fake directly, so no patching by import path is
 needed and the test never depends on where a name happens to be looked up.
 
 **Service (src/services.py):**

@@ -1,8 +1,8 @@
 # Milestone CodeRabbit CLI review
 
 Run all applicable deterministic gates before each requested CLI assessment.
-Hosted assessments, discussion, and recovery belong to `pr-babysitting`;
-this reference governs only the local milestone review.
+Hosted assessments, discussion, and recovery belong to `pr-babysitting`; this
+reference governs only the local milestone review.
 
 ## Milestone CLI review
 

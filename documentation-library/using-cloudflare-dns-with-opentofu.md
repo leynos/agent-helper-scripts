@@ -17,8 +17,8 @@ terraform {
 ```
 
 The `provider "cloudflare"` block configures authentication and connects
-OpenTofu to Cloudflare. Declare the token as a sensitive variable and supply
-it via an environment variable to avoid leaking secrets:
+OpenTofu to Cloudflare. Declare the token as a sensitive variable and supply it
+via an environment variable to avoid leaking secrets:
 
 ```hcl
 variable "cloudflare_api_token" {
@@ -69,8 +69,8 @@ resource "cloudflare_dns_record" "www" {
 }
 ```
 
-This creates a proxied A record pointing to `203.0.113.10`. Cloudflare
-requires automatic TTL (`ttl = 1`) on proxied records.
+This creates a proxied A record pointing to `203.0.113.10`. Cloudflare requires
+automatic TTL (`ttl = 1`) on proxied records.
 
 ## 4. Automate bulk records with variables
 
@@ -113,8 +113,8 @@ dns_records = {
 }
 ```
 
-The `app_rr_a` and `app_rr_b` entries are round-robin `A` records that share
-the `app-rr.example.com` hostname under different map keys.
+The `app_rr_a` and `app_rr_b` entries are round-robin `A` records that share the
+`app-rr.example.com` hostname under different map keys.
 
 This keeps the configuration "don't repeat yourself" (DRY) and maintainable.
 
@@ -183,8 +183,8 @@ available via the
 and the
 [Terraform Registry](https://registry.terraform.io/providers/cloudflare/cloudflare/latest);
 modules remain discoverable on the
-[Terraform Module Registry](https://registry.terraform.io/browse/modules),
-with example repositories supporting modular design.
+[Terraform Module Registry](https://registry.terraform.io/browse/modules), with
+example repositories supporting modular design.
 
 ### Summary table
 

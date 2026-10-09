@@ -1,10 +1,9 @@
 # Front‑End Semantic Linting — Implementation Guide (BiomeJS + GritQL first)
 
-**Audience:** Implementers enforcing semantic, accessible markup in a
-Tailwind CSS v4 + DaisyUI v5 front end.
-**Goal:** Enforce semantic, accessible HTML with clean, token‑driven
-Tailwind/DaisyUI usage. Prefer **BiomeJS + GritQL** rules; fall back to
-**Semgrep**/**Stylelint** when they express rules better.
+**Audience:** Implementers enforcing semantic, accessible markup in a Tailwind
+CSS v4 + DaisyUI v5 front end. **Goal:** Enforce semantic, accessible HTML with
+clean, token‑driven Tailwind/DaisyUI usage. Prefer **BiomeJS + GritQL** rules;
+fall back to **Semgrep**/**Stylelint** when they express rules better.
 **Outcome:** Readable, queryable markup; reusable semantic classes via
 `@apply`; consistent DaisyUI/Radix‑aligned naming; single CLI for local + CI.
 
@@ -404,9 +403,8 @@ preferred fix to recommend in future lint passes.
   score `(tokenCount - semanticSignals)` and warn above a configurable
   threshold.
 
-Each proposal will ship with a concrete class name suggestion and will
-reference `src/styles/semantic.css` (or `@utility` helpers) so fixes are
-straightforward.
+Each proposal will ship with a concrete class name suggestion and will reference
+`src/styles/semantic.css` (or `@utility` helpers) so fixes are straightforward.
 
 ### F) Class allowlist (Tailwind, DaisyUI, project semantics)
 
@@ -424,10 +422,10 @@ Files:
 - `tools/grit/rule-testing-queryselector.grit`
 - `tools/grit/rule-testing-text-click.grit`
 
-Test code should prefer role, label, and text queries over `data-testid`,
-raw `querySelector` calls, class selectors, or fragile text-click shortcuts.
-Flag these patterns unless no accessible query is available, and require a
-local, reviewed exception when one is used:
+Test code should prefer role, label, and text queries over `data-testid`, raw
+`querySelector` calls, class selectors, or fragile text-click shortcuts. Flag
+these patterns unless no accessible query is available, and require a local,
+reviewed exception when one is used:
 
 ```grit
 `screen.getByTestId($ARG)` where {

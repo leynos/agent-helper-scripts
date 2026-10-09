@@ -4,16 +4,16 @@
 
 ## Context and sources
 
-Repeated delegation needs a planning boundary before execution. Journeyman
-owns an approved ExecPlan or a named, validated plateau. Artisan owns one
-complete, bounded execution packet. Neither should invent the product bet
-that authorizes its work. Alchemist already executes a single falsification
-experiment; creating another experimental executor would duplicate that role.
+Repeated delegation needs a planning boundary before execution. Journeyman owns
+an approved ExecPlan or a named, validated plateau. Artisan owns one complete,
+bounded execution packet. Neither should invent the product bet that authorizes
+its work. Alchemist already executes a single falsification experiment;
+creating another experimental executor would duplicate that role.
 
 The [roadmap-doc skill][roadmap-skill] and its [conventions][conventions] in
 `leynos/df12-documentation-skills` define the planning model used here. This
-proposal consulted revision `8372f538455d3ffc93f1315956c0ab752a9ea3ee`.
-Phases carry ideas, steps represent coherent workstreams, and tasks provide
+proposal consulted revision `8372f538455d3ffc93f1315956c0ab752a9ea3ee`. Phases
+carry ideas, steps represent coherent workstreams, and tasks provide
 review-sized execution units. Existing role and deployment contracts live in
 [`agents/subagents.yml`](../../agents/subagents.yml) and
 [ADR 002](002-subagent-manifest-loader.md).
@@ -29,8 +29,8 @@ including reassessment when delivery evidence challenges that idea.
 
 The parent owns the goal, priorities, resources, and approval decisions. The
 Natural Philosopher owns hypothesis quality, evidence design, and the proposed
-sequence of learning and delivery. It does not own production implementation
-or authorization to proceed. This adds no new manifest schema or renderer.
+sequence of learning and delivery. It does not own production implementation or
+authorization to proceed. This adds no new manifest schema or renderer.
 
 ### GIST and delivery boundaries
 
@@ -56,12 +56,12 @@ Parent: goal, selected idea, constraints, authority, and budget
   -> Artisan: one complete bounded execution packet
 ```
 
-The design does not require an Architect agent to exist. The responsible
-parent routes architectural decisions through the repository's normal design
-and ADR process. GitHub remains the execution and evidence ledger; Linear
-remains the programme and capability map. A PR finishing is not evidence that
-a capability or idea has succeeded, and this role does not mirror each GitHub
-object into a Linear issue.
+The design does not require an Architect agent to exist. The responsible parent
+routes architectural decisions through the repository's normal design and ADR
+process. GitHub remains the execution and evidence ledger; Linear remains the
+programme and capability map. A PR finishing is not evidence that a capability
+or idea has succeeded, and this role does not mirror each GitHub object into a
+Linear issue.
 
 ### Input contract
 
@@ -70,19 +70,19 @@ current roadmap IDs and status, known evidence, non-goals, architectural
 constraints, and the decision needed. Specify the inquiry boundary, owned
 document paths, resource limits, permitted research, and stop conditions.
 
-Absent experiment authority means design only. Without explicitly owned
-paths, the agent returns its proposal in the report rather than editing files.
-It reads `roadmap-doc` and its conventions through an authorized source and
-records the revision. Missing essential sources or normative decisions require
-escalation. Ordinary uncertainty about how a system works does not: resolving
-that uncertainty is the role's purpose.
+Absent experiment authority means design only. Without explicitly owned paths,
+the agent returns its proposal in the report rather than editing files. It reads
+`roadmap-doc` and its conventions through an authorized source and records the
+revision. Missing essential sources or normative decisions require escalation.
+Ordinary uncertainty about how a system works does not: resolving that
+uncertainty is the role's purpose.
 
 ### Hypothesis and step contracts
 
 For each material hypothesis, distinguish facts, source claims, inferences,
 assumptions, and unknowns. State the prediction, comparator, representative
-workload, measures, falsification condition, and decision consequences.
-Include the option of retaining the current behaviour where plausible.
+workload, measures, falsification condition, and decision consequences. Include
+the option of retaining the current behaviour where plausible.
 
 Protect correctness and safety invariants as well as the desired improvement.
 Set decision rules before trials; mark unapproved thresholds as proposals.
@@ -97,10 +97,10 @@ Each step proposal contains:
 - The decision it enables and the next action for a favourable, negative, or
   inconclusive result.
 
-Keep dependencies acyclic and favour usable vertical slices. Foundational
-work must retire an explicit contract or delivery risk. Preserve deferred
-scope and account for relevant source obligations. Produce detailed candidate
-tasks only when the assignment requires them or they establish feasibility.
+Keep dependencies acyclic and favour usable vertical slices. Foundational work
+must retire an explicit contract or delivery risk. Preserve deferred scope and
+account for relevant source obligations. Produce detailed candidate tasks only
+when the assignment requires them or they establish feasibility.
 
 Unit and behavioural tests, property tests, and formal verification accompany
 implementation and its success criteria. End-to-end and combinatorial suites
@@ -125,13 +125,13 @@ host cannot delegate, return the packet for the parent instead of claiming an
 experiment ran. Do not recursively spawn Natural Philosophers or commission
 Journeyman or Artisan implementation.
 
-The agent may edit only assigned design or roadmap documents. Production
-code, tests, dependencies, and approved architecture remain outside that edit
+The agent may edit only assigned design or roadmap documents. Production code,
+tests, dependencies, and approved architecture remain outside that edit
 boundary. Publishing, commits, issues, Linear changes, and other external
 writes require explicit authorization. Stop affected work when scope, budget,
-authority, concurrent changes, or an invalidated approved mandate prevents
-safe continuation. Report useful partial findings and the smallest decision
-needed; never hide a negative result or experiment past a stop condition.
+authority, concurrent changes, or an invalidated approved mandate prevents safe
+continuation. Report useful partial findings and the smallest decision needed;
+never hide a negative result or experiment past a stop condition.
 
 ### Completion and evidence
 
@@ -142,24 +142,25 @@ research consumption, risks, and context-pack IDs.
 
 Keep the report state `ready-for-review | escalated` separate from hypothesis
 verdicts `untested | falsified | not-falsified | inconclusive`. Recommendations
-are `proceed`, `revise`, `defer`, or `stop`, not self-issued approval. A passing
-experiment is not proof, and completed child tasks do not complete the idea.
+are `proceed`, `revise`, `defer`, or `stop`, not self-issued approval. A
+passing experiment is not proof, and completed child tasks do not complete the
+idea.
 
 ### Provider choices and limits
 
 Codex uses `gpt-5.6-sol`, medium reasoning effort, and `workspace-write`. Its
 nickname pool draws on the natural philosophers who established evidence-led
 inquiry, from Ibn al-Haytham to Faraday and Maxwell, matching the themed pools
-the other Codex roles carry. Claude
-uses `opus` with high effort and exactly `Read`, `Grep`, `Glob`, `Edit`, `Write`,
-and `Task`. There is no direct Claude `Bash` grant. Its MCP allow-list contains
-`context_pack`, `firecrawl`, `deepwiki`, and `codegraph` for grounded research.
-Goose enables the same provider-neutral instructions.
+the other Codex roles carry. Claude uses `opus` with high effort and exactly
+`Read`, `Grep`, `Glob`, `Edit`, `Write`, and `Task`. There is no direct Claude
+`Bash` grant. Its MCP allow-list contains `context_pack`, `firecrawl`,
+`deepwiki`, and `codegraph` for grounded research. Goose enables the same
+provider-neutral instructions.
 
-As in ADR 002, Codex omits `mcp_servers` and Goose omits `extensions` to inherit
-the credentialed parent registry. These inherited tools may exceed the role's
-minimum needs. Workspace-write does not enforce document-only paths, and a
-Task grant does not itself enforce the permitted child roster. The prose
+As in ADR 002, Codex omits `mcp_servers` and Goose omits `extensions` to
+inherit the credentialed parent registry. These inherited tools may exceed the
+role's minimum needs. Workspace-write does not enforce document-only paths, and
+a Task grant does not itself enforce the permitted child roster. The prose
 contracts are behavioural constraints, not a new sandbox or security boundary.
 Hosts must enforce their own permissions and delegation limits. This change
 does not expand the authority of any existing role.
@@ -176,19 +177,19 @@ current design, records the absence of measurements, and proposes a comparator
 and acceptance threshold for parent review.
 
 A first step could deliver one complete cache-backed setup path and answer
-whether a clean consumer restores the correct binary under representative
-cold, warm, stale, and corrupt-cache conditions. Correct identity, checksum
+whether a clean consumer restores the correct binary under representative cold,
+warm, stale, and corrupt-cache conditions. Correct identity, checksum
 verification, and safe failure remain invariants. Its implementation tasks
 include their ordinary unit and behavioural checks; a justified interaction
 suite may warrant its own review-sized task.
 
-A subsequent step could extend that verified path to another supported
-consumer and test whether the cost benefit generalizes. It depends on the
-first step's evidence, not just its merged PR. A wrong restored binary defeats
-the first step's safety claim. No cost improvement defeats the proposed
-benefit at the agreed threshold. Noisy measurements remain inconclusive and
-justify only bounded further inquiry. The parent decides whether to revise or
-stop before authorizing broader rollout.
+A subsequent step could extend that verified path to another supported consumer
+and test whether the cost benefit generalizes. It depends on the first step's
+evidence, not just its merged PR. A wrong restored binary defeats the first
+step's safety claim. No cost improvement defeats the proposed benefit at the
+agreed threshold. Noisy measurements remain inconclusive and justify only
+bounded further inquiry. The parent decides whether to revise or stop before
+authorizing broader rollout.
 
 ## Validation and review scenarios
 

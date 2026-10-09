@@ -30,11 +30,11 @@ containers execute in isolation.
   export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
   ```
 
-  Confirm the socket is listening
-  (`systemctl --user status podman.socket`) before invoking `act`. Commands
-  that talk to the socket may need escalated permissions if the local
-  runtime requires them. If residue from an earlier run remains (stale
-  containers or virtual environments), clear it before rerunning.
+  Confirm the socket is listening (`systemctl --user status podman.socket`)
+  before invoking `act`. Commands that talk to the socket may need escalated
+  permissions if the local runtime requires them. If residue from an earlier
+  run remains (stale containers or virtual environments), clear it before
+  rerunning.
 - Optional but recommended: pin an image to reduce drift:
 
   ```bash
@@ -54,8 +54,8 @@ tests/
 
 ### Example workflow (self-checking)
 
-This job builds a tiny JSON artefact with environment/version data and
-uploads it. This provides deterministic material to assert on from the host.
+This job builds a tiny JSON artefact with environment/version data and uploads
+it. This provides deterministic material to assert on from the host.
 
 ```yaml
 # .github/workflows/selftest.yml
@@ -109,8 +109,8 @@ File: `tests/fixtures/pull_request.event.json`.
 ## Driving `act` from `pytest` (black-box harness)
 
 The harness runs `act`, captures artefacts under a pytest-managed temporary
-directory, and reads the JSON log stream. It makes **no attempt** to
-intercept commands inside the containers.
+directory, and reads the JSON log stream. It makes **no attempt** to intercept
+commands inside the containers.
 
 ```python
 # tests/test_workflow_integration.py
@@ -209,18 +209,18 @@ zip file rather than the raw file. Expect a path such as:
 
 - `<artifact-server-path>/<run-id>/<artifact-name>/<artifact-name>.zip`
 
-Read `result.json` straight out of the zip using the standard library
-`zipfile` module if the raw file is not available directly; avoid extracting
-to disk unless the workflow under test genuinely requires it.
+Read `result.json` straight out of the zip using the standard library `zipfile`
+module if the raw file is not available directly; avoid extracting to disk
+unless the workflow under test genuinely requires it.
 
 ## Record -> replay -> verify (closing the loop)
 
-`cmd-mox` complements this harness when a helper script shells out to
-external command-line interfaces (CLIs), such as `gh`. Host-side `cmd_mox`
-spies and mocks cannot intercept commands executed inside an `act`
-container, so these tests invoke the helper process directly on the host,
-as a separate test from the `act` integration test above. The tooling
-follows a record, replay, and verify loop:
+`cmd-mox` complements this harness when a helper script shells out to external
+command-line interfaces (CLIs), such as `gh`. Host-side `cmd_mox` spies and
+mocks cannot intercept commands executed inside an `act` container, so these
+tests invoke the helper process directly on the host, as a separate test from
+the `act` integration test above. The tooling follows a record, replay, and
+verify loop:
 
 1. **Record** a golden trace with passthrough spies.
 
@@ -265,9 +265,9 @@ follows a record, replay, and verify loop:
    YAML, so future tests can bootstrap mocks from the same expectations.
 
 The `act` integration test above stays a pure black-box check: exit status,
-artefacts, workspace side effects, and structured logs. It does not
-configure `cmd_mox`, because host-side spies and mocks cannot see, let
-alone replace, commands that `act` runs inside its container.
+artefacts, workspace side effects, and structured logs. It does not configure
+`cmd_mox`, because host-side spies and mocks cannot see, let alone replace,
+commands that `act` runs inside its container.
 
 ## What to assert (beyond exit code)
 
@@ -297,8 +297,7 @@ alone replace, commands that `act` runs inside its container.
 - **Runner parity:** `act` images are close, not identical, to
   `ubuntu-latest`.
 - **Permissions/OIDC:** token scopes, OIDC federation, and GitHub-provided
-  credentials cannot be faithfully validated locally; rely on GitHub
-  runners.
+  credentials cannot be faithfully validated locally; rely on GitHub runners.
 - **Service containers & networking:** usually fine but can diverge under
   load or with subtle DNS/health-check timing.
 
@@ -310,5 +309,5 @@ alone replace, commands that `act` runs inside its container.
    tokens; gate behind labels/paths.
 
 This arrangement provides tight feedback for workflow correctness and
-orchestration logic, without pretending local containers are perfect
-stand-ins for GitHub's environment.
+orchestration logic, without pretending local containers are perfect stand-ins
+for GitHub's environment.

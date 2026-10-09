@@ -1,46 +1,45 @@
 # Comment routes and templates
 
 Replace every placeholder and remove unsupported claims before posting. Read
-back the posted body and URL. Keep comments specific to the finding,
-candidate, and evidence; do not claim that CodeRabbit ran a requested analysis
-unless its response establishes that it did.
+back the posted body and URL. Keep comments specific to the finding, candidate,
+and evidence; do not claim that CodeRabbit ran a requested analysis unless its
+response establishes that it did.
 
 ## Route and identity rules
 
-Every manually posted comment or inline reply uses an authorized token
-selected with `shuf` from `~/.local/share/github-tokens`. This includes CI
+Every manually posted comment or inline reply uses an authorized token selected
+with `shuf` from `~/.local/share/github-tokens`. This includes CI
 investigation, rebuttals, confirmations, pre-merge reconciliation, and the
 final approval request. Do not use a connector's implicit identity instead.
-Full and incremental review requests, retries, and review-resume actions
-belong to `comenq-coderabbit`. Its dispatcher retains its own configured
-identity and cooldown policy; do not wrap it with a randomly selected
-manual-comment token.
+Full and incremental review requests, retries, and review-resume actions belong
+to `comenq-coderabbit`. Its dispatcher retains its own configured identity and
+cooldown policy; do not wrap it with a randomly selected manual-comment token.
 
 The initial ExecPlan completeness/correctness and proof-specific assessment
-comments in [ExecPlan assessments](execplan-assessment.md) are explicit,
-narrow exceptions. Each uses this assigned manual-token procedure as a
-separate top-level issue comment, after its deterministic prerequisites hold.
-All subsequent whole-assessment retries and review recovery use
+comments in [ExecPlan assessments](execplan-assessment.md) are explicit, narrow
+exceptions. Each uses this assigned manual-token procedure as a separate
+top-level issue comment, after its deterministic prerequisites hold. All
+subsequent whole-assessment retries and review recovery use
 `comenq-coderabbit`. These exceptions do not authorize arbitrary manual
 whole-PR reviews, duplicate requests, or cooldown bypasses.
 
 Use the inline reply endpoint for an inline finding. Its reply target is the
-thread's root review-comment ID, not a review ID, GraphQL thread ID, or
-another reply's ID. For a review banner or top-level finding, create a new
-issue comment and link back to the original. Always mention `@coderabbitai`;
-retain the original reviewer's identity in the explanation.
+thread's root review-comment ID, not a review ID, GraphQL thread ID, or another
+reply's ID. For a review banner or top-level finding, create a new issue
+comment and link back to the original. Always mention `@coderabbitai`; retain
+the original reviewer's identity in the explanation.
 
 A request to confirm a specific fix or disposition is not a request for a new
 review. Do not add `review`, `full review`, `resume`, or a natural-language
 whole-PR review request to a manually posted disposition comment. Requesting
-final approval is an explicit exception described by this skill, not an
-excuse to bypass a required review. The two initial assessment exceptions
-above have their own applicability and prerequisites.
+final approval is an explicit exception described by this skill, not an excuse
+to bypass a required review. The two initial assessment exceptions above have
+their own applicability and prerequisites.
 
 On an ambiguous posting failure, fetch the discussion and check whether the
 comment already exists before retrying. Honour HTTP retry advice and service
-cooldowns. Do not keep selecting another token until a request succeeds. If
-the authorized route is unavailable, retain the draft and report the blocker.
+cooldowns. Do not keep selecting another token until a request succeeds. If the
+authorized route is unavailable, retain the draft and report the blocker.
 
 ## Token-scoped posting example
 
@@ -51,9 +50,9 @@ must never `source` the pool. Where the installation uses another format, use
 its documented reader rather than guessing or dumping the contents.
 
 The function is an example for a controlled agent runtime, not an autonomous
-babysitting daemon. It does not prove that the candidate was pushed or the
-body is an authorized disposition: establish those conditions before calling
-it. It requires Bash, `awk`, GNU `shuf`, `jq`, and `gh`.
+babysitting daemon. It does not prove that the candidate was pushed or the body
+is an authorized disposition: establish those conditions before calling it. It
+requires Bash, `awk`, GNU `shuf`, `jq`, and `gh`.
 
 ```bash
 post_manual_comment() (
@@ -106,10 +105,10 @@ post_manual_comment() (
 ```
 
 The credential is scoped to the posting process and subshell; never log the
-selected record, enable HTTP debug output, put it in an argument/header
-string, or write it into evidence. A successful command returns the comment
-URL, not proof that a bot received, resolved, or approved anything. Keep the
-pool private under the installation's credential-storage policy.
+selected record, enable HTTP debug output, put it in an argument/header string,
+or write it into evidence. A successful command returns the comment URL, not
+proof that a bot received, resolved, or approved anything. Keep the pool
+private under the installation's credential-storage policy.
 
 Examples, after preparing and inspecting the body file:
 
@@ -123,8 +122,7 @@ post_manual_comment OWNER/REPO 123 /tmp/pr-123-response.md 456789
 
 ## CI investigation
 
-Use the exact investigation template in `SKILL.md`. Add this framing outside
-it:
+Use the exact investigation template in `SKILL.md`. Add this framing outside it:
 
 ```text
 @coderabbitai
@@ -239,8 +237,8 @@ follow-up issues.
 
 ## Final approval request
 
-Before sending, ensure the final-round and substantive-disposition conditions
-in `SKILL.md` hold. Use a new top-level comment, not an inline reply.
+Before sending, ensure the final-round and substantive-disposition conditions in
+`SKILL.md` hold. Use a new top-level comment, not an inline reply.
 
 ```text
 @coderabbitai approve
@@ -258,7 +256,6 @@ identify the specific unresolved finding or missing required inspection.
 ```
 
 CodeRabbit documents `approve` as resolving its unresolved threads before
-attempting approval. It requires the request-changes workflow setting to
-submit an approval. Preserve the pre-command finding inventory and inspect the
-result; never treat the command's thread-resolution side effect as evidence of
-a fix.
+attempting approval. It requires the request-changes workflow setting to submit
+an approval. Preserve the pre-command finding inventory and inspect the result;
+never treat the command's thread-resolution side effect as evidence of a fix.

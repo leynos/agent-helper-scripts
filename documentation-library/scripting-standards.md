@@ -40,10 +40,10 @@ as a default.
   [`cuprum`](https://github.com/leynos/cuprum/) to provide typed,
   allowlist-based command execution rather than ad‑hoc shell strings. Cuprum's
   catalogue system reduces accidental invocation of unregistered executables,
-  but registering an interpreter such as `sh`, `bash` or `python` still
-  permits arbitrary code execution through caller-supplied arguments. An
-  explicit executable policy plus separate validation of caller-supplied
-  arguments remain required.
+  but registering an interpreter such as `sh`, `bash` or `python` still permits
+  arbitrary code execution through caller-supplied arguments. An explicit
+  executable policy plus separate validation of caller-supplied arguments
+  remain required.
 - File‑system interactions use `pathlib.Path`. Higher‑level operations (for
   example, copying or removing trees) go through the `shutil` standard library
   module.
@@ -410,21 +410,21 @@ async def check_with_timeout():
 #### Error propagation
 
 `run()` returns a `CommandResult` when the process starts, including when it
-exits with a non-zero status. Check `result.exit_code` explicitly. Failures that
-prevent execution are raised as exceptions: for example, `FileNotFoundError`
-when a registered executable is absent before spawn, `CancelledError` or
-`TimeoutError` from cancellation or a timeout, and catalogue errors such as
-`UnknownProgramError`. A non-zero `exit_code` and a raised exception are
-different failure paths and should be handled separately.
+exits with a non-zero status. Check `result.exit_code` explicitly. Failures
+that prevent execution are raised as exceptions: for example,
+`FileNotFoundError` when a registered executable is absent before spawn,
+`CancelledError` or `TimeoutError` from cancellation or a timeout, and
+catalogue errors such as `UnknownProgramError`. A non-zero `exit_code` and a
+raised exception are different failure paths and should be handled separately.
 
 #### Catalogue safety across concurrent tasks
 
 A `ProgramCatalogue` instance is safe to share across concurrent tasks because
 it is read-only after construction. `scoped(allowlist=...)` narrows execution
-to the listed programs, while each `sh.make(program, catalogue=CATALOGUE)` binds
-the builder to the catalogue used to resolve that program. Authors must not
-mutate a catalogue inside a concurrent task. Construct it once at module level
-and re-use it.
+to the listed programs, while each `sh.make(program, catalogue=CATALOGUE)`
+binds the builder to the catalogue used to resolve that program. Authors must
+not mutate a catalogue inside a concurrent task. Construct it once at module
+level and re-use it.
 
 #### Concurrent testing patterns with cmd-mox
 

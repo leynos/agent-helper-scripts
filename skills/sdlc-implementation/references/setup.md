@@ -69,10 +69,10 @@ branch conventions rather than forcing the ordinary `origin` recipe.
 
 ## PR title and Lody session
 
-Read the live title and remove only the exact leading `Plan:` prefix and
-its following space. Keep the remainder unchanged, and do not write an empty
-title. Compare a fresh title read with the original immediately before editing,
-then read the title back and verify the result. Stop and reconcile if either
+Read the live title and remove only the exact leading `Plan:` prefix and its
+following space. Keep the remainder unchanged, and do not write an empty title.
+Compare a fresh title read with the original immediately before editing, then
+read the title back and verify the result. Stop and reconcile if either
 comparison fails.
 
 ```bash
@@ -101,16 +101,16 @@ if [[ "$original_title" == 'Plan: '* ]]; then
 fi
 ```
 
-The compare and edit are not atomic: `gh pr edit` has no conditional title-update
-flag, so another writer could change the title after the comparison. Serialize
-title edits across writers when excluding that race is required. Read-back
-verifies the observed result but cannot prevent a later concurrent edit.
+The compare and edit are not atomic: `gh pr edit` has no conditional
+title-update flag, so another writer could change the title after the
+comparison. Serialize title edits across writers when excluding that race is
+required. Read-back verifies the observed result but cannot prevent a later
+concurrent edit.
 
 Confirm that this is an active Lody session, the CLI is installed, and the
 identifier is present before changing its title. A missing capability in a Lody
 assignment is a blocker, not a silently skipped step. Outside Lody, record the
-session steps as inapplicable; do not invent an identifier or unrelated
-session.
+session steps as inapplicable; do not invent an identifier or unrelated session.
 
 ```bash
 : "${LODY_SESSION_ID:?An active Lody session ID is required}"
@@ -148,5 +148,5 @@ ambiguous write requires observation before retrying.
 ## Source
 
 [GitHub: renaming a branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/renaming-a-branch)
-documents the remote-head rename consequence. Read live repository state before
-applying any branch migration; this reference is not a migration script.
+documents the remote-head rename consequence. Read live repository state
+before applying any branch migration; this reference is not a migration script.

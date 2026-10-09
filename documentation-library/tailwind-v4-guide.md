@@ -152,8 +152,8 @@ Use the `@utility` directive instead of `@layer utilities`:
 ```
 
 `@apply` only inlines plain utility classes. Variant-prefixed utilities and
-plugin component classes (for example from a component library) should not
-be hidden inside `@apply`; keep them visible in markup, or wrap them in an
+plugin component classes (for example from a component library) should not be
+hidden inside `@apply`; keep them visible in markup, or wrap them in an
 `@utility` block instead.
 
 ## Custom Variants
@@ -255,8 +255,8 @@ be hidden inside `@apply`; keep them visible in markup, or wrap them in an
 
 #### in-\* variant
 
-The `in-*` variant styles an element based on the state of an ancestor,
-similar to `group-*`, but without needing a `group` class on that ancestor.
+The `in-*` variant styles an element based on the state of an ancestor, similar
+to `group-*`, but without needing a `group` class on that ancestor.
 
 ```html
 <article>
@@ -323,8 +323,8 @@ v4 uses OKLCH colour space for wider gamut support:
 </div>
 ```
 
-Use container queries only when a component's layout genuinely depends on
-its container's size; do not use them as a blanket substitute for page-level
+Use container queries only when a component's layout genuinely depends on its
+container's size; do not use them as a blanket substitute for page-level
 breakpoints.
 
 ### 4. Modern CSS Features

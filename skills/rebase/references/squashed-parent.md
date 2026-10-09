@@ -13,16 +13,16 @@ validated inputs, not commands to discover them by guessing.
 M-----S-----T              target
 ```
 
-`S` incorporates the parent's `A+B` changes. The intended original child
-series is `C,D`. Record three distinct identities:
+`S` incorporates the parent's `A+B` changes. The intended original child series
+is `C,D`. Record three distinct identities:
 
 - `PARENT_HEAD`: the recovered historical parent head (`B` in this graph).
 - `LANDED`: the parent's integration commit (`S` for a confirmed squash merge).
 - `OLD_BASE`: the exclusive child replay boundary (`B`, not `C`, `S`, or `M`).
 
 The desired operation is `git rebase --onto T B child`. Deleting the parent
-branch need not delete `B`: the old child still reaches it. The missing evidence
-may be its role as the boundary, rather than the commit object itself.
+branch need not delete `B`: the old child still reaches it. The missing
+evidence may be its role as the boundary, rather than the commit object itself.
 
 ## Prefer a maintained receipt
 
@@ -62,8 +62,8 @@ per-commit prefix is necessary.
 
 Use the receipt or stack metadata first. Otherwise inspect the child PR's
 original base relationship, relevant PR history, and old parent branch refs.
-The child's current base may no longer be the old parent. Titles, branch
-names, and messages help locate candidates but do not establish ancestry.
+The child's current base may no longer be the old parent. Titles, branch names,
+and messages help locate candidates but do not establish ancestry.
 
 GitHub's commit-to-PR association endpoint provides another search route:
 
@@ -71,8 +71,8 @@ GitHub's commit-to-PR association endpoint provides another search route:
 gh api --paginate --slurp "repos/$REPOSITORY/commits/$CANDIDATE_SHA/pulls"
 ```
 
-The `--slurp` result is an array of pages. Do not combine `--slurp` with
-`--jq` or `--template`; collect the pages first and process them in Python.
+The `--slurp` result is an array of pages. Do not combine `--slurp` with `--jq`
+or `--template`; collect the pages first and process them in Python.
 
 Associations are not exclusive ownership labels: a stacked child PR can also
 contain the parent's commits. Inspect each candidate's repository, merge state,
@@ -93,12 +93,12 @@ gh api "repos/$PARENT_REPOSITORY/pulls/$PARENT_PR" \
 
 <!-- markdownlint-enable MD013 -->
 
-Check the repository and PR number against the requested identity.
-Require `merged: true` and a non-null merge timestamp. For a confirmed squash
-merge, `merge_commit_sha` identifies the new squash commit, not the original
-parent head. Before merge,
-that API field can instead identify a synthetic test merge. A single-parent
-integration commit alone does not distinguish squash merge from rebase merge.
+Check the repository and PR number against the requested identity. Require
+`merged: true` and a non-null merge timestamp. For a confirmed squash merge,
+`merge_commit_sha` identifies the new squash commit, not the original parent
+head. Before merge, that API field can instead identify a synthetic test merge.
+A single-parent integration commit alone does not distinguish squash merge from
+rebase merge.
 
 ## Recover and verify the historical head
 
@@ -114,8 +114,8 @@ PARENT_HEAD=$(git rev-parse --verify \
 ```
 
 Use `head`, not the synthetic `refs/pull/N/merge` ref. Check that the fetched
-commit matches the captured metadata and the historical parent incarnation
-the child actually inherited. A current PR head does not recover all earlier
+commit matches the captured metadata and the historical parent incarnation the
+child actually inherited. A current PR head does not recover all earlier
 force-pushed incarnations. A ref or metadata disagreement requires refreshed,
 consistent evidence; do not continue with whichever value is convenient.
 
@@ -129,8 +129,8 @@ git merge-base --is-ancestor "$PARENT_HEAD" "$OLD_HEAD"
 A successful check supports `OLD_BASE=PARENT_HEAD`, subject to the parent
 identity and complete replay-range checks in the main skill.
 
-If the parent advanced linearly after the child forked, its final tip need
-not be an ancestor of the child. Inspect all merge bases:
+If the parent advanced linearly after the child forked, its final tip need not
+be an ancestor of the child. Inspect all merge bases:
 
 ```bash
 git merge-base --all "$PARENT_HEAD" "$OLD_HEAD"
@@ -138,13 +138,13 @@ git merge-base --all "$PARENT_HEAD" "$OLD_HEAD"
 
 With retained parent history, the unique result can recover the inherited
 boundary. Accept it only with evidence that the parent history through that
-boundary remained intact and the proposed suffix contains only child work.
-An arbitrary common ancestor, even a unique one, does not prove this.
+boundary remained intact and the proposed suffix contains only child work. An
+arbitrary common ancestor, even a unique one, does not prove this.
 
-If the parent was rebased, amended, or otherwise rewritten before merging,
-this command may return an earlier trunk commit and include old parent work
-in the proposed replay. Recover the appropriate historical tip from preserved
-refs, receipts, reflogs, or captured PR history instead.
+If the parent was rebased, amended, or otherwise rewritten before merging, this
+command may return an earlier trunk commit and include old parent work in the
+proposed replay. Recover the appropriate historical tip from preserved refs,
+receipts, reflogs, or captured PR history instead.
 
 ## Use fork-point only with the right history
 
@@ -159,11 +159,11 @@ git merge-base --fork-point \
 
 Validate any returned commit as a candidate. Fork-point cannot recover a tip
 that the relevant reflog never recorded or no longer retains. A fresh clone,
-expired reflog, deleted ref, or a fork from a non-tip commit can defeat it.
-Do not blindly assume that `@{1}` denotes the needed incarnation.
+expired reflog, deleted ref, or a fork from a non-tip commit can defeat it. Do
+not blindly assume that `@{1}` denotes the needed incarnation.
 
-Calling fork-point on the new target is not a substitute: the target need
-never have pointed at the parent's original commits before the squash.
+Calling fork-point on the new target is not a substitute: the target need never
+have pointed at the parent's original commits before the squash.
 
 ## Check integration separately from boundary selection
 
@@ -175,9 +175,9 @@ git merge-base --is-ancestor "$LANDED" "$TARGET"
 
 Require success for this squash-restack workflow. An error is not a negative
 ancestry result; missing or shallow history needs repair before proceeding.
-Reachability proves that the integration commit is in target history, not
-that later commits preserve all its behaviour. Check relevant subsequent
-changes and do not undo an intentional revert during conflict resolution.
+Reachability proves that the integration commit is in target history, not that
+later commits preserve all its behaviour. Check relevant subsequent changes and
+do not undo an intentional revert during conflict resolution.
 
 ## Patch comparisons are forensic evidence, not a boundary oracle
 

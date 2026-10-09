@@ -78,16 +78,15 @@ Repositories that adopt this documentation style should keep a small set of
 high-value documents with clearly separated audiences and responsibilities.
 These document types are complementary: the contents file helps readers find
 material, the user's guide explains how to use the project, the developer's
-guide explains how to work on the project, the migration guide carries a
-reader across one release boundary, the design document explains why the
-system is shaped the way it is, and the repository layout document explains
-where important things live. For discoverability, use canonical filenames
-unless a stronger repository-specific constraint applies: `docs/contents.md`,
-`docs/users-guide.md`, `docs/developers-guide.md`,
-`docs/repository-layout.md`, and `docs/documentation-style-guide.md`, plus a
-primary design document under `docs/*-design.md`, for example
-`docs/query-planner-design.md`, and one migration guide per release that
-changes observable behaviour.
+guide explains how to work on the project, the migration guide carries a reader
+across one release boundary, the design document explains why the system is
+shaped the way it is, and the repository layout document explains where
+important things live. For discoverability, use canonical filenames unless a
+stronger repository-specific constraint applies: `docs/contents.md`,
+`docs/users-guide.md`, `docs/developers-guide.md`, `docs/repository-layout.md`,
+and `docs/documentation-style-guide.md`, plus a primary design document under
+`docs/*-design.md`, for example `docs/query-planner-design.md`, and one
+migration guide per release that changes observable behaviour.
 
 ### Contents file
 
@@ -142,31 +141,31 @@ this means operators, end users, or integrators.
   release whose interfaces may change, so a reader can decide whether to pin
   the version. Phrase headings as imperative statements of the reader's task,
   for example "Run the first build", "Author a manifest", and "Interpret
-  failures". Answer the question a reader is about to ask at the point they
-  ask it, cover a complete setup for every supported platform rather than
-  assuming one, and state honestly where a feature is unimplemented in the
-  current release.
+  failures". Answer the question a reader is about to ask at the point they ask
+  it, cover a complete setup for every supported platform rather than assuming
+  one, and state honestly where a feature is unimplemented in the current
+  release.
 - **Accessibility.** Treat accessibility as two related concerns. Document the
   project's accessible behaviour as a first-class topic: how accessible output
   is selected, by flag and by environment variable; that meaning is never
-  carried by colour or glyph alone, so semantic text labels are always
-  present; and how output streams are separated so redirection and assistive
-  technology behave predictably. Apply the same care to the document itself:
-  expand acronyms, use descriptive link text, give tables headers, and
-  describe diagrams.
+  carried by colour or glyph alone, so semantic text labels are always present;
+  and how output streams are separated so redirection and assistive technology
+  behave predictably. Apply the same care to the document itself: expand
+  acronyms, use descriptive link text, give tables headers, and describe
+  diagrams.
 - **Comprehensiveness.** Cover the whole user-facing surface in one place, in
   the order a reader meets it: install, first run, the model, authoring, the
   command-line interface, configuration, diagnostics, output control, network
   access, failure interpretation, the safety boundary, complete worked
-  examples, and where to look next. Place reference material beside the
-  feature it governs. State the safety and privacy boundary explicitly,
-  including what the project deliberately does not record.
+  examples, and where to look next. Place reference material beside the feature
+  it governs. State the safety and privacy boundary explicitly, including what
+  the project deliberately does not record.
 - **Tested correctness.** Make every fenced example in a user-facing document
   executable and exercised by the test suite. Precede each fence immediately
   with a marker comment carrying a stable identifier, written
-  `<!-- tested-example: <identifier> -->`. Load the examples from the
-  published document with a shared loader, rather than a copied fixture, so
-  the tests exercise the shipped text; fail the build on an unmarked fence, an
+  `<!-- tested-example: <identifier> -->`. Load the examples from the published
+  document with a shared loader, rather than a copied fixture, so the tests
+  exercise the shipped text; fail the build on an unmarked fence, an
   unterminated fence, a missing identifier, or a duplicate identifier. Share
   that loader between integration tests and behaviour-driven scenarios, so a
   documented example becomes a contract the implementation must satisfy and
@@ -174,11 +173,10 @@ this means operators, end users, or integrators.
 
 ### Migration guide
 
-Use a migration guide, named
-`docs/v<major>-<minor>-<patch>-migration-guide.md` with dots written as
-dashes, for a release that changes observable behaviour. A repository
-vendoring a library's guide prefixes the filename with the library name, for
-example `docs/rstest-bdd-v0-5-0-migration-guide.md`.
+Use a migration guide, named `docs/v<major>-<minor>-<patch>-migration-guide.md`
+with dots written as dashes, for a release that changes observable behaviour. A
+repository vendoring a library's guide prefixes the filename with the library
+name, for example `docs/rstest-bdd-v0-5-0-migration-guide.md`.
 
 - Cover exactly one step, from the previous release to the named release. A
   guide is never a cumulative "upgrade from any earlier version" document. A
@@ -515,8 +513,8 @@ Every ADR must include the following sections in order:
   the problem or question that prompted the decision. Include enough background
   for readers unfamiliar with the history.
 
-When an accepted ADR needs a targeted correction rather than replacement, add
-an `Amended by ADR-NNN (YYYY-MM-DD)` banner to its Status section and an
+When an accepted ADR needs a targeted correction rather than replacement, add an
+`Amended by ADR-NNN (YYYY-MM-DD)` banner to its Status section and an
 `## Amendments` section that preserves the original decision as history.
 
 ### Conditional sections

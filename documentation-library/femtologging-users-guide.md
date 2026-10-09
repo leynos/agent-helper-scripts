@@ -40,8 +40,8 @@ the process exits.
   operations never block the calling code.
 - When any queue is full, the record is dropped. Each component emits
   rate-limited warnings and maintains drop counters
-  (`FemtoLogger.get_dropped()` and handler-specific warnings) so pressure
-  can be monitored.
+  (`FemtoLogger.get_dropped()` and handler-specific warnings) so pressure can
+  be monitored.
 - Record metadata tracks the logger name, level, message text, timestamps,
   thread identity, and optional structured exception (`exc_info`) and call stack
   (`stack_info`) payloads. The Python API does not yet expose other rich
@@ -590,8 +590,8 @@ builder.build_and_init()
   `logging.handlers.SocketHandler` (plus their femtologging equivalents).
 - Handler `args` are evaluated with `ast.literal_eval`, matching the stdlib
   behaviour for simple tuples. For socket handlers, either `(host, port)` or a
-  single Unix socket path can be passed; keyword arguments mirror the
-  builder API (`host`, `port`, `unix_path`, `capacity`, `connect_timeout_ms`,
+  single Unix socket path can be passed; keyword arguments mirror the builder
+  API (`host`, `port`, `unix_path`, `capacity`, `connect_timeout_ms`,
   `write_timeout_ms`, `max_frame_size`, `tls`, `tls_domain`, `tls_insecure`,
   `backoff_*` aliases).
 - Top-level `filters` sections are supported. Declarative mappings still use
@@ -712,8 +712,8 @@ callback_filter = PythonCallbackFilterBuilder(enrich_request)
 - File-based handlers count `flush_interval` in _records_. For time-based
   flushing, add a periodic `handler.flush()` in the application.
 - Blocking overflow policies affect the thread that calls `logger.log()`.
-  These should only be used when it is acceptable for logging back pressure
-  to slow the producer, because that is what will happen.
+  These should only be used when it is acceptable for logging back pressure to
+  slow the producer, because that is what will happen.
 - Socket handlers serialize to MessagePack with a one-megabyte default frame
   limit. Large payloads are silently dropped; consider truncating or chunking
   messages before logging.
@@ -727,8 +727,8 @@ callback_filter = PythonCallbackFilterBuilder(enrich_request)
   `FemtoStreamHandler`, `FemtoFileHandler`, or `FemtoSocketHandler` to ship
   records to syslog-compatible or other central collectors.
 - Sending logs to Journald or OpenTelemetry is always an explicit action.
-  Enabling the relevant feature/build option alone is not enough; the
-  matching handler/layer must also be configured in the application.
+  Enabling the relevant feature/build option alone is not enough; the matching
+  handler/layer must also be configured in the application.
 - Treat log forwarding as sensitive-data egress. Scrub message text and any
   contextual keys before sending records to external observability systems.
 - Until the structured logging work is complete, the planned

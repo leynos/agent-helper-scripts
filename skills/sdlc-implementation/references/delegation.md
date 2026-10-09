@@ -5,12 +5,11 @@
 When working in a `leynos/agent-helper-scripts` checkout, use that checkout.
 Otherwise resolve the helper checkout in this order: `REPO_DIR`,
 `HELPER_TOOLS_REPO_DIR`, then `${HOME}/git/agent-helper-scripts`. Verify that
-the checkout is `leynos/agent-helper-scripts` and that
-`agents/subagents.yml` is readable. Record the helper revision and actual
-installed tool access before dispatch. If the manifest is missing, repair or
-reinstall the helper checkout; do not infer roles from the task repository or
-remembered model or provider defaults. The manifest defines roles, not
-permission to expand this assignment.
+the checkout is `leynos/agent-helper-scripts` and that `agents/subagents.yml`
+is readable. Record the helper revision and actual installed tool access before
+dispatch. If the manifest is missing, repair or reinstall the helper checkout;
+do not infer roles from the task repository or remembered model or provider
+defaults. The manifest defines roles, not permission to expand this assignment.
 
 ## Role contracts and ownership
 
@@ -30,30 +29,30 @@ and retrieval limit first. Repository code, private issues, and existing CI
 logs belong to the repository and GitHub tools, not a public web crawler.
 
 Load the installed Firecrawl skill and inspect the connected tool schema and
-profile. Do not guess an endpoint, argument, credential, or tool capability.
-Use `firecrawl_scrape` for a known URL; `firecrawl_search` with a small
-explicit limit to discover a source; or `firecrawl_map` with a limit followed
-by selective scraping when the relevant page is unknown within a documentation
-site. Prefer primary, version-matched documentation and retrieve the
-supporting page rather than treating a search snippet as sufficient evidence.
+profile. Do not guess an endpoint, argument, credential, or tool capability. Use
+`firecrawl_scrape` for a known URL; `firecrawl_search` with a small explicit
+limit to discover a source; or `firecrawl_map` with a limit followed by
+selective scraping when the relevant page is unknown within a documentation
+site. Prefer primary, version-matched documentation and retrieve the supporting
+page rather than treating a search snippet as sufficient evidence.
 
 Use `firecrawl_crawl` only for a justified set of pages with explicit domain,
 path, depth, and page limits. Use `firecrawl_agent` only when the bounded
 question genuinely needs multi-source research that targeted retrieval cannot
-answer. Follow the installed skill's job/status contract and service
-cooldowns; record unfinished work as pending. Do not launch an open-ended
-crawl or research job to answer one symbol or parameter question. Request only
-needed output formats and stop when the question has adequate evidence.
-Escalate a credit warning or a need to exceed the assigned retrieval budget.
+answer. Follow the installed skill's job/status contract and service cooldowns;
+record unfinished work as pending. Do not launch an open-ended crawl or
+research job to answer one symbol or parameter question. Request only needed
+output formats and stop when the question has adequate evidence. Escalate a
+credit warning or a need to exceed the assigned retrieval budget.
 
 Firecrawl is a tool surface, not a substitute for the local wyvern or artisan
 role. The inspected Claude role definitions give Firecrawl to the journeyman,
 not to the wyvern or artisan. Check actual permissions rather than assuming
 that inheritance grants access. Where a worker lacks Firecrawl, the supervisor
 or authorized execution lead retrieves the evidence and supplies it in the
-packet; do not widen the worker's tool allow-list or delegate credential
-setup. If a needed tool is unavailable, use an already authorized alternative
-with an explicit limitation, or report the missing capability. Never pretend a
+packet; do not widen the worker's tool allow-list or delegate credential setup.
+If a needed tool is unavailable, use an already authorized alternative with an
+explicit limitation, or report the missing capability. Never pretend a
 retrieval ran.
 
 Return each relevant source URL, title, section, version or publication date
@@ -75,10 +74,10 @@ authorized browser session through the installed skill's lifecycle procedure.
 
 Give a wyvern one question and a narrow search boundary: named files, symbols,
 call paths, tests, configuration, or a specific review finding. Ask it to
-locate relevant implementation and contract evidence, identify affected
-callers or existing tests, and return exact paths and symbols plus concise
-findings, uncertainties, and the next useful inspection. Supply source anchors
-and the baseline candidate so its observations can be reconciled after edits.
+locate relevant implementation and contract evidence, identify affected callers
+or existing tests, and return exact paths and symbols plus concise findings,
+uncertainties, and the next useful inspection. Supply source anchors and the
+baseline candidate so its observations can be reconciled after edits.
 
 A wyvern does not edit files, run repairs, choose a new architecture, or
 propose broad refactors. Prefer targeted search and focused reads over
@@ -88,8 +87,8 @@ beyond the search boundary or needing a design decision returns an escalation,
 not an enlarged task.
 
 A good packet asks which callers depend on one function's error contract and
-which existing tests cover it. An instruction to audit the entire repository
-or to find and fix whatever is wrong is not a small reconnaissance task.
+which existing tests cover it. An instruction to audit the entire repository or
+to find and fix whatever is wrong is not a small reconnaissance task.
 
 ## Artisan: one independently testable change
 
@@ -122,8 +121,8 @@ Return: completed or escalated; exact changes and repository state; evidence
   anchors or a verified returned context-pack ID when requested.
 ```
 
-The artisan must read every supplied resource and context pack before acting.
-A context pack supplements the packet; it never replaces scope, authority,
+The artisan must read every supplied resource and context pack before acting. A
+context pack supplements the packet; it never replaces scope, authority,
 criteria, or exit clauses. The artisan must not spawn subagents, infer missing
 requirements, broaden scope, install missing dependencies, or alter external
 state beyond the packet. Honour its escalation rather than encouraging a
@@ -139,10 +138,10 @@ otherwise record validation pending, not passed. The scrutineer still runs the
 integrated candidate's required gates before any CodeRabbit assessment.
 
 Keep independent workers on non-overlapping files and interfaces. Continue
-useful independent work rather than duplicating their tasks. Read each
-returned diff and its evidence, reconcile concurrent changes, and update the
-ExecPlan and ownership ledger. An artisan's completed packet is not a
-completed milestone, proof assessment, approval, or merge.
+useful independent work rather than duplicating their tasks. Read each returned
+diff and its evidence, reconcile concurrent changes, and update the ExecPlan
+and ownership ledger. An artisan's completed packet is not a completed
+milestone, proof assessment, approval, or merge.
 
 ## Scrutineer: validation versus CI observation
 
@@ -156,9 +155,8 @@ assignment, report that conflict instead of assuming a task packet overrides
 higher-priority rules.
 
 For already-running CI, invoke the monitoring-only scrutineer workflow in
-[PR babysitting](../../pr-babysitting/SKILL.md).
-It authorizes observation and private evidence
-capture, not local gates, CodeRabbit requests, code edits, reruns,
-cancellations, or merge. Do not attach a CI-only watcher to every minor local
-edit; attach it to the actual published candidate and refresh it when that
-candidate or its expected checks change.
+[PR babysitting](../../pr-babysitting/SKILL.md). It authorizes observation and
+private evidence capture, not local gates, CodeRabbit requests, code edits,
+reruns, cancellations, or merge. Do not attach a CI-only watcher to every minor
+local edit; attach it to the actual published candidate and refresh it when
+that candidate or its expected checks change.

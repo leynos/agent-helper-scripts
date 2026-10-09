@@ -19,9 +19,9 @@ This leads to several problems:
 The solution is a classic software design pattern: **Dependency Injection
 (DI)**. Instead of a function reaching out to the global state, its
 dependencies are provided as arguments. The
-[mockable](https://docs.rs/mockable/latest/mockable/) crate offers a
-convenient set of traits (`Env`, `Clock`, etc.) to implement this pattern for
-common system interactions in Rust.
+[mockable](https://docs.rs/mockable/latest/mockable/) crate offers a convenient
+set of traits (`Env`, `Clock`, etc.) to implement this pattern for common
+system interactions in Rust.
 
 ______________________________________________________________________
 
@@ -154,10 +154,9 @@ fn main() {
 ### 6. Configuring child processes explicitly
 
 End-to-end tests that spawn a child process are the exception to injecting
-environment state: the process boundary is the seam, not the harness. Clear
-the child's inherited environment and add only the values the command
-requires, rather than mutating or relying on the harness process's own
-environment:
+environment state: the process boundary is the seam, not the harness. Clear the
+child's inherited environment and add only the values the command requires,
+rather than mutating or relying on the harness process's own environment:
 
 ```rust,no_run
 // In tests/cli.rs: `CARGO_BIN_EXE_<name>` is set by Cargo only while
@@ -260,11 +259,11 @@ component measures elapsed time rather than wall-clock time, keep the
 override-resolution logic private and test it through the public entry point,
 while injecting a narrow monotonic clock seam so duration assertions do not
 depend on wall-clock time. Prefer `std::time::Instant` over `SystemTime` for
-this seam because duration is elapsed-time data rather than calendar time.
-The production adapter calls `Instant::now`, and tests supply a fixed clock
-queued with pre-seeded instants. If a test consumes more instants than it
-seeded, the fixed clock should panic with a configuration error, so the
-failure is immediate and deterministic.
+this seam because duration is elapsed-time data rather than calendar time. The
+production adapter calls `Instant::now`, and tests supply a fixed clock queued
+with pre-seeded instants. If a test consumes more instants than it seeded, the
+fixed clock should panic with a configuration error, so the failure is
+immediate and deterministic.
 
 ______________________________________________________________________
 

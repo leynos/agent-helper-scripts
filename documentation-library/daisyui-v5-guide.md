@@ -39,9 +39,9 @@ for common UI components. This guide covers version 5.3.x.
 ## daisyUI 5 usage rules
 
 1. Styles are applied to an HTML element by adding daisyUI class names to it.
-   By adding a component class name, part class names (if there's any
-   available for that component), and modifier class names (if there's any
-   available for that component)
+   By adding a component class name, part class names (if there's any available
+   for that component), and modifier class names (if there's any available for
+   that component)
 2. Components can be customized using Tailwind CSS utility classes if the
    customization is not possible using the existing daisyUI classes. For example
    `btn px-10` sets a custom horizontal padding to a `btn`
@@ -114,11 +114,11 @@ daisyUI with all the default configs:
 ```
 
 An example config: in the config below, all the built-in themes are enabled,
-with bumblebee as the default theme and synthwave as the prefersdark theme
-(the default dark mode). All the other themes are enabled and can be used by
-adding `data-theme="THEME_NAME"` to the `<html>` element. The root scrollbar
-gutter is excluded. The `daisy-` prefix is used for all daisyUI classes, and
-console logging is disabled.
+with bumblebee as the default theme and synthwave as the prefersdark theme (the
+default dark mode). All the other themes are enabled and can be used by adding
+`data-theme="THEME_NAME"` to the `<html>` element. The root scrollbar gutter is
+excluded. The `daisy-` prefix is used for all daisyUI classes, and console
+logging is disabled.
 
 <!-- tested-example: daisyui-config-example-custom -->
 ```css
@@ -631,8 +631,7 @@ Collapse is used for showing and hiding content
 
 ### countdown
 
-Countdown provides a transition effect when a number is changed between 0
-to 999
+Countdown provides a transition effect when a number is changed between 0 to 999
 
 [countdown docs](https://daisyui.com/components/countdown/)
 
@@ -817,8 +816,8 @@ small screen:
 </div>
 ```
 
-Example: This sidebar is always visible. When closed only icons are
-visible, when open both icons and text are visible
+Example: This sidebar is always visible. When closed only icons are visible,
+when open both icons and text are visible
 
 <!-- tested-example: daisyui-drawer-icon-collapse-sidebar -->
 ```html

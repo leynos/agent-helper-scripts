@@ -20,10 +20,10 @@ distinct and complementary purpose in a layered system.
 - **The Behavioural Layer: Radix UI.** At the foundation of every interactive
   component lies Radix UI. It provides a set of unstyled, "headless" primitives
   that deliver complex behaviours, following WAI-ARIA authoring practices and
-  handling many accessibility details out of the box.
-  By abstracting away the intricate logic of accessibility—including focus
-  management, keyboard navigation, and ARIA attribute wiring—Radix establishes
-  a robust and reliable behavioural contract for all components.[^1]
+  handling many accessibility details out of the box. By abstracting away the
+  intricate logic of accessibility—including focus management, keyboard
+  navigation, and ARIA attribute wiring—Radix establishes a robust and reliable
+  behavioural contract for all components.[^1]
 - **The Presentational and Responsive Layer: DaisyUI 5 & Tailwind CSS.**
   Building upon the behavioural foundation of Radix, DaisyUI 5, as a plugin for
   Tailwind CSS, constitutes the presentational layer. It offers a
@@ -690,8 +690,8 @@ declared using Fluent placeholders such as `{$name}`, and plural logic must be
 expressed with Fluent selectors.[^23] The official `react-i18next` repository
 includes a Fluent-based sample application, which is a helpful reference when
 debugging Suspense loading states or validating translations in tests. The
-`i18next-fluent-backend` package's own documentation is a further reference
-for the loader options used below.[^24]
+`i18next-fluent-backend` package's own documentation is a further reference for
+the loader options used below.[^24]
 
 #### Setup and Configuration
 
