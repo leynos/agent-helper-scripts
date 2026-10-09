@@ -15,13 +15,19 @@ Full and incremental review requests, retries, and review-resume actions belong
 to `comenq-coderabbit`. Its dispatcher retains its own configured identity and
 cooldown policy; do not wrap it with a randomly selected manual-comment token.
 
-The initial ExecPlan completeness/correctness and proof-specific assessment
-comments in [ExecPlan assessments](execplan-assessment.md) are explicit, narrow
-exceptions. Each uses this assigned manual-token procedure as a separate
-top-level issue comment, after its deterministic prerequisites hold. All
-subsequent whole-assessment retries and review recovery use
-`comenq-coderabbit`. These exceptions do not authorize arbitrary manual
-whole-PR reviews, duplicate requests, or cooldown bypasses.
+The completeness/correctness and proof-specific questions in
+[ExecPlan assessments](execplan-assessment.md) are assessment conversations,
+not formal review requests. Each initial question and necessary candidate-bound
+follow-up uses this manual-token procedure after its prerequisites hold.
+Assessment conversations never go through `comenq`. Formal review requests
+and their recovery require verified readiness and `comenq-coderabbit`.
+Neither route authorizes duplicate requests or cooldown bypasses.
+
+Before a question is posted, capture its observation baseline. Afterwards,
+record its ID, URL, server timestamps, and candidate, then actively await the
+substantive reply with [awaiting CodeRabbit](awaiting-coderabbit.md). The user
+should not have to copy the bot's answer back into the agent conversation.
+Posting, receiving a reply, and satisfying an assessment are separate states.
 
 Use the inline reply endpoint for an inline finding. Its reply target is the
 thread's root review-comment ID, not a review ID, GraphQL thread ID, or another
@@ -33,8 +39,8 @@ A request to confirm a specific fix or disposition is not a request for a new
 review. Do not add `review`, `full review`, `resume`, or a natural-language
 whole-PR review request to a manually posted disposition comment. Requesting
 final approval is an explicit exception described by this skill, not an excuse
-to bypass a required review. The two initial assessment exceptions above have
-their own applicability and prerequisites.
+to bypass a required review. Assessment conversations above have their own
+applicability and prerequisites; do not convert them into queued formal reviews.
 
 On an ambiguous posting failure, fetch the discussion and check whether the
 comment already exists before retrying. Honour HTTP retry advice and service

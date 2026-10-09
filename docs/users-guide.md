@@ -427,9 +427,12 @@ installs with the rest of the repository's skills; keep approved hosts,
 credentials, and posting identities in deployment configuration rather than in
 the skill itself.
 
-Inspect the pending queue and recent pull-request activity before requesting
-anything, and route new full reviews and retries through the queue rather than
-a direct GitHub comment or a personal bot identity:
+Verify that the PR is ready before requesting a formal review. Inspect the
+pending queue, current CodeRabbit check, and recent activity first. Await an
+active or automatic review; use the queue for a current review rate limit or
+separately justified recovery, not an unanswered assessment conversation. Route
+new full reviews and retries through the queue rather than a direct GitHub
+comment or a personal bot identity:
 
 ```bash
 comenq list
@@ -548,9 +551,13 @@ For an implementation assignment, completeness/correctness must clear before
 readiness. Introduced or materially changed CrossHair, Kani, Verus,
 LemmaScript, or comparable proofs also require the separate substantive,
 rigorous, well-founded assessment, with actual paths and named references.
-Generic approval cannot replace it. Both initial comments use the assigned
-token procedure as explicit narrow exceptions; subsequent whole-assessment
-retries and rate-limit recovery use `comenq-coderabbit`.
+Generic approval cannot replace it. Initial questions and necessary
+candidate-bound follow-ups use the assigned manual-token procedure as
+assessment conversations, not formal review requests. The agent actively
+awaits and reads the substantive issue-comment replies before readiness.
+Assessment conversations never enter `comenq`; formal review dispatch and its
+rate-limit recovery belong after the verified ready transition. See
+[awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md).
 
 ## PR babysitting
 
@@ -586,6 +593,9 @@ Manage necessary prerequisite fixes in separate PRs underneath this PR.
 
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle.
+An initial request to create a draft sets its publication state; later
+babysitting permits readiness unless the user explicitly requires it to remain
+draft or sets an earlier stopping point. No-merge does not prohibit readiness.
 
 ### Runtime prerequisites
 
@@ -618,13 +628,15 @@ configuration. Keep tokens private and use the installation's documented reader
 for other formats. The skill does not install this pool. Token selection never
 permits bypassing service limits.
 
-New and repeated CodeRabbit reviews go through the managed `comenq` queue,
-including rate-limit recovery. Apart from the two initial assessment comments
-described above, do not request reviews through manual comments, review
-checkboxes, or the GitHub review-request API. Focused finding replies,
-pre-merge reconciliation, and the final approval request are separate
-operations and always mention `@coderabbitai`, including replies to Sourcery
-and Codex findings. Push repairs before posting their resolution replies.
+New and repeated formal CodeRabbit reviews go through the managed `comenq`
+queue only after verified readiness, including review rate-limit recovery.
+Do not request formal reviews through manual comments, review checkboxes, or
+the GitHub review-request API. Assessment questions and their necessary
+follow-ups use the separate manual-comment route and require substantive
+replies; a draft-skip notice does not prevent that conversation. Focused
+finding replies, pre-merge reconciliation, and the final approval request are
+also separate operations and always mention `@coderabbitai`, including replies
+to Sourcery and Codex findings. Push repairs before posting resolution replies.
 
 ### Conflicted or outdated PRs
 
@@ -650,38 +662,64 @@ then be reconciled before merge.
 
 ### What to expect
 
+The readiness sequence is explicit: green CI and clear CodeScene findings,
+then substantive CodeRabbit correctness/completeness and applicable proof
+assessment replies, then a verified ready transition. Only afterwards does the
+agent inspect formal review progress and rate limiting. If the current review
+is rate-limited, it reuses or queues one managed request; otherwise it awaits
+the automatic review. An active GitHub review check means wait, not dispatch
+another review. A ready-only assignment stops before that dispatch stage.
+
 ```mermaid
 flowchart TD
     A[Establish candidate and delivery ledger] --> B[Scrutineer observes CI]
-    B --> C{CI green for current candidate?}
+    B --> C{CI green and CodeScene clear?}
     C -->|No| D[Repair and push validated changes]
     D --> B
-    C -->|Yes| E[Mark draft ready with gh pr ready]
-    E --> F[Dispatch reviews through comenq-coderabbit]
-    F --> G[Inspect findings and classify scope]
+    C -->|Yes| P[Obtain applicable assessment replies]
+    P --> Q{Substantive assessments clear?}
+    Q -->|Pending| W[Await issue-comment response or report deadline]
+    W --> P
+    Q -->|Valid findings| D
+    Q -->|Clear or not applicable| E[Mark ready and verify]
+    E --> F{Current formal review rate-limited?}
+    F -->|Yes and no active review| U[Reuse or queue one comenq request]
+    F -->|No or newer review active| V[Await current GitHub review check]
+    U --> V
+    V --> G[Read completed review and all findings]
     G --> H{Valid in-scope finding?}
     H -->|Yes| I[Repair, validate, and push]
     I --> J[Reply after remote head verification]
     H -->|No| J
-    J --> K[Reconcile banners and pre-merge rows]
+    J --> K[Await replies and reconcile pre-merge rows]
     K --> L{Merge authorized and all gates hold?}
-    L -->|No| M[Report blocker and next action]
+    L -->|No| M[Continue actionable work or report blocker]
     L -->|Yes| N[Squash merge with gh pr merge]
     N --> O[Verify landing and integration status]
 ```
 
-Figure: PR babysitting moves from candidate identification through CI repair,
-readiness, queued reviews, and finding reconciliation. Repairs return to
-validation and are pushed before replies. Merge proceeds only with explicit
-authorization and passing gates; otherwise, the agent reports the blocker and
-next action. After merging, it verifies landing and integration status.
-Ready-only and no-merge assignments stop at their authorized boundary. All
-local validation follows the candidate execution boundary above.
+Figure: assessment conversations precede readiness; formal reviews follow it.
+The observer reads actual replies, including edits, rather than treating a
+posted question as an assessment or a queue receipt as a completed review.
+Current review checks prevent duplicate dispatch. Repairs require renewed
+candidate evidence and are pushed before replies. Merge requires explicit
+authorization and all gates; integration remains a separate observation.
 
-This diagram shows the generic lifecycle. ExecPlan implementation and affected
-proofs add the assessment prerequisites described above before the readiness
-transition. An already-ready PR stays ready while missing or invalidated
-assessments block merge; the workflow never sets it back to draft.
+Both applicable assessment gates must clear before readiness. A proof inventory
+with no affected proofs gets an evidence-backed not-applicable disposition.
+An already-ready PR stays ready while missing or invalidated assessments block
+merge; the workflow never sets it back to draft. Ready-only and no-merge
+assignments stop at their authorized boundary, and all local validation follows
+the candidate execution boundary above.
+
+For an assessment wait, the agent records the pre-post comment baseline and
+server-assigned request ID, reads immediately, then polls all updated comment
+pages within a foreground deadline. It verifies CodeRabbit's author identity,
+correlates the question and base/head, reads the full response, and continues
+with its findings without requiring the user to relay them. Timeouts remain
+pending; API failures are observation errors, not proof of silence. See the
+[response-wait procedure](../skills/pr-babysitting/references/awaiting-coderabbit.md)
+for read commands, edit detection, rate-limit handling, and resumable evidence.
 
 The supervisor keeps a candidate-bound record of CI, review coverage, findings,
 pushed repairs, and replies. A scrutineer observes CI; non-obvious failures

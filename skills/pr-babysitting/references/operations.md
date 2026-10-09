@@ -74,9 +74,15 @@ watcher, decides whether a rerun or a repair is appropriate.
 
 ## Ready transition
 
+Require green current-candidate CI, clear CodeScene findings, and substantive
+responses clearing all applicable assessments first. Follow
+[awaiting CodeRabbit](awaiting-coderabbit.md) for issue-comment answers; the
+formal-review check does not answer those questions. Do not queue a review on
+a draft to obtain them.
+
 ```bash
 gh pr ready PR_NUMBER --repo OWNER/REPO
-gh pr view PR_NUMBER --repo OWNER/REPO --json isDraft,headRefOid
+gh pr view PR_NUMBER --repo OWNER/REPO --json isDraft,headRefOid,baseRefOid
 ```
 
 Use the established authorized lifecycle identity. The random-token rule
@@ -86,7 +92,15 @@ watch review-triggered checks.
 
 ## Managed review dispatch
 
-Read `comenq-coderabbit` before invoking its queue. Its documented interface is:
+Read `comenq-coderabbit` before invoking its queue. First verify
+`isDraft=false` and inspect the current-candidate CodeRabbit check and latest
+rate-limit status. In the readiness path, use the queue for a current explicit
+review rate limit, not for an unanswered assessment or a draft-skip notice.
+Await an active review without enqueueing a duplicate; without a rate limit,
+await the automatic review and allow bounded startup time for its check.
+Other confirmed review failures need a separately justified recovery decision.
+See [formal review observation](awaiting-coderabbit.md#formal-review-after-readiness).
+The managed interface is:
 
 ```bash
 comenq list

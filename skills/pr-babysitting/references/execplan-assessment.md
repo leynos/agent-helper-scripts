@@ -24,9 +24,9 @@ The milestone CLI result does not substitute for these hosted assessments.
 
 ## Comment routing
 
-Read [comment routes and templates](comments.md). The two initial assessment
-comments below are explicit, narrow exceptions to the generic whole-review
-queue rule. Post each as a separate top-level issue comment through the
+Read [comment routes and templates](comments.md). Assessments are conversations
+through tagged issue comments, not formal CodeRabbit reviews. Post each
+applicable question below as a separate top-level issue comment through the
 assigned token procedure, selecting an authorized token with `shuf` from
 `~/.local/share/github-tokens`. Reuse that procedure; never source, print,
 copy, or expose tokens, or substitute a connector's implicit identity.
@@ -36,11 +36,27 @@ posting failure, inspect the discussion before retrying. Token rotation is not
 permission to evade a cooldown. Missing authority or credentials leaves a
 prepared comment and a blocker, not a fallback account.
 
-All subsequent whole-assessment retries, fresh full or incremental reviews, and
-review-resume requests use `comenq-coderabbit`, preserving the relevant
-assessment question and current evidence. Inspect pending requests first.
-Focused replies to a specific finding still use `comments.md`; they are not a
-substitute route for a repeated full assessment.
+Assessment conversations never go through `comenq`. Use the same manual-comment
+route for necessary follow-ups after repairs or changed assessment scope,
+linking the original request and response and identifying the new base/head.
+Do not add formal `review`, `full review`, or `resume` commands. Fresh formal
+reviews and their rate-limit recovery use `comenq-coderabbit` only after the
+parent skill verifies readiness.
+
+Before posting, capture the observation baseline described in
+[awaiting CodeRabbit](awaiting-coderabbit.md). After posting, read back the
+server-assigned request ID and timestamps and immediately begin that bounded
+foreground wait. Read the complete substantive reply and reconcile every valid
+finding before declaring the assessment clear. An acknowledgement or unrelated
+new bot comment is not the answer. Do not return merely because the question
+was posted or a few polls found nothing; preserve the pending request until a
+response, an explicit service blocker, or the observation deadline.
+
+Do not repeat an unanswered request or enqueue it because a draft-skip notice
+exists. That notice concerns automatic reviews. A genuine chat failure or
+chat rate limit remains an assessment blocker: honour its retry advice and
+record it separately. Any authorized retry retains this assessment route and
+first checks for a late reply; token rotation cannot bypass the limit.
 
 ## ExecPlan completeness and correctness
 
@@ -56,6 +72,10 @@ evidence, and honest limitations:
 Published head: <full head SHA>; comparison base: <full base SHA>.
 Acceptance evidence: <commands, results, and evidence links>.
 Known limitations: <established limitations or none established>.
+Assessment-ID: <unique request marker>.
+
+Please echo the Assessment-ID and assessed base/head in your substantive reply.
+This is an assessment conversation, not a request to start a formal PR review.
 
 Identify remaining in-scope omissions or correctness defects and any access
 or inspection limitations. Assess the implementation, not just the plan text.
@@ -102,6 +122,10 @@ Production correspondence: <implementation paths and relevant requirements>.
 Assumptions, trusted boundaries, domain, and bounds: <specific evidence>.
 Verifier evidence: <versions, commands, configuration, and per-proof outcomes>.
 Non-vacuity and limitations: <witnesses, negative controls, and residual gaps>.
+Assessment-ID: <unique request marker>.
+
+Please echo the Assessment-ID and assessed base/head in your substantive reply.
+This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.
 Identify each unresolved concern or missing inspection explicitly.
@@ -118,15 +142,24 @@ inventory or creating a ceremonial proof.
 ## Readiness and later changes
 
 The parent skill owns readiness. Both applicable assessments must clear for the
-accepted candidate before its draft-to-ready transition. Reconcile responses
-using its existing feedback loop, including edited-in-place issue comments, and
-use `comenq-coderabbit` for rate-limit recovery. Never interpret a posted
-request as completion.
+accepted candidate before its draft-to-ready transition. Reconcile the actual
+substantive issue-comment responses, including edited-in-place replies. A
+response that says the implementation is substantially complete but names
+remaining in-scope defects has not cleared the gate. Fix, validate, push, and
+await confirmation of the affected assessment. Never interpret a posted
+request, green formal-review check, or queue receipt as completion.
+
+Once those responses, green CI, and clear CodeScene findings cover the current
+candidate, mark it ready and verify the transition. Only then inspect formal
+review progress and rate limiting: await an active or automatic review, or use
+`comenq-coderabbit` for an explicitly rate-limited review. The formal review is
+a later stage, not the mechanism for obtaining the pre-ready assessment.
 
 An already-ready PR stays ready; obtain missing assessments before merge.
 Subsequent repairs, proof changes, rebases, or retargeting require renewed
 candidate-bound evidence and affected assessment coverage. Preserve earlier
 evidence for its actual scope without relabelling it as a new review. Do not
-set the PR back to draft. If the service cannot assess a draft, record the
-workflow dependency and seek an explicit exception rather than silently
-bypassing the gate. Generic approval cannot discharge missing proof scrutiny.
+set the PR back to draft. If the assessment service explicitly cannot process
+the question, retain its response and report the specific blocker rather than
+inferring failure from automatic draft-review policy. Do not bypass the gate.
+Generic approval cannot discharge missing proof scrutiny.

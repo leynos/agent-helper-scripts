@@ -182,9 +182,9 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "for the published candidate" in applicability, "gates must bind to published candidate"
     assert "Verify remote parity" in applicability, "request prerequisites must verify publication"
     routing = section(assessment, "Comment routing")
-    assert "two initial assessment comments below are explicit, narrow exceptions" in routing, "initial manual exceptions must stay narrow"
+    assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing and "`shuf`" in routing, "initial comments must use assigned token route"
-    assert "All subsequent whole-assessment retries, fresh full or incremental reviews, and review-resume requests use `comenq-coderabbit`" in routing, "later assessments must use managed queue"
+    assert "Assessment conversations never go through `comenq`" in routing, "assessment follow-ups must not enter the review queue"
     readiness = section(assessment, "Readiness and later changes")
     assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
@@ -207,13 +207,13 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
         ("assessment", "Both applicable assessments must clear", "Both applicable assessments need not clear", False),
         ("assessment", "An already-ready PR stays ready; obtain missing assessments before merge.", "", False),
         ("assessment", "for the\npublished candidate.", "for any old candidate.", False),
-        ("assessment", "All subsequent whole-assessment retries, fresh full or incremental reviews, and\nreview-resume requests use `comenq-coderabbit`,", "Later retries use manual comments,", False),
+        ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False),
         ("assessment", "Both applicable assessments must clear for the\naccepted candidate before its draft-to-ready transition.", "", True),
-        ("skill", "all\napplicable pre-readiness assessments hold", "no assessments hold", False),
-        ("skill", "An already-ready PR remains ready while\nmissing or invalidated assessments block merge.", "", True),
+        ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
+        ("skill", "An already-ready PR remains ready while missing or invalidated\n   assessments block merge.", "", True),
         ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
     ],
-    ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "manual-retry", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],
+    ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     document: str, old: str, new: str, move: bool

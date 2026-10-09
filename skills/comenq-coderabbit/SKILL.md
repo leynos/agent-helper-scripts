@@ -54,6 +54,20 @@ comenq list
 comenq hist -n 20
 ```
 
+Before any formal review dispatch, verify the live PR is ready, not draft.
+When `pr-babysitting` owns delivery, follow its
+[assessment and readiness order](../pr-babysitting/SKILL.md#5-assess-applicable-delivery-gates-then-mark-green-drafts-ready).
+An unanswered completeness/correctness or proof question is a pending chat
+assessment, not a formal review request; never enqueue that conversation.
+Use its [response-wait procedure](../pr-babysitting/references/awaiting-coderabbit.md)
+instead. A draft-skip notice does not justify dispatching a review on a draft.
+
+After readiness, inspect the current CodeRabbit review check and rate-limit
+notice. Await an active or automatic review instead of duplicating it; use this
+queue for a current explicit review rate limit, or a separately diagnosed and
+authorized formal-review recovery. An absent check is not proof of rate
+limiting. Verify readiness again immediately before enqueueing.
+
 Before enqueueing, inspect both the pending queue and recent PR activity. Reuse
 an existing request rather than adding another. Record the intended repository,
 PR, base/head commits, queue ID, selected posting identity when observable, and
