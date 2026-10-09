@@ -511,6 +511,17 @@ terms and fixture-specific vocabulary belong in a consumer's own
 `typos.local.toml` overlay instead. An addition here reaches every consumer on
 its next `gate` run: there is no tag to bump and no consumer commit to make.
 
+The ignore pattern for command-line flags and CSS custom properties that carry
+the US spelling of "colour" is deliberately bounded. It ends at `color`, with
+an optional `s`, `ed`, `ing`, or `ize` inflection (`ize`, `ized`, `izes`,
+`izing`), at a word boundary or an underscore, so a misspelling in the words
+after that point is reported. Its prefix is open, because custom properties are
+named freely; a misspelling in the prefix of a flag that also contains `color`
+stays hidden, and `tests/test_colour_option_exemption.py` records that residual
+as an expectation. When widening the pattern, keep it free of unbounded
+repetition other than the prefix class, and run that test module. The decision
+is recorded in the 2026-10-08 amendment to ADR 003.
+
 `scripts/oxford_form_harvest.py` is the one spelling tool this repository still
 owns. It gathers the evidence a curator reads before proposing a stem, because
 a suffix match alone is not evidence: `advertise`, `exercise`, `improvise`,

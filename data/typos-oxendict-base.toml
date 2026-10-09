@@ -199,10 +199,16 @@ ignore = [
   'currentColor',
   '\{COLOR\}',
   '\{color\}',
-  # CSS custom properties and colour functions whose identifiers carry the US
-  # spelling, for example `--color-primary`, `--tw-color-red-500`, and
-  # `color-mix()`. Only the identifier is exempt, not the span around it.
-  '--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*',
+  # CSS custom properties, command-line flags and colour functions whose
+  # identifiers carry the US spelling, for example `--color-primary`,
+  # `--tw-color-red-500`, `--no-color`, `--color_primary`, `--coloring-mode`,
+  # and `color-mix()`. The pattern ends at the word `color` (or `colors`,
+  # `colored`, `coloring`, `colorize`, `colorized`, `colorizes`, `colorizing`),
+  # at a word boundary or an underscore, so a misspelling after it stays
+  # visible. The prefix is open because custom properties are named freely; a
+  # misspelling in the prefix of a flag that also contains `color` is
+  # therefore still hidden.
+  '--[A-Za-z0-9_-]*color(?:ed|s|ing|ize[ds]?|izing)?(?:\b|_)',
   '\bcolor-(?:mix|contrast)\b',
   # Web application manifest members.
   '\b(?:background|theme)_color\b',

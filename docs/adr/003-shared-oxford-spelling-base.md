@@ -147,3 +147,20 @@ One tool stays here because it serves curation rather than consumption:
 reads before proposing a stem. The cost recorded above, that curators must
 inspect harvested context because a suffix match alone is not evidence, is
 unchanged.
+
+## Amendment 2026-10-08
+
+The shared ignore pattern for colour flags and CSS custom properties is
+narrowed. It once matched any run of flag characters on both sides of the
+colour word, which exempted the whole flag-shaped token, so a misspelling after
+the colour word was hidden. The exact pattern is in
+`data/typos-oxendict-base.toml`. The match ends at the colour word, with the
+inflections custom properties use, at a word boundary or an underscore, so the
+words after it are scanned like any other. The prefix stays open because
+custom properties are named freely; a misspelling in the prefix of a flag that
+also contains the colour word is therefore still hidden. A closed prefix would
+leave about a quarter of the 1,127 distinct flag-shaped tokens in the estate
+uncovered and needs constructs the builder's bounded-expression rule rejects,
+so the residual is accepted and recorded as an expectation in
+`tests/test_colour_option_exemption.py`. It is tracked as the prefix half of
+leynos/typos-config-builder#108.
