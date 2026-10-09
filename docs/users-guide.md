@@ -510,10 +510,11 @@ the PR through review and merge when the required gates hold.
 State a narrower endpoint explicitly for implementation-only, review-only,
 or no-merge work. The agent reads the plan's linked documentation, skills,
 and decisions first. It normalizes branch/upstream and PR metadata safely,
-removes a leading `Plan: ` title prefix, and links the active Lody session in
-the PR's final `## References` section when applicable. It commits frequently,
-keeps the plan's findings and progress current, and checks only an explicitly
-associated roadmap item whose implementation activity is complete.
+removes only the leading `Plan:` prefix and its following space. It links the
+active Lody session in the PR's final `## References` section when applicable.
+It commits frequently, keeps the plan's findings and progress current, and
+checks only an explicitly associated roadmap item whose implementation
+activity is complete.
 
 Firecrawl provides bounded, version-matched external documentation; wyverns
 answer tightly scoped read-only repository questions; artisans implement one

@@ -52,8 +52,9 @@ local branch to the plan slug, tracking `origin/<slug>` only when it is the
 actual PR head. Preserve work and remote topology; a local rename is not
 permission to rename or delete an existing PR's remote branch.
 
-Remove only a leading `Plan: ` from the PR title. Rename the active Lody
-session with `lody session rename --title "$title"`. Run
+Remove only a leading `Plan:` prefix followed by a space from the PR title.
+Then rename the active Lody session with
+`lody session rename --title "$title"`. Run
 `echo "${LODY_SESSION_ID}"`, verify the identifier, and add its session link
 once to the description's final `## References` section. Preserve existing
 references and record genuinely inapplicable Lody work without inventing one.

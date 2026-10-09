@@ -88,4 +88,3 @@ evidence before a retry if the candidate changed. Continue legitimate retries
 without inventing a task deadline. Missing `vsleep`, unreadable retry advice,
 or an unavailable review capability requires a pending/blocked handoff, not a
 fake clean review or an unannounced substitute route.
-
