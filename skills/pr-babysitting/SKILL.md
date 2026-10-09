@@ -16,12 +16,19 @@ review request, or green CI alone. Respect a narrower assignment such as
 review-only or no-merge; reading this skill or drafting a plan does not
 authorize repository mutations.
 
+This skill owns the PR lifecycle from red CI and draft through readiness,
+review convergence, rebase, authorized merge, and integration verification.
+Accept an implementation handoff from `sdlc-implementation` before CI is green
+or the PR is ready. Reuse its delivery ledger and retain its approved scope,
+acceptance evidence, proof inventory, and permitted stopping point.
+
 ## Operating contract
 
 Read the repository's `AGENTS.md` and relevant contribution instructions. Load
-`comenq-coderabbit` for review dispatch and recovery; `github-stacks` and
-`rebase` for dependency and replay operations; and `codescene-cli` plus the
-code-health skill for CodeScene failures. In `leynos/agent-helper-scripts`,
+`comenq-coderabbit` for review dispatch and recovery; `github-stacks`, `rebase`,
+and `sem` for dependency and replay operations; `weave-git-merge` where Weave
+is enabled or selected; and `codescene-cli` plus the code-health skill for
+CodeScene failures. In `leynos/agent-helper-scripts`,
 that companion is named `codescene-health-rules`; use an installed
 `codescene-health` alias only when its definition actually supplies the
 intended workflow.
@@ -82,6 +89,13 @@ final approval request are distinct from requesting a fresh review. Do not use
 them as disguised full-review requests. Respect queue cooldowns and service
 limits; random token selection is not a rate-limit escape hatch.
 
+The initial ExecPlan completeness/correctness and proof-specific comments in
+[ExecPlan assessments](references/execplan-assessment.md) are two explicit,
+narrow exceptions. Use the assigned manual-comment route for those initial
+requests; route all subsequent whole-assessment retries and review recovery
+through `comenq-coderabbit`. Their prerequisites and outcomes belong to this
+skill's lifecycle, not to a second implementation-skill review loop.
+
 ## 1. Establish the candidate and keep a delivery ledger
 
 Identify the repository, PR number, original issue and accepted scope, target
@@ -89,6 +103,14 @@ branch, base SHA, head SHA, draft state, worktree, stack parents/children, and
 permitted merge method. Fetch live state instead of trusting an earlier
 report. Record which reviewers and checks are configured and which are
 required.
+
+For an ExecPlan implementation assignment, read
+[ExecPlan assessments](references/execplan-assessment.md) and record its plan
+revision, implementation status, acceptance mapping, and assessment state.
+Record introduced or materially changed proofs and their required scrutiny
+also when no ExecPlan applies. Plan-authoring alone does not trigger an
+implementation assessment. Missing evidence remains pending, not a reason to
+wait outside this skill until a red or draft PR is already ready.
 
 Keep one authoritative candidate and a small durable ledger outside the
 tracked product diff. Include CI run/check IDs and attempts, tested SHAs,
@@ -111,6 +133,16 @@ and its relevant hosted runs. Have it use the established watcher and `gh run
 watch --exit-status`, collect failing-step logs, and return the repository,
 base/head, run ID, attempt, tested commit, conclusion, log URLs, and a concise
 failure summary. Distinguish a failed watcher or log download from failed CI.
+
+Read the effective scrutineer definition in `agents/subagents.yml` in
+`leynos/agent-helper-scripts` and use its monitoring-only assignment and
+private evidence-bundle procedure. Supply the exact candidate, requested
+workflows or verified run IDs, and an observation contract. Keep watchers in
+the foreground; bound each call by the actual execution allowance and report
+pending work honestly. Monitoring alone starts neither local gates nor a new
+CodeRabbit review; report those activities as `not-requested`. Refresh the
+assignment after publication, a push, rebase, retargeting, or readiness.
+Monitor required post-merge jobs separately against the landed commit.
 
 Inspect the complete current check set, including non-required checks and
 non-Actions providers. Map synthetic PR-merge checks to the relevant
@@ -228,13 +260,26 @@ absolute last resort: document the precise false positive or unavoidable
 trade-off, alternatives tried, narrowest affected diagnostic, and any approval
 required by repository policy. Rerun validation after any accepted exception.
 
-## 5. Mark green drafts ready for review
+## 5. Assess applicable delivery gates, then mark green drafts ready
 
-Once CI runnable on the draft is green for the published candidate, mark the
-PR ready with `gh pr ready` and verify that it is no longer a draft. Do not
-leave a green PR stranded while waiting for a review that only starts on ready
-PRs. A review gate intentionally waiting for the ready transition is not a
-failed build; record the dependency and observe it after the transition.
+For an ExecPlan implementation or a PR with introduced or materially changed
+proofs, obtain the applicable assessments in
+[ExecPlan assessments](references/execplan-assessment.md) before readiness.
+Repair and validate through this skill's existing loop until the assessments
+establish completeness/correctness and, where applicable, satisfactory proof
+scrutiny. The deterministic gates must pass before requesting assessments.
+Do not waive them merely to activate a draft-only service limitation; report
+that dependency and obtain an explicit exception if needed.
+
+Once CI runnable on the draft is green for the published candidate and all
+applicable pre-readiness assessments hold, mark the PR ready with `gh pr
+ready` as the currently logged-in Linux user using that user's normal `gh`
+authentication, not a token selected for comments. Verify it is no longer a
+draft. Never set it back to draft. An already-ready PR remains ready while
+missing or invalidated assessments block merge. For PRs without those extra
+assessment obligations, do not leave a green PR stranded waiting for a review
+that only starts on ready PRs. A gate intentionally waiting for readiness is
+not a failed build; record the dependency and observe it after the transition.
 
 This is a readiness transition, not approval or merge authorization. Continue
 watching CI and review activity. If review did not start, was paused, failed,
@@ -344,11 +389,25 @@ demand.
 
 ## 9. Rebase when necessary, without carrying forward stale eligibility
 
-If the PR needs rebasing because of conflicts, target changes, stack changes,
-or repository policy, perform the authorized rebase using the relevant skills.
-Verify the preserved patch series and intended semantics, run new-candidate
-gates through the scrutineer, push with the appropriate lease, and confirm the
-remote base/head. Reconcile the new review delta and observe the fresh CI.
+For a conflicted or outdated PR, follow
+[the rebase procedure](references/rebase.md). Resolve and fetch the live PR's
+remote target branch, for example `origin/main` only when that is the actual
+target. Use `rebase`, `sem`, and `weave-git-merge` where Weave is enabled,
+retaining stack-specific replay and publication rules from `github-stacks`.
+
+Plan every conflict resolution before acting. Use `zdiff3`, understand both
+sides' intent, preserve the feature's purpose and target improvements, and
+resolve manifests semantically. For conflicted packaging lockfiles, take the
+frozen target's version as the baseline and regenerate from the combined
+manifests after replay. The reference covers absent or removed target files
+and per-replay consistency rather than guessing `ours` or `theirs`.
+
+Validate the rebased result with `make check-fmt`, `make test`,
+`make typecheck`, and `make lint`, plus applicable repository gates. Validate
+and commit deliberate outstanding changes, then publish with an explicit
+force-with-lease bound to the pre-rewrite remote head. A rejected lease
+requires reconciliation, never an unconditional force push. Verify remote
+base/head and return to scrutineer monitoring and review reconciliation.
 
 At any stage, a new relevant red run returns the PR to diagnosis and repair.
 Approval does not override CI. A rebase does not inherit approval or green CI
@@ -397,6 +456,8 @@ Immediately before an authorized squash merge, refresh and verify:
    with no unresolved required change request or in-flight necessary review.
 6. The latest round is reconciled, the approval request's outcome is known,
    and no new head, base, finding, or check result invalidates the assessment.
+7. Applicable ExecPlan completeness/correctness and proof-specific assessments
+   cover the accepted candidate, with no unresolved substantive concern.
 
 For an ordinary PR, use a squash merge guarded by the accepted head SHA, as
 shown in `references/operations.md`. Never use an administrator bypass. For
