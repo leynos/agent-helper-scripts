@@ -459,12 +459,13 @@ runner instead.
 
 CI lints Markdown through the pinned `DavidAnson/markdownlint-cli2-action`
 rather than installing the linter by hand. The action's release carries
-`markdownlint-cli2` together with its whole dependency graph, so the pinned tag
-is what fixes every version it runs; nothing is resolved from npm at run time.
-That pin is deliberately Dependabot's job, since `.github/dependabot.yml`
-already tracks the `github-actions` ecosystem. CI therefore runs the same gate
-sequence with that one gate delegated — `make ci CI_SKIP_MARKDOWNLINT=1` —
-while a local `make ci` still runs it.
+`markdownlint-cli2` together with its whole dependency graph, so the pinned
+commit SHA, annotated with the corresponding release, is what fixes every
+version it runs; nothing is resolved from npm at run time. That pin is
+deliberately Dependabot's job, since `.github/dependabot.yml` already tracks the
+`github-actions` ecosystem. CI therefore runs the same gate sequence with that
+one gate delegated — `make ci CI_SKIP_MARKDOWNLINT=1` — while a local `make ci`
+still runs it.
 
 ### Shared en-GB-oxendict spelling data
 

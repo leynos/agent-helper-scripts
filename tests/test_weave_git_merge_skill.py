@@ -333,7 +333,7 @@ def test_skill_runs_weave_check_only_when_the_installed_version_supports_it() ->
     assert "weave check --help" in _prose(skill), (
         "the workflow must feature-probe the checker before invoking it"
     )
-    assert "weave check" in _prose(skill), (
+    assert "\nweave check\n" in skill, (
         "the workflow must execute the checker on its own command line; a bare "
         "substring check would be satisfied by the `--help` probe alone"
     )
