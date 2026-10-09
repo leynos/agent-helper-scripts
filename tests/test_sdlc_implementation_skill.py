@@ -119,7 +119,7 @@ def test_assessments_remain_in_babysitting() -> None:
         "non-vacuity",
         "Both applicable assessments must clear",
         "before its draft-to-ready transition",
-        "All subsequent whole-assessment retries",
+        "Assessment conversations never go through `comenq`",
         "`comenq-coderabbit`",
         "An already-ready PR stays ready",
         "Do not set the PR back to draft",
