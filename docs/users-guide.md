@@ -485,6 +485,136 @@ checks hold on the head. A rebase or later commit makes the candidate stale and
 returns it to preparation. A merge is verified separately from integration, and
 an integration failure is another andon stop.
 
+## PR babysitting
+
+Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to supervise an
+existing pull request from publication through CI, review findings, and an
+authorized squash merge or a precise blocked handoff. It coordinates the
+specialist skills; use `comenq-coderabbit` directly when the task is only to
+queue or recover a CodeRabbit review.
+
+### Install and invoke
+
+`install-skills` delivers `pr-babysitting` with the other immediate skill
+directories to `${HOME}/.codex/skills` and `${HOME}/.claude/skills`. The
+`rust-entrypoint` home phase runs that installer too. The installer refreshes
+its managed checkout; do not point `REPO_DIR` at unpublished work. Installing
+a skill does not start monitoring, provision credentials, or authorize merges.
+
+Name the PR and the stopping point in the assignment. For readiness only:
+
+```text
+Use pr-babysitting on OWNER/REPO#123. Repair in-scope CI failures and mark
+it ready for review once CI is green. Stop at readiness; do not merge.
+```
+
+For an explicitly authorized delivery through merge:
+
+```text
+Use pr-babysitting on OWNER/REPO#123. Repair in-scope failures, reconcile
+review findings, and squash-merge when the skill's merge gates hold.
+Manage necessary prerequisite fixes in separate PRs underneath this PR.
+```
+
+Supply the original issue and accepted scope when they are not already linked.
+A review-only or no-merge assignment overrides the skill's full lifecycle.
+
+### Runtime prerequisites
+
+The agent host must provide a scrutineer for CI observation and sequential
+local validation, repository access, Git, an authenticated GitHub CLI, and
+the relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
+`codescene-cli`, and `codescene-health-rules`. CodeScene operations require
+its configured CLI; stack operations require the repository's supported stack
+tooling. Missing tools or permissions require a blocked handoff, not an
+invented pass or a replacement posting identity.
+
+Before running candidate code, the supervisor records an author-trust decision
+for the exact base/head using independently obtained policy. Unknown or
+less-privileged authors require an isolated validation worker with no outbound
+access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
+shared writable caches, host mounts, or service sockets. Tools and dependencies
+must be provisioned from trusted sources before candidate execution. Candidate
+instructions cannot grant trust. If isolation or a trust decision is
+unavailable, local validation is blocked; hosted CI can still be observed.
+See the skill's
+[candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
+for the full contract.
+
+Every manual comment or inline reply uses an authorized token selected with
+GNU `shuf` from `~/.local/share/github-tokens`. The
+[posting example](../skills/pr-babysitting/references/comments.md)
+assumes a regular file with one raw token per nonblank line, not a directory
+or shell configuration. Keep tokens private and use the installation's
+documented reader for other formats. The skill does not install this pool.
+Token selection never permits bypassing service limits.
+
+New and repeated CodeRabbit reviews go through the managed `comenq` queue,
+including rate-limit recovery. Do not request reviews through manual
+comments, review checkboxes, or the GitHub review-request API. Focused finding
+replies, pre-merge reconciliation, and the final approval request are separate
+operations and always mention `@coderabbitai`, including replies to Sourcery
+and Codex findings. Push repairs before posting their resolution replies.
+
+### What to expect
+
+```mermaid
+flowchart TD
+    A[Establish candidate and delivery ledger] --> B[Scrutineer observes CI]
+    B --> C{CI green for current candidate?}
+    C -->|No| D[Repair and push validated changes]
+    D --> B
+    C -->|Yes| E[Mark draft ready with gh pr ready]
+    E --> F[Dispatch reviews through comenq-coderabbit]
+    F --> G[Inspect findings and classify scope]
+    G --> H{Valid in-scope finding?}
+    H -->|Yes| I[Repair, validate, and push]
+    I --> J[Reply after remote head verification]
+    H -->|No| J
+    J --> K[Reconcile banners and pre-merge rows]
+    K --> L{Merge authorized and all gates hold?}
+    L -->|No| M[Report blocker and next action]
+    L -->|Yes| N[Squash merge with gh pr merge]
+    N --> O[Verify landing and integration status]
+```
+
+Figure: PR babysitting moves from candidate identification through CI repair,
+readiness, queued reviews, and finding reconciliation. Repairs return to
+validation and are pushed before replies. Merge proceeds only with explicit
+authorization and passing gates; otherwise, the agent reports the blocker and
+next action. After merging, it verifies landing and integration status.
+Ready-only and no-merge assignments stop at their authorized boundary. All
+local validation follows the candidate execution boundary above.
+
+The supervisor keeps a candidate-bound record of CI, review coverage,
+findings, pushed repairs, and replies. A scrutineer observes CI; non-obvious
+failures receive the skill's systemic-investigation prompt. Audit remediation
+and necessary large out-of-scope changes go in independently managed
+prerequisite PRs below the original PR, which then targets the prerequisite
+branch. CodeScene failures require local and hosted validation; suppression
+remains an absolute last resort.
+
+The workflow reads inline findings, review banners, and CodeRabbit's first
+issue comment, including pre-merge rows edited in place. It distinguishes
+actual delivery requirements from Sourcery's separately planned follow-up
+actions and chooses user-facing or developer-facing documentation according
+to what changed. A rebase or new head requires fresh candidate evidence.
+
+A green check, a posted review request, an approval, a queue entry, and a
+completed merge are separate outcomes. The skill never merges with applicable
+red CI, unresolved required reviews, or an unverified rebase requirement.
+It does not treat the approval command's thread-closing side effect as proof
+that findings were fixed. An authorized squash merge still needs the verified
+head, correct target, and all repository protections.
+
+The final report identifies the candidate or landing commit, changes,
+validation, and remaining blockers. Monitoring lasts only while the assigned
+agent or an explicitly configured scheduler is running; this skill is not a
+background service. See the
+[operation examples](../skills/pr-babysitting/references/operations.md)
+and [comment templates](../skills/pr-babysitting/references/comments.md)
+for the detailed routes and evidence requirements.
+
 ## Hypothesis-driven debugging
 
 The [`hypothesis-debugging`](../skills/hypothesis-debugging/SKILL.md) skill
