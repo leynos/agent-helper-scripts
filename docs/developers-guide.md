@@ -270,8 +270,11 @@ distinction visible when adding new bootstrap behaviour.
 
 - Reuses the managed helper checkout path when `HELPER_TOOLS_REPO_DIR` is
   exported.
-- Reapplies sparse checkout for `skills` when a managed clone already exists,
-  so older sparse checkouts are repaired before copying skills.
+- Keeps both `skills` and `agents` in the managed checkout's sparse paths,
+  adding `agents` to older skills-only checkouts before copying skills. The
+  retained `agents/subagents.yml` supplies provider-neutral role definitions to
+  workflow skills that consult the manifest; agent definitions are not copied
+  into the user skill directories.
 - Delivers the `vidai-mock` skill from the managed helper checkout. The
   installer no longer clones the standalone `leynos/vidai-mock-skill`
   repository: it was copied after the helper checkout's own skills, so the
@@ -643,6 +646,33 @@ recorded drift form now carries one canonical replacement for every consumer.
     `uv run python -m pytest`.
   - Use this when iterating on `rust-entrypoint`, `rust-entrypoint-system`, or
     `rust-entrypoint-home`.
+
+## ExecPlan implementation and PR delivery
+
+`sdlc-implementation` owns approved-plan implementation, milestone evidence,
+and a single delivery ledger. Its handoff records the candidate, accepted
+scope, acceptance and gate evidence, proof inventory, pending work, and
+mutation authority. `pr-babysitting` is the sole PR lifecycle owner: it
+monitors hosted CI, obtains applicable hosted assessments before readiness,
+reconciles reviews, and owns target-aware rebasing, authorized publication,
+merge, and integration verification. An already-ready PR stays ready if
+required evidence is missing; that evidence still blocks merge. Implementation
+milestones run deterministic gates sequentially through the scrutineer before
+requested local CLI reviews; PR babysitting assigns monitoring-only scrutineers
+for hosted CI. See the [Makefile targets](#makefile-targets) and
+[scrutineer contract](#scrutineer-operating-contract) for validation details.
+
+Use `comenq-coderabbit` for hosted review dispatch and recovery, `rebase` and
+`sem` for replay and semantic review, and `github-stacks` for managed stack
+operations. `weave-git-merge` is optional and applies only when Weave is
+enabled or selected. The implementation-to-delivery contracts and executable
+examples are covered by `tests/test_sdlc_implementation_skill.py`,
+`tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
+and `tests/test_sdlc_milestone_review.py`. See the
+[`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
+[delegation contract](../skills/sdlc-implementation/references/delegation.md),
+and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
+procedures.
 
 ## Subagent manifest
 

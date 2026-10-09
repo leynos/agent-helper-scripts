@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -302,6 +303,102 @@ def test_installer_contacts_only_the_managed_repositories(tmp_path: Path) -> Non
         "install-skills must not clone, fetch, or reset the retired standalone "
         f"repositories nextest-skill and vidai-mock-skill: {retired_lines!r}"
     )
+
+
+@pytest.fixture
+def local_installer_repositories(tmp_path: Path) -> dict[str, str]:
+    """Route managed repository URLs to committed local Git fixture trees."""
+    home = tmp_path / "home"
+    home.mkdir()
+    fixtures = tmp_path / "fixtures"
+    build_fixtures(fixtures)
+    agents = fixtures / "agent-helper-scripts" / "agents"
+    agents.mkdir()
+    shutil.copyfile(REPO_ROOT / "agents" / "subagents.yml", agents / "subagents.yml")
+    process_env = {
+        "HOME": str(home),
+        "PATH": "/usr/bin:/bin",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_ALLOW_PROTOCOL": "file",
+        "FD_BIN": _fd_binary(),
+    }
+    for repository in ("agent-helper-scripts", "rust-skill"):
+        source = fixtures / repository
+        commands = (
+            ("init", "--initial-branch=main"),
+            ("add", "."),
+            (
+                "-c", "user.name=Test User", "-c",
+                "user.email=test@example.invalid", "commit", "-m", "fixture",
+            ),
+        )
+        for command in commands:
+            subprocess.run(
+                ["/usr/bin/git", "-C", str(source), *command],
+                env=process_env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    routing = " ".join(
+        f"-c {shlex.quote(f'url.{(fixtures / repository).as_uri()}.insteadOf={url}')}"
+        for repository, url in (
+            ("agent-helper-scripts", HELPER_REPO_URL),
+            ("rust-skill", RUST_SKILL_REPO_URL),
+        )
+    )
+    write_script(bin_dir / "git", f'exec /usr/bin/git {routing} "$@"')
+    process_env["PATH"] = f"{bin_dir}:/usr/bin:/bin"
+    return process_env
+
+
+@pytest.mark.parametrize("existing_checkout", [False, True], ids=["fresh", "skills-only"])
+def test_installer_retains_effective_agent_manifest(
+    tmp_path: Path,
+    local_installer_repositories: dict[str, str],
+    existing_checkout: bool,
+) -> None:
+    """Fresh installation and skills-only updates retain the helper manifest."""
+    home = tmp_path / "home"
+    checkout = home / installer_home_relative_repo_dir()
+    manifest = checkout / "agents" / "subagents.yml"
+    if existing_checkout:
+        checkout.parent.mkdir(parents=True)
+        for arguments in (
+            ("clone", "--sparse", HELPER_REPO_URL, str(checkout)),
+            ("-C", str(checkout), "sparse-checkout", "set", "skills"),
+        ):
+            subprocess.run(
+                ["git", *arguments],
+                env=local_installer_repositories,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        assert not manifest.exists(), "the update must start with a skills-only checkout"
+
+    result = subprocess.run(
+        [str(BASH_PATH), "--norc", "--noprofile", str(INSTALL_SKILLS_PATH)],
+        cwd=home,
+        env=local_installer_repositories,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest.is_file(), "installed workflows must be able to read agents/subagents.yml"
+    assert manifest.read_bytes() == (REPO_ROOT / "agents" / "subagents.yml").read_bytes(), (
+        "the retained manifest must match the managed helper source"
+    )
+    for skills_dir, _agent in agent_skill_dirs(home):
+        for skill in MANAGED_SKILLS:
+            assert (skills_dir / skill / "SKILL.md").read_bytes() == (
+                checkout / "skills" / skill / "SKILL.md"
+            ).read_bytes(), f"installed {skill} must match the retained helper checkout"
 
 
 def test_installer_delivers_both_imported_skills_from_the_managed_checkout(

@@ -483,6 +483,75 @@ checks hold on the head. A rebase or later commit makes the candidate stale and
 returns it to preparation. A merge is verified separately from integration, and
 an integration failure is another andon stop.
 
+## ExecPlan implementation
+
+Use [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) to execute
+an approved plan in `docs/execplans/<slug>.md`, validate coherent milestones,
+and hand PR delivery to `pr-babysitting`. The existing `execplans` skill owns
+plan authoring and the living-document contract; `sdlc-implementation` owns
+implementation, not another copy of the PR lifecycle.
+
+`install-skills` installs the new skill and its references alongside the other
+skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
+`rust-entrypoint` home phase runs that installer too. Its managed helper
+checkout retains both `skills/` and `agents/`, so the workflow can read the
+provider-neutral `agents/subagents.yml` manifest. The installer copies skills,
+not agent definitions, into the user skill directories. Installation supplies
+instructions, not CodeRabbit or Firecrawl credentials, Lody, agent processes,
+or permission to publish or merge.
+
+For example, after approving the identified plan:
+
+```text
+Use sdlc-implementation to implement docs/execplans/<slug>.md in the assigned
+PR. Follow its approved scope and tolerances, and use pr-babysitting to take
+the PR through review and merge when the required gates hold.
+```
+
+State a narrower endpoint explicitly for implementation-only, review-only, or
+no-merge work. The agent reads the plan's linked documentation, skills, and
+decisions first. It normalizes branch/upstream and PR metadata safely, removes
+only the leading `Plan:` prefix and its following space. It links the active
+Lody session in the PR's final `## References` section when applicable. It
+commits frequently, keeps the plan's findings and progress current, and checks
+only an explicitly associated roadmap item whose implementation activity is
+complete.
+
+Firecrawl provides bounded, version-matched external documentation; wyverns
+answer tightly scoped read-only repository questions; artisans implement one
+fully specified, independently testable task. The supervisor or journeyman
+retains architecture, integration, and acceptance. Read the effective agent
+manifest and actual tool access; do not widen a worker's permissions to make a
+packet succeed. See the
+[delegation reference](../skills/sdlc-implementation/references/delegation.md).
+
+Scrutineers run sequential deterministic gates before each explicitly requested
+milestone `coderabbit review --agent`. The
+[CLI backoff reference](../skills/sdlc-implementation/references/milestone-review.md)
+uses the service's requested wait plus ten minutes, randomized up to ninety
+minutes, or ten minutes above that minimum when it exceeds ninety. Hosted
+review dispatch retains the managed queue's separate cooldown policy.
+
+The implementation handoff contains the accepted plan, candidate, gate and
+milestone evidence, proof inventory, roadmap state, PR metadata, and mutation
+authority. It can arrive with CI red and the PR draft. `pr-babysitting` owns CI
+monitoring and repair, the hosted completeness/correctness and applicable proof
+assessments, readiness, rebasing, reviews, and authorized merge. It uses
+monitoring-only scrutineers for CI rather than starting duplicate gate or
+review runs. The implementation skill supplies bounded repairs and keeps its
+plan current without running competing watchers or conversations.
+
+The two initial assessment questions and all proof-evidence requirements live
+only in the babysitting skill's
+[ExecPlan assessment reference](../skills/pr-babysitting/references/execplan-assessment.md).
+For an implementation assignment, completeness/correctness must clear before
+readiness. Introduced or materially changed CrossHair, Kani, Verus,
+LemmaScript, or comparable proofs also require the separate substantive,
+rigorous, well-founded assessment, with actual paths and named references.
+Generic approval cannot replace it. Both initial comments use the assigned
+token procedure as explicit narrow exceptions; subsequent whole-assessment
+retries and rate-limit recovery use `comenq-coderabbit`.
+
 ## PR babysitting
 
 Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to supervise an
@@ -503,7 +572,8 @@ Name the PR and the stopping point in the assignment. For readiness only:
 
 ```text
 Use pr-babysitting on OWNER/REPO#123. Repair in-scope CI failures and mark
-it ready for review once CI is green. Stop at readiness; do not merge.
+it ready for review once CI and applicable assessment gates pass. Stop at
+readiness; do not merge.
 ```
 
 For an explicitly authorized delivery through merge:
@@ -522,10 +592,11 @@ A review-only or no-merge assignment overrides the skill's full lifecycle.
 The agent host must provide a scrutineer for CI observation and sequential
 local validation, repository access, Git, an authenticated GitHub CLI, and the
 relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
-`codescene-cli`, and `codescene-health-rules`. CodeScene operations require its
-configured CLI; stack operations require the repository's supported stack
-tooling. Missing tools or permissions require a blocked handoff, not an
-invented pass or a replacement posting identity.
+`sem`, `weave-git-merge` where Weave is enabled, `codescene-cli`, and
+`codescene-health-rules`. CodeScene operations require its configured CLI;
+stack operations require the repository's supported stack tooling. Missing
+tools or permissions require a blocked handoff, not an invented pass or a
+replacement posting identity.
 
 Before running candidate code, the supervisor records an author-trust decision
 for the exact base/head using independently obtained policy. Unknown or
@@ -548,11 +619,34 @@ for other formats. The skill does not install this pool. Token selection never
 permits bypassing service limits.
 
 New and repeated CodeRabbit reviews go through the managed `comenq` queue,
-including rate-limit recovery. Do not request reviews through manual comments,
-review checkboxes, or the GitHub review-request API. Focused finding replies,
+including rate-limit recovery. Apart from the two initial assessment comments
+described above, do not request reviews through manual comments, review
+checkboxes, or the GitHub review-request API. Focused finding replies,
 pre-merge reconciliation, and the final approval request are separate
 operations and always mention `@coderabbitai`, including replies to Sourcery
 and Codex findings. Push repairs before posting their resolution replies.
+
+### Conflicted or outdated PRs
+
+The babysitting skill's
+[rebase procedure](../skills/pr-babysitting/references/rebase.md) fetches the
+actual remote target of the live PR. `origin/main` applies only when the PR
+targets `main` on that remote; release and prerequisite targets retain their
+own branches. `rebase` establishes the exclusive replay boundary, `sem`
+supports semantic investigation, and `weave-git-merge` governs driver use and
+audit when Weave is enabled. Existing managed stacks keep their stack rules.
+
+Before resolving each conflict, the agent inspects the base and both sides,
+understands their purposes, and records a resolution plan. It uses `zdiff3` and
+preserves pertinent feature changes and target improvements. Conflicted
+packaging lockfiles start from the frozen target's version, then regenerate
+from the combined manifests after replay using the prescribed package manager.
+It validates with `make check-fmt`, `make test`, `make typecheck`, and
+`make lint`, plus other required gates, and validates and commits deliberate
+outstanding changes before pushing with an explicit force-with-lease tied to
+the pre-rewrite remote head. A rejected lease triggers reconciliation, never
+unconditional force. New candidate evidence, CI, and affected assessments must
+then be reconciled before merge.
 
 ### What to expect
 
@@ -583,6 +677,11 @@ authorization and passing gates; otherwise, the agent reports the blocker and
 next action. After merging, it verifies landing and integration status.
 Ready-only and no-merge assignments stop at their authorized boundary. All
 local validation follows the candidate execution boundary above.
+
+This diagram shows the generic lifecycle. ExecPlan implementation and affected
+proofs add the assessment prerequisites described above before the readiness
+transition. An already-ready PR stays ready while missing or invalidated
+assessments block merge; the workflow never sets it back to draft.
 
 The supervisor keeps a candidate-bound record of CI, review coverage, findings,
 pushed repairs, and replies. A scrutineer observes CI; non-obvious failures
