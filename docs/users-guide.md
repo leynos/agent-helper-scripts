@@ -625,8 +625,28 @@ Every manual comment or inline reply uses an authorized token selected with GNU
 [posting example](../skills/pr-babysitting/references/comments.md) assumes a
 regular file with one raw token per nonblank line, not a directory or shell
 configuration. Keep tokens private and use the installation's documented reader
-for other formats. The skill does not install this pool. Token selection never
-permits bypassing service limits.
+for other formats. The skill does not install this pool.
+
+The owner-provisioned pool deliberately contains authorized accounts other than
+`leynos`; keeping routine CodeRabbit conversations off the lifecycle account is
+its purpose. A non-`leynos` login is expected, not a reason to stop or ask for
+permission again. The agent verifies the selected token's identity and
+permission to post, not whether it matches the repository owner or normal CLI
+account. An unexpected `leynos` result is a pool configuration problem. Manual
+comments never fall back to the normal CLI account or a connector. The
+executable path `/usr/bin/gh` does not select an account.
+
+Git publication, readiness transitions, and merges keep the normal authorized
+lifecycle identity; formal reviews keep the managed queue's dispatcher. Comment
+tokens remain command-scoped and do not change either identity. Actual
+authentication, permission, or rate-limit failures remain blockers: never
+rotate accounts after a service restriction to circumvent it. See the
+[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
+The documented posting helper writes bounded JSON diagnostics to standard
+error for token selection, identity checks, and posting, with the operation,
+comment surface, repository/PR, failure category, exit status, elapsed time,
+and recognized HTTP status. It omits tokens, account names, comment bodies, and
+raw GitHub error text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do
