@@ -7,10 +7,30 @@ response establishes that it did.
 
 ## Route and identity rules
 
+Follow the
+[manual-comment identity contract](../SKILL.md#manual-comment-identity-contract).
 Every manually posted comment or inline reply uses an authorized token selected
-with `shuf` from `~/.local/share/github-tokens`. This includes CI
-investigation, rebuttals, confirmations, pre-merge reconciliation, and the
-final approval request. Do not use a connector's implicit identity instead.
+with `shuf` from the owner-provisioned `~/.local/share/github-tokens` pool.
+Pool accounts deliberately authenticate as identities other than `leynos`. That
+difference is expected and requires no additional permission for comments
+already within the assignment. Do not search the pool for a `leynos` token,
+compare its principal with the PR author, or substitute the normal CLI account.
+The configured pool is the authorized comment route, not an unrelated identity.
+
+This route covers CI investigation, assessment questions and follow-ups,
+rebuttals, confirmations, pre-merge reconciliation, and the final approval
+request. Select one token for the operation and verify that token's identity
+under the same command-scoped credentials. An unexpected `leynos` result is a
+pool configuration problem; stop before posting and report it. Authentication
+as another account is not itself a permission failure, but GitHub must still
+permit the requested operation. Read back the comment and verify its author
+against the selected account, not against `leynos`.
+
+Do not use a connector's implicit identity, change `gh auth` configuration, or
+export the selected token into the parent shell. The executable path, including
+`/usr/bin/gh`, does not select the GitHub account. Git publication, readiness,
+and merges retain the normal authorized lifecycle identity without this token.
+
 Full and incremental review requests, retries, and review-resume actions belong
 to `comenq-coderabbit`. Its dispatcher retains its own configured identity and
 cooldown policy; do not wrap it with a randomly selected manual-comment token.
@@ -44,8 +64,11 @@ applicability and prerequisites; do not convert them into queued formal reviews.
 
 On an ambiguous posting failure, fetch the discussion and check whether the
 comment already exists before retrying. Honour HTTP retry advice and service
-cooldowns. Do not keep selecting another token until a request succeeds. If the
-authorized route is unavailable, retain the draft and report the blocker.
+cooldowns. Selecting the configured account before posting is normal routing,
+not permission to rotate accounts after a rate-limit response. Authentication,
+permission, and rate-limit errors remain their actual errors: do not fall back
+to `leynos`, try successive tokens, or enqueue the comment. Retain the draft
+and report the specific blocker when the authorized operation cannot proceed.
 
 ## Token-scoped posting example
 
@@ -58,7 +81,8 @@ its documented reader rather than guessing or dumping the contents.
 The function is an example for a controlled agent runtime, not an autonomous
 babysitting daemon. It does not prove that the candidate was pushed or the body
 is an authorized disposition: establish those conditions before calling it. It
-requires Bash, `awk`, GNU `shuf`, `jq`, and `gh`.
+requires Bash, `awk`, GNU `shuf`, `jq`, and `gh`. Its identity read checks only
+the selected pool token, never every pool entry looking for the owner's login.
 
 ```bash
 post_manual_comment() (
@@ -103,6 +127,17 @@ post_manual_comment() (
     printf '%s\n' 'No valid token record selected.' >&2; exit 2;
   }
 
+  # Check the selected credential, not the normal lifecycle account.
+  login=$(
+    GH_TOKEN="$token" GITHUB_TOKEN="$token" \
+      gh api --hostname github.com user --jq '.login'
+  ) || exit "$?"
+  [[ -n "$login" && "$login" != *[[:space:]]* && \
+     "${login,,}" != leynos ]] || {
+    printf '%s\n' 'Expected a non-leynos pool account; check configuration.' >&2
+    exit 2
+  }
+
   jq -n --rawfile body "$body_file" '{body: $body}' |
     GH_TOKEN="$token" GITHUB_TOKEN="$token" \
       gh api --hostname github.com --method POST "$endpoint" \
@@ -115,6 +150,12 @@ selected record, enable HTTP debug output, put it in an argument/header string,
 or write it into evidence. A successful command returns the comment URL, not
 proof that a bot received, resolved, or approved anything. Keep the pool
 private under the installation's credential-storage policy.
+
+The
+[GitHub CLI environment reference](https://cli.github.com/manual/gh_help_environment)
+documents that `GH_TOKEN` and `GITHUB_TOKEN` override stored credentials, in
+that precedence order. The identity read and POST both set them explicitly;
+normal lifecycle authentication remains unchanged when the subshell exits.
 
 Examples, after preparing and inspecting the body file:
 

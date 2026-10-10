@@ -93,6 +93,15 @@ different operation: use only the project's already authorized reply route and
 identity. An available credential does not authorize that route. If it is
 unspecified, retain the response draft and ask the designated owner to route it.
 
+When `pr-babysitting` owns delivery, its
+[manual-comment identity contract](../pr-babysitting/SKILL.md#manual-comment-identity-contract)
+explicitly specifies that route: the owner-provisioned pool of non-`leynos`
+accounts is authorized for in-scope manual comments. Do not reinterpret those
+accounts as unauthorized merely because they differ from the repository owner
+or normal CLI identity, and do not ask again solely about that difference. This
+comment authorization does not extend to this queue's dispatcher or to
+lifecycle mutations. Keep the managed queue's identity and cooldowns unchanged.
+
 Use live queue ETA and service activity rather than fixed cooldown assumptions
 or minute-by-minute polling. Priority changes require the queue owner's policy
 and a recorded blocking dependency. A pending handoff must say it is pending;

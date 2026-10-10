@@ -77,10 +77,38 @@ candidate or its provenance changes, including prerequisite PRs and rebases.
 
 ### GitHub conversations
 
-All manually posted comments and replies must use the authorized token pool at
-`~/.local/share/github-tokens`, selecting a token with `shuf`. The GNU command
-is `shuf`, not `shuff`. Use command-scoped credentials, never print tokens, and
-do not fall back to an unrelated connector identity or default account. Read
+#### Manual-comment identity contract
+
+All manually posted issue comments and inline review-comment replies must use
+an authorized token selected with `shuf` from the owner-provisioned pool at
+`~/.local/share/github-tokens`. The GNU command is `shuf`, not `shuff`. **Pool
+accounts deliberately authenticate as identities other than `leynos`.** This is
+the configured comment route, not an identity mismatch to repair. The owner
+separates routine CodeRabbit conversations from the lifecycle account's
+CodeRabbit usage; do not move those conversations back to `leynos`.
+
+For comments within the assignment, this contract supplies route authorization.
+Do not require a pool account to match the repository owner, PR author, Git
+commit author, Linux username, or normal `gh` account. Do not ask for another
+confirmation solely because the selected token does not authenticate as
+`leynos`. A non-`leynos` login is expected; valid authentication and permission
+to post the requested comment are the relevant checks. A token found elsewhere
+is not authorized merely because its account is also non-`leynos`.
+
+Select once for each posting operation and scope `GH_TOKEN` and `GITHUB_TOKEN`
+to that operation and its identity check. Verify the selected token's identity,
+not the ambient CLI session, and read back the posted comment and its author.
+An unexpected `leynos` result indicates a pool configuration problem: stop
+before posting and report it. Never print tokens, change global CLI
+authentication, or substitute the normal `gh` account or a connector identity
+for manual comments. `/usr/bin/gh` selects an executable, not an account.
+
+Keep authorization operation-specific: Git publication, PR readiness, and
+merges use the normal authorized lifecycle identity, `leynos` in this
+installation, without the comment-token override. Formal CodeRabbit review
+requests use `comenq-coderabbit` with its configured dispatcher identity.
+Neither route inherits the manual-comment token. This contract does not grant
+new merge, review, or candidate-execution authority. Read
 [comment routes and templates](references/comments.md) before posting.
 
 New or repeated reviews must go through `comenq-coderabbit`, never through a
@@ -88,8 +116,11 @@ manually posted review command, the request-review UI/API, or a review
 checkbox. This applies even when a bot's boilerplate suggests those shortcuts.
 Focused investigation, disposition replies, pre-merge reconciliation, and the
 final approval request are distinct from requesting a fresh review. Do not use
-them as disguised full-review requests. Respect queue cooldowns and service
-limits; random token selection is not a rate-limit escape hatch.
+them as disguised full-review requests. Respect actual service limits and queue
+cooldowns. Selecting the configured comment identity before an operation is
+normal routing; cycling identities after a rate-limit response is not. Report
+authentication, permission, or rate-limit failures without falling back to
+`leynos` or trying another account to circumvent the restriction.
 
 Keep assessment conversations separate from formal CodeRabbit reviews.
 [ExecPlan assessments](references/execplan-assessment.md) uses tagged issue
