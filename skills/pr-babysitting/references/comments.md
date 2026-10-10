@@ -9,13 +9,14 @@ response establishes that it did.
 
 Follow the
 [manual-comment identity contract](../SKILL.md#manual-comment-identity-contract).
-Every manually posted comment or inline reply uses an authorized token selected
-with `shuf` from the owner-provisioned `~/.local/share/github-tokens` pool.
-Pool accounts deliberately authenticate as identities other than `leynos`. That
-difference is expected and requires no additional permission for comments
-already within the assignment. Do not search the pool for a `leynos` token,
-compare its principal with the PR author, or substitute the normal CLI account.
-The configured pool is the authorized comment route, not an unrelated identity.
+Every manually posted comment or inline reply uses an authorized token
+selected with `shuf` from the owner-provisioned `~/.local/share/github-tokens`
+pool. Pool accounts deliberately authenticate as identities other than
+`leynos`. That difference is expected and requires no additional permission for
+comments already within the assignment. Do not search the pool for a `leynos`
+token, compare its principal with the PR author, or substitute the normal CLI
+account. The configured pool is the authorized comment route, not an unrelated
+identity.
 
 This route covers CI investigation, assessment questions and follow-ups,
 rebuttals, confirmations, pre-merge reconciliation, and the final approval
@@ -81,8 +82,10 @@ its documented reader rather than guessing or dumping the contents.
 The function is an example for a controlled agent runtime, not an autonomous
 babysitting daemon. It does not prove that the candidate was pushed or the body
 is an authorized disposition: establish those conditions before calling it. It
-requires Bash, `awk`, GNU `shuf`, `jq`, and `gh`. Its identity read checks only
-the selected pool token, never every pool entry looking for the owner's login.
+requires Bash, `awk`, GNU `shuf`, GNU `date`, `jq`, and `gh`. Its identity read
+checks only the selected pool token, never every pool entry looking for the
+owner's login. It writes bounded JSON diagnostics to standard error without
+credentials, comment bodies, account names, or raw GitHub error text.
 
 ```bash
 post_manual_comment() (
@@ -106,42 +109,150 @@ post_manual_comment() (
   [[ -f "$body_file" && -r "$body_file" && -s "$body_file" ]] || {
     printf '%s\n' 'Comment body missing, empty, or unreadable.' >&2; exit 2;
   }
-  [[ -f "$pool" && -r "$pool" ]] || {
-    printf '%s\n' 'Authorized token pool unavailable.' >&2; exit 2;
-  }
-
+  surface=issue_comment
   endpoint="repos/$repo/issues/$pr/comments"
   if [[ -n "$root_comment_id" ]]; then
     [[ "$root_comment_id" =~ ^[1-9][0-9]*$ ]] || {
       printf '%s\n' 'Invalid root review-comment ID.' >&2; exit 2;
     }
     endpoint="repos/$repo/pulls/$pr/comments/$root_comment_id/replies"
+    surface=inline_reply
   fi
 
-  token=$(
+  log_diagnostic() {
+    local stage=$1 failure_category=$2 exit_status=$3 started_at_ms=$4
+    local http_status=$5 elapsed_ms
+    elapsed_ms=$(( $(date +%s%3N) - started_at_ms ))
+    jq -cn \
+      --arg operation 'manual_pr_comment' \
+      --arg surface "$surface" \
+      --arg repository "$repo" \
+      --arg pr "$pr" \
+      --arg stage "$stage" \
+      --arg failure_category "$failure_category" \
+      --arg http_status "$http_status" \
+      --argjson exit_status "$exit_status" \
+      --argjson elapsed_ms "$elapsed_ms" \
+      '{operation: $operation, surface: $surface, repository: $repository,
+        pr: $pr, stage: $stage,
+        failure_category: (if $failure_category == "" then null else $failure_category end),
+        exit_status: $exit_status, elapsed_ms: $elapsed_ms,
+        http_status: (if $http_status == "" then null else ($http_status | tonumber) end)}' \
+      >&2 || {
+        printf '%s\n' 'Unable to emit structured manual-comment diagnostics.' >&2
+        return 1
+      }
+  }
+
+  http_status_from() {
+    local prefix code
+    if [[ "$1" =~ HTTP[[:space:]]+([0-9]{3}) ]]; then
+      read -r prefix code <<< "$BASH_REMATCH"
+      printf '%s' "$code"
+    fi
+  }
+
+  failure_category_for() {
+    local response=$1 http_status=$2
+    case "$http_status" in
+      401) printf '%s' 'authentication_failed' ;;
+      429) printf '%s' 'rate_limited' ;;
+      403)
+        case "$response" in
+          *'rate limit'*|*'Rate limit'*) printf '%s' 'rate_limited' ;;
+          *) printf '%s' 'permission_denied' ;;
+        esac
+        ;;
+      *) printf '%s' 'github_api_failed' ;;
+    esac
+  }
+
+  selection_started_ms=$(date +%s%3N)
+  if [[ ! -f "$pool" || ! -r "$pool" ]]; then
+    log_diagnostic token_selection token_pool_unavailable 2 "$selection_started_ms" '' || true
+    printf '%s\n' 'Authorized token pool unavailable.' >&2
+    exit 2
+  fi
+  if token=$(
     awk '{ sub(/\r$/, "") }
          NF && $0 !~ /^[[:space:]]*#/ { print }' "$pool" |
       shuf -n 1
-  )
-  [[ -n "$token" && "$token" != *[[:space:]]* ]] || {
-    printf '%s\n' 'No valid token record selected.' >&2; exit 2;
-  }
+  ); then
+    :
+  else
+    status=$?
+    log_diagnostic token_selection token_selection_failed "$status" "$selection_started_ms" '' || true
+    printf '%s\n' 'Authorized token selection failed.' >&2
+    exit "$status"
+  fi
+  if [[ -z "$token" || "$token" == *[[:space:]]* ]]; then
+    log_diagnostic token_selection token_not_selected 2 "$selection_started_ms" '' || true
+    printf '%s\n' 'No valid token record selected.' >&2
+    exit 2
+  fi
+  log_diagnostic token_selection '' 0 "$selection_started_ms" '' || true
 
   # Check the selected credential, not the normal lifecycle account.
-  login=$(
+  identity_started_ms=$(date +%s%3N)
+  if login=$(
     GH_TOKEN="$token" GITHUB_TOKEN="$token" \
-      gh api --hostname github.com user --jq '.login'
-  ) || exit "$?"
-  [[ -n "$login" && "$login" != *[[:space:]]* && \
-     "${login,,}" != leynos ]] || {
-    printf '%s\n' 'Expected a non-leynos pool account; check configuration.' >&2
-    exit 2
-  }
+      gh api --hostname github.com user --jq '.login' 2>&1
+  ); then
+    shopt -s nocasematch
+    if [[ "$login" =~ ^[A-Za-z0-9-]+$ && "$login" != leynos ]]; then
+      shopt -u nocasematch
+      log_diagnostic identity_preflight '' 0 "$identity_started_ms" '' || true
+    else
+      if [[ "$login" == leynos ]]; then
+        failure_category=unexpected_owner_identity
+      else
+        failure_category=invalid_identity_response
+      fi
+      shopt -u nocasematch
+      log_diagnostic identity_preflight "$failure_category" 2 "$identity_started_ms" '' || true
+      printf '%s\n' 'Expected a non-leynos pool account; check configuration.' >&2
+      exit 2
+    fi
+  else
+    status=$?
+    http_status=$(http_status_from "$login")
+    failure_category=$(failure_category_for "$login" "$http_status")
+    log_diagnostic identity_preflight "$failure_category" "$status" \
+      "$identity_started_ms" "$http_status" || true
+    if [[ -z "$http_status" ]]; then http_status=unknown; fi
+    printf 'GitHub identity verification failed: category=%s http_status=%s exit_status=%s.\n' \
+      "$failure_category" "$http_status" "$status" >&2
+    exit "$status"
+  fi
 
-  jq -n --rawfile body "$body_file" '{body: $body}' |
-    GH_TOKEN="$token" GITHUB_TOKEN="$token" \
-      gh api --hostname github.com --method POST "$endpoint" \
-        --input - --jq '.html_url'
+  post_started_ms=$(date +%s%3N)
+  if payload=$(jq -n --rawfile body "$body_file" '{body: $body}'); then
+    :
+  else
+    status=$?
+    log_diagnostic post payload_encoding_failed "$status" "$post_started_ms" '' || true
+    printf 'Manual comment payload encoding failed: exit_status=%s.\n' "$status" >&2
+    exit "$status"
+  fi
+  if post_result=$(
+    printf '%s\n' "$payload" |
+      GH_TOKEN="$token" GITHUB_TOKEN="$token" \
+        gh api --hostname github.com --method POST "$endpoint" \
+          --input - --jq '.html_url' 2>&1
+  ); then
+    log_diagnostic post '' 0 "$post_started_ms" '' || true
+    printf '%s\n' "$post_result"
+  else
+    status=$?
+    http_status=$(http_status_from "$post_result")
+    failure_category=$(failure_category_for "$post_result" "$http_status")
+    log_diagnostic post "$failure_category" "$status" \
+      "$post_started_ms" "$http_status" || true
+    if [[ -z "$http_status" ]]; then http_status=unknown; fi
+    printf 'Manual comment POST failed: category=%s http_status=%s exit_status=%s.\n' \
+      "$failure_category" "$http_status" "$status" >&2
+    exit "$status"
+  fi
 )
 ```
 

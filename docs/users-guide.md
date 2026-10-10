@@ -642,6 +642,11 @@ tokens remain command-scoped and do not change either identity. Actual
 authentication, permission, or rate-limit failures remain blockers: never
 rotate accounts after a service restriction to circumvent it. See the
 [manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
+The documented posting helper writes bounded JSON diagnostics to standard
+error for token selection, identity checks, and posting, with the operation,
+comment surface, repository/PR, failure category, exit status, elapsed time,
+and recognized HTTP status. It omits tokens, account names, comment bodies, and
+raw GitHub error text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do
