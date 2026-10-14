@@ -5,6 +5,17 @@ attributes. The shared policy must cover those attributes while leaving
 ordinary identifiers, assignments, prose, and malformed attributes visible.
 The authored cases live in JSON so their deliberate spellings stay out of
 this module's own spelling scan.
+
+Run the focused examples and generated boundary properties from the repository
+root with either command::
+
+    make test \
+        TEST_TARGETS='tests/test_tokio_flavour_exemption.py tests/test_tokio_flavour_boundaries.py'
+    uv run --group dev python -m pytest \
+        tests/test_tokio_flavour_exemption.py \
+        tests/test_tokio_flavour_boundaries.py -v
+
+The gate-backed cases require ``uv`` and ``git`` on ``PATH``.
 """
 
 import hashlib
@@ -69,7 +80,22 @@ class SpellingCorpus(TypedDict):
 
 
 def load_corpus() -> SpellingCorpus:
-    """Read the authored spelling cases and immutable overlay snapshot."""
+    """Load authored cases and the immutable consumer-overlay snapshot.
+
+    Returns
+    -------
+    SpellingCorpus
+        The shared-policy cases, source provenance, and recorded overlay.
+
+    Raises
+    ------
+    OSError
+        If the fixture cannot be read.
+    UnicodeDecodeError
+        If the fixture is not valid UTF-8.
+    json.JSONDecodeError
+        If the fixture is not valid JSON.
+    """
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
@@ -78,14 +104,45 @@ API_KEY = CORPUS["runtime_key"]
 
 
 def shared_patterns_for_api_key() -> list[str]:
-    """Return shared ignore expressions naming the external Tokio key."""
+    """Read shared ignore expressions that name the external Tokio key.
+
+    Returns
+    -------
+    list[str]
+        Matching expressions in the order used by the shared dictionary.
+
+    Raises
+    ------
+    OSError
+        If the shared dictionary cannot be read.
+    UnicodeDecodeError
+        If the shared dictionary is not valid UTF-8.
+    tomllib.TOMLDecodeError
+        If the shared dictionary is not valid TOML.
+    """
     document = tomllib.loads(SHARED_DICTIONARY_PATH.read_text(encoding="utf-8"))
     patterns = document.get("patterns", {}).get("ignore", [])
     return [pattern for pattern in patterns if API_KEY in pattern]
 
 
 def assert_pinned_gate_tools() -> None:
-    """Require gate executables and retain the repository's pinned release."""
+    """Require gate executables and the repository's pinned builder release.
+
+    Returns
+    -------
+    None
+        The function returns only after both executables and the pin are valid.
+
+    Raises
+    ------
+    AssertionError
+        If ``uv`` or ``git`` is unavailable, or the builder pin is absent or
+        differs from the release used by these cases.
+    OSError
+        If the repository Makefile cannot be read.
+    UnicodeDecodeError
+        If the repository Makefile is not valid UTF-8.
+    """
     require_executable("uv")
     require_executable("git")
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -106,7 +163,35 @@ def run_case_gate(
     case: SpellingCase,
     overlay: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run one case through the pinned consumer gate and shared dictionary."""
+    """Run one corpus case through the pinned gate and shared dictionary.
+
+    Parameters
+    ----------
+    repository
+        Scratch repository directory that receives the case files.
+    case
+        Authored path, content, and expected diagnostics for one case.
+    overlay
+        Optional local overlay staged beside the case files.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The gate's exit status and captured output streams.
+
+    Raises
+    ------
+    AssertionError
+        If a required executable or the pinned builder version is unavailable.
+    OSError
+        If a file or subprocess cannot be accessed.
+    UnicodeDecodeError
+        If the repository Makefile is not valid UTF-8.
+    subprocess.CalledProcessError
+        If initializing or staging the scratch repository fails.
+    subprocess.TimeoutExpired
+        If the pinned gate does not finish within its timeout.
+    """
     assert_pinned_gate_tools()
     files = {case["path"]: case["content"]}
     if overlay is not None:
@@ -115,12 +200,41 @@ def run_case_gate(
 
 
 def gate_output(result: subprocess.CompletedProcess[str]) -> str:
-    """Combine both captured streams for useful gate assertion messages."""
+    """Combine captured streams for useful gate assertion messages.
+
+    Parameters
+    ----------
+    result
+        Completed gate process whose output streams were captured as text.
+
+    Returns
+    -------
+    str
+        Standard output followed by standard error.
+    """
     return result.stdout + result.stderr
 
 
 def assert_diagnostics_present(case: SpellingCase, output: str) -> None:
-    """Require each exact Typos correction header without case sensitivity."""
+    """Require each expected Typos correction header, ignoring case.
+
+    Parameters
+    ----------
+    case
+        Corpus record naming the expected diagnostic words.
+    output
+        Combined gate output to inspect for correction headers.
+
+    Returns
+    -------
+    None
+        The function returns only when every expected header is present.
+
+    Raises
+    ------
+    AssertionError
+        If any expected word lacks a Typos correction header.
+    """
     headers = re.findall(r"(?im)^error: `([^`]+)` should be `[^`]+`$", output)
     reported_words = {word.casefold() for word in headers}
     for diagnostic in case["diagnostic"]:
@@ -129,22 +243,53 @@ def assert_diagnostics_present(case: SpellingCase, output: str) -> None:
         )
 
 
-def test_shared_policy_uses_one_contextual_attribute_pattern() -> None:
-    """The shared source has one compiled attribute pattern, not a word allow."""
+def test_shared_policy_has_two_scoped_attribute_patterns() -> None:
+    """The shared source names one main/test and one main-local scope."""
     document = tomllib.loads(SHARED_DICTIONARY_PATH.read_text(encoding="utf-8"))
     patterns = shared_patterns_for_api_key()
+    scope_markers = {
+        "main_test": r"\#\[\s*tokio::(?:main|test)",
+        "main_local": r"\#\[\s*tokio::main",
+    }
+    scoped_patterns = {
+        scope: [pattern for pattern in patterns if marker in pattern]
+        for scope, marker in scope_markers.items()
+    }
 
-    assert len(patterns) == 1, f"shared patterns naming the key: {patterns!r}"
-    pattern = patterns[0]
+    assert {
+        scope: len(scope_patterns)
+        for scope, scope_patterns in scoped_patterns.items()
+    } == {"main_test": 1, "main_local": 1}
+    named_patterns = [
+        pattern
+        for scope in scope_markers
+        for pattern in scoped_patterns[scope]
+    ]
+    assert sorted(named_patterns) == sorted(patterns), (
+        f"unscoped shared patterns: {patterns!r}"
+    )
+    main_test_pattern = scoped_patterns["main_test"][0]
+    main_local_pattern = scoped_patterns["main_local"][0]
 
-    assert pattern.lstrip().startswith("(?x)"), "the expression is not verbose-mode"
-    assert r"\#\[\s*tokio::(?:main|test)" in pattern
-    assert API_KEY + r"\s*=" in pattern
-    assert r"(?:current_thread|multi_thread)" in pattern
-    assert pattern.rstrip().endswith(r"\)\s*\]")
+    for pattern in (main_test_pattern, main_local_pattern):
+        assert pattern.lstrip().startswith("(?x)"), (
+            "the expression is not verbose-mode"
+        )
+        assert API_KEY + r"\s*=" in pattern
+        assert pattern.rstrip().endswith(r"\)\s*\]")
+        re.compile(pattern)
+
+    assert r"\#\[\s*tokio::(?:main|test)\s*\(" in main_test_pattern
+    assert r"\#\[\s*tokio::main\s*\(" in main_local_pattern
+    assert r"(?:current_thread|multi_thread)" in main_test_pattern
+    assert r'(?:\\"local\\"|"local")' in main_local_pattern
+    assert r"(?:\s*,\s*|\s*)\)\s*\]" in main_local_pattern
+    assert all(
+        argument not in main_local_pattern
+        for argument in ("worker_threads", "start_paused", "unhandled_panic")
+    )
     assert API_KEY not in document.get("words", {}).get("accepted", [])
     assert API_KEY not in document.get("words", {}).get("corrections", {})
-    re.compile(pattern)
 
 
 def test_corpus_ids_are_unique_and_negative_cases_name_diagnostics() -> None:
@@ -158,6 +303,9 @@ def test_corpus_ids_are_unique_and_negative_cases_name_diagnostics() -> None:
     identifiers = [case["id"] for case in all_cases]
     negative_cases = CORPUS["shared_negative"]
 
+    assert len(CORPUS["shared_positive"]) == 16
+    assert len(negative_cases) == 15
+    assert len(consumer_cases) == 3
     assert len(identifiers) == len(set(identifiers))
     assert all(case["path"] in {"src.rs", "guide.md"} for case in all_cases)
     assert all(case["diagnostic"] for case in negative_cases)
