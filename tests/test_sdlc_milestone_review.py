@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-from hypothesis import example, given, strategies as st
+from hypothesis import example, given, settings, strategies as st
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -180,6 +180,9 @@ def cooldown_function() -> str:
     return _documented_function()
 
 
+# These generated properties spawn subprocesses; scheduler latency is outside
+# the cooldown contract, and each process retains its 30-second timeout.
+@settings(deadline=None)
 @example(requested=0, choose_upper=False)
 @example(requested=0, choose_upper=True)
 @example(requested=80, choose_upper=False)
@@ -209,6 +212,7 @@ def test_documented_cooldown_range_and_sleep_match_the_requested_wait(
     _assert_cooldown_invariant(outcome, requested, choose_upper)
 
 
+@settings(deadline=None)
 @example(bad_input="-1")
 @example(bad_input="+1")
 @example(bad_input="1.5")
