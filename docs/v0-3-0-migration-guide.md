@@ -211,6 +211,24 @@ corrections. The fetched dictionary is cached in ignored
    policy source.
 5. Run `gate` once to regenerate.
 
+### Narrowed Tokio runtime spelling exception
+
+The shared exception now covers complete Tokio main/test attributes within its
+bounded spelling grammar, including the minimal
+`#[tokio::main(flavor = "local")]` form for `main` only. The former bare-key
+exemption is removed: runtime-key occurrences in ordinary source or prose, and
+in non-Tokio APIs, can now fail spelling checks when consumers obtain the
+updated live dictionary. Pinning the builder release does not freeze that
+shared input.
+
+Correct unintended spellings. For intentional fixed external API text, keep the
+required API or wire spelling and add an exact or context-scoped exception to
+the consumer's `typos.local.toml`; do not accept the word globally. Run the
+consumer's gate to regenerate `typos.toml` and check the result; never edit the
+generated file by hand. See the
+[users' guide](users-guide.md#proposing-a-shared-word) for the bounded
+exception and local-overlay policy.
+
 ### This repository
 
 As of 2026-09-16 the generator is gone from here too. The
