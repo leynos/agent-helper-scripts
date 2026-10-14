@@ -259,7 +259,7 @@ def test_shared_policy_has_two_scoped_attribute_patterns() -> None:
     assert {
         scope: len(scope_patterns)
         for scope, scope_patterns in scoped_patterns.items()
-    } == {"main_test": 1, "main_local": 1}
+    } == {"main_test": 1, "main_local": 1}, "scoped pattern counts are incorrect"
     named_patterns = [
         pattern
         for scope in scope_markers
@@ -275,21 +275,29 @@ def test_shared_policy_has_two_scoped_attribute_patterns() -> None:
         assert pattern.lstrip().startswith("(?x)"), (
             "the expression is not verbose-mode"
         )
-        assert API_KEY + r"\s*=" in pattern
-        assert pattern.rstrip().endswith(r"\)\s*\]")
+        assert API_KEY + r"\s*=" in pattern, "runtime key is missing from pattern"
+        assert pattern.rstrip().endswith(r"\)\s*\]"), "attribute boundary is missing"
         re.compile(pattern)
 
-    assert r"\#\[\s*tokio::(?:main|test)\s*\(" in main_test_pattern
-    assert r"\#\[\s*tokio::main\s*\(" in main_local_pattern
-    assert r"(?:current_thread|multi_thread)" in main_test_pattern
-    assert r'(?:\\"local\\"|"local")' in main_local_pattern
-    assert r"(?:\s*,\s*|\s*)\)\s*\]" in main_local_pattern
+    assert (
+        r"\#\[\s*tokio::(?:main|test)\s*\(" in main_test_pattern
+    ), "Tokio main/test attribute prefix is missing"
+    assert r"\#\[\s*tokio::main\s*\(" in main_local_pattern, "missing main-only prefix"
+    assert (
+        r"(?:current_thread|multi_thread)" in main_test_pattern
+    ), "current_thread/multi_thread values are missing"
+    assert r'(?:\\"local\\"|"local")' in main_local_pattern, "missing local literal"
+    assert r"(?:\s*,\s*|\s*)\)\s*\]" in main_local_pattern, "missing local boundary"
     assert all(
         argument not in main_local_pattern
         for argument in ("worker_threads", "start_paused", "unhandled_panic")
+    ), "main-local scope must not allow optional arguments"
+    assert API_KEY not in document.get("words", {}).get("accepted", []), (
+        "runtime key must not be accepted as a word"
     )
-    assert API_KEY not in document.get("words", {}).get("accepted", [])
-    assert API_KEY not in document.get("words", {}).get("corrections", {})
+    assert API_KEY not in document.get("words", {}).get("corrections", {}), (
+        "runtime key must not have a correction entry"
+    )
 
 
 def test_corpus_ids_are_unique_and_negative_cases_name_diagnostics() -> None:
@@ -303,14 +311,20 @@ def test_corpus_ids_are_unique_and_negative_cases_name_diagnostics() -> None:
     identifiers = [case["id"] for case in all_cases]
     negative_cases = CORPUS["shared_negative"]
 
-    assert len(CORPUS["shared_positive"]) == 16
-    assert len(negative_cases) == 15
-    assert len(consumer_cases) == 3
-    assert len(identifiers) == len(set(identifiers))
-    assert all(case["path"] in {"src.rs", "guide.md"} for case in all_cases)
-    assert all(case["diagnostic"] for case in negative_cases)
-    assert all(not case["diagnostic"] for case in CORPUS["shared_positive"])
-    assert all(not case["diagnostic"] for case in consumer_cases)
+    assert len(CORPUS["shared_positive"]) == 16, "shared positive count is incorrect"
+    assert len(negative_cases) == 15, "shared negative count is incorrect"
+    assert len(consumer_cases) == 3, "consumer case count is incorrect"
+    assert len(identifiers) == len(set(identifiers)), "case identifiers are not unique"
+    assert all(case["path"] in {"src.rs", "guide.md"} for case in all_cases), (
+        "case path is outside the recognized inputs"
+    )
+    assert all(case["diagnostic"] for case in negative_cases), "missing diagnostics"
+    assert all(not case["diagnostic"] for case in CORPUS["shared_positive"]), (
+        "shared positive case unexpectedly names a diagnostic"
+    )
+    assert all(not case["diagnostic"] for case in consumer_cases), (
+        "consumer positive case unexpectedly names a diagnostic"
+    )
 
 
 def test_diagnostic_oracle_ignores_setup_errors_with_expected_word_in_path() -> None:
@@ -360,11 +374,13 @@ def test_recorded_consumer_overlay_matches_its_provenance() -> None:
     provenance = lane["provenance"]
     overlay_digest = hashlib.sha256(lane["overlay"].encode("utf-8")).hexdigest()
 
-    assert provenance["repository"] == "leynos/rstest-bdd"
-    assert provenance["branch"] == "main"
-    assert provenance["revision"] == "b6afd1e46a6dea4735b754fe7b64cc970dd27442"
-    assert provenance["overlay_sha256"] == overlay_digest
-    assert "Positive-only" in lane["scope_note"]
+    assert provenance["repository"] == "leynos/rstest-bdd", "wrong consumer repository"
+    assert provenance["branch"] == "main", "consumer branch provenance is incorrect"
+    assert provenance["revision"] == "b6afd1e46a6dea4735b754fe7b64cc970dd27442", (
+        "consumer revision provenance is incorrect"
+    )
+    assert provenance["overlay_sha256"] == overlay_digest, "overlay digest mismatch"
+    assert "Positive-only" in lane["scope_note"], "consumer scope note is missing"
 
 
 @pytest.mark.slow

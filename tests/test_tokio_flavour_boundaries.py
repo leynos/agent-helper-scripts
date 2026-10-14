@@ -95,7 +95,7 @@ def _patterns_for_scopes() -> tuple[str, str]:
 MAIN_TEST_PATTERN, MAIN_LOCAL_PATTERN = _patterns_for_scopes()
 
 
-def _argument_value_strategy(name: str):
+def _argument_value_strategy(name: str) -> st.SearchStrategy[str]:
     """Return lexical values from the observed optional-argument vocabulary."""
     if name == "worker_threads":
         return st.integers(min_value=1, max_value=1_000_000).map(str)
@@ -223,7 +223,9 @@ def test_generated_supported_attributes_match_exact_boundaries(
     """Generated policy forms match fully and leave neighbouring text alone."""
     _assert_exact_match(MAIN_TEST_PATTERN, common_attribute)
     _assert_exact_match(MAIN_LOCAL_PATTERN, local_attribute)
-    assert re.search(MAIN_TEST_PATTERN, local_attribute) is None
+    assert re.search(MAIN_TEST_PATTERN, local_attribute) is None, (
+        "shared scope must exclude local attributes"
+    )
 
 
 @settings(max_examples=200, deadline=None)
@@ -244,7 +246,13 @@ def test_spaced_attribute_without_closing_parenthesis_is_rejected() -> None:
     incomplete = _without_closing_parenthesis(complete)
     expected_incomplete = f'#[ tokio::main( {API_KEY} = "{value}"  ]'
 
-    assert incomplete == expected_incomplete
-    assert re.search(MAIN_TEST_PATTERN, complete) is not None
-    assert re.search(MAIN_TEST_PATTERN, incomplete) is None
-    assert re.search(MAIN_LOCAL_PATTERN, incomplete) is None
+    assert incomplete == expected_incomplete, "delimiter spacing changed"
+    assert re.search(MAIN_TEST_PATTERN, complete) is not None, (
+        "complete form must match the shared scope"
+    )
+    assert re.search(MAIN_TEST_PATTERN, incomplete) is None, (
+        "shared scope must reject a missing parenthesis"
+    )
+    assert re.search(MAIN_LOCAL_PATTERN, incomplete) is None, (
+        "local scope must reject a missing parenthesis"
+    )
