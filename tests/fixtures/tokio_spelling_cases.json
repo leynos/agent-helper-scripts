@@ -83,6 +83,24 @@
       "path": "src.rs",
       "content": "assert_eq!(tokio.render(), \"#[tokio::test(flavor = \\\"current_thread\\\")]\");\n",
       "diagnostic": []
+    },
+    {
+      "id": "main-local-source",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\")]\nasync fn main() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-local-rendered-escaped-quotes",
+      "path": "src.rs",
+      "content": "assert_eq!(tokio.render(), \"#[tokio::main(flavor = \\\"local\\\")]\");\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-local-multiline-trailing-comma",
+      "path": "src.rs",
+      "content": "#[tokio::main(\n    flavor = \"local\",\n)]\nasync fn main() {}\n",
+      "diagnostic": []
     }
   ],
   "shared_negative": [
@@ -182,6 +200,30 @@
       "content": "#[tokio::test(flavor = \"current_thread\")]\nasync fn test() {\n    let normalise = \"value\";\n}\n",
       "diagnostic": [
         "normalise"
+      ]
+    },
+    {
+      "id": "local-ordinary-assignment",
+      "path": "src.rs",
+      "content": "fn smoke() { let flavor = \"local\"; }\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-adjacent-typo",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\")]\nasync fn main() {\n    let normalise = \"value\";\n}\n",
+      "diagnostic": [
+        "normalise"
+      ]
+    },
+    {
+      "id": "test-local-unsupported",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"local\")]\nasync fn test_local() {}\n",
+      "diagnostic": [
+        "flavor"
       ]
     }
   ],
