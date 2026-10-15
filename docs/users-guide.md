@@ -213,6 +213,18 @@ upstream terms and deliberate fixtures belong in a consumer's
 an exact shared ignore expression for one repository that needs stricter
 checking, without weakening the policy anywhere else.
 
+The shared Tokio exception matches complete, supported `#[tokio::main(...)]` and
+`#[tokio::test(...)]` attributes. The common pattern covers the documented
+`current_thread` and `multi_thread` runtime values with their supported
+arguments. It also covers the minimal `#[tokio::main(flavor = "local")]` form;
+Tokio documents that value for `main`, not `test`. This bounded spelling
+pattern does not certify every Tokio attribute or argument combination.
+Occurrences of the runtime key in ordinary source and prose remain checked. Use
+a narrowly justified local overlay for a different fixed external API name; do
+not add a blanket accepted word. Since consumers fetch the live shared
+dictionary on each gate run, this policy reaches them without a builder
+release. Any broader consumer-local mask remains a separate cleanup.
+
 Evidence supports the proposal: a suffix match alone is not one because
 `advertise`, `exercise`, `promise` and Rust's `usize` all end the way an Oxford
 `-ize` family does. Gather it with the one spelling tool this repository still

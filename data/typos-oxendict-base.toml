@@ -214,8 +214,25 @@ ignore = [
   '\b(?:background|theme)_color\b',
   # Tailwind and daisyUI alignment class names.
   '\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\b',
-  # The `tokio` runtime-flavour attribute argument.
-  '\bflavor = ',
+  # Tokio's runtime-flavour key is exempt only inside a complete main/test
+  # attribute. Three fixed runtime-argument slots on each side preserve other
+  # spelling, while accepting both source and rendered escaped quotes.
+  # Explicit finite alternatives keep the grammar within the pinned guard.
+  '''(?x)
+\#\[\s*tokio::(?:main|test)\s*\(\s*
+(?:(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))\s*,\s*|)
+(?:(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))\s*,\s*|)
+(?:(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))\s*,\s*|)
+flavor\s*=\s*(?:\\"(?:current_thread|multi_thread)\\"|"(?:current_thread|multi_thread)")
+(?:\s*,\s*(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))|)
+(?:\s*,\s*(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))|)
+(?:\s*,\s*(?:worker_threads\s*=\s*[0-9][0-9]*|start_paused\s*=\s*(?:true|false)|unhandled_panic\s*=\s*(?:\\"(?:shutdown_runtime|ignore)\\"|"(?:shutdown_runtime|ignore)"))|)
+(?:\s*,\s*|\s*)\)\s*\]''',
+  # Tokio main supports the local runtime without other arguments.
+  '''(?x)
+\#\[\s*tokio::main\s*\(\s*
+flavor\s*=\s*(?:\\"local\\"|"local")
+(?:\s*,\s*|\s*)\)\s*\]''',
   # `act` command-line options for artefact export.
   '\bartifact-(?:name|server-path)\b',
   # A generic parameter in the Wireframe application-factory signature.
