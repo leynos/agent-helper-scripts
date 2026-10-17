@@ -204,8 +204,8 @@ but not available until that variable is raised.
 
 Moving from recipes that piped a producer into a checker to recipes that
 discover their own file list and fail closed.
-[ADR 006](adr/006-fail-closed-gate-recipes.md) records the defect and the
-decision.
+[ADR 0006](adrs/adr-0006-gate-recipes-discover-their-own-file-list.md) records
+the defect and the decision.
 
 ### Previous model
 

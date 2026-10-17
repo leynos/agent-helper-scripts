@@ -1,4 +1,4 @@
-# ADR 002 — Subagent manifest and loader
+# ADR 0002 — Subagent manifest and loader
 
 **Status:** Accepted **Date:** 2026-07-06
 

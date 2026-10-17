@@ -1,4 +1,4 @@
-# ADR 001 — System / home phase split
+# ADR 0001 — System / home phase split
 
 **Status:** Accepted **Date:** 2026-04-26
 

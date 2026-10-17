@@ -1214,8 +1214,8 @@ decision gates, and leaves approval to the parent. It may use bounded Wyvern
 reconnaissance or explicitly authorized Alchemist experiments when the host
 supports delegation. Without experiment authority it designs only; without
 owned document paths it returns a report rather than editing files. See
-[ADR 004](adr/004-natural-philosopher-step-design.md) for the contracts,
-provider limits, and a worked example.
+[ADR 0004](adrs/adr-0004-natural-philosopher-for-evidence-led-step-design.md)
+for the contracts, provider limits, and a worked example.
 
 Each hypothesis carries its own verdict, which the report keeps separate from
 its overall status. The diagram below traces one hypothesis from `untested`,

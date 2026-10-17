@@ -1,4 +1,4 @@
-# ADR 004: Natural Philosopher for evidence-led step design
+# ADR 0004: Natural Philosopher for evidence-led step design
 
 **Status:** Proposed
 
@@ -16,7 +16,7 @@ proposal consulted revision `8372f538455d3ffc93f1315956c0ab752a9ea3ee`. Phases
 carry ideas, steps represent coherent workstreams, and tasks provide
 review-sized execution units. Existing role and deployment contracts live in
 [`agents/subagents.yml`](../../agents/subagents.yml) and
-[ADR 002](002-subagent-manifest-loader.md).
+[ADR 0002](adr-0002-subagent-manifest-and-loader.md).
 
 [roadmap-skill]: https://github.com/leynos/df12-documentation-skills/blob/8372f538455d3ffc93f1315956c0ab752a9ea3ee/skills/roadmap-doc/SKILL.md
 [conventions]: https://github.com/leynos/df12-documentation-skills/blob/8372f538455d3ffc93f1315956c0ab752a9ea3ee/skills/roadmap-doc/references/conventions.md
@@ -157,7 +157,7 @@ the other Codex roles carry. Claude uses `opus` with high effort and exactly
 `deepwiki`, and `codegraph` for grounded research. Goose enables the same
 provider-neutral instructions.
 
-As in ADR 002, Codex omits `mcp_servers` and Goose omits `extensions` to
+As in ADR 0002, Codex omits `mcp_servers` and Goose omits `extensions` to
 inherit the credentialed parent registry. These inherited tools may exceed the
 role's minimum needs. Workspace-write does not enforce document-only paths, and
 a Task grant does not itself enforce the permitted child roster. The prose

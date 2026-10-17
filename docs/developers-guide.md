@@ -339,9 +339,10 @@ Each shared gate is one command that lists the files it examines, so no recipe
 pipes a producer into a checker. A pipeline reports the last command's status,
 and without `pipefail` a producer that fails or matches nothing leaves the
 checker unrun while the recipe still exits zero, which reads as a clean pass
-over an unread tree. [ADR 006](adr/006-fail-closed-gate-recipes.md) records the
-defect and the decision; `set -o pipefail` remains only as an interim guard for
-a repository that has not regenerated its recipes.
+over an unread tree.
+[ADR 0006](adrs/adr-0006-gate-recipes-discover-their-own-file-list.md) records
+the defect and the decision; `set -o pipefail` remains only as an interim guard
+for a repository that has not regenerated its recipes.
 
 The recipes call `scripts/gate_runner_cli.py`, which exposes two commands.
 `markdownlint` and `nixie` walk the tree for `*.md`, pruning build, cache and
@@ -473,7 +474,7 @@ still runs it.
 ### Shared en-GB-oxendict spelling data
 
 The architecture and trade-offs are recorded in
-[ADR 003](adr/003-shared-oxford-spelling-base.md).
+[ADR 0003](adrs/adr-0003-shared-oxford-spelling-base.md).
 
 This repository curates `data/typos-oxendict-base.toml` and nothing else. The
 generator, the phrase checker, the cache and the scanner all belong to
@@ -522,7 +523,7 @@ named freely; a misspelling in the prefix of a flag that also contains `color`
 stays hidden, and `tests/test_colour_option_exemption.py` records that residual
 as an expectation. When widening the pattern, keep it free of unbounded
 repetition other than the prefix class, and run that test module. The decision
-is recorded in the 2026-10-08 amendment to ADR 003.
+is recorded in the 2026-10-08 amendment to ADR 0003.
 
 `scripts/oxford_form_harvest.py` is the one spelling tool this repository still
 owns. It gathers the evidence a curator reads before proposing a stem, because
@@ -1111,8 +1112,8 @@ The `rebase` skill restacks a child branch after its parent PR has
 squash-merged. The user-facing summary lives in the "Squash-restack boundaries"
 section of the [users' guide](users-guide.md) and in `skills/rebase/SKILL.md`;
 this section covers what maintainers must preserve when changing the planner or
-its tests. See also [ADR 005](adr/005-squash-restack-replay-boundary.md) for
-the decision record behind this boundary model.
+its tests. See also [ADR 0005](adrs/adr-0005-squash-restack-replay-boundary.md)
+for the decision record behind this boundary model.
 
 ### The boundary model
 

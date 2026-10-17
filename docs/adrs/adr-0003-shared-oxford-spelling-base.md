@@ -1,4 +1,4 @@
-# ADR 003 — Shared Oxford spelling base
+# ADR 0003 — Shared Oxford spelling base
 
 **Status:** Accepted **Date:** 2026-07-10
 

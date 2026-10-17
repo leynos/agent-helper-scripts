@@ -78,7 +78,7 @@ over the list each discovers, and fails when that list is empty, when a tool is
 missing, or when the tool reports a finding. The `spelling` recipe has the same
 shape: one pinned command that discovers its own files. Consumers regenerate
 their recipes from this template; see
-[ADR 006](docs/adr/006-fail-closed-gate-recipes.md).
+[ADR 0006](docs/adrs/adr-0006-gate-recipes-discover-their-own-file-list.md).
 
 ## Developer guide
 

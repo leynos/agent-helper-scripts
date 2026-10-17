@@ -1,7 +1,7 @@
 """Pin the Natural Philosopher's deployment and step-design contracts.
 
 These are manifest regression tests, not live-model behavioural evaluations.
-The scenario checks in ADR 004 describe the additional review boundary.
+The scenario checks in ADR 0004 describe the additional review boundary.
 """
 
 from __future__ import annotations

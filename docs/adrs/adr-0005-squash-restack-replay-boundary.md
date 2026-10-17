@@ -1,4 +1,4 @@
-# ADR 005: Squash-restack replay boundary
+# ADR 0005: Squash-restack replay boundary
 
 **Status:** Proposed
 

@@ -1,4 +1,4 @@
-# ADR 006 — Gate recipes discover their own file list
+# ADR 0006 — Gate recipes discover their own file list
 
 **Status:** Accepted **Date:** 2026-09-12
 

@@ -351,12 +351,22 @@ binding. Store them under `docs/rfcs/`.
 
 #### RFC naming convention
 
-Name RFC files using the pattern `0001-short-topic.md`, where `0001` is a
-zero-padded sequence number. Place RFCs in the `docs/rfcs/` directory.
+Name RFC files using the pattern `rfcs/rfc-nnnn-title-slug.md`, relative to the
+`docs/` directory, for example `docs/rfcs/rfc-0007-streaming-step-results.md`.
 
+- `nnnn` is a four-digit, zero-padded serial number, unique among the RFCs in
+  the repository. RFC and ADR numbers are allocated independently, so
+  `rfc-0003` and `adr-0003` may both exist.
+- `title-slug` is a kebab-case American Standard Code for Information
+  Interchange (ASCII) rendering of the RFC title, without the `RFC nnnn:`
+  prefix: lowercase letters, digits, and single hyphens only, with no leading
+  or trailing hyphen. Transliterate accented letters to their ASCII base
+  letters, and drop other punctuation and symbols.
 - Number RFCs sequentially in allocation order rather than by date.
 - Do not renumber existing RFCs after publication. Gaps are acceptable when
   numbers are reserved, drafted on another branch, or intentionally skipped.
+- Keep the slug stable once the RFC is published. If the title changes
+  materially, rename the file, keep the number, and update every inbound link.
 
 #### RFC required sections
 
@@ -498,9 +508,16 @@ providing a historical record for future maintainers.
 
 ### Naming convention
 
-Name ADR files using the pattern `adr-NNN-short-description.md`, where `NNN` is
-a zero-padded sequence number (e.g. `adr-001-async-fixtures-and-tests.md`).
-Place ADRs in the `docs/` directory.
+Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
+`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-tests.md`.
+
+- `nnnn` is a four-digit, zero-padded serial number, unique among the ADRs in
+  the repository and allocated independently of RFC numbers.
+- `title-slug` is a kebab-case ASCII rendering of the ADR title, without the
+  `Architectural decision record (ADR) nnnn:` prefix, following the same slug
+  rules as RFC filenames.
+- Number ADRs sequentially in allocation order rather than by date, and do not
+  renumber an ADR after publication.
 
 ### Required sections
 
@@ -514,7 +531,7 @@ Every ADR must include the following sections in order:
   for readers unfamiliar with the history.
 
 When an accepted ADR needs a targeted correction rather than replacement, add an
-`Amended by ADR-NNN (YYYY-MM-DD)` banner to its Status section and an
+`Amended by ADR-nnnn (YYYY-MM-DD)` banner to its Status section and an
 `## Amendments` section that preserves the original decision as history.
 
 ### Conditional sections
@@ -556,7 +573,7 @@ Include these sections as appropriate to the decision's complexity:
 ### ADR template
 
 ```markdown
-# Architectural decision record (ADR) NNN: <title>
+# Architectural decision record (ADR) nnnn: <title>
 
 ## Status
 
