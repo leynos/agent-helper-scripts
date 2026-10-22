@@ -210,7 +210,7 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
         ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False),
         ("assessment", "Both applicable assessments must clear for the\naccepted candidate before its draft-to-ready transition.", "", True),
         ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
-        ("skill", "An already-ready PR remains ready while missing or invalidated\n   assessments block merge.", "", True),
+        ("skill", "An already-ready PR remains ready\n   while missing or invalidated assessments block merge.", "", True),
         ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
     ],
     ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],

@@ -638,7 +638,10 @@ recorded drift form now carries one canonical replacement for every consumer.
     procedures in the loaded skill body rather than extending the description.
 - `make shell-syntax-check`
   - Runs `bash -n` over every shell script listed in `SHELL_SCRIPTS` to catch
-    syntax errors without executing any code.
+    syntax errors without executing any code. `SHELL_SCRIPTS` includes the
+    root helpers, `bin/*.sh`, and shipped skill helpers matching
+    `skills/*/scripts/*.sh`, such as the `pr-babysitting` comment helper that
+    `tests/test_pr_babysitting_comment_identity.py` exercises.
 - `make check-home-phase-boundary`
   - Rejects APT, `sudo`, and linker mutation patterns in home-phase scripts.
   - Scans non-comment lines only.

@@ -11,21 +11,24 @@ Follow the
 [manual-comment identity contract](../SKILL.md#manual-comment-identity-contract).
 Every manually posted comment or inline reply uses an authorized token
 selected with `shuf` from the owner-provisioned `~/.local/share/github-tokens`
-pool. Pool accounts deliberately authenticate as identities other than
-`leynos`. That difference is expected and requires no additional permission for
-comments already within the assignment. Do not search the pool for a `leynos`
-token, compare its principal with the PR author, or substitute the normal CLI
-account. The configured pool is the authorized comment route, not an unrelated
-identity.
+pool, through the [posting helper](#posting-helper). Pool accounts deliberately
+authenticate as identities other than the lifecycle account, because CodeRabbit
+rate-limits conversations per commenting account and the lifecycle account's
+allowance is kept for its reviews. That difference is expected and requires no
+additional permission for comments already within the assignment. Do not search
+the pool for the lifecycle account's token, compare its principal with the PR
+author, or substitute the normal CLI account. The configured pool is the
+authorized comment route, not an unrelated identity.
 
 This route covers CI investigation, assessment questions and follow-ups,
 rebuttals, confirmations, pre-merge reconciliation, and the final approval
 request. Select one token for the operation and verify that token's identity
-under the same command-scoped credentials. An unexpected `leynos` result is a
-pool configuration problem; stop before posting and report it. Authentication
-as another account is not itself a permission failure, but GitHub must still
-permit the requested operation. Read back the comment and verify its author
-against the selected account, not against `leynos`.
+under the same command-scoped credentials. A pool token that authenticates as
+the lifecycle account is a pool configuration problem; stop before posting and
+report it. Authentication as another account is not itself a permission
+failure, but GitHub must still permit the requested operation. Read back the
+comment and verify its author against the selected account, not against the
+lifecycle account.
 
 Do not use a connector's implicit identity, change `gh auth` configuration, or
 export the selected token into the parent shell. The executable path, including
@@ -68,214 +71,68 @@ comment already exists before retrying. Honour HTTP retry advice and service
 cooldowns. Selecting the configured account before posting is normal routing,
 not permission to rotate accounts after a rate-limit response. Authentication,
 permission, and rate-limit errors remain their actual errors: do not fall back
-to `leynos`, try successive tokens, or enqueue the comment. Retain the draft
-and report the specific blocker when the authorized operation cannot proceed.
+to the lifecycle account, try successive tokens, or enqueue the comment. Retain
+the draft and report the specific blocker when the authorized operation cannot
+proceed.
 
-## Token-scoped posting example
+## Posting helper
 
-This Bash recipe assumes the token pool is a regular file containing one raw
+Post every manual comment with the shipped helper,
+`scripts/post-manual-comment.sh` in the `pr-babysitting` skill directory.
+Invoke it by path; do not transcribe, abbreviate, or reimplement it. It is a
+tool for a controlled agent runtime, not an autonomous babysitting daemon. It
+does not prove that the candidate was pushed or that the body is an authorized
+disposition: establish those conditions before calling it.
+
+The helper assumes the token pool is a regular file containing one raw
 authorized GitHub token per nonblank line; blank lines and full-line comments
-are ignored. It does not assume a directory or a shell configuration file and
-must never `source` the pool. Where the installation uses another format, use
-its documented reader rather than guessing or dumping the contents.
+are ignored. It never sources the pool. Where the installation uses another
+format, use its documented reader rather than guessing or dumping the contents.
+It requires Bash, `awk`, GNU `shuf`, GNU `date`, `jq`, and `gh`.
 
-The function is an example for a controlled agent runtime, not an autonomous
-babysitting daemon. It does not prove that the candidate was pushed or the body
-is an authorized disposition: establish those conditions before calling it. It
-requires Bash, `awk`, GNU `shuf`, GNU `date`, `jq`, and `gh`. Its identity read
-checks only the selected pool token, never every pool entry looking for the
-owner's login. It writes bounded JSON diagnostics to standard error without
-credentials, comment bodies, account names, or raw GitHub error text.
+For each run, the helper:
 
-```bash
-post_manual_comment() (
-  # Disable tracing before any credential is read or expanded.
-  set +x
-  set -euo pipefail
-  unset GH_DEBUG
+1. selects one pool token with `shuf`;
+2. reads the lifecycle account from the stored `gh` login with `GH_TOKEN` and
+   `GITHUB_TOKEN` removed, or from `PR_BABYSITTING_LIFECYCLE_LOGIN` when the
+   lifecycle account authenticates only through an environment token;
+3. verifies the selected token's login, rejecting one that matches the
+   lifecycle account case-insensitively; and
+4. posts once with that token scoped to the command, printing the comment URL.
 
-  repo=${1:?Supply OWNER/REPO}
-  pr=${2:?Supply PR number}
-  body_file=${3:?Supply a prepared Markdown body file}
-  root_comment_id=${4:-}
-  pool="$HOME/.local/share/github-tokens"
+It fails closed when the pool, the lifecycle account, or the selected token's
+identity cannot be established, and it never retries with another token or the
+normal account. It checks only the selected pool token, never every pool entry
+looking for the lifecycle account. Standard error receives bounded JSON
+diagnostics for the `token_selection`, `lifecycle_identity`,
+`identity_preflight`, and `post` stages, with the operation, comment surface,
+repository/PR, failure category, exit status, elapsed time, and recognized HTTP
+status. Diagnostics omit credentials, comment bodies, account names, and raw
+GitHub error text.
 
-  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
-    printf '%s\n' 'Invalid repository.' >&2; exit 2;
-  }
-  [[ "$pr" =~ ^[1-9][0-9]*$ ]] || {
-    printf '%s\n' 'Invalid PR number.' >&2; exit 2;
-  }
-  [[ -f "$body_file" && -r "$body_file" && -s "$body_file" ]] || {
-    printf '%s\n' 'Comment body missing, empty, or unreadable.' >&2; exit 2;
-  }
-  surface=issue_comment
-  endpoint="repos/$repo/issues/$pr/comments"
-  if [[ -n "$root_comment_id" ]]; then
-    [[ "$root_comment_id" =~ ^[1-9][0-9]*$ ]] || {
-      printf '%s\n' 'Invalid root review-comment ID.' >&2; exit 2;
-    }
-    endpoint="repos/$repo/pulls/$pr/comments/$root_comment_id/replies"
-    surface=inline_reply
-  fi
-
-  log_diagnostic() {
-    local stage=$1 failure_category=$2 exit_status=$3 started_at_ms=$4
-    local http_status=$5 elapsed_ms
-    elapsed_ms=$(( $(date +%s%3N) - started_at_ms ))
-    jq -cn \
-      --arg operation 'manual_pr_comment' \
-      --arg surface "$surface" \
-      --arg repository "$repo" \
-      --arg pr "$pr" \
-      --arg stage "$stage" \
-      --arg failure_category "$failure_category" \
-      --arg http_status "$http_status" \
-      --argjson exit_status "$exit_status" \
-      --argjson elapsed_ms "$elapsed_ms" \
-      '{operation: $operation, surface: $surface, repository: $repository,
-        pr: $pr, stage: $stage,
-        failure_category: (if $failure_category == "" then null else $failure_category end),
-        exit_status: $exit_status, elapsed_ms: $elapsed_ms,
-        http_status: (if $http_status == "" then null else ($http_status | tonumber) end)}' \
-      >&2 || {
-        printf '%s\n' 'Unable to emit structured manual-comment diagnostics.' >&2
-        return 1
-      }
-  }
-
-  http_status_from() {
-    local prefix code
-    if [[ "$1" =~ HTTP[[:space:]]+([0-9]{3}) ]]; then
-      read -r prefix code <<< "$BASH_REMATCH"
-      printf '%s' "$code"
-    fi
-  }
-
-  failure_category_for() {
-    local response=$1 http_status=$2
-    case "$http_status" in
-      401) printf '%s' 'authentication_failed' ;;
-      429) printf '%s' 'rate_limited' ;;
-      403)
-        case "$response" in
-          *'rate limit'*|*'Rate limit'*) printf '%s' 'rate_limited' ;;
-          *) printf '%s' 'permission_denied' ;;
-        esac
-        ;;
-      *) printf '%s' 'github_api_failed' ;;
-    esac
-  }
-
-  selection_started_ms=$(date +%s%3N)
-  if [[ ! -f "$pool" || ! -r "$pool" ]]; then
-    log_diagnostic token_selection token_pool_unavailable 2 "$selection_started_ms" '' || true
-    printf '%s\n' 'Authorized token pool unavailable.' >&2
-    exit 2
-  fi
-  if token=$(
-    awk '{ sub(/\r$/, "") }
-         NF && $0 !~ /^[[:space:]]*#/ { print }' "$pool" |
-      shuf -n 1
-  ); then
-    :
-  else
-    status=$?
-    log_diagnostic token_selection token_selection_failed "$status" "$selection_started_ms" '' || true
-    printf '%s\n' 'Authorized token selection failed.' >&2
-    exit "$status"
-  fi
-  if [[ -z "$token" || "$token" == *[[:space:]]* ]]; then
-    log_diagnostic token_selection token_not_selected 2 "$selection_started_ms" '' || true
-    printf '%s\n' 'No valid token record selected.' >&2
-    exit 2
-  fi
-  log_diagnostic token_selection '' 0 "$selection_started_ms" '' || true
-
-  # Check the selected credential, not the normal lifecycle account.
-  identity_started_ms=$(date +%s%3N)
-  if login=$(
-    GH_TOKEN="$token" GITHUB_TOKEN="$token" \
-      gh api --hostname github.com user --jq '.login' 2>&1
-  ); then
-    shopt -s nocasematch
-    if [[ "$login" =~ ^[A-Za-z0-9-]+$ && "$login" != leynos ]]; then
-      shopt -u nocasematch
-      log_diagnostic identity_preflight '' 0 "$identity_started_ms" '' || true
-    else
-      if [[ "$login" == leynos ]]; then
-        failure_category=unexpected_owner_identity
-      else
-        failure_category=invalid_identity_response
-      fi
-      shopt -u nocasematch
-      log_diagnostic identity_preflight "$failure_category" 2 "$identity_started_ms" '' || true
-      printf '%s\n' 'Expected a non-leynos pool account; check configuration.' >&2
-      exit 2
-    fi
-  else
-    status=$?
-    http_status=$(http_status_from "$login")
-    failure_category=$(failure_category_for "$login" "$http_status")
-    log_diagnostic identity_preflight "$failure_category" "$status" \
-      "$identity_started_ms" "$http_status" || true
-    if [[ -z "$http_status" ]]; then http_status=unknown; fi
-    printf 'GitHub identity verification failed: category=%s http_status=%s exit_status=%s.\n' \
-      "$failure_category" "$http_status" "$status" >&2
-    exit "$status"
-  fi
-
-  post_started_ms=$(date +%s%3N)
-  if payload=$(jq -n --rawfile body "$body_file" '{body: $body}'); then
-    :
-  else
-    status=$?
-    log_diagnostic post payload_encoding_failed "$status" "$post_started_ms" '' || true
-    printf 'Manual comment payload encoding failed: exit_status=%s.\n' "$status" >&2
-    exit "$status"
-  fi
-  if post_result=$(
-    printf '%s\n' "$payload" |
-      GH_TOKEN="$token" GITHUB_TOKEN="$token" \
-        gh api --hostname github.com --method POST "$endpoint" \
-          --input - --jq '.html_url' 2>&1
-  ); then
-    log_diagnostic post '' 0 "$post_started_ms" '' || true
-    printf '%s\n' "$post_result"
-  else
-    status=$?
-    http_status=$(http_status_from "$post_result")
-    failure_category=$(failure_category_for "$post_result" "$http_status")
-    log_diagnostic post "$failure_category" "$status" \
-      "$post_started_ms" "$http_status" || true
-    if [[ -z "$http_status" ]]; then http_status=unknown; fi
-    printf 'Manual comment POST failed: category=%s http_status=%s exit_status=%s.\n' \
-      "$failure_category" "$http_status" "$status" >&2
-    exit "$status"
-  fi
-)
-```
-
-The credential is scoped to the posting process and subshell; never log the
-selected record, enable HTTP debug output, put it in an argument/header string,
-or write it into evidence. A successful command returns the comment URL, not
-proof that a bot received, resolved, or approved anything. Keep the pool
-private under the installation's credential-storage policy.
+The credential is scoped to the helper's process; never log the selected
+record, enable HTTP debug output, put it in an argument/header string, or write
+it into evidence. A successful command returns the comment URL, not proof that
+a bot received, resolved, or approved anything. Keep the pool private under the
+installation's credential-storage policy.
 
 The
 [GitHub CLI environment reference](https://cli.github.com/manual/gh_help_environment)
 documents that `GH_TOKEN` and `GITHUB_TOKEN` override stored credentials, in
 that precedence order. The identity read and POST both set them explicitly;
-normal lifecycle authentication remains unchanged when the subshell exits.
+normal lifecycle authentication remains unchanged when the helper exits.
 
-Examples, after preparing and inspecting the body file:
+Examples, after preparing and inspecting the body file, with `SKILL_DIR` set to
+the installed `pr-babysitting` directory:
 
 ```bash
 # New top-level response to a banner or pre-merge check.
-post_manual_comment OWNER/REPO 123 /tmp/pr-123-response.md
+"$SKILL_DIR/scripts/post-manual-comment.sh" OWNER/REPO 123 \
+  /tmp/pr-123-response.md
 
 # Reply to an inline finding, using the thread's root comment ID.
-post_manual_comment OWNER/REPO 123 /tmp/pr-123-response.md 456789
+"$SKILL_DIR/scripts/post-manual-comment.sh" OWNER/REPO 123 \
+  /tmp/pr-123-response.md 456789
 ```
 
 ## CI investigation

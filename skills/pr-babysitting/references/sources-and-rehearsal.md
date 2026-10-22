@@ -25,7 +25,7 @@ executing the skill.
 | [GNU Coreutils manual](https://www.gnu.org/software/coreutils/manual/coreutils.html)                                                                    | The random-selection command is `shuf`, not `shuff`.                                                                                |
 
 The token-pool path and random selection policy come from the user's request.
-The newline-separated raw-token format in the posting example is an explicit
+The newline-separated raw-token format in the posting helper is an explicit
 assumption, not a discovered fact about the installation. No real token pool
 was inspected to draft this skill.
 

@@ -9,7 +9,8 @@ ROOT_SHELL_SCRIPTS := \
 	mdformat-all \
 	notdeadyet \
 	python-setup
-SHELL_SCRIPTS := $(sort $(ROOT_SHELL_SCRIPTS) $(wildcard bin/*.sh))
+SHELL_SCRIPTS := $(sort $(ROOT_SHELL_SCRIPTS) $(wildcard bin/*.sh) \
+	$(wildcard skills/*/scripts/*.sh))
 HOME_PHASE_HELPERS != awk '\
 	/^[[:space:]]*SELECTED_TOOLS=[(][[:space:]]*$$/ { in_tools=1; next } \
 	in_tools && /^[[:space:]]*[)][[:space:]]*$$/ { in_tools=0; next } \

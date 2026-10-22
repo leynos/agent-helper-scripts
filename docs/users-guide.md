@@ -621,32 +621,40 @@ the skill's
 for the full contract.
 
 Every manual comment or inline reply uses an authorized token selected with GNU
-`shuf` from `~/.local/share/github-tokens`. The
-[posting example](../skills/pr-babysitting/references/comments.md) assumes a
-regular file with one raw token per nonblank line, not a directory or shell
-configuration. Keep tokens private and use the installation's documented reader
-for other formats. The skill does not install this pool.
+`shuf` from `~/.local/share/github-tokens`, posted through the shipped helper
+[`scripts/post-manual-comment.sh`](../skills/pr-babysitting/scripts/post-manual-comment.sh).
+The helper expects a regular file with one raw token per nonblank line, not a
+directory or shell configuration. Keep tokens private and use the
+installation's documented reader for other formats. The skill does not install
+this pool.
 
 The owner-provisioned pool deliberately contains authorized accounts other than
-`leynos`; keeping routine CodeRabbit conversations off the lifecycle account is
-its purpose. A non-`leynos` login is expected, not a reason to stop or ask for
-permission again. The agent verifies the selected token's identity and
-permission to post, not whether it matches the repository owner or normal CLI
-account. An unexpected `leynos` result is a pool configuration problem. Manual
+the lifecycle account. CodeRabbit rate-limits conversations per commenting
+account, so routing routine questions and replies through the pool keeps the
+lifecycle account's allowance for reviews. A different login is expected, not a
+reason to stop or ask for permission again. The helper verifies the selected
+token's identity and refuses a token that authenticates as the lifecycle
+account, which it reads from the stored `gh` login with `GH_TOKEN` and
+`GITHUB_TOKEN` removed, or from `PR_BABYSITTING_LIFECYCLE_LOGIN`. Manual
 comments never fall back to the normal CLI account or a connector. The
 executable path `/usr/bin/gh` does not select an account.
 
 Git publication, readiness transitions, and merges keep the normal authorized
 lifecycle identity; formal reviews keep the managed queue's dispatcher. Comment
-tokens remain command-scoped and do not change either identity. Actual
-authentication, permission, or rate-limit failures remain blockers: never
-rotate accounts after a service restriction to circumvent it. See the
-[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
-The documented posting helper writes bounded JSON diagnostics to standard
-error for token selection, identity checks, and posting, with the operation,
-comment surface, repository/PR, failure category, exit status, elapsed time,
-and recognized HTTP status. It omits tokens, account names, comment bodies, and
-raw GitHub error text.
+tokens remain command-scoped and do not change either identity. Lifecycle
+commands run with `GH_TOKEN` and `GITHUB_TOKEN` removed, after confirming that
+the stored login is not a pool account, so a stale or leftover token cannot
+shadow it. Actual authentication, permission, or rate-limit failures remain
+blockers: never rotate accounts after a service restriction to circumvent it.
+See the
+[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract)
+and the
+[lifecycle identity contract](../skills/pr-babysitting/SKILL.md#lifecycle-identity-contract).
+The posting helper writes bounded JSON diagnostics to standard error for token
+selection, the lifecycle-account lookup, identity checks, and posting, with the
+operation, comment surface, repository/PR, failure category, exit status,
+elapsed time, and recognized HTTP status. It omits tokens, account names,
+comment bodies, and raw GitHub error text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do
