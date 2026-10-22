@@ -760,6 +760,14 @@ independent scopes:
 A monitoring-only assignment starts neither of the other two scopes and records
 them as `not-requested` rather than passed or silently skipped.
 
+Gates run strictly sequentially within the candidate, but sequencing does not
+mean waiting for the host to become idle. The scrutineer starts each gate once
+and lets Cargo's package-cache lock and any compiler-admission queue serialize
+the work. It does not wait for unrelated repositories or worktrees, does not
+kill, retry, or duplicate a queued build, and waits outside the queue only for
+an explicitly identified exclusive resource. Unhealthy admission is reported
+with its status output.
+
 All monitoring is foreground-only: polls, waits and watchers must finish in the
 active turn. Do not start detached work or rely on a background result. Before
 either GitHub monitoring flow, create one private evidence bundle under `/tmp`

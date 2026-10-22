@@ -65,6 +65,13 @@ executable checks actually run separately in the PR validation evidence.
 | A mandatory queue accepts the PR but has not landed it.                | Report queued, not merged.                                                                                                                  |
 | A manual posting response is ambiguous.                                | Read back comments before retrying; do not issue duplicate posts or rotate through tokens.                                                  |
 | An assigned watcher or queue is no longer running.                     | Hand off the blocker; do not claim unscheduled background supervision.                                                                      |
+| The lifecycle account authored every commit on its own repository.     | Apply the default trust policy, record the metadata, and run local gates and `cs` checks.                                                   |
+| Another agent's build holds every compile slot.                        | Start the gate anyway and let it queue; do not wait for the host to become idle or start a second build.                                    |
+| The `CodeRabbit` status is `success` with `Review rate limited`.       | Treat it as rate-limited, read the summary comment's wait and range, and reuse or queue one comenq request.                                 |
+| A repair push follows a completed review and is rate-limited again.    | Re-enter the rate-limit check for the new head; the earlier review does not cover it.                                                       |
+| A passing CodeScene check lists advisory findings.                     | Address each finding; a passing conclusion does not clear them.                                                                             |
+| Merge is not authorized and all review work is done.                   | Report equilibrium with evidence for each condition; do not end the turn earlier.                                                           |
+| CodeRabbit states the next review is available in 53 minutes.          | Wait and keep observing; a stated rate-limit wait is not an impasse.                                                                        |
 
 Before committing this skill to the repository, run the actual repository gates
 from `AGENTS.md`, including manifest validation, and review these semantic

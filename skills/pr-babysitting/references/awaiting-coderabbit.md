@@ -63,7 +63,10 @@ Immediately fetch the discussion before sleeping. Use the following protocol:
    who reads it and continues the repair or readiness loop in the same active
    assignment. Do not leave the user to relay it manually.
 
-Set a monotonic deadline within the actual execution allowance. Poll at a
+Set a monotonic deadline within the actual execution allowance. When the
+assignment sets no deadline, the observation budget lasts until the parent
+skill's [equilibrium or impasse](../SKILL.md#equilibrium-and-impasse); bound
+each call and each wait, then start the next poll when one expires. Poll at a
 bounded interval, for example 30 seconds with modest jitter, clamping each
 sleep and API-call timeout to the remaining budget. Use conditional GETs with
 ETags when supported; retain cached bodies on `304 Not Modified`. Do not treat

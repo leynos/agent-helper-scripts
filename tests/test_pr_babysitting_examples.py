@@ -277,3 +277,43 @@ def test_codescene_section_clears_every_outstanding_issue_before_suppression() -
     assert steps == sorted(steps), "suppression must remain the last ordered step"
     assert "suppress" in codescene[steps[3]:].lower(), "the final step is the only suppression step"
     assert "suppress" not in codescene[steps[0]:steps[3]].lower(), "earlier steps must not suppress"
+
+
+def test_operating_contract_defines_equilibrium_impasse_and_default_budget() -> None:
+    """Agents must keep working until a defined end state, not a short implicit budget."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "keep working until the PR reaches equilibrium, an authorized merge, or an intractable impasse",
+        "Do not end the turn before then",
+        "each bounded wait or poll that expires is a checkpoint that starts the next one",
+        "A PR is at **equilibrium** when all of the following hold for its current base/head",
+        "An **intractable impasse** is a blocker the agent cannot clear within its authority",
+        "These are waits, not impasses",
+        "a CodeRabbit rate limit with a stated next review time",
+    ):
+        assert requirement in contract, f"operating contract must state: {requirement}"
+
+
+def test_operating_contract_sequences_gates_without_waiting_for_host_idle() -> None:
+    """Sequential gates queue on locks and admission instead of waiting for other work."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "Sequencing applies to this candidate only",
+        "Do not wait for unrelated repositories, worktrees, or the host to become idle",
+        "is queued, not hung, so do not kill, retry, or duplicate it",
+        "Wait outside the queue only for an explicitly identified exclusive resource",
+        "**Never return a PR to draft.**",
+    ):
+        assert requirement in contract, f"operating contract must state: {requirement}"
+
+
+def test_candidate_boundary_has_a_verifiable_default_trust_policy() -> None:
+    """Without supplied policy, trust follows recorded metadata, never candidate files."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "When the assignment supplies no other policy, the default policy trusts a candidate",
+        "every commit author and committer are the lifecycle account",
+        "Establish those facts from GitHub and Git metadata, not from the candidate's files",
+        "falls under the isolation rule below",
+    ):
+        assert requirement in contract, f"candidate boundary must state: {requirement}"

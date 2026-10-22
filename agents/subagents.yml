@@ -646,6 +646,15 @@ agent_tools_subagents:
         contention; `uv`, `cargo`, and `.pytest_cache` do not serialize access
         themselves. Parallel gate runs invalidate cache state, lengthen
         wall-clock time, and blur the source of any single failure.
+      - Sequencing applies to this candidate only. Start each gate once and
+        let Cargo's package-cache lock and any compiler-admission queue
+        serialize its work. Do not wait for unrelated repositories,
+        worktrees, or the host to become idle before starting a gate. A build
+        reporting that it waits for a lock or a compile slot is queued, not
+        hung: do not kill, retry, or duplicate it. Wait outside the queue only
+        for an explicitly identified exclusive resource. If admission reports
+        an unhealthy state, include its status output in your report rather
+        than working around it.
       - Honour the repository's own gate definitions in `AGENTS.md`. The
         Makefile targets are the source of truth; do not invent direct
         tool invocations when a `make` target exists.

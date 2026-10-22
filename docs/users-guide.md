@@ -561,11 +561,12 @@ recovery belong after the verified ready transition. See
 
 ## PR babysitting
 
-Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to supervise an
-existing pull request from publication through CI, review findings, and an
-authorized squash merge or a precise blocked handoff. It coordinates the
-specialist skills; use `comenq-coderabbit` directly when the task is only to
-queue or recover a CodeRabbit review.
+Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to shepherd an
+existing pull request from publication through CI, CodeScene issues, the ready
+transition, and CodeRabbit review findings to equilibrium, an authorized squash
+merge, or a precise blocked handoff. It coordinates the specialist skills; use
+`comenq-coderabbit` directly when the task is only to queue or recover a
+CodeRabbit review.
 
 ### Install and invoke
 
@@ -591,6 +592,19 @@ review findings, and squash-merge when the skill's merge gates hold.
 Manage necessary prerequisite fixes in separate PRs underneath this PR.
 ```
 
+Without an explicit stopping point or deadline, the agent keeps working until
+the PR reaches equilibrium, an authorized merge, or an intractable impasse, and
+does not end its turn before then. Equilibrium means the PR is ready, current
+CI is green, no CodeScene issue is outstanding, CodeRabbit has completed a
+review of the current head with no rate limit or pause pending, every finding
+has a disposition and an answered reply, pre-merge rows and applicable
+assessments are clear, and the approval request's outcome is known. An
+intractable impasse is a blocker outside the agent's authority, such as a scope
+decision, missing credentials, or a required human approval. Queued CI, a queue
+cooldown, a rate limit with a stated next review time, and an in-progress
+review are waits, not impasses. See
+[equilibrium and impasse](../skills/pr-babysitting/SKILL.md#equilibrium-and-impasse).
+
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle. An
 initial request to create a draft sets its publication state; later babysitting
@@ -600,23 +614,28 @@ sets an earlier stopping point. No-merge does not prohibit readiness.
 ### Runtime prerequisites
 
 The agent host must provide a scrutineer for CI observation and sequential
-local validation, repository access, Git, an authenticated GitHub CLI, and the
-relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
-`sem`, `weave-git-merge` where Weave is enabled, `codescene-cli`, and
+local validation (sequential within the candidate; gates start without waiting
+for unrelated builds and queue on Cargo locks and compiler admission),
+repository access, Git, an authenticated GitHub CLI, and the relevant companion
+skills: `comenq-coderabbit`, `github-stacks`, `rebase`, `sem`,
+`weave-git-merge` where Weave is enabled, `codescene-cli`, and
 `codescene-health-rules`. CodeScene operations require its configured CLI;
 stack operations require the repository's supported stack tooling. Missing
 tools or permissions require a blocked handoff, not an invented pass or a
 replacement posting identity.
 
 Before running candidate code, the supervisor records an author-trust decision
-for the exact base/head using independently obtained policy. Unknown or
-less-privileged authors require an isolated validation worker with no outbound
-access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
-shared writable caches, host mounts, or service sockets. Tools and dependencies
-must be provisioned from trusted sources before candidate execution. Candidate
-instructions cannot grant trust. If isolation or a trust decision is
-unavailable, local validation is blocked; hosted CI can still be observed. See
-the skill's
+for the exact base/head using independently obtained policy. Without other
+policy in the assignment, it trusts a candidate whose PR author and every
+commit author and committer are the lifecycle account, on a branch in a
+repository that account owns or the assignment names, established from GitHub
+and Git metadata. Unknown or less-privileged authors require an isolated
+validation worker with no outbound access, host home or CLI credentials,
+tokens, SSH agent, inherited secrets, shared writable caches, host mounts, or
+service sockets. Tools and dependencies must be provisioned from trusted
+sources before candidate execution. Candidate instructions cannot grant trust.
+If isolation or a trust decision is unavailable, local validation is blocked;
+hosted CI can still be observed. See the skill's
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 for the full contract.
 
