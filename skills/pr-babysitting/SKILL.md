@@ -28,9 +28,10 @@ Read the repository's `AGENTS.md` and relevant contribution instructions. Load
 `comenq-coderabbit` for review dispatch and recovery; `github-stacks`,
 `rebase`, and `sem` for dependency and replay operations; `weave-git-merge`
 where Weave is enabled or selected; and `codescene-cli` plus the code-health
-skill for CodeScene failures. In `leynos/agent-helper-scripts`, that companion
-is named `codescene-health-rules`; use an installed `codescene-health` alias
-only when its definition actually supplies the intended workflow.
+skill at the start of every assignment, not only after a CodeScene failure. In
+`leynos/agent-helper-scripts`, that companion is named
+`codescene-health-rules`; use an installed `codescene-health` alias only when
+its definition actually supplies the intended workflow.
 
 The supervisor owns scope, publication, GitHub conversations, and merge
 decisions. A scrutineer observes hosted CI and executes local validation, with
@@ -174,8 +175,10 @@ wait outside this skill until a red or draft PR is already ready.
 
 Keep one authoritative candidate and a small durable ledger outside the tracked
 product diff. Include CI run/check IDs and attempts, tested SHAs, review
-coverage, finding IDs and dispositions, repair commits, reply URLs, queue
-requests, blocking dependencies, owner, next action, and last meaningful
+coverage, finding IDs and dispositions, CodeScene findings and their
+dispositions, the CodeRabbit summary comment ID and last processed revision,
+the latest `CodeRabbit` commit-status description, repair commits, reply URLs,
+queue requests, blocking dependencies, owner, next action, and last meaningful
 transition. Record unknown values as unknown; never invent evidence to complete
 the record.
 
@@ -296,12 +299,25 @@ exclusive boundary, account for the parent's squash landing, retarget/restack
 onto the intended target, and renew validation and review coverage as needed.
 Do not replay the parent's already-landed changes as fresh child work.
 
-## 4. Repair CodeScene failures, then validate them locally and remotely
+## 4. Clear all outstanding CodeScene issues, validating locally and remotely
 
-Address CodeScene failures rather than dismissing them as style advice. Use
-`codescene-cli` and `codescene-health-rules` to inspect the actual diagnostic,
-affected paths, applicable rules, and the same base/head comparison as hosted
-CI. Run focused file checks and a complete relevant delta through the
+Address every outstanding CodeScene issue, not only a failing quality gate.
+Outstanding means each of the following for the current candidate:
+
+- every gate failure, advisory-rule violation, and code-health decline listed
+  in the hosted `CodeScene Code Health Review` check output, whatever the
+  check's conclusion;
+- every unresolved inline review comment and review from
+  `codescene-access[bot]`; and
+- every warning or failure reported by `cs delta BASE_SHA HEAD_SHA`, plus
+  focused `cs check` or `cs review` results for the affected files.
+
+A passing check with advisory findings still has outstanding issues. Record
+each finding and its disposition in the ledger.
+
+Use `codescene-cli` and `codescene-health-rules` to inspect the actual
+diagnostic, affected paths, applicable rules, and the same base/head comparison
+as hosted CI. Run focused file checks and a complete relevant delta through the
 scrutineer. Use the installed CLI's documented commands; record its version and
 configuration.
 
@@ -313,10 +329,24 @@ the prerequisite rule above.
 
 When local and hosted results disagree, investigate candidate, comparison base,
 configuration, analysis coverage, and engine-version differences. A local clean
-report does not override a hosted failure. Suppression is an absolute last
-resort: document the precise false positive or unavoidable trade-off,
-alternatives tried, narrowest affected diagnostic, and any approval required by
-repository policy. Rerun validation after any accepted exception.
+report does not override a hosted failure.
+
+Suppression is an absolute last resort. Work through this order and stop at the
+first step that clears the finding:
+
+1. Refactor the flagged code: decompose, simplify control flow, reduce
+   arguments or nesting, or extract a cohesive type.
+2. Restructure the surrounding boundary when the finding reflects a design
+   problem rather than a local one, using a prerequisite PR if the change is
+   large or out of scope.
+3. Verify whether the finding is a false positive by reproducing it with
+   `cs` on the current candidate and checking the applicable rule.
+4. Only then suppress, using the narrowest directive that covers the one
+   diagnostic. Document the false positive or unavoidable trade-off, the
+   alternatives tried, and any approval required by repository policy, and post
+   that justification on the PR, mentioning `@coderabbitai`.
+
+Rerun local and hosted validation after any repair or accepted exception.
 
 ## 5. Assess applicable delivery gates, then mark green drafts ready
 
@@ -325,9 +355,10 @@ assessment replies, verified readiness, then formal review observation or
 rate-limit recovery**. Do not queue a formal review while the PR is draft.
 
 1. **Establish green gates.** Require passing applicable deterministic gates
-   and hosted CI for the published candidate, and reconcile CodeScene issues
-   using section 4. A formal review intentionally waiting for readiness is not
-   a draft-time CI failure or a prerequisite for the assessment chat.
+   and hosted CI for the published candidate, and clear every outstanding
+   CodeScene issue using section 4. A formal review intentionally waiting for
+   readiness is not a draft-time CI failure or a prerequisite for the
+   assessment chat.
 2. **Ask and await assessments.** Obtain applicable completeness/correctness
    and proof assessments using
    [ExecPlan assessments](references/execplan-assessment.md). These are tagged
@@ -337,7 +368,11 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    repair valid findings, push, and obtain affected follow-up confirmation.
    Silence, an acknowledgement, a queued request, or a generic approval never
    clears an assessment. Record a justified `not applicable` for an unaffected
-   proof inventory; do not ask about nonexistent proofs.
+   proof inventory; do not ask about nonexistent proofs. Assessments apply only
+   to an ExecPlan implementation assignment and to introduced or materially
+   changed proofs. For any other PR, record both as `not applicable` and
+   continue to step 3 as soon as step 1 holds; do not leave it in draft waiting
+   for an assessment that does not apply.
 3. **Mark ready and verify.** Only when CI is green, CodeScene is clear, and
    all applicable pre-readiness assessments hold for the accepted base/head, run
    `gh pr ready` as the currently logged-in Linux user with that user's normal
@@ -347,24 +382,39 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    dispatch. Do not wait for the formal review to complete before this
    transition. Never set it back to draft. An already-ready PR remains ready
    while missing or invalidated assessments block merge.
-4. **Inspect formal review status.** After readiness, inspect CodeRabbit's
-   current GitHub check, review submissions, and latest rate-limit notice. If
-   the current-candidate review is `queued` or `in_progress`, await it; do not
-   add another request. A newer active or completed review can supersede an
-   older rate-limit notice. If a current explicit review rate limit prevents
-   that review and no suitable request or review is active, use
-   `comenq-coderabbit` for one retry, reusing an existing suitable queue entry.
-   Without a rate limit, await the automatic review and consume it if already
-   complete. Allow bounded startup time for its check to appear; an absent
-   check is not proof of rate limiting. Diagnose paused, failed, missing, or
-   stalled review separately instead of reflexively enqueueing.
-5. **Await formal review completion.** Monitor the CodeRabbit check to a
-   terminal state and fetch the corresponding current-candidate review and
-   findings. Use the GitHub Checks API, not `gh run watch`, for this
-   non-Actions check. A completed or green wrapper check alone does not
-   establish completed inspection, approval, or resolved findings. Continue
-   with section 6 and the
+4. **Inspect formal review status.** After readiness, read CodeRabbit's
+   `CodeRabbit` commit status for the current head, its summary issue comment,
+   review submissions, and the latest rate-limit notice, using the
+   [formal-review observation procedure](references/awaiting-coderabbit.md#formal-review-after-readiness).
+   CodeRabbit reports through a commit status, not a check run, and the status
+   state is `success` even when nothing was reviewed. Read its description:
+   `Review rate limited`, `Review paused`, and `Review skipped: ...` mean the
+   diff was not reviewed. The rate-limit notice itself is edited into the
+   summary comment. If the current-candidate review is in progress (a `pending`
+   status), await it; do not add another request. A newer active or completed
+   review can supersede an older rate-limit notice. If a current explicit
+   review rate limit prevents that review and no suitable request or review is
+   active, use `comenq-coderabbit` to queue one request for that candidate,
+   reusing an existing suitable queue entry. Without a rate limit, await the
+   automatic review and consume it if already complete. Allow bounded startup
+   time for the status to appear; an absent check is not proof of rate
+   limiting, and neither is an absent status. Diagnose paused, failed, missing,
+   or stalled review separately instead of reflexively enqueueing.
+5. **Await formal review completion.** Watch the summary comment and the
+   commit status until the current head is reviewed: the status reads
+   `Review completed` and the summary comment's latest revision covers that
+   head. Use the commit-status and issue-comment APIs, not `gh run watch`, for
+   this non-Actions signal. A completed or green status alone does not
+   establish completed inspection, approval, or resolved findings. Fetch the
+   corresponding current-candidate review and findings, then continue with
+   section 6 and the
    [observation procedure](references/awaiting-coderabbit.md#formal-review-after-readiness).
+6. **Repeat after every push.** Each push to a ready PR starts a new
+   incremental review, which can be rate-limited or paused again. After every
+   push, return to step 4 for the new head. Re-read the summary comment and
+   status, and queue one `comenq-coderabbit` request for each rate-limited
+   candidate. Keep at most one pending queue entry per PR, and do not treat a
+   rate limit on an earlier head as covering the new one.
 
 The draft-skip notice describes automatic formal reviews, not the separate
 assessment conversation. It is neither an assessment failure nor evidence that
@@ -392,8 +442,11 @@ Monitor these observed GitHub author logins, not display-name guesses:
 | CodeRabbit | `coderabbitai[bot]`            |
 | Sourcery   | `sourcery-ai[bot]`             |
 | Codex      | `chatgpt-codex-connector[bot]` |
+| CodeScene  | `codescene-access[bot]`        |
 
 The Codex login above replaces the proposed `codex-github-integration` name.
+CodeScene posts inline review comments and a `CodeScene Code Health Review`
+check run from the `codescene-access` app; section 4 owns their dispositions.
 Verify actual author/app identity when installations differ. Every manual
 finding response must mention `@coderabbitai`, including responses to Sourcery
 and Codex. Their findings do not become optional merely because CodeRabbit did
@@ -458,12 +511,15 @@ indefinitely.
 
 ## 8. Reconcile CodeRabbit's first issue comment and pre-merge checks
 
-Fetch CodeRabbit's first top-level issue comment again after each repair/review
-round and immediately before merge. It contains the walkthrough and pre-merge
-results and may be edited in place. Track its ID and updated content;
-monitoring only newly created comments will miss changes. Inspect later
-CodeRabbit status comments as well, including rate-limit and execution-failure
-notices.
+Fetch CodeRabbit's first top-level issue comment again on every poll while a
+formal review is pending, after each repair/review round, and immediately
+before merge. It carries the
+`<!-- This is an auto-generated comment: summarize by coderabbit.ai -->`
+marker, contains the walkthrough and pre-merge results, and is edited in place,
+including to add or remove a rate-limit notice. Track its ID, `updated_at`, and
+body hash; monitoring only newly created comments will miss changes. Inspect
+later CodeRabbit status comments as well, including rate-limit and
+execution-failure notices.
 
 Give every warning and failure row a valid disposition. Warnings are not
 optional or aspirational. For valid findings, repair and validate. For stale or
@@ -543,9 +599,12 @@ Immediately before an authorized squash merge, refresh and verify:
    Relevant pending, missing, cancelled, blocked, or unknown checks are
    resolved; superseded historical failures are identified, not silently
    ignored.
-5. Findings, banners, pre-merge warnings, and required thread resolutions have
-   evidence-backed dispositions. Required review coverage and approvals exist,
-   with no unresolved required change request or in-flight necessary review.
+5. Findings, banners, pre-merge warnings, CodeScene issues, and required
+   thread resolutions have evidence-backed dispositions. The `CodeRabbit`
+   status and summary comment show a completed review of the accepted head, not
+   a rate-limited, paused, or skipped one. Required review coverage and
+   approvals exist, with no unresolved required change request or in-flight
+   necessary review.
 6. The latest round is reconciled, the approval request's outcome is known,
    and no new head, base, finding, or check result invalidates the assessment.
 7. Applicable ExecPlan completeness/correctness and proof-specific assessments

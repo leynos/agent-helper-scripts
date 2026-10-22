@@ -122,42 +122,95 @@ classification steps before recording any clearance.
 
 ## Formal review after readiness
 
-First verify `isDraft=false` on the accepted base/head. Discover CodeRabbit's
-actual current check by verified app identity and PR association, not merely by
-a check-name substring. Record its check ID, head SHA, timestamps, status,
-conclusion, output, and details URL. A GitHub check is not necessarily a GitHub
-Actions workflow, so do not pass its ID to `gh run watch`.
+First verify `isDraft=false` on the accepted base/head. CodeRabbit reports
+formal-review progress through two surfaces, neither of which is a check run:
+
+- a **commit status** with context `CodeRabbit` on the reviewed head. Its state
+  is `success` whether or not anything was reviewed, so read its `description`.
+  Observed descriptions include `Review completed`, `Review rate limited`,
+  `Review paused`, `Review skipped: draft pull request`,
+  `Review skipped: bot user not eligible for review`, and
+  `Approve command performed: ...`; and
+- the **summary issue comment**, CodeRabbit's first top-level comment, which
+  carries the
+  `<!-- This is an auto-generated comment: summarize by coderabbit.ai -->`
+  marker and is edited in place. A rate-limited review adds a nested
+  `<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->`
+  section headed `Review limit reached`, stating when the next review is
+  available (`Next included review available in N minutes.`) and the commit
+  range it would review (`between BASE_SHA and HEAD_SHA`). Paused and skipped
+  reviews carry `review paused` and `skip review` markers.
+
+Do not pass either to `gh run watch`, and do not search check runs for a
+CodeRabbit app: an absent check run is the normal state, not evidence of a rate
+limit or a missing review. Read both surfaces on every poll and record the
+status description, summary comment ID, `updated_at`, and body hash.
 
 ```bash
-gh pr view "$pr" --repo "$repo" \
-  --json isDraft,headRefOid,baseRefOid,statusCheckRollup
-gh api --method GET --paginate "repos/$repo/commits/$head/check-runs" \
-  -F per_page=100 --jq '.check_runs[] |
-    {id, name, app: .app, head_sha, status, conclusion,
-     started_at, completed_at, details_url, output}'
-gh api --paginate "repos/$repo/pulls/$pr/reviews"
+set -euo pipefail
+gh api "repos/$repo/commits/$head/status" > "$state_dir/status.json"
+gh api --method GET --paginate --slurp \
+  "repos/$repo/issues/$pr/comments" -F per_page=100 \
+  > "$state_dir/comments-all.json"
+jq -n --slurpfile status "$state_dir/status.json" \
+  --slurpfile pages "$state_dir/comments-all.json" '
+  def marker($kind): "<!-- This is an auto-generated comment: \($kind) by coderabbit.ai -->";
+  ($status[0].statuses // [] | map(select(.context == "CodeRabbit")) | first) as $s
+  | ([$pages[0][][] | select(.user.login == "coderabbitai[bot]")
+      | select(.body | contains(marker("summarize")))] | sort_by(.id) | first) as $c
+  | ($s.description // "") as $d
+  | {status: (if $s then {state: $s.state, description: $s.description,
+                          updated_at: $s.updated_at} else null end),
+     summary: (if $c then {
+       id: $c.id, updated_at: $c.updated_at, html_url: $c.html_url,
+       rate_limited: ($c.body | contains(marker("rate limited"))),
+       paused: ($c.body | contains(marker("review paused"))),
+       wait_minutes: ([$c.body | capture("available in (?<m>[0-9]+) minutes?").m]
+                      | first | if . then tonumber else null end),
+       range_head: ([$c.body | scan("between [0-9a-f]{40} and ([0-9a-f]{40})")[]]
+                    | last)} else null end),
+     classification: (
+       if $s == null then "status-absent"
+       elif ($d | startswith("Review rate limited")) then "rate-limited"
+       elif ($d | startswith("Review paused")) then "paused"
+       elif ($d | startswith("Review skipped")) then "skipped"
+       elif ($d | startswith("Review completed")) then "completed"
+       elif ($d | startswith("Approve command performed")) then "approve-performed"
+       elif $s.state == "pending" then "in-progress"
+       else "unknown" end)}' > "$state_dir/review-signal.json"
 ```
 
-Observe `queued` or `in_progress` until terminal; those states mean work is
-already active and must not trigger duplicate dispatch. After a ready
-transition, allow bounded startup time for a check to appear. Neither an absent
-check nor an old draft-skip comment proves a current rate limit.
+The status is bound to `$head`, so its classification describes the current
+candidate. The summary comment is not: compare its `range_head` with `$head`
+before treating its rate-limit notice as current, and re-read it after every
+push. Classify each poll as follows:
 
-Read the latest relevant rate-limit notice alongside the check. If a newer
-active or completed review covers the current candidate, reconcile that state
-instead of retrying because of a superseded notice. For a current explicit
-review rate limit with no active review, inspect `comenq list` and history,
-reuse a suitable pending entry, or enqueue once through `comenq-coderabbit`.
-Never enqueue while draft. If not rate-limited, await the automatic review. A
-paused, failed, or missing review needs diagnosis and a separately justified
-managed recovery, not an invented rate-limit classification.
+- `in-progress`: observe until terminal. Work is already active; do not
+  dispatch a duplicate.
+- `status-absent`: allow bounded startup time after a ready transition or push.
+  Neither an absent status nor an old draft-skip comment proves a current rate
+  limit.
+- `rate-limited`: a current explicit review rate limit. If no newer active or
+  completed review covers the current candidate, inspect `comenq list` and
+  history, reuse a suitable pending entry, or enqueue once through
+  `comenq-coderabbit`. Record the stated wait as the ETA; the queue's own
+  cooldown governs delivery.
+- `paused` or `skipped`: the diff was not reviewed. A draft skip on a ready PR
+  is stale; re-read after startup time. Otherwise diagnose the cause and follow
+  `comenq-coderabbit`'s recovery guidance for a separately justified managed
+  request.
+- `completed` or `approve-performed`: fetch the corresponding review and
+  findings.
+- `unknown`: record the raw description and diagnose; do not invent a
+  rate-limit classification.
 
-When the check completes, inspect its conclusion and output plus the
-corresponding review's `commit_id`, banners, inline findings, and pre-merge
-rows. A skipped, neutral, failed, or incomplete inspection is not a clean
-review; even a successful outer check does not erase findings. Keep explicit
-review completion, assessment clearance, approval, and merge eligibility
-separate. Follow the parent skill's repair loop without redrafting the PR.
+Never enqueue while draft. When the review completes, inspect the status
+description plus the corresponding review's `commit_id`, banners, inline
+findings, and pre-merge rows. A skipped, paused, rate-limited, or incomplete
+inspection is not a clean review; even a successful status does not erase
+findings. Keep explicit review completion, assessment clearance, approval, and
+merge eligibility separate. Follow the parent skill's repair loop without
+redrafting the PR, and repeat this observation for each new head.
 
 ## Inline response observation
 
@@ -173,7 +226,7 @@ base/head.
 ## Event-driven alternative
 
 An existing authorized event receiver can wake the same observer on
-`issue_comment` `created` and `edited` deliveries, and on relevant `check_run`
+`issue_comment` `created` and `edited` deliveries, and on relevant `status`
 updates for formal review. Validate webhook signatures, repository, PR, and
 author/app identity, deduplicate delivery IDs, and re-fetch current state
 before accepting anything. Use periodic reconciliation for missed, duplicate,
@@ -186,20 +239,28 @@ GitHub documents:
 
 - [issue comments](https://docs.github.com/en/rest/issues/comments)
 - [conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
-- [check runs](https://docs.github.com/en/rest/checks/runs)
+- [commit statuses](https://docs.github.com/en/rest/commits/statuses)
 - [webhook payloads](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
 
 The [GitHub CLI reference](https://cli.github.com/manual/gh_api) documents
 pagination, slurping, and query-field method selection. CodeRabbit's
 [configuration reference](https://docs.coderabbit.ai/reference/configuration)
-describes review progress through GitHub checks, separately from the
-walkthrough's review-status text.
+describes review status reporting, and its
+[rate-limit guide](https://docs.coderabbit.ai/management/rate-limits) explains
+review allowances. The commit-status descriptions and summary-comment markers
+above were observed on live repositories in October 2026, for example the
+rate-limited summary on
+[Cuprum #640](https://github.com/leynos/cuprum/pull/640#issuecomment-6251352540);
+recheck them when CodeRabbit changes its reporting.
 
 Rehearse a reply arriving before the first poll, a response on a later page, an
 acknowledgement edited into substantive findings, an unrelated bot comment, a
 spoofed mention by another author, two concurrent assessment questions, a
 changed head or base, an API failure, an expired deadline, a draft-skip notice
-while chat is pending, and an older rate limit superseded by an active review.
-Each must either preserve the appropriate pending state or provide the actual
-candidate-bound response for the supervisor to assess. None may enqueue a
-formal review on a draft or treat transport receipt as assessment clearance.
+while chat is pending, an older rate limit superseded by an active review, a
+`success` status whose description is `Review rate limited`, a rate-limit
+notice whose range ends at an earlier head, and a second rate limit after a
+repair push. Each must either preserve the appropriate pending state or provide
+the actual candidate-bound response for the supervisor to assess. None may
+enqueue a formal review on a draft or treat transport receipt as assessment
+clearance.

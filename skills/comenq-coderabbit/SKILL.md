@@ -63,11 +63,19 @@ its
 [response-wait procedure](../pr-babysitting/references/awaiting-coderabbit.md)
 instead. A draft-skip notice does not justify dispatching a review on a draft.
 
-After readiness, inspect the current CodeRabbit review check and rate-limit
-notice. Await an active or automatic review instead of duplicating it; use this
-queue for a current explicit review rate limit, or a separately diagnosed and
-authorized formal-review recovery. An absent check is not proof of rate
-limiting. Verify readiness again immediately before enqueueing.
+After readiness, inspect the current head's `CodeRabbit` commit status and the
+rate-limit notice in CodeRabbit's summary issue comment. The status state is
+`success` even when nothing was reviewed, so read its description, such as
+`Review rate limited`, `Review paused`, or `Review completed`. CodeRabbit does
+not report through a check run. Await an active or automatic review instead of
+duplicating it; use this queue for a current explicit review rate limit, or a
+separately diagnosed and authorized formal-review recovery. An absent status or
+check is not proof of rate limiting. Each push to a ready PR starts a new
+incremental review that can be rate-limited again: re-read both signals for the
+new head and queue at most one request per rate-limited candidate. Verify
+readiness again immediately before enqueueing. When `pr-babysitting` owns
+delivery, use its
+[formal-review observation procedure](../pr-babysitting/references/awaiting-coderabbit.md#formal-review-after-readiness).
 
 Before enqueueing, inspect both the pending queue and recent PR activity. Reuse
 an existing request rather than adding another. Record the intended repository,

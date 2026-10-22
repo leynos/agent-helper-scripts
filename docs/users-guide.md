@@ -693,10 +693,16 @@ then be reconciled before merge.
 The readiness sequence is explicit: green CI and clear CodeScene findings, then
 substantive CodeRabbit correctness/completeness and applicable proof assessment
 replies, then a verified ready transition. Only afterwards does the agent
-inspect formal review progress and rate limiting. If the current review is
-rate-limited, it reuses or queues one managed request; otherwise it awaits the
-automatic review. An active GitHub review check means wait, not dispatch
-another review. A ready-only assignment stops before that dispatch stage.
+inspect formal review progress and rate limiting. CodeRabbit reports progress
+through a `CodeRabbit` commit status whose state is `success` even when nothing
+was reviewed, so the agent reads its description (`Review completed`,
+`Review rate limited`, `Review paused`, or `Review skipped: ...`) together with
+the rate-limit notice edited into CodeRabbit's summary comment. If the current
+review is rate-limited, it reuses or queues one managed request; otherwise it
+awaits the automatic review. An in-progress review means wait, not dispatch
+another review. Each later push starts a new incremental review, so the agent
+repeats this check for every new head. A ready-only assignment stops before
+that dispatch stage.
 
 ```mermaid
 flowchart TD
@@ -712,12 +718,13 @@ flowchart TD
     Q -->|Clear or not applicable| E[Mark ready and verify]
     E --> F{Current formal review rate-limited?}
     F -->|Yes and no active review| U[Reuse or queue one comenq request]
-    F -->|No or newer review active| V[Await current GitHub review check]
+    F -->|No or newer review active| V[Await CodeRabbit status and summary]
     U --> V
     V --> G[Read completed review and all findings]
     G --> H{Valid in-scope finding?}
     H -->|Yes| I[Repair, validate, and push]
-    I --> J[Reply after remote head verification]
+    I --> R[Recheck review status for the new head]
+    R --> J[Reply after remote head verification]
     H -->|No| J
     J --> K[Await replies and reconcile pre-merge rows]
     K --> L{Merge authorized and all gates hold?}
@@ -729,7 +736,7 @@ flowchart TD
 Figure: assessment conversations precede readiness; formal reviews follow it.
 The observer reads actual replies, including edits, rather than treating a
 posted question as an assessment or a queue receipt as a completed review.
-Current review checks prevent duplicate dispatch. Repairs require renewed
+Current review status prevents duplicate dispatch. Repairs require renewed
 candidate evidence and are pushed before replies. Merge requires explicit
 authorization and all gates; integration remains a separate observation.
 
@@ -753,9 +760,13 @@ The supervisor keeps a candidate-bound record of CI, review coverage, findings,
 pushed repairs, and replies. A scrutineer observes CI; non-obvious failures
 receive the skill's systemic-investigation prompt. Audit remediation and
 necessary large out-of-scope changes go in independently managed prerequisite
-PRs below the original PR, which then targets the prerequisite branch.
-CodeScene failures require local and hosted validation; suppression remains an
-absolute last resort.
+PRs below the original PR, which then targets the prerequisite branch. Every
+outstanding CodeScene issue is addressed, not only a failing quality gate:
+advisory findings in a passing check, inline comments from
+`codescene-access[bot]`, and local `cs delta` warnings all count. Each needs
+local and hosted validation. Suppression remains an absolute last resort,
+reached only after refactoring, restructuring, and false-positive verification
+have failed, and is justified on the PR.
 
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes

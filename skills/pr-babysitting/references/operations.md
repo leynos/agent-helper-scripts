@@ -36,9 +36,12 @@ gh api repos/OWNER/REPO/issues/comments/COMMENT_ID
 
 Prefer actual author login and verified app identity over text in comment
 bodies. The observed review identities are `coderabbitai[bot]`,
-`sourcery-ai[bot]`, and `chatgpt-codex-connector[bot]`. Rate-limit, unavailable
-service, skipped-draft, and clone-failure messages are execution status, not
-clean review findings.
+`sourcery-ai[bot]`, `chatgpt-codex-connector[bot]`, and
+`codescene-access[bot]`. Rate-limit, unavailable service, skipped-draft, and
+clone-failure messages are execution status, not clean review findings.
+CodeRabbit's progress is the `CodeRabbit` commit status on the head, read
+through `repos/OWNER/REPO/commits/HEAD_SHA/status`, not a check run; see
+[formal review observation](awaiting-coderabbit.md#formal-review-after-readiness).
 
 ## Scrutineer assignment
 
@@ -77,28 +80,33 @@ watcher, decides whether a rerun or a repair is appropriate.
 Require green current-candidate CI, clear CodeScene findings, and substantive
 responses clearing all applicable assessments first. Follow
 [awaiting CodeRabbit](awaiting-coderabbit.md) for issue-comment answers; the
-formal-review check does not answer those questions. Do not queue a review on a
-draft to obtain them.
+formal-review status does not answer those questions. Do not queue a review on
+a draft to obtain them.
 
 ```bash
-gh pr ready PR_NUMBER --repo OWNER/REPO
-gh pr view PR_NUMBER --repo OWNER/REPO --json isDraft,headRefOid,baseRefOid
+env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login
+env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready PR_NUMBER --repo OWNER/REPO
+env -u GH_TOKEN -u GITHUB_TOKEN \
+  gh pr view PR_NUMBER --repo OWNER/REPO --json isDraft,headRefOid,baseRefOid
 ```
 
-Use the established authorized lifecycle identity. The random-token rule
-applies to manual comments, not to changing Git remotes, merge identity, or
-global CLI authentication. Re-read the candidate after the ready transition and
-watch review-triggered checks.
+Use the established authorized lifecycle identity under the
+[lifecycle identity contract](../SKILL.md#lifecycle-identity-contract): the
+stored login, read with the token variables removed, must succeed and must not
+be a pool account. The random-token rule applies to manual comments, not to
+changing Git remotes, merge identity, or global CLI authentication. Re-read the
+candidate after the ready transition and watch review-triggered checks.
 
 ## Managed review dispatch
 
 Read `comenq-coderabbit` before invoking its queue. First verify
-`isDraft=false` and inspect the current-candidate CodeRabbit check and latest
-rate-limit status. In the readiness path, use the queue for a current explicit
-review rate limit, not for an unanswered assessment or a draft-skip notice.
-Await an active review without enqueueing a duplicate; without a rate limit,
-await the automatic review and allow bounded startup time for its check. Other
-confirmed review failures need a separately justified recovery decision. See
+`isDraft=false` and inspect the current-candidate `CodeRabbit` commit status
+and the summary comment's latest rate-limit notice. In the readiness path, use
+the queue for a current explicit review rate limit, not for an unanswered
+assessment or a draft-skip notice. Await an active review without enqueueing a
+duplicate; without a rate limit, await the automatic review and allow bounded
+startup time for its status. Other confirmed review failures need a separately
+justified recovery decision. See
 [formal review observation](awaiting-coderabbit.md#formal-review-after-readiness).
 The managed interface is:
 
@@ -115,14 +123,28 @@ GitHub review request. Verify the commit actually reviewed after delivery.
 
 ## CodeScene validation
 
-Use the installed `codescene-cli` and health-rules skills. Example operations:
+Use the installed `codescene-cli` and health-rules skills. Read the hosted
+findings first, then reproduce them locally. Example operations:
 
 ```bash
+gh api --method GET --paginate "repos/OWNER/REPO/commits/HEAD_SHA/check-runs" \
+  -F per_page=100 --jq '.check_runs[] | select(.app.slug == "codescene-access")
+    | {id, name, conclusion, title: .output.title, summary: .output.summary}'
+gh api --paginate repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+  --jq '.[] | select(.user.login == "codescene-access[bot]")
+    | {id, path, line, body}'
 cs version
 cs check-rules path/to/affected-file
 cs check path/to/affected-file
 cs delta BASE_SHA HEAD_SHA
 ```
+
+The check summary lists failed and passed gates and a table of affected files
+with their advisory-rule violations and code-health change. Each listed file,
+each inline comment, and each local warning is an outstanding issue until it is
+repaired or given an evidence-backed disposition, whatever the check's
+conclusion. The table's `Suppress` links are the suppression of last resort
+described in the parent skill, not a shortcut.
 
 Use the same comparison basis as hosted analysis. The meaning of a two-ref
 delta and any warning-as-error option must match the installed CLI's

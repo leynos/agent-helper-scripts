@@ -260,3 +260,20 @@ def test_rebase_gate_example_runs_four_checks_in_documented_order(tmp_path: Path
     )
     assert result.returncode == 0, result.stderr
     assert log.read_text().splitlines() == ["check-fmt", "test", "typecheck", "lint"], "rebase example must invoke all four gates sequentially in its documented order"
+
+
+def test_codescene_section_clears_every_outstanding_issue_before_suppression() -> None:
+    """CodeScene work covers advisory findings and keeps suppression as the final step."""
+    codescene = section(SKILL.read_text(), "4. Clear all outstanding CodeScene issues, validating locally and remotely")
+    for requirement in (
+        "Address every outstanding CodeScene issue, not only a failing quality gate",
+        "whatever the check's conclusion",
+        "`codescene-access[bot]`",
+        "A passing check with advisory findings still has outstanding issues",
+        "Suppression is an absolute last resort",
+    ):
+        assert requirement in codescene, f"CodeScene section must state: {requirement}"
+    steps = [codescene.index(f"{number}. ") for number in range(1, 5)]
+    assert steps == sorted(steps), "suppression must remain the last ordered step"
+    assert "suppress" in codescene[steps[3]:].lower(), "the final step is the only suppression step"
+    assert "suppress" not in codescene[steps[0]:steps[3]].lower(), "earlier steps must not suppress"
