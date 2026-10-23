@@ -52,7 +52,10 @@ if post:
 with (root / "calls.jsonl").open("a") as log:
     log.write(json.dumps(event) + "\\n")
 if scoped and config["failure_stage"] == method:
-    print(f"HTTP {config['failure_code']}: fixture service failure", file=sys.stderr)
+    if config["failure_code"]:
+        print(f"HTTP {config['failure_code']}: fixture service failure", file=sys.stderr)
+    else:
+        print("dial tcp: lookup api.github.com: no such host", file=sys.stderr)
     raise SystemExit(1)
 if not scoped and event["token_env_absent"] and config["lifecycle_failure"]:
     print("HTTP 401: fixture stored-login failure", file=sys.stderr)
@@ -72,9 +75,18 @@ if records:
 '''
 
 # Read the normal identity before and after the helper, proving it survives.
+# A deterministic run sources the helper and replaces its clock and run-ID
+# source before calling `main`, so its diagnostics are stable enough to snapshot.
 POST_SCRIPT = '''
 before=$(gh api user --jq '.login' 2>/dev/null)
-/bin/bash -x "$HELPER" "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
+if [[ -n "${DETERMINISTIC:-}" ]]; then
+  /bin/bash -x -c 'source "$HELPER"
+now_ms() { printf "%s\\n" 1000; }
+new_run_id() { printf "%s\\n" 0123456789abcdef; }
+main "$@"' helper "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
+else
+  /bin/bash -x "$HELPER" "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
+fi
 result=$?
 after=$(gh api user --jq '.login' 2>/dev/null)
 [[ "$before" == "$OWNER" && "$after" == "$OWNER" ]] || exit 90
@@ -152,6 +164,7 @@ class Scenario:
     lifecycle_failure: bool = False
     lifecycle_override: str | None = None
     stderr_noise: bool = False
+    deterministic: bool = False
     body: str = BODY
     pr: int = 7
     comment_id: int = 456
@@ -191,6 +204,8 @@ class Scenario:
             env.update(GH_TOKEN="fixture-owner-gh", GITHUB_TOKEN="fixture-owner-github")
         if self.lifecycle_override is not None:
             env["PR_BABYSITTING_LIFECYCLE_LOGIN"] = self.lifecycle_override
+        if self.deterministic:
+            env["DETERMINISTIC"] = "1"
         return env
 
 

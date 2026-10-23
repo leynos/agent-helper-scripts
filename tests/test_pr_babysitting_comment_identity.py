@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 
@@ -241,3 +242,53 @@ def test_helper_is_executable_valid_bash() -> None:
     result = subprocess.run(["/bin/bash", "-n", str(HELPER)], text=True,
                             capture_output=True, check=False, timeout=10)
     assert result.returncode == 0, result.stderr
+
+
+SNAPSHOT_SCENARIOS = {
+    "issue-comment-success": Scenario(),
+    "inline-reply-success": Scenario(inline=True),
+    "pool-token-is-owner": Scenario(login=OWNER),
+    "identity-read-unauthenticated": Scenario(failure_stage="GET", failure_code=401),
+    "post-rate-limited": Scenario(failure_stage="POST", failure_code=429),
+    "post-server-error": Scenario(failure_stage="POST", failure_code=500),
+    "post-network-error": Scenario(failure_stage="POST", failure_code=0),
+    "pool-missing": Scenario(pool=None),
+    "stored-login-failure": Scenario(lifecycle_failure=True),
+    "invalid-override": Scenario(lifecycle_override="bad login"),
+    "override-mismatch": Scenario(lifecycle_override="someone-else"),
+}
+
+
+@pytest.mark.parametrize("name", list(SNAPSHOT_SCENARIOS))
+def test_diagnostic_output_contract_snapshot(
+    manual_comment_harness: CommentHarness, name: str, snapshot: object,
+) -> None:
+    """The helper's exit status, output, and diagnostics for each outcome stay stable.
+
+    The clock and run-ID source are replaced, so the snapshot needs no
+    placeholders; the semantic assertions below still check redaction.
+    """
+    scenario = replace(SNAPSHOT_SCENARIOS[name], deterministic=True)
+    run = run_post(manual_comment_harness, scenario)
+    assert_bounded_diagnostics(run, scenario)
+    assert {
+        "exit_status": run.result.returncode,
+        "stdout": run.result.stdout,
+        "diagnostics": run.diagnostics(),
+    } == snapshot
+
+
+@pytest.mark.parametrize(
+    ("code", "category", "http_status"),
+    [(500, "server_error", 500), (0, "network_error", None)],
+    ids=["server-error", "network-error"],
+)
+def test_post_server_and_network_failures_are_distinguished(
+    manual_comment_harness: CommentHarness, code: int, category: str, http_status: int | None,
+) -> None:
+    """Server and transport failures get their own categories, not a generic one."""
+    run = run_post(manual_comment_harness, Scenario(failure_stage="POST", failure_code=code))
+    assert run.result.returncode == 1, "propagate the gh exit status"
+    diagnostic = run.diagnostic("post")
+    assert diagnostic["failure_category"] == category, "classify the failure"
+    assert diagnostic["http_status"] == http_status, "keep only a recognized HTTP status"

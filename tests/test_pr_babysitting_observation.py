@@ -372,3 +372,24 @@ def test_review_signal_fails_closed_on_read_errors(tmp_path: Path, failure: str)
     assert result.returncode != 0, "read failures must propagate"
     assert not (tmp_path / "review-signal.json").exists(), "no classification without both surfaces"
     assert len(calls) == (1 if failure == "status" else 2), "never retry or fall back"
+
+
+SIGNAL_SNAPSHOTS = {
+    "rate-limited": (_status("Review rate limited"), [[_comment(60, _rate_limited_summary())]]),
+    "completed": (_status("Review completed"), [[_comment(60, f"{SUMMARY}\n\nWalkthrough only.")]]),
+    "paused": (_status("Review paused"), [[_comment(60, f"{SUMMARY}\n{PAUSED}\nPaused.")]]),
+    "draft-skip": (_status("Review skipped: draft pull request"), [[_comment(60, f"{SUMMARY}\n")]]),
+    "approve": (_status("Approve command performed: Review threads unchanged. Approval completed"),
+                [[_comment(60, f"{SUMMARY}\n")]]),
+    "in-progress": (_status("Review in progress", "pending"), [[_comment(60, f"{SUMMARY}\n")]]),
+    "status-absent": (_status(None), [[]]),
+}
+
+
+@pytest.mark.parametrize("name", list(SIGNAL_SNAPSHOTS))
+def test_review_signal_output_contract_snapshot(tmp_path: Path, name: str, snapshot: object) -> None:
+    """The documented review-signal JSON for each classification stays stable."""
+    status, pages = SIGNAL_SNAPSHOTS[name]
+    result, _ = _run_review_signal(tmp_path, status, pages)
+    assert result.returncode == 0, result.stderr
+    assert _signal(tmp_path) == snapshot

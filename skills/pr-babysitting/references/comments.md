@@ -112,10 +112,11 @@ diagnostics for the `token_selection`, `lifecycle_identity`,
 `identity_preflight`, and `post` stages, with the operation, a random
 per-invocation `run_id` shared by every stage, comment surface, repository/PR,
 failure category, exit status, elapsed time, and recognized HTTP status. A
-failed lifecycle lookup keeps its exit status and is classified as
-`authentication_failed`, `permission_denied`, `rate_limited`, or
-`github_api_failed`, like the later stages. Diagnostics omit credentials,
-comment bodies, account names, and raw GitHub error text. They are the helper's
+failed `gh` call keeps its exit status and is classified as
+`authentication_failed`, `permission_denied`, `rate_limited`, `server_error`
+(HTTP 5xx), `network_error` (a transport failure with no HTTP status), or
+`github_api_failed`, in every stage. Diagnostics omit credentials, comment
+bodies, account names, and raw GitHub error text. They are the helper's
 complete telemetry: there is no separate metrics sink, and the per-stage
 `elapsed_ms` values already give each external call's latency.
 
