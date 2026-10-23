@@ -313,7 +313,12 @@ def test_candidate_boundary_has_a_verifiable_default_trust_policy() -> None:
     for requirement in (
         "When the assignment supplies no other policy, the default policy trusts a candidate",
         "every commit author and committer are the lifecycle account",
-        "Establish those facts from GitHub and Git metadata, not from the candidate's files",
+        "at least one authenticated control establishes who pushed every commit",
+        "every commit carries a GitHub-verified signature from the lifecycle account's key",
+        "restricts pushes to the head branch to the lifecycle account",
+        "created and pushed every commit in the current assignment",
+        "Git author and committer fields alone do not establish provenance",
+        "not from the candidate's files",
         "falls under the isolation rule below",
     ):
         assert requirement in contract, f"candidate boundary must state: {requirement}"
