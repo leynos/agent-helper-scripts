@@ -5,6 +5,61 @@ this repository behave, and what to do about work produced under the previous
 behaviour. It documents changes staged for the next release and is not yet
 published as a tagged version.
 
+## TypeScript skills moved to a separate catalogue
+
+The following skills have been removed from this repository and are now
+maintained in
+[`leynos/typescript-skill`](https://github.com/leynos/typescript-skill):
+
+- `biome-typescript`
+- `fast-check`
+- `lemmascript`
+- `zod4-typescript`
+
+Install the TypeScript catalogue separately. This repository's `install-skills`
+does not yet fetch it, and rerunning that installer neither updates nor removes
+previously installed copies of these four skills.
+
+### Installation and updates
+
+Clone the catalogue once:
+
+```bash
+mkdir -p "${HOME}/git"
+git clone git@github.com:leynos/typescript-skill.git \
+  "${HOME}/git/typescript-skill"
+```
+
+For an existing checkout, update it instead:
+
+```bash
+git -C "${HOME}/git/typescript-skill" pull --ff-only
+```
+
+Before copying the catalogue, inspect existing `biome-typescript`, `fast-check`,
+`lemmascript` and `zod4-typescript` directories or symlinks in both
+`~/.codex/skills` and `~/.claude/skills`. Back up any local customizations,
+then remove those four entries from each installation directory that exists.
+For a symlink, remove the link rather than its target. Removing the old entries
+first prevents files absent from the new catalogue from surviving a merged
+directory copy. Leave unrelated installed skills in place.
+
+Install the full catalogue, including `typescript-router` and the four moved
+skills, into both agents' skill directories:
+
+```bash
+mkdir -p "${HOME}/.codex/skills" "${HOME}/.claude/skills"
+cp -a "${HOME}/git/typescript-skill/skills/"* "${HOME}/.codex/skills/"
+cp -a "${HOME}/git/typescript-skill/skills/"* "${HOME}/.claude/skills/"
+```
+
+Repeat the update, cleanup and copy steps when refreshing these installed
+skills; updating the checkout alone does not refresh copied installations. The
+catalogue's
+[users' guide](https://github.com/leynos/typescript-skill/blob/main/docs/users-guide.md)
+also documents symlink installations for keeping checkout-relative evidence
+links available.
+
 ## ExecPlan implementation and PR delivery
 
 The `sdlc-implementation` skill now implements an approved ExecPlan and hands
