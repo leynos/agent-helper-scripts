@@ -122,26 +122,53 @@ def manual_comment_harness(tmp_path: Path) -> _CommentHarness:
     )
 
 
-def _run_post(
-    harness: _CommentHarness, *, selected: int = 0, inline: bool = False,
-    login: str | None = None, failure_stage: str = "", failure_code: int = 0,
-    pool_state: str = "valid", inherited: bool = True,
-    lifecycle_failure: bool = False, lifecycle_override: str | None = None,
-) -> _PostResult:
-    """Configure one scenario and invoke the shipped helper under tracing."""
-    harness.config_file.write_text(json.dumps({
-        "selected": selected, "login": login, "failure_stage": failure_stage,
-        "failure_code": failure_code, "owner": OWNER,
-        "lifecycle_failure": lifecycle_failure,
-    }))
-    if pool_state != "missing":
-        harness.pool_file.write_text(
-            "# fixture credentials only\n\n"
-            + ("\n".join(TOKENS) + "\n" if pool_state == "valid" else "\n")
-        )
-    else:
-        harness.pool_file.unlink()
-    script = '''
+@dataclass(frozen=True)
+class _Scenario:
+    """One posting scenario: fixture behaviour and the helper's environment."""
+
+    selected: int = 0
+    inline: bool = False
+    login: str | None = None
+    failure_stage: str = ""
+    failure_code: int = 0
+    pool_state: str = "valid"
+    inherited: bool = True
+    lifecycle_failure: bool = False
+    lifecycle_override: str | None = None
+
+    def fixture_config(self) -> dict[str, object]:
+        """Return the settings the gh and shuf doubles read."""
+        return {
+            "selected": self.selected, "login": self.login,
+            "failure_stage": self.failure_stage, "failure_code": self.failure_code,
+            "owner": OWNER, "lifecycle_failure": self.lifecycle_failure,
+        }
+
+    def environment(self, harness: _CommentHarness) -> dict[str, str]:
+        """Return a private environment, optionally inheriting owner tokens."""
+        env = {
+            "HOME": str(harness.root), "XDG_CONFIG_HOME": str(harness.root / "config"),
+            "PATH": f"{harness.bin_dir}:/usr/bin:/bin", "FIXTURE_ROOT": str(harness.root),
+            "BODY_FILE": str(harness.body_file),
+            "ROOT_COMMENT_ID": SURFACES[self.inline]["root_comment_id"],
+            "GH_DEBUG": "api", "HELPER": str(HELPER), "REPO": REPO, "OWNER": OWNER,
+        }
+        if self.inherited:
+            env.update(GH_TOKEN="fixture-owner-gh", GITHUB_TOKEN="fixture-owner-github")
+        if self.lifecycle_override is not None:
+            env["PR_BABYSITTING_LIFECYCLE_LOGIN"] = self.lifecycle_override
+        return env
+
+
+SURFACES: dict[bool, dict[str, str]] = {
+    False: {"root_comment_id": "", "surface": "issue_comment", "endpoint": "issues/7/comments"},
+    True: {"root_comment_id": "456", "surface": "inline_reply", "endpoint": "pulls/7/comments/456/replies"},
+}
+POOL_CONTENTS = {
+    "valid": "# fixture credentials only\n\n" + "\n".join(TOKENS) + "\n",
+    "empty": "# fixture credentials only\n\n\n",
+}
+POST_SCRIPT = '''
 before=$(gh api user --jq '.login')
 /bin/bash -x "$HELPER" "$REPO" 7 "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
 result=$?
@@ -149,35 +176,72 @@ after=$(gh api user --jq '.login')
 [[ "$before" == "$OWNER" && "$after" == "$OWNER" ]] || exit 90
 exit "$result"
 '''
-    env = {
-        "HOME": str(harness.root), "XDG_CONFIG_HOME": str(harness.root / "config"),
-        "PATH": f"{harness.bin_dir}:/usr/bin:/bin", "FIXTURE_ROOT": str(harness.root),
-        "BODY_FILE": str(harness.body_file), "ROOT_COMMENT_ID": "456" if inline else "",
-        "GH_DEBUG": "api", "HELPER": str(HELPER), "REPO": REPO, "OWNER": OWNER,
-    }
-    if inherited:
-        env.update(GH_TOKEN="fixture-owner-gh", GITHUB_TOKEN="fixture-owner-github")
-    if lifecycle_override is not None:
-        env["PR_BABYSITTING_LIFECYCLE_LOGIN"] = lifecycle_override
-    result = subprocess.run(
-        ["/bin/bash", "-c", script], cwd=harness.root, env=env,
-        text=True, capture_output=True, check=False, timeout=10,
-    )
-    calls = [json.loads(line) for line in (harness.root / "calls.jsonl").read_text().splitlines()]
-    selections = harness.root / "selections.jsonl"
-    choices = [json.loads(line) for line in selections.read_text().splitlines()] if selections.exists() else []
+
+
+def _write_pool(harness: _CommentHarness, pool_state: str) -> None:
+    """Install the requested pool contents, or remove the pool entirely."""
+    harness.pool_file.unlink()
+    if pool_state in POOL_CONTENTS:
+        harness.pool_file.write_text(POOL_CONTENTS[pool_state])
+
+
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    """Read one JSON record per line, treating an absent log as empty."""
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def _split_helper_calls(
+    calls: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Separate the helper's lifecycle lookup from its pool-token calls."""
     assert calls[0]["principal"] == calls[-1]["principal"] == OWNER, "normal identity must survive"
     assert not calls[0]["scoped"] and not calls[-1]["scoped"], "normal reads must not inherit pool credentials"
     helper_calls = calls[1:-1]
+    assert all(call["debug"] is None for call in helper_calls), "helper calls must not enable debug output"
     lifecycle = [call for call in helper_calls if not call["scoped"]]
     scoped = [call for call in helper_calls if call["scoped"]]
-    assert all(call["token_env_absent"] and call["method"] == "GET" for call in lifecycle), (
+    assert all(call["token_env_absent"] for call in lifecycle), (
         "the lifecycle lookup must read stored authentication with token variables removed"
     )
-    assert all(call["debug"] is None for call in helper_calls), "helper calls must not enable debug output"
+    assert all(call["method"] == "GET" for call in lifecycle), "the lifecycle lookup is read-only"
     assert all(call["both_overridden"] for call in scoped), "each pool call must use both scoped credentials"
+    return lifecycle, scoped
+
+
+def _run_post(harness: _CommentHarness, scenario: _Scenario = _Scenario()) -> _PostResult:
+    """Configure one scenario and invoke the shipped helper under tracing."""
+    harness.config_file.write_text(json.dumps(scenario.fixture_config()))
+    _write_pool(harness, scenario.pool_state)
+    result = subprocess.run(
+        ["/bin/bash", "-c", POST_SCRIPT], cwd=harness.root, env=scenario.environment(harness),
+        text=True, capture_output=True, check=False, timeout=10,
+    )
     assert not any(token in result.stdout + result.stderr for token in TOKENS), "tracing must never expose pool tokens"
-    return _PostResult(result, lifecycle, scoped, choices)
+    lifecycle, scoped = _split_helper_calls(_read_jsonl(harness.root / "calls.jsonl"))
+    return _PostResult(result, lifecycle, scoped, _read_jsonl(harness.root / "selections.jsonl"))
+
+
+def _assert_success_diagnostics(run: _PostResult, surface: str) -> None:
+    """Success diagnostics are structured and carry only bounded context."""
+    diagnostics = run.diagnostics()
+    assert [event["stage"] for event in diagnostics] == [
+        "token_selection", "lifecycle_identity", "identity_preflight", "post",
+    ]
+    expected = {
+        "operation": "manual_pr_comment", "surface": surface, "repository": REPO,
+        "pr": "7", "failure_category": None, "exit_status": 0,
+    }
+    assert [{key: event[key] for key in expected} for event in diagnostics] == [expected] * 4, (
+        "success diagnostics must be structured and contain only bounded context"
+    )
+    assert all(isinstance(event["elapsed_ms"], int) for event in diagnostics)
+    assert min(event["elapsed_ms"] for event in diagnostics) >= 0
+    diagnostic_text = json.dumps(diagnostics)
+    assert not any(token in diagnostic_text for token in TOKENS)
+    assert "comment-agent-" not in diagnostic_text
+    assert OWNER not in diagnostic_text
 
 
 @pytest.mark.parametrize("selected", range(3), ids=["first-account", "second-account", "third-account"])
@@ -188,36 +252,18 @@ def test_non_owner_pool_principal_posts_without_changing_lifecycle_identity(
 ) -> None:
     """All three authorized non-owner accounts work for both comment surfaces."""
     run = _run_post(
-        manual_comment_harness, selected=selected, inline=inline, inherited=inherited,
+        manual_comment_harness, _Scenario(selected=selected, inline=inline, inherited=inherited),
     )
     assert run.result.returncode == 0, run.result.stderr
     assert run.result.stdout == URL + "\n", "posting must return the comment URL"
     assert len(run.lifecycle) == 1, "look up the lifecycle account once"
     assert [call["method"] for call in run.scoped] == ["GET", "POST"], "verify selected identity then post once"
     assert all(call["principal"] == f"comment-agent-{selected}" for call in run.scoped), "check and post must use the same non-owner identity"
-    endpoint = "pulls/7/comments/456/replies" if inline else "issues/7/comments"
-    assert run.scoped[-1]["args"][5] == f"repos/{REPO}/{endpoint}", "use the correct comment endpoint"
+    surface = SURFACES[inline]
+    assert run.scoped[-1]["args"][5] == f"repos/{REPO}/{surface['endpoint']}", "use the correct comment endpoint"
     assert run.scoped[-1]["payload"] == {"body": BODY}, "preserve the complete literal Markdown body"
     assert run.choices == [{"count": 3, "index": selected}], "choose once, not by searching for the owner"
-    diagnostics = run.diagnostics()
-    assert [event["stage"] for event in diagnostics] == [
-        "token_selection", "lifecycle_identity", "identity_preflight", "post",
-    ]
-    assert all(
-        event["operation"] == "manual_pr_comment"
-        and event["surface"] == ("inline_reply" if inline else "issue_comment")
-        and event["repository"] == REPO
-        and event["pr"] == "7"
-        and event["failure_category"] is None
-        and event["exit_status"] == 0
-        and isinstance(event["elapsed_ms"], int)
-        and event["elapsed_ms"] >= 0
-        for event in diagnostics
-    ), "success diagnostics must be structured and contain only bounded context"
-    diagnostic_text = json.dumps(diagnostics)
-    assert not any(token in diagnostic_text for token in TOKENS)
-    assert "comment-agent-" not in diagnostic_text
-    assert OWNER not in diagnostic_text
+    _assert_success_diagnostics(run, surface["surface"])
 
 
 @pytest.mark.parametrize("login", [OWNER, OWNER.upper(), "", "bad login"], ids=["owner", "owner-case", "empty", "malformed"])
@@ -225,7 +271,7 @@ def test_unexpected_identity_blocks_before_posting(
     manual_comment_harness: _CommentHarness, login: str,
 ) -> None:
     """Owner or invalid identity results are configuration errors, not fallback triggers."""
-    run = _run_post(manual_comment_harness, login=login)
+    run = _run_post(manual_comment_harness, _Scenario(login=login))
     assert run.result.returncode != 0, "unexpected identity must stop the operation"
     assert [call["method"] for call in run.scoped] == ["GET"], "no POST after an invalid identity"
     assert len(run.choices) == 1, "do not search for another token after rejection"
@@ -249,7 +295,7 @@ def test_service_failure_never_changes_identity_or_retries(
     manual_comment_harness: _CommentHarness, stage: str, code: int,
 ) -> None:
     """Real authentication, permission and rate-limit failures remain visible."""
-    run = _run_post(manual_comment_harness, failure_stage=stage, failure_code=code)
+    run = _run_post(manual_comment_harness, _Scenario(failure_stage=stage, failure_code=code))
     assert run.result.returncode != 0, "service failure must propagate"
     expected = ["GET"] if stage == "GET" else ["GET", "POST"]
     assert [call["method"] for call in run.scoped] == expected, "never retry or fall back to normal authentication"
@@ -270,7 +316,7 @@ def test_unavailable_pool_does_not_use_normal_credentials(
     manual_comment_harness: _CommentHarness, pool_state: str,
 ) -> None:
     """The normally authenticated owner cannot substitute for unavailable pool data."""
-    run = _run_post(manual_comment_harness, pool_state=pool_state)
+    run = _run_post(manual_comment_harness, _Scenario(pool_state=pool_state))
     assert run.result.returncode != 0, "unavailable pool must fail"
     assert run.scoped == [] and run.lifecycle == [], "no GitHub request without a selected pool token"
     diagnostic = run.diagnostic("token_selection")
@@ -286,7 +332,7 @@ def test_unknown_lifecycle_account_blocks_before_pool_identity(
 ) -> None:
     """Without a known lifecycle account the pool token cannot be checked, so stop."""
     run = _run_post(
-        manual_comment_harness, lifecycle_failure=True, lifecycle_override=override,
+        manual_comment_harness, _Scenario(lifecycle_failure=True, lifecycle_override=override),
     )
     assert run.result.returncode != 0, "an unknown lifecycle account must fail closed"
     assert run.scoped == [], "no pool request before the lifecycle account is known"
@@ -301,8 +347,8 @@ def test_lifecycle_override_replaces_the_stored_login_lookup(
 ) -> None:
     """An explicit lifecycle login skips the lookup and still guards the pool token."""
     run = _run_post(
-        manual_comment_harness, login="override-owner",
-        lifecycle_failure=True, lifecycle_override="Override-Owner",
+        manual_comment_harness,
+        _Scenario(login="override-owner", lifecycle_failure=True, lifecycle_override="Override-Owner"),
     )
     assert run.result.returncode != 0, "a pool token matching the override must be rejected"
     assert run.lifecycle == [], "the override replaces the stored-login lookup"
