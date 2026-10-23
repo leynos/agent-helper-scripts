@@ -39,6 +39,9 @@ post = (len(args) == 10 and args[:5] ==
 if not identity and not post:
     raise SystemExit("unexpected operation; account switches and reviews forbidden")
 method = "GET" if identity else "POST"
+if config["stderr_noise"]:
+    # Mimic wrappers such as session shims that log to standard error.
+    print('[wrapper] {"stage":"execute"}', file=sys.stderr)
 event = {"method": method, "principal": principal, "args": args, "scoped": scoped,
          "both_overridden": scoped and os.environ.get("GITHUB_TOKEN") == token,
          "token_env_absent": "GH_TOKEN" not in os.environ and "GITHUB_TOKEN" not in os.environ,
@@ -69,10 +72,10 @@ if records:
 
 # Read the normal identity before and after the helper, proving it survives.
 POST_SCRIPT = '''
-before=$(gh api user --jq '.login')
+before=$(gh api user --jq '.login' 2>/dev/null)
 /bin/bash -x "$HELPER" "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
 result=$?
-after=$(gh api user --jq '.login')
+after=$(gh api user --jq '.login' 2>/dev/null)
 [[ "$before" == "$OWNER" && "$after" == "$OWNER" ]] || exit 90
 exit "$result"
 '''
@@ -124,6 +127,7 @@ class Scenario:
     inherited: bool = True
     lifecycle_failure: bool = False
     lifecycle_override: str | None = None
+    stderr_noise: bool = False
     body: str = BODY
     pr: int = 7
     comment_id: int = 456
@@ -146,6 +150,7 @@ class Scenario:
             "selected": self.selected, "login": self.login, "tokens": list(self.tokens),
             "failure_stage": self.failure_stage, "failure_code": self.failure_code,
             "owner": OWNER, "lifecycle_failure": self.lifecycle_failure,
+            "stderr_noise": self.stderr_noise,
         }
 
     def environment(self, harness: CommentHarness) -> dict[str, str]:
@@ -248,6 +253,9 @@ def assert_bounded_diagnostics(run: PostResult, scenario: Scenario) -> None:
     )
     assert "comment-agent-" not in diagnostic_text, "diagnostics must not name the pool account"
     assert OWNER not in diagnostic_text, "diagnostics must not name the lifecycle account"
+    assert "[wrapper]" not in run.result.stdout + run.result.stderr, (
+        "gh standard error must never be echoed or mixed into output"
+    )
 
 
 def assert_success_diagnostics(run: PostResult, scenario: Scenario) -> None:

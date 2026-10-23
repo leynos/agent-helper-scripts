@@ -1,10 +1,11 @@
 """Property-test the shipped PR comment helper's routing and redaction invariant.
 
 For generated pools, selections, identities, bodies, identifiers and service
-failures, the helper must select one token, read the lifecycle account without
-token variables, use only the selected token for the identity check and post,
-never retry or fall back, preserve the body exactly, and keep diagnostics free
-of credentials and account names.
+failures, with or without wrapper noise on standard error, the helper must
+select one token, read the lifecycle account without token variables, use only
+the selected token for the identity check and post, never retry or fall back,
+preserve the body exactly, and keep diagnostics free of credentials and account
+names.
 """
 
 from __future__ import annotations
@@ -63,7 +64,7 @@ def scenarios(draw: st.DrawFn) -> Scenario:
         selected=draw(st.integers(0, len(tokens) - 1)),
         inline=draw(st.booleans()), login=login,
         failure_stage=stage, failure_code=code, pool=pool, tokens=tokens,
-        inherited=draw(st.booleans()), body=draw(BODIES),
+        inherited=draw(st.booleans()), stderr_noise=draw(st.booleans()), body=draw(BODIES),
         pr=draw(st.integers(1, 10**6)), comment_id=draw(st.integers(1, 10**12)),
     )
 

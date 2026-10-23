@@ -52,6 +52,18 @@ def test_non_owner_pool_principal_posts_without_changing_lifecycle_identity(
     assert_success_diagnostics(run, scenario)
 
 
+@pytest.mark.parametrize("inline", [False, True], ids=["issue-comment", "inline-reply"])
+def test_gh_standard_error_noise_does_not_corrupt_logins_or_urls(
+    manual_comment_harness: CommentHarness, inline: bool,
+) -> None:
+    """Wrapper diagnostics on standard error leave the logins, checks, and URL intact."""
+    scenario = Scenario(inline=inline, stderr_noise=True)
+    run = run_post(manual_comment_harness, scenario)
+    assert run.result.returncode == 0, run.result.stderr
+    assert run.result.stdout == URL + "\n", "only the comment URL reaches standard output"
+    assert_success_diagnostics(run, scenario)
+
+
 def test_each_invocation_has_its_own_run_id(manual_comment_harness: CommentHarness) -> None:
     """Run IDs correlate one invocation's diagnostics without colliding across runs."""
     first = run_post(manual_comment_harness)

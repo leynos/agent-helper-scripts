@@ -106,6 +106,12 @@ valid_login() {
   [[ "$1" =~ ^[A-Za-z0-9-]+$ ]]
 }
 
+# Keep each gh call's standard error apart from its output: wrappers on PATH
+# may write diagnostics there, which must not corrupt a login or URL. The
+# private files are read only to classify failures and are never echoed.
+err_dir=$(mktemp -d)
+trap 'rm -rf -- "$err_dir"' EXIT
+
 selection_started_ms=$(date +%s%3N)
 if [[ ! -f "$pool" || ! -r "$pool" ]]; then
   log_diagnostic token_selection token_pool_unavailable 2 "$selection_started_ms" '' || true
@@ -145,7 +151,7 @@ fi
 stored_status=0
 stored_response=$(
   env -u GH_TOKEN -u GITHUB_TOKEN \
-    gh api --hostname github.com user --jq '.login' 2>&1
+    gh api --hostname github.com user --jq '.login' 2>"$err_dir/lifecycle"
 ) || stored_status=$?
 stored_login=
 if (( stored_status == 0 )) && valid_login "$stored_response"; then
@@ -162,8 +168,9 @@ lifecycle_login=${stored_login:-$override_login}
 if [[ -z "$lifecycle_login" ]]; then
   http_status=
   if (( stored_status != 0 )); then
-    http_status=$(http_status_from "$stored_response")
-    failure_category=$(failure_category_for "$stored_response" "$http_status")
+    stored_error=$(<"$err_dir/lifecycle")
+    http_status=$(http_status_from "$stored_error")
+    failure_category=$(failure_category_for "$stored_error" "$http_status")
     exit_code=$stored_status
   else
     failure_category=invalid_identity_response
@@ -181,7 +188,7 @@ log_diagnostic lifecycle_identity '' 0 "$lifecycle_started_ms" '' || true
 identity_started_ms=$(date +%s%3N)
 if login=$(
   GH_TOKEN="$token" GITHUB_TOKEN="$token" \
-    gh api --hostname github.com user --jq '.login' 2>&1
+    gh api --hostname github.com user --jq '.login' 2>"$err_dir/identity"
 ); then
   if valid_login "$login" && [[ "${login,,}" != "${lifecycle_login,,}" ]]; then
     log_diagnostic identity_preflight '' 0 "$identity_started_ms" '' || true
@@ -197,8 +204,9 @@ if login=$(
   fi
 else
   status=$?
-  http_status=$(http_status_from "$login")
-  failure_category=$(failure_category_for "$login" "$http_status")
+  identity_error=$(<"$err_dir/identity")
+  http_status=$(http_status_from "$identity_error")
+  failure_category=$(failure_category_for "$identity_error" "$http_status")
   log_diagnostic identity_preflight "$failure_category" "$status" \
     "$identity_started_ms" "$http_status" || true
   if [[ -z "$http_status" ]]; then http_status=unknown; fi
@@ -220,14 +228,15 @@ if post_result=$(
   printf '%s\n' "$payload" |
     GH_TOKEN="$token" GITHUB_TOKEN="$token" \
       gh api --hostname github.com --method POST "$endpoint" \
-        --input - --jq '.html_url' 2>&1
+        --input - --jq '.html_url' 2>"$err_dir/post"
 ); then
   log_diagnostic post '' 0 "$post_started_ms" '' || true
   printf '%s\n' "$post_result"
 else
   status=$?
-  http_status=$(http_status_from "$post_result")
-  failure_category=$(failure_category_for "$post_result" "$http_status")
+  post_error=$(<"$err_dir/post")
+  http_status=$(http_status_from "$post_error")
+  failure_category=$(failure_category_for "$post_error" "$http_status")
   log_diagnostic post "$failure_category" "$status" \
     "$post_started_ms" "$http_status" || true
   if [[ -z "$http_status" ]]; then http_status=unknown; fi
