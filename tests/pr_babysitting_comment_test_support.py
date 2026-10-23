@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -93,7 +94,19 @@ class CommentHarness:
 
 
 def make_harness(root: Path) -> CommentHarness:
-    """Provision the doubles and private paths under one empty directory."""
+    """Provision the doubles and private paths under one empty directory.
+
+    Parameters
+    ----------
+    root : Path
+        Empty directory used as the fixture root and private home.
+
+    Returns
+    -------
+    CommentHarness
+        Paths to the executable doubles, fixture configuration, body file and
+        token pool.
+    """
     bin_dir = root / "bin"
     bin_dir.mkdir()
     for name, source in (("gh", GH_DOUBLE), ("shuf", SHUF_DOUBLE)):
@@ -109,7 +122,18 @@ def make_harness(root: Path) -> CommentHarness:
 
 
 def pool_text(tokens: tuple[str, ...]) -> str:
-    """Render a pool file with a comment, a blank line, and one token per line."""
+    """Render a pool file with a comment, a blank line, and one token per line.
+
+    Parameters
+    ----------
+    tokens : tuple[str, ...]
+        Fixture token records, in pool order.
+
+    Returns
+    -------
+    str
+        Pool file contents in the format the helper parses.
+    """
     return "# fixture credentials only\n\n" + "\n".join(tokens) + "\n"
 
 
@@ -157,7 +181,8 @@ class Scenario:
         """Return a private environment, optionally inheriting owner tokens."""
         env = {
             "HOME": str(harness.root), "XDG_CONFIG_HOME": str(harness.root / "config"),
-            "PATH": f"{harness.bin_dir}:/usr/bin:/bin", "FIXTURE_ROOT": str(harness.root),
+            "PATH": f"{harness.bin_dir}:{os.environ.get('PATH', '')}",
+            "FIXTURE_ROOT": str(harness.root),
             "BODY_FILE": str(harness.body_file), "PR": str(self.pr),
             "ROOT_COMMENT_ID": str(self.comment_id) if self.inline else "",
             "GH_DEBUG": "api", "HELPER": str(HELPER), "REPO": REPO, "OWNER": OWNER,
@@ -217,7 +242,27 @@ def _split_helper_calls(
 
 
 def run_post(harness: CommentHarness, scenario: Scenario = Scenario()) -> PostResult:
-    """Configure one scenario and invoke the shipped helper under tracing."""
+    """Configure one scenario and invoke the shipped helper under tracing.
+
+    Parameters
+    ----------
+    harness : CommentHarness
+        Fixture harness whose doubles, pool and body file the run uses.
+    scenario : Scenario, optional
+        Fixture behaviour and environment for this invocation.
+
+    Returns
+    -------
+    PostResult
+        The helper's process result, its lifecycle and pool-token calls, and
+        the token selections the `shuf` double recorded.
+
+    Raises
+    ------
+    AssertionError
+        If tracing exposes a pool token, the normal identity changes, or a
+        helper call breaks the credential-scoping rules.
+    """
     for log in ("calls.jsonl", "selections.jsonl"):
         (harness.root / log).unlink(missing_ok=True)
     harness.config_file.write_text(json.dumps(scenario.fixture_config()))
@@ -237,7 +282,21 @@ def run_post(harness: CommentHarness, scenario: Scenario = Scenario()) -> PostRe
 
 
 def assert_bounded_diagnostics(run: PostResult, scenario: Scenario) -> None:
-    """Every diagnostic shares one run ID and omits credentials and account names."""
+    """Every diagnostic shares one run ID and omits credentials and account names.
+
+    Parameters
+    ----------
+    run : PostResult
+        Result whose standard-error diagnostics are checked.
+    scenario : Scenario
+        Scenario supplying the pool tokens that must remain private.
+
+    Raises
+    ------
+    AssertionError
+        If diagnostics are missing, disagree on the run ID, report invalid
+        timings, or contain tokens, account names or raw `gh` standard error.
+    """
     diagnostics = run.diagnostics()
     assert diagnostics, "the helper must emit at least one structured diagnostic"
     run_ids = {event["run_id"] for event in diagnostics}
@@ -259,7 +318,21 @@ def assert_bounded_diagnostics(run: PostResult, scenario: Scenario) -> None:
 
 
 def assert_success_diagnostics(run: PostResult, scenario: Scenario) -> None:
-    """Success diagnostics cover every stage with only bounded context."""
+    """Success diagnostics cover every stage with only bounded context.
+
+    Parameters
+    ----------
+    run : PostResult
+        Result of a successful post.
+    scenario : Scenario
+        Scenario used to derive the expected surface and PR number.
+
+    Raises
+    ------
+    AssertionError
+        If any stage is missing or out of order, carries a failure, or breaks
+        the bounded-diagnostic rules.
+    """
     diagnostics = run.diagnostics()
     assert [event["stage"] for event in diagnostics] == STAGES, (
         "a successful post must report every stage once, in order"

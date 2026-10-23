@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -71,6 +72,8 @@ def test_readiness_orders_assessments_before_formal_review() -> None:
         "Read its description",
         "queue one `comenq-coderabbit` request for each rate-limited candidate",
         "Assessments apply only to an ExecPlan implementation assignment",
+        "`Review completed`, or `Approve command performed` for an approved head",
+        "Repeat steps 4 and 5 for the new head, with the same completion condition",
     ):
         assert guard in normalized, f"missing readiness guard: {guard}"
     assert normalized.index("**Await formal review completion.**") < normalized.index(
@@ -139,7 +142,7 @@ else:
         ["/bin/bash", "-e", "-c", _observation_fence("since=$(")],
         cwd=tmp_path, env={
             "HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "config"),
-            "PATH": f"{tmp_path}:/usr/bin:/bin", "state_dir": str(tmp_path),
+            "PATH": f"{tmp_path}:{os.environ.get('PATH', '')}", "state_dir": str(tmp_path),
             "repo": "owner/repo", "pr": "7", "request_id": "100",
         }, text=True, capture_output=True, check=False, timeout=10,
     )
@@ -276,7 +279,7 @@ else:
         ["/bin/bash", "-e", "-c", _observation_fence("review-signal.json")],
         cwd=tmp_path, env={
             "HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "config"),
-            "PATH": f"{tmp_path}:/usr/bin:/bin", "state_dir": str(tmp_path),
+            "PATH": f"{tmp_path}:{os.environ.get('PATH', '')}", "state_dir": str(tmp_path),
             "repo": "owner/repo", "pr": "7", "head": HEAD,
         }, text=True, capture_output=True, check=False, timeout=10,
     )
