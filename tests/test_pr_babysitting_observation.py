@@ -76,6 +76,9 @@ def test_readiness_orders_assessments_before_formal_review() -> None:
     assert normalized.index("**Await formal review completion.**") < normalized.index(
         "**Repeat after every push.**"
     ), "rate-limit recovery must be re-entered after every push"
+    repeat = normalized.split("**Repeat after every push.**", 1)[1]
+    assert "return to step 1 for the new head" in repeat, "a repair push must re-run gates, CI, and CodeScene"
+    assert "The PR stays ready" in repeat, "the repair loop must not redraft the PR"
 
 
 def test_observation_contract_covers_response_races() -> None:

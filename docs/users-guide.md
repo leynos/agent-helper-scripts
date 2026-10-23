@@ -605,6 +605,47 @@ cooldown, a rate limit with a stated next review time, and an in-progress
 review are waits, not impasses. See
 [equilibrium and impasse](../skills/pr-babysitting/SKILL.md#equilibrium-and-impasse).
 
+The diagram below shows the path to those end states. Each repair push starts
+again from the candidate's gates, because the new head needs fresh gate,
+CodeScene, and review evidence.
+
+```mermaid
+flowchart TD
+    accTitle: PR babysitting path to equilibrium, merge, or impasse
+    accDescr {
+        PR babysitting starts by running the candidate's gates sequentially,
+        then clears every CodeScene issue, resolves applicable assessments,
+        and marks the PR ready with the lifecycle identity. It then observes
+        CodeRabbit's commit status and summary comment. If the current head
+        has not been reviewed or its findings are unresolved, the agent
+        repairs, validates, and pushes, and the new head returns to the
+        sequential gates. Once the current head is reviewed and its findings
+        are resolved, an authorized merge leads to a squash merge; otherwise
+        the agent reports equilibrium. The gate, CodeScene, assessment, and
+        review-observation stages can each end in a report of intractable
+        impasse when authority or build admission blocks progress.
+    }
+    A[Start PR babysitting] --> B[Run candidate gates sequentially]
+    B --> C[Clear every CodeScene issue]
+    C --> D[Resolve applicable assessments]
+    D --> E[Mark PR ready with lifecycle identity]
+    E --> F[Observe CodeRabbit status and summary comment]
+    F --> G{Current head reviewed and findings resolved?}
+    G -->|No| H[Repair, validate, and push]
+    H --> B
+    G -->|Yes| I{Merge authorized?}
+    I -->|Yes| J[Authorized squash merge]
+    I -->|No| K[Report equilibrium]
+    B --> L[Report intractable impasse when authority or admission blocks progress]
+    C --> L
+    D --> L
+    F --> L
+```
+
+*PR babysitting stages and end states. A repair push returns the new head to
+the sequential gates; the agent stops only at an authorized merge, equilibrium,
+or an intractable impasse.*
+
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle. An
 initial request to create a draft sets its publication state; later babysitting

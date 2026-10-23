@@ -469,12 +469,15 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    corresponding current-candidate review and findings, then continue with
    section 6 and the
    [observation procedure](references/awaiting-coderabbit.md#formal-review-after-readiness).
-6. **Repeat after every push.** Each push to a ready PR starts a new
-   incremental review, which can be rate-limited or paused again. After every
-   push, return to step 4 for the new head. Re-read the summary comment and
-   status, and queue one `comenq-coderabbit` request for each rate-limited
-   candidate. Keep at most one pending queue entry per PR, and do not treat a
-   rate limit on an earlier head as covering the new one.
+6. **Repeat after every push.** A repair push creates a new candidate, so
+   return to step 1 for the new head: run its gates sequentially, observe its
+   hosted CI, clear any CodeScene issue it introduces, and renew affected
+   assessments. The PR stays ready, so step 3 is a read-back, not a transition.
+   Each push to a ready PR also starts a new incremental review, which can be
+   rate-limited or paused again. Repeat steps 4 and 5 for the new head: re-read
+   the summary comment and status, and queue one `comenq-coderabbit` request
+   for each rate-limited candidate. Keep at most one pending queue entry per
+   PR, and do not treat a rate limit on an earlier head as covering the new one.
 
 The draft-skip notice describes automatic formal reviews, not the separate
 assessment conversation. It is neither an assessment failure nor evidence that
