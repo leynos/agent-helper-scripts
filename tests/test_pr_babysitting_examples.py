@@ -322,3 +322,14 @@ def test_candidate_boundary_has_a_verifiable_default_trust_policy() -> None:
         "falls under the isolation rule below",
     ):
         assert requirement in contract, f"candidate boundary must state: {requirement}"
+
+
+def test_merge_checklist_accepts_an_approval_that_covers_the_head() -> None:
+    """An approval command replaces the completed-review description; both must cover the head."""
+    merge = section(SKILL.read_text(), "10. End cosmetic review churn, then squash-merge safely")
+    for requirement in (
+        "show a completed review of the accepted head",
+        "the status shows `Approve command performed` and the corresponding review and summary comment cover the accepted head",
+        "Neither path may be rate-limited, paused, or skipped",
+    ):
+        assert requirement in merge, f"merge checklist must state: {requirement}"

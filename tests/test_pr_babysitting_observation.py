@@ -296,9 +296,11 @@ def test_review_signal_reads_rate_limit_from_status_and_summary(tmp_path: Path) 
     assert result.returncode == 0, result.stderr
     signal = _signal(tmp_path)
     assert signal["classification"] == "rate-limited", "read the description, not the success state"
-    assert signal["status"]["state"] == "success"
+    assert signal["status"]["state"] == "success", "the CodeRabbit status stays green while rate-limited"
     summary = signal["summary"]
-    assert summary["id"] == 60 and summary["rate_limited"] is True and summary["paused"] is False
+    assert summary["id"] == 60, "select CodeRabbit's summary comment, not an unrelated bot note"
+    assert summary["rate_limited"] is True, "the summary's rate-limit marker must be detected"
+    assert summary["paused"] is False, "a rate limit is not a pause"
     assert summary["wait_minutes"] == 53, "the stated wait must be kept as the ETA"
     assert summary["range_head"] == HEAD, "the notice's reviewed head must be compared with the candidate"
     assert len(calls) == 2, "observation must not post, enqueue, or retry"
@@ -326,8 +328,9 @@ def test_review_signal_classifies_status_descriptions(
     result, _ = _run_review_signal(tmp_path, _status(description, state), pages)
     assert result.returncode == 0, result.stderr
     signal = _signal(tmp_path)
-    assert signal["classification"] == expected
-    assert signal["summary"]["rate_limited"] is False and signal["summary"]["wait_minutes"] is None
+    assert signal["classification"] == expected, f"description {description!r} must classify as {expected}"
+    assert signal["summary"]["rate_limited"] is False, "a walkthrough-only summary is not rate-limited"
+    assert signal["summary"]["wait_minutes"] is None, "no wait is reported without a rate-limit notice"
     assert (signal["status"] is None) == (description is None), "an absent status must not be invented"
 
 
@@ -342,8 +345,9 @@ def test_review_signal_ignores_spoofed_summary_and_selects_first_bot_comment(tmp
     assert result.returncode == 0, result.stderr
     summary = _signal(tmp_path)["summary"]
     assert summary["id"] == 60, "select the first comment by verified bot identity"
-    assert summary["rate_limited"] is False and summary["paused"] is False
-    assert summary["range_head"] is None
+    assert summary["rate_limited"] is False, "a spoofed rate-limit marker from another author is ignored"
+    assert summary["paused"] is False, "a later copy's pause marker is ignored"
+    assert summary["range_head"] is None, "no reviewed range comes from a spoofed or later comment"
 
 
 def test_review_signal_flags_notice_for_an_earlier_head(tmp_path: Path) -> None:
@@ -353,7 +357,7 @@ def test_review_signal_flags_notice_for_an_earlier_head(tmp_path: Path) -> None:
     result, _ = _run_review_signal(tmp_path, _status("Review completed"), [[_comment(60, body)]])
     assert result.returncode == 0, result.stderr
     signal = _signal(tmp_path)
-    assert signal["summary"]["rate_limited"] is True
+    assert signal["summary"]["rate_limited"] is True, "the stale notice is still reported as a rate limit"
     assert signal["summary"]["range_head"] == EARLIER != HEAD, "the stale range must be visible to the supervisor"
     assert signal["classification"] == "completed", "the head-bound status decides the current state"
 

@@ -29,6 +29,47 @@ merge remains blocked until the applicable assessment clears. See the
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.
 
+## PR babysitting end states, review signals, and comment helper
+
+`pr-babysitting` now defines when an assignment ends, reads CodeRabbit and
+CodeScene from the signals they actually publish, and ships its comment helper
+as a script. Refresh the skills with `install-skills` to pick up the changes.
+
+- **End states.** Previously the skill ended at a merge or a blocked handoff,
+  and bounded waits often ended an assignment early. It now keeps working until
+  the PR reaches equilibrium, an authorized merge, or an intractable impasse,
+  unless the assignment sets an earlier stopping point or deadline. Extra
+  per-task instructions to "not end the turn" are no longer needed.
+- **CodeRabbit.** Previously the skill watched for a CodeRabbit check run. It
+  now reads the `CodeRabbit` commit status description and the summary issue
+  comment, because the status is `success` even when a review was rate-limited,
+  paused, or skipped. After every push it re-checks for a rate limit and queues
+  at most one `comenq-coderabbit` request per rate-limited head.
+- **CodeScene.** Previously only a failing quality gate triggered repair. Every
+  outstanding issue now counts, including advisory findings in a passing check,
+  `codescene-access[bot]` inline comments, and local `cs delta` warnings.
+- **Comment helper.** The posting function embedded in `references/comments.md`
+  is replaced by `skills/pr-babysitting/scripts/post-manual-comment.sh`. The
+  token-pool format at `~/.local/share/github-tokens` is unchanged. The helper
+  reads the lifecycle account from the stored `gh` login with `GH_TOKEN` and
+  `GITHUB_TOKEN` removed; set `PR_BABYSITTING_LIFECYCLE_LOGIN` only where that
+  account authenticates solely through an environment token. Callers that
+  parsed its diagnostics should expect the new `lifecycle_identity` stage and
+  `run_id` field.
+- **Lifecycle identity.** `gh pr ready` and merges now run with `GH_TOKEN` and
+  `GITHUB_TOKEN` removed, after confirming that the stored login is not a pool
+  account. A host whose only lifecycle credential is an environment token must
+  provide a stored `gh` login instead.
+- **Default trust.** Without a supplied policy, a candidate is trusted for host
+  validation only when an authenticated control shows who pushed every commit:
+  verified signatures, a push restriction, or the supervisor's own publication
+  record. Author and committer fields alone no longer suffice, so some
+  candidates that previously ran on the host now need the isolated worker.
+
+Host-wide agent instructions that require the lifecycle account for GitHub
+operations should name the comment pool as an explicit exception; see the
+[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
+
 ## Repository scratch sidecars
 
 The `scratch` skill standardizes repository-specific experiments, recovery

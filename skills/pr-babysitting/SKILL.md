@@ -680,10 +680,12 @@ Immediately before an authorized squash merge, refresh and verify:
    ignored.
 5. Findings, banners, pre-merge warnings, CodeScene issues, and required
    thread resolutions have evidence-backed dispositions. The `CodeRabbit`
-   status and summary comment show a completed review of the accepted head, not
-   a rate-limited, paused, or skipped one. Required review coverage and
-   approvals exist, with no unresolved required change request or in-flight
-   necessary review.
+   status and summary comment show a completed review of the accepted head, or
+   the status shows `Approve command performed` and the corresponding review
+   and summary comment cover the accepted head. Neither path may be
+   rate-limited, paused, or skipped. Required review coverage and approvals
+   exist, with no unresolved required change request or in-flight necessary
+   review.
 6. The latest round is reconciled, the approval request's outcome is known,
    and no new head, base, finding, or check result invalidates the assessment.
 7. Applicable ExecPlan completeness/correctness and proof-specific assessments

@@ -50,6 +50,11 @@ See the [migration guide](v0-2-0-migration-guide.md) when moving from the
 previous single-phase `rust-entrypoint` bootstrap to the system/home phase
 split.
 
+See the
+[v0.3.0 migration guide](v0-3-0-migration-guide.md#pr-babysitting-end-states-review-signals-and-comment-helper)
+for the `pr-babysitting` changes to end states, CodeRabbit and CodeScene
+signals, the shipped comment helper, and default trust.
+
 ### Post-turn quality stop hook removed
 
 This repository no longer provides the post-turn quality stop hook. It has
