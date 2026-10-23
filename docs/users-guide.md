@@ -83,6 +83,14 @@ which the agent loads only after selecting the skill.
 `make lint` validates every shipped manifest, so a malformed or non-conformant
 manifest cannot be installed.
 
+### TypeScript skills moved
+
+The `biome-typescript`, `fast-check`, `lemmascript` and `zod4-typescript`
+skills are now maintained in
+[`leynos/typescript-skill`](https://github.com/leynos/typescript-skill). Use
+that repository for installation instructions and updates. This repository's
+`install-skills` no longer supplies these four skills.
+
 ## Repository scratch sidecars
 
 Use [`scratch`](../skills/scratch/SKILL.md) to create, audit, migrate, or
