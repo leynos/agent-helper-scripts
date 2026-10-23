@@ -265,17 +265,31 @@ def test_diagnostic_output_contract_snapshot(
 ) -> None:
     """The helper's exit status, output, and diagnostics for each outcome stay stable.
 
-    The clock and run-ID source are replaced, so the snapshot needs no
-    placeholders; the semantic assertions below still check redaction.
+    Variable fields are replaced with placeholders before comparison: the
+    comment URL, run ID and elapsed time. The run ID and clock are also
+    injected, and the semantic assertions still check redaction.
     """
     scenario = replace(SNAPSHOT_SCENARIOS[name], deterministic=True)
     run = run_post(manual_comment_harness, scenario)
     assert_bounded_diagnostics(run, scenario)
-    assert {
+    observed = {
         "exit_status": run.result.returncode,
-        "stdout": run.result.stdout,
-        "diagnostics": run.diagnostics(),
-    } == snapshot
+        "stdout": run.result.stdout.replace(URL, "<comment-url>"),
+        "diagnostics": [
+            event | {"run_id": "<run-id>", "elapsed_ms": "<elapsed-ms>"} for event in run.diagnostics()
+        ],
+    }
+    assert observed == snapshot, f"diagnostic output contract changed for {name}"
+
+
+def test_injected_pool_path_replaces_the_home_location(manual_comment_harness: CommentHarness) -> None:
+    """The whole command reads the pool only through token_pool_path, never from HOME."""
+    scenario = Scenario(deterministic=True, pool_outside_home=True)
+    run = run_post(manual_comment_harness, scenario)
+    assert not manual_comment_harness.pool_file.exists(), "no pool exists at the ambient HOME location"
+    assert run.result.returncode == 0, run.result.stderr
+    assert [call["method"] for call in run.scoped] == ["GET", "POST"], "the injected pool supplies the token"
+    assert_success_diagnostics(run, scenario)
 
 
 @pytest.mark.parametrize(

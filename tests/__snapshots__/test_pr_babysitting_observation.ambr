@@ -5,15 +5,15 @@
     'status': dict({
       'description': 'Approve command performed: Review threads unchanged. Approval completed',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })
@@ -24,15 +24,15 @@
     'status': dict({
       'description': 'Review completed',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })
@@ -43,15 +43,15 @@
     'status': dict({
       'description': 'Review skipped: draft pull request',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })
@@ -62,15 +62,15 @@
     'status': dict({
       'description': 'Review in progress',
       'state': 'pending',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })
@@ -81,15 +81,15 @@
     'status': dict({
       'description': 'Review paused',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': True,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })
@@ -100,15 +100,15 @@
     'status': dict({
       'description': 'Review rate limited',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
-      'range_head': '4aa285e510910e01c0d9360632d9876d27d6b890',
+      'range_head': '<sha>',
       'rate_limited': True,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': 53,
     }),
   })
@@ -126,15 +126,15 @@
     'status': dict({
       'description': 'Something new from CodeRabbit',
       'state': 'success',
-      'updated_at': '2026-10-09T15:02:00Z',
+      'updated_at': '<timestamp>',
     }),
     'summary': dict({
-      'html_url': 'https://example.invalid/comment/60',
+      'html_url': '<url>',
       'id': 60,
       'paused': False,
       'range_head': None,
       'rate_limited': False,
-      'updated_at': '2026-10-09T15:01:00Z',
+      'updated_at': '<timestamp>',
       'wait_minutes': None,
     }),
   })

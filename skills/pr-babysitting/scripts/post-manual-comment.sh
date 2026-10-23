@@ -31,8 +31,9 @@
 # `publish_comment` is the only write. Units return a status, assign results
 # to a named variable, and report failures through `FAILURE_CATEGORY` and
 # `FAILURE_HTTP_STATUS`. The GitHub client is `gh` on `PATH`, the clock is
-# `now_ms`, and the run-ID source is `new_run_id`. Sourcing this file defines
-# the units without running `main`, so tests can replace any of them.
+# `now_ms`, the run-ID source is `new_run_id`, and the token-pool location is
+# `token_pool_path`; `main` reads no ambient path itself. Sourcing this file
+# defines the units without running `main`, so tests can replace any of them.
 
 now_ms() {
   date +%s%3N
@@ -40,6 +41,11 @@ now_ms() {
 
 new_run_id() {
   od -An -N8 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+# The only place the default token-pool location is derived.
+token_pool_path() {
+  printf '%s\n' "$HOME/.local/share/github-tokens"
 }
 
 valid_login() {
@@ -67,7 +73,7 @@ failure_category_for() {
     5[0-9][0-9]) printf '%s' 'server_error' ;;
     '')
       shopt -s nocasematch
-      if [[ "$response" =~ (dial\ tcp|no\ such\ host|could\ not\ resolve|connection\ (refused|reset)|i/o\ timeout|timed\ out|tls\ handshake|network\ is\ unreachable|unexpected\ eof) ]]; then
+      if [[ "$response" =~ (error\ connecting\ to|dial\ tcp|no\ such\ host|could\ not\ resolve|connection\ (refused|reset)|i/o\ timeout|timed\ out|tls\ handshake|network\ is\ unreachable|unexpected\ eof) ]]; then
         printf '%s' 'network_error'
       else
         printf '%s' 'github_api_failed'
@@ -243,8 +249,7 @@ main() {
   local pr=${2:?Supply PR number}
   local body_file=${3:?Supply a prepared Markdown body file}
   local root_comment_id=${4:-}
-  local pool="$HOME/.local/share/github-tokens"
-  local endpoint surface token lifecycle_login url started status
+  local pool endpoint surface token lifecycle_login url started status
 
   [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
     printf '%s\n' 'Invalid repository.' >&2; return 2;
@@ -265,6 +270,7 @@ main() {
     surface=inline_reply
   fi
 
+  pool=$(token_pool_path)
   DIAG_RUN_ID=$(new_run_id)
   DIAG_SURFACE=$surface DIAG_REPOSITORY=$repo DIAG_PR=$pr
   # Keep each gh call's standard error apart from its output: wrappers on PATH

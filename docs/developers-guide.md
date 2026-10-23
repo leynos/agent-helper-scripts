@@ -706,12 +706,12 @@ so it has no ADR.
 `main` validates the arguments, sets the diagnostic context, and runs four
 stages in order, each a narrow unit with explicit inputs:
 
-| Stage                | Unit                                       | GitHub access                  |
-| -------------------- | ------------------------------------------ | ------------------------------ |
-| `token_selection`    | `select_token POOL OUT_VAR`                | none                           |
-| `lifecycle_identity` | `resolve_lifecycle_login OVERRIDE ERR OUT` | identity query, tokens removed |
-| `identity_preflight` | `verify_pool_identity TOKEN LOGIN ERR`     | identity query, pool token     |
-| `post`               | `publish_comment TOKEN ENDPOINT BODY ERR`  | one `POST`, pool token         |
+| Stage                | Unit                                                          | GitHub access                  |
+| -------------------- | ------------------------------------------------------------- | ------------------------------ |
+| `token_selection`    | `select_token POOL OUT_VAR`                                   | none                           |
+| `lifecycle_identity` | `resolve_lifecycle_login OVERRIDE ERROR_FILE OUT_VAR`         | identity query, tokens removed |
+| `identity_preflight` | `verify_pool_identity TOKEN LIFECYCLE_LOGIN ERROR_FILE`       | identity query, pool token     |
+| `post`               | `publish_comment TOKEN ENDPOINT BODY_FILE ERROR_FILE OUT_VAR` | one `POST`, pool token         |
 
 `query_login` is the only identity query and `publish_comment` the only write.
 Units report failures through `FAILURE_CATEGORY` and `FAILURE_HTTP_STATUS`, and
@@ -723,7 +723,8 @@ never contain tokens, account names, bodies, or raw `gh` output.
 
 Sourcing the script defines the units without running `main`. Tests inject
 dependencies by replacing `gh` (on `PATH` or as a function), the clock
-`now_ms`, and the run-ID source `new_run_id`:
+`now_ms`, the run-ID source `new_run_id`, and the pool-location provider
+`token_pool_path`; `main` derives the pool path only through that provider:
 
 - `tests/test_pr_babysitting_comment_units.py` sources the helper and tests
   each unit in isolation, including failure classification.

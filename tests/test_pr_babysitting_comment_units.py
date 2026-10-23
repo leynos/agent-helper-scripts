@@ -61,7 +61,7 @@ def test_sourcing_defines_units_without_running_main(tmp_path: Path) -> None:
     """Sourcing must not post, read the pool, or require arguments."""
     result = _source_and_run(
         "for unit in select_token query_login resolve_lifecycle_login verify_pool_identity "
-        "publish_comment now_ms new_run_id main; do declare -F \"$unit\" >/dev/null || exit 3; done",
+        "publish_comment now_ms new_run_id token_pool_path main; do declare -F \"$unit\" >/dev/null || exit 3; done",
         tmp_path,
     )
     assert result.returncode == 0, result.stderr
@@ -147,6 +147,8 @@ def test_publish_comment_uses_the_injected_client_once(tmp_path: Path) -> None:
         ("dial tcp: lookup api.github.com: no such host", "network_error", ""),
         ("Post \"https://api.github.com\": unexpected EOF", "network_error", ""),
         ("net/http: TLS handshake timeout", "network_error", ""),
+        ("error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com",
+         "network_error", ""),
         ("HTTP 422: Validation Failed", "github_api_failed", "422"),
         ("something else entirely", "github_api_failed", ""),
     ],

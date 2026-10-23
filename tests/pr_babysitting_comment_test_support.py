@@ -83,6 +83,9 @@ if [[ -n "${DETERMINISTIC:-}" ]]; then
   /bin/bash -x -c 'source "$HELPER"
 now_ms() { printf "%s\\n" 1000; }
 new_run_id() { printf "%s\\n" 0123456789abcdef; }
+if [[ -n "${POOL_OVERRIDE:-}" ]]; then
+  token_pool_path() { printf "%s\\n" "$POOL_OVERRIDE"; }
+fi
 main "$@"' helper "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
 else
   /bin/bash -x "$HELPER" "$REPO" "$PR" "$BODY_FILE" ${ROOT_COMMENT_ID:+"$ROOT_COMMENT_ID"}
@@ -133,6 +136,22 @@ def make_harness(root: Path) -> CommentHarness:
     )
 
 
+def outside_pool_path(harness: CommentHarness) -> Path:
+    """Return a pool location outside the private home, for injection tests.
+
+    Parameters
+    ----------
+    harness : CommentHarness
+        Fixture harness whose root holds the alternative location.
+
+    Returns
+    -------
+    Path
+        Pool path that the helper can only find through `token_pool_path`.
+    """
+    return harness.root / "injected" / "github-tokens"
+
+
 def pool_text(tokens: tuple[str, ...]) -> str:
     """Render a pool file with a comment, a blank line, and one token per line.
 
@@ -165,6 +184,7 @@ class Scenario:
     lifecycle_override: str | None = None
     stderr_noise: bool = False
     deterministic: bool = False
+    pool_outside_home: bool = False
     body: str = BODY
     pr: int = 7
     comment_id: int = 456
@@ -206,6 +226,8 @@ class Scenario:
             env["PR_BABYSITTING_LIFECYCLE_LOGIN"] = self.lifecycle_override
         if self.deterministic:
             env["DETERMINISTIC"] = "1"
+        if self.pool_outside_home:
+            env["POOL_OVERRIDE"] = str(outside_pool_path(harness))
         return env
 
 
@@ -284,7 +306,9 @@ def run_post(harness: CommentHarness, scenario: Scenario = Scenario()) -> PostRe
     harness.body_file.write_text(scenario.body)
     harness.pool_file.unlink(missing_ok=True)
     if scenario.pool is not None:
-        harness.pool_file.write_text(scenario.pool)
+        target = outside_pool_path(harness) if scenario.pool_outside_home else harness.pool_file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(scenario.pool)
     result = subprocess.run(
         ["/bin/bash", "-c", POST_SCRIPT], cwd=harness.root, env=scenario.environment(harness),
         text=True, capture_output=True, check=False, timeout=20,

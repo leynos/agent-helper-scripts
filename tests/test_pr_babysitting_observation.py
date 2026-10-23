@@ -374,6 +374,31 @@ def test_review_signal_fails_closed_on_read_errors(tmp_path: Path, failure: str)
     assert len(calls) == (1 if failure == "status" else 2), "never retry or fall back"
 
 
+SIGNAL_PLACEHOLDERS = {"updated_at": "<timestamp>", "html_url": "<url>", "range_head": "<sha>"}
+
+
+def _normalize_signal(signal: dict[str, object]) -> dict[str, object]:
+    """Replace timestamps, URLs and commit hashes with stable placeholders.
+
+    Parameters
+    ----------
+    signal : dict[str, object]
+        Parsed `review-signal.json`.
+
+    Returns
+    -------
+    dict[str, object]
+        The same structure with each present variable field replaced, so the
+        snapshot pins shape and classification rather than fixture values.
+    """
+    def scrub(section: object) -> object:
+        if not isinstance(section, dict):
+            return section
+        return {key: SIGNAL_PLACEHOLDERS[key] if key in SIGNAL_PLACEHOLDERS and value is not None else value
+                for key, value in section.items()}
+    return {key: scrub(value) for key, value in signal.items()}
+
+
 SIGNAL_SNAPSHOTS = {
     "rate-limited": (_status("Review rate limited"), [[_comment(60, _rate_limited_summary())]]),
     "completed": (_status("Review completed"), [[_comment(60, f"{SUMMARY}\n\nWalkthrough only.")]]),
@@ -393,4 +418,4 @@ def test_review_signal_output_contract_snapshot(tmp_path: Path, name: str, snaps
     status, pages = SIGNAL_SNAPSHOTS[name]
     result, _ = _run_review_signal(tmp_path, status, pages)
     assert result.returncode == 0, result.stderr
-    assert _signal(tmp_path) == snapshot
+    assert _normalize_signal(_signal(tmp_path)) == snapshot, f"review-signal output contract changed for {name}"
