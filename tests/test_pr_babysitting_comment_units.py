@@ -9,6 +9,7 @@ tested separately and deterministically.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -37,9 +38,23 @@ def _source_and_run(script: str, tmp_path: Path, **env: str) -> subprocess.Compl
     prelude = 'set -uo pipefail\nsource "$HELPER"\n'
     return subprocess.run(
         ["/bin/bash", "-c", prelude + script], cwd=tmp_path,
-        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "HELPER": str(HELPER), **env},
+        env={"HOME": str(tmp_path), "PATH": os.environ.get("PATH", ""), "HELPER": str(HELPER), **env},
         text=True, capture_output=True, check=False, timeout=10,
     )
+
+
+def test_runner_keeps_caller_tool_directories_on_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tools such as jq installed outside /usr/bin stay reachable from the units."""
+    tools = tmp_path / "caller-tools"
+    tools.mkdir()
+    marker = tools / "caller-only-tool"
+    marker.write_text("#!/bin/sh\nprintf found\n")
+    marker.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tools}:{os.environ.get('PATH', '')}")
+    result = _source_and_run("caller-only-tool", tmp_path)
+    assert result.stdout == "found", "the runner must preserve the caller's PATH entries"
 
 
 def test_sourcing_defines_units_without_running_main(tmp_path: Path) -> None:

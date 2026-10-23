@@ -383,6 +383,7 @@ SIGNAL_SNAPSHOTS = {
                 [[_comment(60, f"{SUMMARY}\n")]]),
     "in-progress": (_status("Review in progress", "pending"), [[_comment(60, f"{SUMMARY}\n")]]),
     "status-absent": (_status(None), [[]]),
+    "unknown": (_status("Something new from CodeRabbit"), [[_comment(60, f"{SUMMARY}\n")]]),
 }
 
 

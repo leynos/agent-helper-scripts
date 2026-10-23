@@ -120,3 +120,22 @@
     'summary': None,
   })
 # ---
+# name: test_review_signal_output_contract_snapshot[unknown]
+  dict({
+    'classification': 'unknown',
+    'status': dict({
+      'description': 'Something new from CodeRabbit',
+      'state': 'success',
+      'updated_at': '2026-10-09T15:02:00Z',
+    }),
+    'summary': dict({
+      'html_url': 'https://example.invalid/comment/60',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '2026-10-09T15:01:00Z',
+      'wait_minutes': None,
+    }),
+  })
+# ---
