@@ -25,7 +25,7 @@ executing the skill.
 | [GNU Coreutils manual](https://www.gnu.org/software/coreutils/manual/coreutils.html)                                                                    | The random-selection command is `shuf`, not `shuff`.                                                                                |
 
 The token-pool path and random selection policy come from the user's request.
-The newline-separated raw-token format in the posting example is an explicit
+The newline-separated raw-token format in the posting helper is an explicit
 assumption, not a discovered fact about the installation. No real token pool
 was inspected to draft this skill.
 
@@ -65,6 +65,14 @@ executable checks actually run separately in the PR validation evidence.
 | A mandatory queue accepts the PR but has not landed it.                | Report queued, not merged.                                                                                                                  |
 | A manual posting response is ambiguous.                                | Read back comments before retrying; do not issue duplicate posts or rotate through tokens.                                                  |
 | An assigned watcher or queue is no longer running.                     | Hand off the blocker; do not claim unscheduled background supervision.                                                                      |
+| The lifecycle account authored every commit on its own repository.     | Trust only with verified signatures, a push restriction, or the supervisor's own publication record; otherwise isolate.                     |
+| A collaborator pushes a commit whose author field names the owner.     | Treat author metadata as unauthenticated; without a signature or push restriction covering it, validate only in isolation.                  |
+| Another agent's build holds every compile slot.                        | Start the gate anyway and let it queue; do not wait for the host to become idle or start a second build.                                    |
+| The `CodeRabbit` status is `success` with `Review rate limited`.       | Treat it as rate-limited, read the summary comment's wait and range, and reuse or queue one comenq request.                                 |
+| A repair push follows a completed review and is rate-limited again.    | Re-enter the rate-limit check for the new head; the earlier review does not cover it.                                                       |
+| A passing CodeScene check lists advisory findings.                     | Address each finding; a passing conclusion does not clear them.                                                                             |
+| Merge is not authorized and all review work is done.                   | Report equilibrium with evidence for each condition; do not end the turn earlier.                                                           |
+| CodeRabbit states the next review is available in 53 minutes.          | Wait and keep observing; a stated rate-limit wait is not an impasse.                                                                        |
 
 Before committing this skill to the repository, run the actual repository gates
 from `AGENTS.md`, including manifest validation, and review these semantic

@@ -210,7 +210,7 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
         ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False),
         ("assessment", "Both applicable assessments must clear for the\naccepted candidate before its draft-to-ready transition.", "", True),
         ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
-        ("skill", "An already-ready PR remains ready while missing or invalidated\n   assessments block merge.", "", True),
+        ("skill", "An already-ready PR remains ready\n   while missing or invalidated assessments block merge.", "", True),
         ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
     ],
     ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],
@@ -260,3 +260,76 @@ def test_rebase_gate_example_runs_four_checks_in_documented_order(tmp_path: Path
     )
     assert result.returncode == 0, result.stderr
     assert log.read_text().splitlines() == ["check-fmt", "test", "typecheck", "lint"], "rebase example must invoke all four gates sequentially in its documented order"
+
+
+def test_codescene_section_clears_every_outstanding_issue_before_suppression() -> None:
+    """CodeScene work covers advisory findings and keeps suppression as the final step."""
+    codescene = section(SKILL.read_text(), "4. Clear all outstanding CodeScene issues, validating locally and remotely")
+    for requirement in (
+        "Address every outstanding CodeScene issue, not only a failing quality gate",
+        "whatever the check's conclusion",
+        "`codescene-access[bot]`",
+        "A passing check with advisory findings still has outstanding issues",
+        "Suppression is an absolute last resort",
+    ):
+        assert requirement in codescene, f"CodeScene section must state: {requirement}"
+    steps = [codescene.index(f"{number}. ") for number in range(1, 5)]
+    assert steps == sorted(steps), "suppression must remain the last ordered step"
+    assert "suppress" in codescene[steps[3]:].lower(), "the final step is the only suppression step"
+    assert "suppress" not in codescene[steps[0]:steps[3]].lower(), "earlier steps must not suppress"
+
+
+def test_operating_contract_defines_equilibrium_impasse_and_default_budget() -> None:
+    """Agents must keep working until a defined end state, not a short implicit budget."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "keep working until the PR reaches equilibrium, an authorized merge, or an intractable impasse",
+        "Do not end the turn before then",
+        "each bounded wait or poll that expires is a checkpoint that starts the next one",
+        "A PR is at **equilibrium** when all of the following hold for its current base/head",
+        "An **intractable impasse** is a blocker the agent cannot clear within its authority",
+        "These are waits, not impasses",
+        "a CodeRabbit rate limit with a stated next review time",
+    ):
+        assert requirement in contract, f"operating contract must state: {requirement}"
+
+
+def test_operating_contract_sequences_gates_without_waiting_for_host_idle() -> None:
+    """Sequential gates queue on locks and admission instead of waiting for other work."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "Sequencing applies to this candidate only",
+        "Do not wait for unrelated repositories, worktrees, or the host to become idle",
+        "is queued, not hung, so do not kill, retry, or duplicate it",
+        "Wait outside the queue only for an explicitly identified exclusive resource",
+        "**Never return a PR to draft.**",
+    ):
+        assert requirement in contract, f"operating contract must state: {requirement}"
+
+
+def test_candidate_boundary_has_a_verifiable_default_trust_policy() -> None:
+    """Without supplied policy, trust follows recorded metadata, never candidate files."""
+    contract = section(SKILL.read_text(), "Operating contract")
+    for requirement in (
+        "When the assignment supplies no other policy, the default policy trusts a candidate",
+        "every commit author and committer are the lifecycle account",
+        "at least one authenticated control establishes who pushed every commit",
+        "every commit carries a GitHub-verified signature from the lifecycle account's key",
+        "restricts pushes to the head branch to the lifecycle account",
+        "created and pushed every commit in the current assignment",
+        "Git author and committer fields alone do not establish provenance",
+        "not from the candidate's files",
+        "falls under the isolation rule below",
+    ):
+        assert requirement in contract, f"candidate boundary must state: {requirement}"
+
+
+def test_merge_checklist_accepts_an_approval_that_covers_the_head() -> None:
+    """An approval command replaces the completed-review description; both must cover the head."""
+    merge = section(SKILL.read_text(), "10. End cosmetic review churn, then squash-merge safely")
+    for requirement in (
+        "show a completed review of the accepted head",
+        "the status shows `Approve command performed` and the corresponding review and summary comment cover the accepted head",
+        "Neither path may be rate-limited, paused, or skipped",
+    ):
+        assert requirement in merge, f"merge checklist must state: {requirement}"

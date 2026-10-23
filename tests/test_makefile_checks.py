@@ -35,6 +35,19 @@ def run_make(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def test_shell_syntax_check_covers_shipped_skill_scripts() -> None:
+    """The syntax gate discovers skill helpers, so removing the wildcard fails here."""
+    result = run_make("--dry-run", "shell-syntax-check")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    commands = [line for line in result.stdout.splitlines() if line.startswith("bash -n ")]
+    assert len(commands) == 1, f"expected one bash -n command, got: {result.stdout}"
+    checked = commands[0].split()[2:]
+    assert "skills/pr-babysitting/scripts/post-manual-comment.sh" in checked, (
+        "shell-syntax-check must include shipped skill helpers from skills/*/scripts/*.sh"
+    )
+
+
 def test_home_phase_boundary_ignores_comment_only_matches(tmp_path: Path) -> None:
     """Boundary check ignores forbidden words that appear only in comments."""
     script = tmp_path / "home-helper"

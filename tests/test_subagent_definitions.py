@@ -633,6 +633,9 @@ def test_scrutineer_retains_local_gates_and_optional_coderabbit_review() -> None
     for required in (
         "You never edit tracked files",
         "Run gates strictly sequentially",
+        "Sequencing applies to this candidate only",
+        "Do not wait for unrelated repositories, worktrees, or the host to become idle",
+        "Wait outside the queue only for an explicitly identified exclusive resource",
         "`coderabbit review --agent`",
         "requests a review *and* every applicable deterministic gate",
     ):

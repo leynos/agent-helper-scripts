@@ -1,0 +1,141 @@
+# serializer version: 1
+# name: test_review_signal_output_contract_snapshot[approve]
+  dict({
+    'classification': 'approve-performed',
+    'status': dict({
+      'description': 'Approve command performed: Review threads unchanged. Approval completed',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[completed]
+  dict({
+    'classification': 'completed',
+    'status': dict({
+      'description': 'Review completed',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[draft-skip]
+  dict({
+    'classification': 'skipped',
+    'status': dict({
+      'description': 'Review skipped: draft pull request',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[in-progress]
+  dict({
+    'classification': 'in-progress',
+    'status': dict({
+      'description': 'Review in progress',
+      'state': 'pending',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[paused]
+  dict({
+    'classification': 'paused',
+    'status': dict({
+      'description': 'Review paused',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': True,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[rate-limited]
+  dict({
+    'classification': 'rate-limited',
+    'status': dict({
+      'description': 'Review rate limited',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': '<sha>',
+      'rate_limited': True,
+      'updated_at': '<timestamp>',
+      'wait_minutes': 53,
+    }),
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[status-absent]
+  dict({
+    'classification': 'status-absent',
+    'status': None,
+    'summary': None,
+  })
+# ---
+# name: test_review_signal_output_contract_snapshot[unknown]
+  dict({
+    'classification': 'unknown',
+    'status': dict({
+      'description': 'Something new from CodeRabbit',
+      'state': 'success',
+      'updated_at': '<timestamp>',
+    }),
+    'summary': dict({
+      'html_url': '<url>',
+      'id': 60,
+      'paused': False,
+      'range_head': None,
+      'rate_limited': False,
+      'updated_at': '<timestamp>',
+      'wait_minutes': None,
+    }),
+  })
+# ---

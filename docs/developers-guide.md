@@ -638,7 +638,10 @@ recorded drift form now carries one canonical replacement for every consumer.
     procedures in the loaded skill body rather than extending the description.
 - `make shell-syntax-check`
   - Runs `bash -n` over every shell script listed in `SHELL_SCRIPTS` to catch
-    syntax errors without executing any code.
+    syntax errors without executing any code. `SHELL_SCRIPTS` includes the
+    root helpers, `bin/*.sh`, and shipped skill helpers matching
+    `skills/*/scripts/*.sh`, such as the `pr-babysitting` comment helper that
+    `tests/test_pr_babysitting_comment_identity.py` exercises.
 - `make check-home-phase-boundary`
   - Rejects APT, `sudo`, and linker mutation patterns in home-phase scripts.
   - Scans non-comment lines only.
@@ -674,6 +677,63 @@ and `tests/test_sdlc_milestone_review.py`. See the
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
 and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
 procedures.
+
+### PR babysitting comment helper
+
+[`skills/pr-babysitting/scripts/post-manual-comment.sh`](../skills/pr-babysitting/scripts/post-manual-comment.sh)
+posts one manual PR comment or inline reply through the comment-token pool:
+
+```bash
+post-manual-comment.sh OWNER/REPO PR_NUMBER BODY_FILE [ROOT_COMMENT_ID]
+```
+
+It needs Bash, `awk`, GNU `shuf`, GNU `date`, `od`, `jq`, and `gh`. The pool is
+the regular file `~/.local/share/github-tokens`, with one raw token per
+nonblank line and full-line `#` comments ignored; the helper never sources it.
+A successful run prints only the comment URL on standard output.
+
+The helper enforces an identity boundary between two kinds of account. The
+lifecycle account, read from the stored `gh` login with `GH_TOKEN` and
+`GITHUB_TOKEN` removed (or from `PR_BABYSITTING_LIFECYCLE_LOGIN` only when that
+lookup is unavailable), publishes branches, marks PRs ready, and merges. Pool
+accounts post comments. A selected pool token that authenticates as the
+lifecycle account is refused, and the helper never retries with another token
+or falls back to the lifecycle account. The normative contract is the skill's
+[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract);
+the boundary is skill policy rather than a repository architecture decision,
+so it has no ADR.
+
+`main` validates the arguments, sets the diagnostic context, and runs four
+stages in order, each a narrow unit with explicit inputs:
+
+| Stage                | Unit                                                          | GitHub access                  |
+| -------------------- | ------------------------------------------------------------- | ------------------------------ |
+| `token_selection`    | `select_token POOL OUT_VAR`                                   | none                           |
+| `lifecycle_identity` | `resolve_lifecycle_login OVERRIDE ERROR_FILE OUT_VAR`         | identity query, tokens removed |
+| `identity_preflight` | `verify_pool_identity TOKEN LIFECYCLE_LOGIN ERROR_FILE`       | identity query, pool token     |
+| `post`               | `publish_comment TOKEN ENDPOINT BODY_FILE ERROR_FILE OUT_VAR` | one `POST`, pool token         |
+
+`query_login` is the only identity query and `publish_comment` the only write.
+Units report failures through `FAILURE_CATEGORY` and `FAILURE_HTTP_STATUS`, and
+each `gh` call's standard error goes to a private file used only for
+classification. Each stage emits one JSON diagnostic on standard error with
+`operation`, `run_id`, `surface`, `repository`, `pr`, `stage`,
+`failure_category`, `exit_status`, `elapsed_ms`, and `http_status`; diagnostics
+never contain tokens, account names, bodies, or raw `gh` output.
+
+Sourcing the script defines the units without running `main`. Tests inject
+dependencies by replacing `gh` (on `PATH` or as a function), the clock
+`now_ms`, the run-ID source `new_run_id`, and the pool-location provider
+`token_pool_path`; `main` derives the pool path only through that provider:
+
+- `tests/test_pr_babysitting_comment_units.py` sources the helper and tests
+  each unit in isolation, including failure classification.
+- `tests/test_pr_babysitting_comment_identity.py` runs the whole helper
+  against offline `gh` and `shuf` doubles from
+  `tests/pr_babysitting_comment_test_support.py`, and snapshots the diagnostics
+  for each outcome with a fixed clock and run ID.
+- `tests/test_pr_babysitting_comment_identity_properties.py` property-tests
+  routing, retry, body-preservation, and redaction invariants with Hypothesis.
 
 ## Subagent manifest
 
@@ -756,6 +816,14 @@ independent scopes:
 
 A monitoring-only assignment starts neither of the other two scopes and records
 them as `not-requested` rather than passed or silently skipped.
+
+Gates run strictly sequentially within the candidate, but sequencing does not
+mean waiting for the host to become idle. The scrutineer starts each gate once
+and lets Cargo's package-cache lock and any compiler-admission queue serialize
+the work. It does not wait for unrelated repositories or worktrees, does not
+kill, retry, or duplicate a queued build, and waits outside the queue only for
+an explicitly identified exclusive resource. Unhealthy admission is reported
+with its status output.
 
 All monitoring is foreground-only: polls, waits and watchers must finish in the
 active turn. Do not start detached work or rely on a background result. Before

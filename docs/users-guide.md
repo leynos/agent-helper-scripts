@@ -50,6 +50,11 @@ See the [migration guide](v0-2-0-migration-guide.md) when moving from the
 previous single-phase `rust-entrypoint` bootstrap to the system/home phase
 split.
 
+See the
+[v0.3.0 migration guide](v0-3-0-migration-guide.md#pr-babysitting-end-states-review-signals-and-comment-helper)
+for the `pr-babysitting` changes to end states, CodeRabbit and CodeScene
+signals, the shipped comment helper, and default trust.
+
 ### Post-turn quality stop hook removed
 
 This repository no longer provides the post-turn quality stop hook. It has
@@ -561,11 +566,12 @@ recovery belong after the verified ready transition. See
 
 ## PR babysitting
 
-Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to supervise an
-existing pull request from publication through CI, review findings, and an
-authorized squash merge or a precise blocked handoff. It coordinates the
-specialist skills; use `comenq-coderabbit` directly when the task is only to
-queue or recover a CodeRabbit review.
+Use [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) to shepherd an
+existing pull request from publication through CI, CodeScene issues, the ready
+transition, and CodeRabbit review findings to equilibrium, an authorized squash
+merge, or a precise blocked handoff. It coordinates the specialist skills; use
+`comenq-coderabbit` directly when the task is only to queue or recover a
+CodeRabbit review.
 
 ### Install and invoke
 
@@ -591,6 +597,60 @@ review findings, and squash-merge when the skill's merge gates hold.
 Manage necessary prerequisite fixes in separate PRs underneath this PR.
 ```
 
+Without an explicit stopping point or deadline, the agent keeps working until
+the PR reaches equilibrium, an authorized merge, or an intractable impasse, and
+does not end its turn before then. Equilibrium means the PR is ready, current
+CI is green, no CodeScene issue is outstanding, CodeRabbit has completed a
+review of the current head with no rate limit or pause pending, every finding
+has a disposition and an answered reply, pre-merge rows and applicable
+assessments are clear, and the approval request's outcome is known. An
+intractable impasse is a blocker outside the agent's authority, such as a scope
+decision, missing credentials, or a required human approval. Queued CI, a queue
+cooldown, a rate limit with a stated next review time, and an in-progress
+review are waits, not impasses. See
+[equilibrium and impasse](../skills/pr-babysitting/SKILL.md#equilibrium-and-impasse).
+
+The diagram below shows the path to those end states. Each repair push starts
+again from the candidate's gates, because the new head needs fresh gate,
+CodeScene, and review evidence.
+
+```mermaid
+flowchart TD
+    accTitle: PR babysitting path to equilibrium, merge, or impasse
+    accDescr {
+        PR babysitting starts by running the candidate's gates sequentially,
+        then clears every CodeScene issue, resolves applicable assessments,
+        and marks the PR ready with the lifecycle identity. It then observes
+        CodeRabbit's commit status and summary comment. If the current head
+        has not been reviewed or its findings are unresolved, the agent
+        repairs, validates, and pushes, and the new head returns to the
+        sequential gates. Once the current head is reviewed and its findings
+        are resolved, an authorized merge leads to a squash merge; otherwise
+        the agent reports equilibrium. The gate, CodeScene, assessment, and
+        review-observation stages can each end in a report of intractable
+        impasse when authority or build admission blocks progress.
+    }
+    A[Start PR babysitting] --> B[Run candidate gates sequentially]
+    B --> C[Clear every CodeScene issue]
+    C --> D[Resolve applicable assessments]
+    D --> E[Mark PR ready with lifecycle identity]
+    E --> F[Observe CodeRabbit status and summary comment]
+    F --> G{Current head reviewed and findings resolved?}
+    G -->|No| H[Repair, validate, and push]
+    H --> B
+    G -->|Yes| I{Merge authorized?}
+    I -->|Yes| J[Authorized squash merge]
+    I -->|No| K[Report equilibrium]
+    B --> L[Report intractable impasse when authority or admission blocks progress]
+    C --> L
+    D --> L
+    F --> L
+```
+
+*PR babysitting stages and end states. A repair push returns the new head to
+the sequential gates; the agent stops only at an authorized merge, equilibrium,
+or an intractable impasse.*
+
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle. An
 initial request to create a draft sets its publication state; later babysitting
@@ -600,16 +660,26 @@ sets an earlier stopping point. No-merge does not prohibit readiness.
 ### Runtime prerequisites
 
 The agent host must provide a scrutineer for CI observation and sequential
-local validation, repository access, Git, an authenticated GitHub CLI, and the
-relevant companion skills: `comenq-coderabbit`, `github-stacks`, `rebase`,
-`sem`, `weave-git-merge` where Weave is enabled, `codescene-cli`, and
+local validation (sequential within the candidate; gates start without waiting
+for unrelated builds and queue on Cargo locks and compiler admission),
+repository access, Git, an authenticated GitHub CLI, and the relevant companion
+skills: `comenq-coderabbit`, `github-stacks`, `rebase`, `sem`,
+`weave-git-merge` where Weave is enabled, `codescene-cli`, and
 `codescene-health-rules`. CodeScene operations require its configured CLI;
 stack operations require the repository's supported stack tooling. Missing
 tools or permissions require a blocked handoff, not an invented pass or a
 replacement posting identity.
 
 Before running candidate code, the supervisor records an author-trust decision
-for the exact base/head using independently obtained policy. Unknown or
+for the exact base/head using independently obtained policy. Without other
+policy in the assignment, it trusts a candidate whose PR author and every
+commit author and committer are the lifecycle account, on a branch in a
+repository that account owns or the assignment names, and only when an
+authenticated control shows who pushed every commit: GitHub-verified signatures
+from the lifecycle account, a protection rule restricting pushes to that
+account, or the supervisor's own record of creating and pushing every commit in
+the current assignment. Author and committer fields alone can be set by anyone
+with push access, so they never establish trust on their own. Unknown or
 less-privileged authors require an isolated validation worker with no outbound
 access, host home or CLI credentials, tokens, SSH agent, inherited secrets,
 shared writable caches, host mounts, or service sockets. Tools and dependencies
@@ -621,32 +691,42 @@ the skill's
 for the full contract.
 
 Every manual comment or inline reply uses an authorized token selected with GNU
-`shuf` from `~/.local/share/github-tokens`. The
-[posting example](../skills/pr-babysitting/references/comments.md) assumes a
-regular file with one raw token per nonblank line, not a directory or shell
-configuration. Keep tokens private and use the installation's documented reader
-for other formats. The skill does not install this pool.
+`shuf` from `~/.local/share/github-tokens`, posted through the shipped helper
+[`scripts/post-manual-comment.sh`](../skills/pr-babysitting/scripts/post-manual-comment.sh).
+The helper expects a regular file with one raw token per nonblank line, not a
+directory or shell configuration. Keep tokens private and use the
+installation's documented reader for other formats. The skill does not install
+this pool.
 
 The owner-provisioned pool deliberately contains authorized accounts other than
-`leynos`; keeping routine CodeRabbit conversations off the lifecycle account is
-its purpose. A non-`leynos` login is expected, not a reason to stop or ask for
-permission again. The agent verifies the selected token's identity and
-permission to post, not whether it matches the repository owner or normal CLI
-account. An unexpected `leynos` result is a pool configuration problem. Manual
-comments never fall back to the normal CLI account or a connector. The
+the lifecycle account. CodeRabbit rate-limits conversations per commenting
+account, so routing routine questions and replies through the pool keeps the
+lifecycle account's allowance for reviews. A different login is expected, not a
+reason to stop or ask for permission again. The helper verifies the selected
+token's identity and refuses a token that authenticates as the lifecycle
+account, which it reads from the stored `gh` login with `GH_TOKEN` and
+`GITHUB_TOKEN` removed. `PR_BABYSITTING_LIFECYCLE_LOGIN` is used only when that
+lookup is unavailable; if both exist and disagree, the helper refuses to post.
+Manual comments never fall back to the normal CLI account or a connector. The
 executable path `/usr/bin/gh` does not select an account.
 
 Git publication, readiness transitions, and merges keep the normal authorized
 lifecycle identity; formal reviews keep the managed queue's dispatcher. Comment
-tokens remain command-scoped and do not change either identity. Actual
-authentication, permission, or rate-limit failures remain blockers: never
-rotate accounts after a service restriction to circumvent it. See the
-[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
-The documented posting helper writes bounded JSON diagnostics to standard
-error for token selection, identity checks, and posting, with the operation,
-comment surface, repository/PR, failure category, exit status, elapsed time,
-and recognized HTTP status. It omits tokens, account names, comment bodies, and
-raw GitHub error text.
+tokens remain command-scoped and do not change either identity. Lifecycle
+commands run with `GH_TOKEN` and `GITHUB_TOKEN` removed, after confirming that
+the stored login is not a pool account, so a stale or leftover token cannot
+shadow it. Actual authentication, permission, or rate-limit failures remain
+blockers: never rotate accounts after a service restriction to circumvent it.
+See the
+[manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract)
+and the
+[lifecycle identity contract](../skills/pr-babysitting/SKILL.md#lifecycle-identity-contract).
+The posting helper writes bounded JSON diagnostics to standard error for token
+selection, the lifecycle-account lookup, identity checks, and posting, with the
+operation, a per-invocation `run_id` for correlation, comment surface,
+repository/PR, failure category, exit status, elapsed time, and recognized HTTP
+status. It omits tokens, account names, comment bodies, and raw GitHub error
+text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do
@@ -685,10 +765,16 @@ then be reconciled before merge.
 The readiness sequence is explicit: green CI and clear CodeScene findings, then
 substantive CodeRabbit correctness/completeness and applicable proof assessment
 replies, then a verified ready transition. Only afterwards does the agent
-inspect formal review progress and rate limiting. If the current review is
-rate-limited, it reuses or queues one managed request; otherwise it awaits the
-automatic review. An active GitHub review check means wait, not dispatch
-another review. A ready-only assignment stops before that dispatch stage.
+inspect formal review progress and rate limiting. CodeRabbit reports progress
+through a `CodeRabbit` commit status whose state is `success` even when nothing
+was reviewed, so the agent reads its description (`Review completed`,
+`Review rate limited`, `Review paused`, or `Review skipped: ...`) together with
+the rate-limit notice edited into CodeRabbit's summary comment. If the current
+review is rate-limited, it reuses or queues one managed request; otherwise it
+awaits the automatic review. An in-progress review means wait, not dispatch
+another review. Each later push starts a new incremental review, so the agent
+repeats this check for every new head. A ready-only assignment stops before
+that dispatch stage.
 
 ```mermaid
 flowchart TD
@@ -704,12 +790,13 @@ flowchart TD
     Q -->|Clear or not applicable| E[Mark ready and verify]
     E --> F{Current formal review rate-limited?}
     F -->|Yes and no active review| U[Reuse or queue one comenq request]
-    F -->|No or newer review active| V[Await current GitHub review check]
+    F -->|No or newer review active| V[Await CodeRabbit status and summary]
     U --> V
     V --> G[Read completed review and all findings]
     G --> H{Valid in-scope finding?}
     H -->|Yes| I[Repair, validate, and push]
-    I --> J[Reply after remote head verification]
+    I --> R[Recheck review status for the new head]
+    R --> J[Reply after remote head verification]
     H -->|No| J
     J --> K[Await replies and reconcile pre-merge rows]
     K --> L{Merge authorized and all gates hold?}
@@ -721,7 +808,7 @@ flowchart TD
 Figure: assessment conversations precede readiness; formal reviews follow it.
 The observer reads actual replies, including edits, rather than treating a
 posted question as an assessment or a queue receipt as a completed review.
-Current review checks prevent duplicate dispatch. Repairs require renewed
+Current review status prevents duplicate dispatch. Repairs require renewed
 candidate evidence and are pushed before replies. Merge requires explicit
 authorization and all gates; integration remains a separate observation.
 
@@ -745,9 +832,13 @@ The supervisor keeps a candidate-bound record of CI, review coverage, findings,
 pushed repairs, and replies. A scrutineer observes CI; non-obvious failures
 receive the skill's systemic-investigation prompt. Audit remediation and
 necessary large out-of-scope changes go in independently managed prerequisite
-PRs below the original PR, which then targets the prerequisite branch.
-CodeScene failures require local and hosted validation; suppression remains an
-absolute last resort.
+PRs below the original PR, which then targets the prerequisite branch. Every
+outstanding CodeScene issue is addressed, not only a failing quality gate:
+advisory findings in a passing check, inline comments from
+`codescene-access[bot]`, and local `cs delta` warnings all count. Each needs
+local and hosted validation. Suppression remains an absolute last resort,
+reached only after refactoring, restructuring, and false-positive verification
+have failed, and is justified on the PR.
 
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes
