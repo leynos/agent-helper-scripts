@@ -97,11 +97,12 @@ agent_tools_subagents:
       claude:
         enabled: true
         scope: user
-        model: sonnet
+        model: haiku
         tools:
           - Read
           - Grep
           - Glob
+          - "mcp__codegraph__*"
         extra_frontmatter:
           mcpServers:
             - codegraph
@@ -276,6 +277,10 @@ agent_tools_subagents:
           - Edit
           - Write
           - Task
+          - "mcp__context_pack__*"
+          - "mcp__firecrawl__*"
+          - "mcp__deepwiki__*"
+          - "mcp__codegraph__*"
         extra_frontmatter:
           effort: medium
           color: orange
@@ -399,7 +404,7 @@ agent_tools_subagents:
       claude:
         enabled: true
         scope: user
-        model: sonnet
+        model: haiku
         tools:
           - Bash
           - Read
@@ -407,6 +412,8 @@ agent_tools_subagents:
           - Glob
           - Edit
           - Write
+          - "mcp__context_pack__*"
+          - "mcp__codegraph__*"
         extra_frontmatter:
           effort: medium
           color: blue
@@ -468,13 +475,14 @@ agent_tools_subagents:
       claude:
         enabled: true
         scope: user
-        model: sonnet
+        model: haiku
         tools:
           - Read
           - Edit
           - Write
           - Grep
           - Glob
+          - "mcp__codegraph__*"
         extra_frontmatter:
           mcpServers:
             - codegraph
@@ -603,6 +611,8 @@ agent_tools_subagents:
           - Glob
           - Edit
           - Write
+          - "mcp__context_pack__*"
+          - "mcp__codegraph__*"
         extra_frontmatter:
           color: violet
           mcpServers:
@@ -1333,12 +1343,14 @@ agent_tools_subagents:
       claude:
         enabled: true
         scope: user
-        model: sonnet
+        model: haiku
         tools:
           - Bash
           - Read
           - Grep
           - Glob
+          - "mcp__context_pack__*"
+          - "mcp__codegraph__*"
         extra_frontmatter:
           color: green
           mcpServers:
@@ -1561,6 +1573,10 @@ agent_tools_subagents:
           - Edit
           - Write
           - Task
+          - "mcp__context_pack__*"
+          - "mcp__firecrawl__*"
+          - "mcp__deepwiki__*"
+          - "mcp__codegraph__*"
         extra_frontmatter:
           effort: high
           color: purple
