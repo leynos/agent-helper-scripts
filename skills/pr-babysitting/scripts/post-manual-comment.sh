@@ -12,13 +12,15 @@
 #
 # The selected token must authenticate as an account other than the normal
 # lifecycle account. The helper reads the lifecycle login from the stored `gh`
-# authentication with `GH_TOKEN` and `GITHUB_TOKEN` removed, or from
-# `PR_BABYSITTING_LIFECYCLE_LOGIN` when the lifecycle account is only
-# available through an environment token. It fails closed when neither is
-# available.
+# authentication with `GH_TOKEN` and `GITHUB_TOKEN` removed. It uses
+# `PR_BABYSITTING_LIFECYCLE_LOGIN` only when that lookup is unavailable, for
+# example when the lifecycle account authenticates only through an environment
+# token. When both logins exist and differ, or neither is available, it fails
+# closed.
 #
 # Bounded JSON diagnostics go to standard error, without credentials, comment
-# bodies, account names, or raw GitHub error text. A successful run prints the
+# bodies, account names, or raw GitHub error text. Every diagnostic from one
+# invocation carries the same random `run_id` for correlation. A successful run prints the
 # comment URL; it is not proof that a bot received, resolved, or approved
 # anything.
 
@@ -42,6 +44,7 @@ pool="$HOME/.local/share/github-tokens"
 [[ -f "$body_file" && -r "$body_file" && -s "$body_file" ]] || {
   printf '%s\n' 'Comment body missing, empty, or unreadable.' >&2; exit 2;
 }
+run_id=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
 surface=issue_comment
 endpoint="repos/$repo/issues/$pr/comments"
 if [[ -n "$root_comment_id" ]]; then
@@ -58,6 +61,7 @@ log_diagnostic() {
   elapsed_ms=$(( $(date +%s%3N) - started_at_ms ))
   jq -cn \
     --arg operation 'manual_pr_comment' \
+    --arg run_id "$run_id" \
     --arg surface "$surface" \
     --arg repository "$repo" \
     --arg pr "$pr" \
@@ -66,7 +70,7 @@ log_diagnostic() {
     --arg http_status "$http_status" \
     --argjson exit_status "$exit_status" \
     --argjson elapsed_ms "$elapsed_ms" \
-    '{operation: $operation, surface: $surface, repository: $repository,
+    '{operation: $operation, run_id: $run_id, surface: $surface, repository: $repository,
       pr: $pr, stage: $stage,
       failure_category: (if $failure_category == "" then null else $failure_category end),
       exit_status: $exit_status, elapsed_ms: $elapsed_ms,
@@ -128,20 +132,48 @@ fi
 log_diagnostic token_selection '' 0 "$selection_started_ms" '' || true
 
 # Establish the lifecycle account from stored authentication, never from an
-# ambient token or the selected pool credential.
+# ambient token or the selected pool credential. The override is only a
+# fallback for an unavailable lookup and must agree with it when both exist.
 lifecycle_started_ms=$(date +%s%3N)
-lifecycle_login=${PR_BABYSITTING_LIFECYCLE_LOGIN:-}
-if [[ -z "$lifecycle_login" ]]; then
-  lifecycle_login=$(
-    env -u GH_TOKEN -u GITHUB_TOKEN \
-      gh api --hostname github.com user --jq '.login' 2>/dev/null
-  ) || lifecycle_login=
-fi
-if ! valid_login "$lifecycle_login"; then
-  log_diagnostic lifecycle_identity lifecycle_identity_unavailable 2 \
+override_login=${PR_BABYSITTING_LIFECYCLE_LOGIN:-}
+if [[ -n "$override_login" ]] && ! valid_login "$override_login"; then
+  log_diagnostic lifecycle_identity invalid_lifecycle_override 2 \
     "$lifecycle_started_ms" '' || true
-  printf '%s\n' 'Lifecycle account unavailable; cannot verify the pool token.' >&2
+  printf '%s\n' 'PR_BABYSITTING_LIFECYCLE_LOGIN is not a valid login.' >&2
   exit 2
+fi
+stored_status=0
+stored_response=$(
+  env -u GH_TOKEN -u GITHUB_TOKEN \
+    gh api --hostname github.com user --jq '.login' 2>&1
+) || stored_status=$?
+stored_login=
+if (( stored_status == 0 )) && valid_login "$stored_response"; then
+  stored_login=$stored_response
+fi
+if [[ -n "$stored_login" && -n "$override_login" \
+      && "${stored_login,,}" != "${override_login,,}" ]]; then
+  log_diagnostic lifecycle_identity lifecycle_identity_mismatch 2 \
+    "$lifecycle_started_ms" '' || true
+  printf '%s\n' 'Stored login and PR_BABYSITTING_LIFECYCLE_LOGIN disagree.' >&2
+  exit 2
+fi
+lifecycle_login=${stored_login:-$override_login}
+if [[ -z "$lifecycle_login" ]]; then
+  http_status=
+  if (( stored_status != 0 )); then
+    http_status=$(http_status_from "$stored_response")
+    failure_category=$(failure_category_for "$stored_response" "$http_status")
+    exit_code=$stored_status
+  else
+    failure_category=invalid_identity_response
+    exit_code=2
+  fi
+  log_diagnostic lifecycle_identity "$failure_category" "$exit_code" \
+    "$lifecycle_started_ms" "$http_status" || true
+  printf 'Lifecycle account unavailable: category=%s http_status=%s exit_status=%s.\n' \
+    "$failure_category" "${http_status:-unknown}" "$exit_code" >&2
+  exit "$exit_code"
 fi
 log_diagnostic lifecycle_identity '' 0 "$lifecycle_started_ms" '' || true
 

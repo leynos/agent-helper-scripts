@@ -700,8 +700,9 @@ lifecycle account's allowance for reviews. A different login is expected, not a
 reason to stop or ask for permission again. The helper verifies the selected
 token's identity and refuses a token that authenticates as the lifecycle
 account, which it reads from the stored `gh` login with `GH_TOKEN` and
-`GITHUB_TOKEN` removed, or from `PR_BABYSITTING_LIFECYCLE_LOGIN`. Manual
-comments never fall back to the normal CLI account or a connector. The
+`GITHUB_TOKEN` removed. `PR_BABYSITTING_LIFECYCLE_LOGIN` is used only when that
+lookup is unavailable; if both exist and disagree, the helper refuses to post.
+Manual comments never fall back to the normal CLI account or a connector. The
 executable path `/usr/bin/gh` does not select an account.
 
 Git publication, readiness transitions, and merges keep the normal authorized
@@ -717,9 +718,10 @@ and the
 [lifecycle identity contract](../skills/pr-babysitting/SKILL.md#lifecycle-identity-contract).
 The posting helper writes bounded JSON diagnostics to standard error for token
 selection, the lifecycle-account lookup, identity checks, and posting, with the
-operation, comment surface, repository/PR, failure category, exit status,
-elapsed time, and recognized HTTP status. It omits tokens, account names,
-comment bodies, and raw GitHub error text.
+operation, a per-invocation `run_id` for correlation, comment surface,
+repository/PR, failure category, exit status, elapsed time, and recognized HTTP
+status. It omits tokens, account names, comment bodies, and raw GitHub error
+text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do

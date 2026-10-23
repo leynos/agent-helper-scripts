@@ -94,8 +94,12 @@ For each run, the helper:
 
 1. selects one pool token with `shuf`;
 2. reads the lifecycle account from the stored `gh` login with `GH_TOKEN` and
-   `GITHUB_TOKEN` removed, or from `PR_BABYSITTING_LIFECYCLE_LOGIN` when the
-   lifecycle account authenticates only through an environment token;
+   `GITHUB_TOKEN` removed. It uses `PR_BABYSITTING_LIFECYCLE_LOGIN` only when
+   that lookup is unavailable, for example when the lifecycle account
+   authenticates only through an environment token. When both logins exist and
+   differ case-insensitively, it fails closed with
+   `lifecycle_identity_mismatch`; a malformed override fails with
+   `invalid_lifecycle_override`;
 3. verifies the selected token's login, rejecting one that matches the
    lifecycle account case-insensitively; and
 4. posts once with that token scoped to the command, printing the comment URL.
@@ -105,10 +109,15 @@ identity cannot be established, and it never retries with another token or the
 normal account. It checks only the selected pool token, never every pool entry
 looking for the lifecycle account. Standard error receives bounded JSON
 diagnostics for the `token_selection`, `lifecycle_identity`,
-`identity_preflight`, and `post` stages, with the operation, comment surface,
-repository/PR, failure category, exit status, elapsed time, and recognized HTTP
-status. Diagnostics omit credentials, comment bodies, account names, and raw
-GitHub error text.
+`identity_preflight`, and `post` stages, with the operation, a random
+per-invocation `run_id` shared by every stage, comment surface, repository/PR,
+failure category, exit status, elapsed time, and recognized HTTP status. A
+failed lifecycle lookup keeps its exit status and is classified as
+`authentication_failed`, `permission_denied`, `rate_limited`, or
+`github_api_failed`, like the later stages. Diagnostics omit credentials,
+comment bodies, account names, and raw GitHub error text. They are the helper's
+complete telemetry: there is no separate metrics sink, and the per-stage
+`elapsed_ms` values already give each external call's latency.
 
 The credential is scoped to the helper's process; never log the selected
 record, enable HTTP debug output, put it in an argument/header string, or write
