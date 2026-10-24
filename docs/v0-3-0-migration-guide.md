@@ -84,6 +84,24 @@ merge remains blocked until the applicable assessment clears. See the
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.
 
+## Claude subagent models and MCP access
+
+The managed Claude definitions now match the VM's model and effort settings:
+Wyvern, Scribe, Scrutineer, and Artisan use Haiku; Journeyman and Alchemist use
+Sonnet; Natural Philosopher uses Opus with high effort. Every Claude tool
+allow-list includes a wildcard pattern for each MCP server declared by that
+agent. CodeGraph remains available to every managed subagent, while Firecrawl
+and DeepWiki are available to Journeyman and Natural Philosopher for their
+research work. The Natural Philosopher grant is recorded in
+[ADR 0002](adrs/adr-0002-subagent-manifest-and-loader.md).
+
+To apply these definitions to an existing installation, update the managed
+helper checkout and re-run the downstream `agent_tools` Ansible role so it
+renders the provider-native files from the updated manifest. Running
+`install-skills` alone does not update agent definitions: it copies skills, not
+those files. MCP servers and credentials continue to come from the parent agent
+client; the new allow-list patterns do not configure servers or credentials.
+
 ## PR babysitting end states, review signals, and comment helper
 
 `pr-babysitting` now defines when an assignment ends, reads CodeRabbit and
