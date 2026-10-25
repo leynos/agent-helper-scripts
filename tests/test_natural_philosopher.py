@@ -86,7 +86,9 @@ def test_natural_philosopher_claude_contract() -> None:
         "the Claude contract no longer pins the high effort tier"
     )
     assert set(cast("list[str]", claude["tools"])) == {
-        "Read", "Grep", "Glob", "Edit", "Write", "Task"
+        "Read", "Grep", "Glob", "Edit", "Write", "Task",
+        "mcp__context_pack__*", "mcp__firecrawl__*",
+        "mcp__deepwiki__*", "mcp__codegraph__*",
     }, "the Claude tool grant drifted from document work plus bounded delegation"
     assert set(cast("list[str]", extra["mcpServers"])) == {
         "context_pack", "firecrawl", "deepwiki", "codegraph"

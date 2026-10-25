@@ -56,6 +56,27 @@ and goose may expose additional parent MCPs beyond the minimum contract, so the
 docs and tests must describe the inheritance boundary explicitly instead of
 implying a narrower allow-list than the renderer actually enforces.
 
+### Addendum: Natural Philosopher research tools
+
+**Date:** 2026-10-24
+
+This addendum extends the 2026-09-02 Claude access boundary for the
+`natural-philosopher` role. Its evidence-led design remit in
+[ADR 0004](adr-0004-natural-philosopher-for-evidence-led-step-design.md)
+includes finding and comparing source material before proposing hypotheses,
+evidence criteria, and delivery steps. CodeGraph supports repository research;
+Firecrawl and DeepWiki support research across external documentation. The
+Claude provider block may therefore include the Firecrawl and DeepWiki servers
+and their matching `mcp__firecrawl__*` and `mcp__deepwiki__*` patterns
+alongside the role's existing access, as it does for `journeyman`.
+
+This role-specific extension qualifies the earlier statement that Firecrawl and
+DeepWiki are available only to `journeyman`: those tools are now available to
+both roles, while other managed subagents retain their existing access. This
+addendum does not grant Firecrawl or DeepWiki to other roles. The parent client
+must still provision each server and its credentials; these allow-list entries
+do not provide credentials or expand the role's design-only authority.
+
 ## Consequences
 
 **Positives:**

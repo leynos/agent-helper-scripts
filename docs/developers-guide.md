@@ -756,6 +756,11 @@ inherit the parent session's extensions. The resulting contract keeps Claude
 access explicit while allowing Codex and goose to inherit any other parent MCPs
 that are already configured.
 
+Claude `tools` lists must include exactly one `mcp__<server>__*` pattern for
+each declared `mcpServers` entry. Keep these lists synchronized: naming a
+server alone does not include its tools in an explicit tool allow-list. The
+definition tests pin both built-in tool grants and MCP tool patterns.
+
 ### Test helper: `tests/subagent_manifest.py`
 
 `tests/subagent_manifest.py` loads the manifest with `yaml.safe_load` and

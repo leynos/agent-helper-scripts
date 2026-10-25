@@ -1305,6 +1305,11 @@ contracts are pinned by `tests/test_subagent_definitions.py` and
 For Codex, `journeyman` and `alchemist` use `gpt-6.1-sol` with medium reasoning;
 `natural-philosopher` uses the same model with high reasoning.
 
+For Claude Code, `wyvern`, `scribe`, `scrutineer`, and `artisan` use `haiku`;
+`journeyman` and `alchemist` use `sonnet`; `natural-philosopher` uses `opus`.
+Both `journeyman` and `artisan` set medium effort, while `natural-philosopher`
+sets high effort. These settings match the VM's `~/.claude/agents/` definitions.
+
 `natural-philosopher` designs evidence-led steps for one selected GIST idea and
 its parent goal. Supply the relevant sources, existing IDs, constraints, owned
 document paths, inquiry budget, and experiment permissions. It reads
@@ -1417,12 +1422,16 @@ escalate incomplete packets or work outside the packet's scope.
 
 Managed subagents receive the MCP servers provisioned by the parent agent
 client. Every subagent's Claude allow-list includes CodeGraph; the `journeyman`
-and `natural-philosopher` allow-lists also include Firecrawl and DeepWiki.
-Codex subagent entries deliberately omit `mcp_servers`, so Codex inherits the
-complete credentialed parent registry. Goose recipes omit `extensions`, so
-goose inherits the parent's configured extensions. As a result, Codex and goose
-may expose other parent MCPs to every role, while Claude access stays limited
-to the listed allow-lists. Tool access never expands the assignment's authority.
+and `natural-philosopher` allow-lists also include Firecrawl and DeepWiki. Each
+Claude `tools` list also includes an `mcp__<server>__*` pattern for every
+server in its `mcpServers` list, matching the tool-use include patterns on
+`rohga.df12.net`. These patterns admit the listed servers' tools alongside the
+role's built-in tools. Codex subagent entries deliberately omit `mcp_servers`,
+so Codex inherits the complete credentialed parent registry. Goose recipes omit
+`extensions`, so goose inherits the parent's configured extensions. As a
+result, Codex and goose may expose other parent MCPs to every role, while
+Claude access stays limited to the listed allow-lists. Tool access never
+expands the assignment's authority.
 
 ## OpenTofu helper settings
 

@@ -21,12 +21,13 @@ from subagent_manifest import (
 # enabled/model contract is asserted once, parametrized over these cases; the
 # per-subagent tool grants are pinned by the dedicated tests below.
 CLAUDE_SUBAGENT_MODELS = (
-    ("wyvern", "sonnet", None),
-    ("scribe", "sonnet", None),
+    ("wyvern", "haiku", None),
+    ("scribe", "haiku", None),
     ("alchemist", "sonnet", None),
-    ("scrutineer", "sonnet", None),
+    ("scrutineer", "haiku", None),
     ("journeyman", "sonnet", "medium"),
-    ("artisan", "sonnet", "medium"),
+    ("artisan", "haiku", "medium"),
+    ("natural-philosopher", "opus", "high"),
 )
 SUBAGENT_NAMES = tuple(
     cast("str", entry["name"]) for entry in load_subagent_entries()
@@ -91,20 +92,22 @@ def test_scribe_claude_subagent_tools_are_exact() -> None:
     claude = load_provider("scribe", "claude")
 
     tools = cast("list[str]", claude["tools"])
-    assert set(tools) == {"Read", "Edit", "Write", "Grep", "Glob"}, (
+    assert set(tools) == {
+        "Read", "Edit", "Write", "Grep", "Glob", "mcp__codegraph__*"
+    }, (
         "Scribe's Claude tools must be exactly Read, Edit, Write, Grep, Glob "
-        "so it can edit and navigate documentation but gains no other grants"
+        "plus CodeGraph tools for documentation navigation"
     )
 
 
 def test_wyvern_claude_subagent_is_read_only() -> None:
-    """Wyvern's Claude tooling must remain read-only to mirror the Codex sandbox."""
+    """Wyvern gets read-only built-in tools and its declared MCP tools."""
     claude = load_provider("wyvern", "claude")
 
     tools = cast("list[str]", claude["tools"])
-    assert {"Read", "Grep", "Glob"} == set(tools), (
-        "Wyvern's Claude tools must stay read-only (Read, Grep, Glob) to "
-        "match the Codex read-only sandbox"
+    assert {"Read", "Grep", "Glob", "mcp__codegraph__*"} == set(tools), (
+        "Wyvern must have exactly Read, Grep, Glob "
+        "plus CodeGraph tools for reconnaissance"
     )
 
 
@@ -139,10 +142,12 @@ def test_alchemist_claude_subagent_tools_are_exact() -> None:
     claude = load_provider("alchemist", "claude")
 
     tools = cast("list[str]", claude["tools"])
-    assert set(tools) == {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}, (
+    assert set(tools) == {
+        "Bash", "Read", "Grep", "Glob", "Edit", "Write",
+        "mcp__context_pack__*", "mcp__codegraph__*",
+    }, (
         "Alchemist's Claude tools must be exactly Bash, Read, Grep, Glob, "
-        "Edit, Write so it can instrument and run experiments but gains no "
-        "other grants"
+        "Edit, Write plus context-pack and CodeGraph tools"
     )
 
 
@@ -171,9 +176,12 @@ def test_scrutineer_claude_subagent_is_read_only() -> None:
     claude = load_provider("scrutineer", "claude")
 
     tools = cast("list[str]", claude["tools"])
-    assert {"Bash", "Read", "Grep", "Glob"} == set(tools), (
-        "Scrutineer's Claude tools must be exactly Bash, Read, Grep, Glob so "
-        "the subagent can run and inspect gates but never edit tracked files"
+    assert {
+        "Bash", "Read", "Grep", "Glob",
+        "mcp__context_pack__*", "mcp__codegraph__*",
+    } == set(tools), (
+        "Scrutineer must have exactly Bash, Read, Grep, Glob plus "
+        "context-pack and CodeGraph tools"
     )
 
 
@@ -208,9 +216,12 @@ def test_delivery_subagent_claude_tools_are_bounded() -> None:
     editing_tools = {"Bash", "Read", "Grep", "Glob", "Edit", "Write"}
 
     assert set(cast("list[str]", journeyman["tools"])) == editing_tools | {
-        "Task"
+        "Task", "mcp__context_pack__*", "mcp__firecrawl__*",
+        "mcp__deepwiki__*", "mcp__codegraph__*",
     }, "Journeyman must have editing tools plus Task for bounded delegation"
-    assert set(cast("list[str]", artisan["tools"])) == editing_tools, (
+    assert set(cast("list[str]", artisan["tools"])) == editing_tools | {
+        "mcp__context_pack__*", "mcp__codegraph__*",
+    }, (
         "Artisan must have editing tools without Task or another delegation grant"
     )
 
@@ -245,6 +256,9 @@ def test_claude_subagent_mcp_access_is_exact() -> None:
             "codegraph",
         },
         "artisan": {"context_pack", "codegraph"},
+        "natural-philosopher": {
+            "context_pack", "firecrawl", "deepwiki", "codegraph",
+        },
     }
 
     for name, expected_servers in expected.items():
@@ -253,6 +267,14 @@ def test_claude_subagent_mcp_access_is_exact() -> None:
         actual_servers = cast("list[str]", extra["mcpServers"])
         assert set(actual_servers) == expected_servers, (
             f"{name} must expose exactly its intended Claude MCP allow-list"
+        )
+        tools = cast("list[str]", claude["tools"])
+        patterns = [tool for tool in tools if tool.startswith("mcp__")]
+        assert set(patterns) == {
+            f"mcp__{server}__*" for server in expected_servers
+        }, f"{name} must include exactly its declared MCP servers' tools"
+        assert len(patterns) == len(expected_servers), (
+            f"{name} must not duplicate MCP tool patterns"
         )
 
 
