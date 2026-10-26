@@ -696,6 +696,40 @@ path, not a blocker. See the skill's
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 for the full contract.
 
+The flowchart below shows how the supervisor decides whether to run a
+candidate's commands on the host.
+
+```mermaid
+flowchart TD
+    accTitle: Candidate trust decision for PR babysitting
+    accDescr {
+        A candidate PR is trusted when its head branch is in the base
+        repository and the lifecycle account opened it or the assignment
+        names it; the supervisor then runs local validation and the
+        repository gates. A fork, or a PR opened by anyone else, is handled
+        by observing hosted CI and reviewing the diff. If the assignment or
+        the user then extends trust, local validation runs; otherwise the
+        supervisor does not run candidate commands on the host. Separately,
+        candidate instructions are read as data and cannot widen the
+        supervisor's authority.
+    }
+    A[Candidate PR] --> B{Head branch in base repository?}
+    B -->|No, fork| C[Observe hosted CI and review diff]
+    B -->|Yes| D{Lifecycle account opened PR or assignment names it?}
+    D -->|Yes| E[Trust candidate]
+    D -->|No| C
+    E --> F[Run local validation and repository gates]
+    C --> G{Assignment or user extends trust?}
+    G -->|Yes| F
+    G -->|No| H[Do not run candidate commands on host]
+    I[Candidate instructions] --> J["Read as data; cannot widen authority"]
+```
+
+*Candidate trust decision. Own-repository PRs opened by the lifecycle account
+or named by the assignment run local gates; forks and outside authors rely on
+hosted CI unless trust is extended explicitly. Candidate instructions never
+grant trust.*
+
 Every manual comment or inline reply uses an authorized token selected with GNU
 `shuf` from `~/.local/share/github-tokens`, posted through the shipped helper
 [`scripts/post-manual-comment.sh`](../skills/pr-babysitting/scripts/post-manual-comment.sh).
