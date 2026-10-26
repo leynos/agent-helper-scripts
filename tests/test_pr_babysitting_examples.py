@@ -445,21 +445,24 @@ EDGE = re.compile(rf"^\s*{NODE}\s*-->(?:\|([^|]*)\|)?\s*{NODE}\s*$")
 FENCE_AND_CAPTION = re.compile(r"^```mermaid\n(.*?)^```\n(?:\n(\*[^*]*\*)\n)?", re.M | re.S)
 
 
+def _edge_labels(groups: tuple[str | None, ...]) -> dict[str, str]:
+    """Return the node labels declared inline on one parsed edge."""
+    declared = ((groups[0], groups[1:4]), (groups[5], groups[6:9]))
+    return {
+        str(node): text
+        for node, texts in declared
+        if (text := next((t for t in texts if t is not None), None)) is not None
+    }
+
+
 def parse_flowchart(block: str, caption: str = "") -> Flowchart:
     """Parse one Mermaid flowchart block and its italic caption."""
     labels: dict[str, str] = {}
     edges: set[tuple[str, str, str]] = set()
-    for line in block.splitlines():
-        found = EDGE.match(line)
-        if not found:
-            continue
+    for found in filter(None, map(EDGE.match, block.splitlines())):
         groups = found.groups()
-        src, dst = groups[0], groups[5]
-        for node, texts in ((src, groups[1:4]), (dst, groups[6:9])):
-            text = next((t for t in texts if t is not None), None)
-            if text is not None:
-                labels[node] = text
-        edges.add((src, groups[4] or "", dst))
+        labels.update(_edge_labels(groups))
+        edges.add((str(groups[0]), groups[4] or "", str(groups[5])))
     described = re.search(r"accDescr \{\n(.*?)\n\s*\}", block, re.S)
     description = " ".join(described.group(1).split()) if described else ""
     return Flowchart(labels, frozenset(edges), description, " ".join(caption.strip("*").split()))
