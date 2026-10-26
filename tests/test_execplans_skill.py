@@ -11,6 +11,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_PATH = REPO_ROOT / "skills" / "execplans" / "SKILL.md"
 TEMPLATE_PATH = SKILL_PATH.parent / "references" / "execplan-template.md"
+USER_GUIDE_PATH = REPO_ROOT / "docs" / "users-guide.md"
 MANDATORY_SECTIONS_HEADING = "## Mandatory living sections (always present)"
 VERIFICATION_PLAN = "Verification plan"
 VERIFICATION_PLAN_REQUIREMENT = (
@@ -77,6 +78,50 @@ REQUIRED_TEMPLATE_CONCEPTS = {
         "contract-level boundary."
     ),
 }
+SIZE_ACCOUNTING_REQUIREMENTS = (
+    (
+        "skill",
+        "ExecPlan files are excluded from size limits",
+        "Exclude ExecPlan files themselves from source lines of code (SLoC) "
+        "and change size constraints or tolerances",
+    ),
+    (
+        "skill",
+        "added or updated plans remain excluded",
+        "including when an ExecPlan is added or updated in the same change",
+    ),
+    (
+        "skill",
+        "code and other documentation count toward line limits",
+        "code and other documentation changes",
+    ),
+    (
+        "skill",
+        "the worked size-limit example",
+        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+    ),
+    (
+        "skill",
+        "plans record the exclusion beside their limits",
+        "Record this exclusion wherever the plan defines a size constraint",
+    ),
+    (
+        "template",
+        "the tolerance excludes the plan from both counts",
+        "non-ExecPlan files or `<M>` net lines of code and other documentation, "
+        "stop and escalate. Exclude this ExecPlan file from both counts",
+    ),
+    (
+        "user guide",
+        "the guide explains the exclusion",
+        "Size limits and change-size tolerances exclude ExecPlan files themselves",
+    ),
+    (
+        "user guide",
+        "the guide carries the worked size-limit example",
+        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+    ),
+)
 
 
 def _read(path: Path) -> str:
@@ -150,6 +195,21 @@ def _validate_verification_planning_contract(skill: str, template: str) -> None:
     _assert_concepts(template, REQUIRED_TEMPLATE_CONCEPTS, "template")
 
 
+def _validate_size_accounting_contract(
+    skill: str, template: str, user_guide: str
+) -> None:
+    """Keep size accounting exclusions consistent across ExecPlan guidance."""
+    documents = {
+        "skill": _normalize(skill),
+        "template": _normalize(template),
+        "user guide": _normalize(user_guide),
+    }
+    for document_name, concept, required_text in SIZE_ACCOUNTING_REQUIREMENTS:
+        assert required_text in documents[document_name], (
+            f"the {document_name} must retain {concept}: `{required_text}`"
+        )
+
+
 def _remove_obligation_field(template: str, field: str) -> str:
     """Return an in-memory template mutation with one required field removed."""
     pattern = rf"^- {re.escape(field)}:.*\n(?:  .*\n)*"
@@ -214,3 +274,40 @@ def test_contract_rejects_missing_negative_control_requirement() -> None:
         ),
     ):
         _validate_verification_planning_contract(_read(SKILL_PATH), template)
+
+
+def test_execplan_size_accounting_contract() -> None:
+    """The skill, template, and guide agree on ExecPlan size accounting."""
+    _validate_size_accounting_contract(
+        _read(SKILL_PATH), _read(TEMPLATE_PATH), _read(USER_GUIDE_PATH)
+    )
+
+
+@pytest.mark.parametrize(
+    ("document_name", "concept", "required_text"),
+    SIZE_ACCOUNTING_REQUIREMENTS,
+    ids=[requirement[1] for requirement in SIZE_ACCOUNTING_REQUIREMENTS],
+)
+def test_size_accounting_contract_rejects_missing_requirement(
+    document_name: str, concept: str, required_text: str
+) -> None:
+    """Removing any size-accounting requirement must fail its contract."""
+    documents = {
+        "skill": _normalize(_read(SKILL_PATH)),
+        "template": _normalize(_read(TEMPLATE_PATH)),
+        "user guide": _normalize(_read(USER_GUIDE_PATH)),
+    }
+    document = documents[document_name]
+    mutated_document = document.replace(required_text, "", 1)
+    assert mutated_document != document, (
+        f"the {document_name} fixture must contain {concept}"
+    )
+    documents[document_name] = mutated_document
+
+    with pytest.raises(
+        AssertionError,
+        match=re.escape(f"the {document_name} must retain {concept}"),
+    ):
+        _validate_size_accounting_contract(
+            documents["skill"], documents["template"], documents["user guide"]
+        )
