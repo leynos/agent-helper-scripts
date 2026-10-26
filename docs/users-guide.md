@@ -626,33 +626,38 @@ review are waits, not impasses. See
 [equilibrium and impasse](../skills/pr-babysitting/SKILL.md#equilibrium-and-impasse).
 
 The diagram below shows the path to those end states. Each repair push starts
-again from the candidate's gates, because the new head needs fresh gate,
-CodeScene, and review evidence.
+again from the trust decision and the candidate's gates, because the new head
+needs fresh trust, gate, CodeScene, and review evidence.
 
 ```mermaid
 flowchart TD
     accTitle: PR babysitting path to equilibrium, merge, or impasse
     accDescr {
-        PR babysitting starts by running the candidate's gates sequentially,
-        then clears every CodeScene issue, resolves applicable assessments,
+        PR babysitting starts with the candidate trust decision. A trusted
+        candidate has its gates run sequentially on the host; an untrusted
+        one is checked by observing hosted CI and reviewing the diff. The
+        agent then clears every CodeScene issue, resolves applicable assessments,
         and marks the PR ready with the lifecycle identity. It then observes
         CodeRabbit's commit status and summary comment. If the current head
         has not been reviewed or its findings are unresolved, the agent
         repairs, validates, and pushes, and the new head returns to the
-        sequential gates. Once the current head is reviewed and its findings
+        trust decision. Once the current head is reviewed and its findings
         are resolved, an authorized merge leads to a squash merge; otherwise
         the agent reports equilibrium. The gate, CodeScene, assessment, and
         review-observation stages can each end in a report of intractable
         impasse when authority or build admission blocks progress.
     }
-    A[Start PR babysitting] --> B[Run candidate gates sequentially]
+    A[Start PR babysitting] --> T{Candidate trusted?}
+    T -->|Yes| B[Run candidate gates sequentially]
+    T -->|No| N[Observe hosted CI and review diff]
     B --> C[Clear every CodeScene issue]
+    N --> C
     C --> D[Resolve applicable assessments]
     D --> E[Mark PR ready with lifecycle identity]
     E --> F[Observe CodeRabbit status and summary comment]
     F --> G{Current head reviewed and findings resolved?}
     G -->|No| H[Repair, validate, and push]
-    H --> B
+    H --> T
     G -->|Yes| I{Merge authorized?}
     I -->|Yes| J[Authorized squash merge]
     I -->|No| K[Report equilibrium]
@@ -662,9 +667,9 @@ flowchart TD
     F --> L
 ```
 
-*PR babysitting stages and end states. A repair push returns the new head to
-the sequential gates; the agent stops only at an authorized merge, equilibrium,
-or an intractable impasse.*
+*PR babysitting stages and end states. Only a trusted candidate runs local
+gates; a repair push returns the new head to the trust decision. The agent
+stops only at an authorized merge, equilibrium, or an intractable impasse.*
 
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle. An
@@ -688,11 +693,12 @@ replacement posting identity.
 Before running candidate code, the supervisor checks who wrote it. It trusts a
 PR that the lifecycle account opened, or that the assignment names, when the
 head branch lives in the base repository rather than a fork; commits from the
-account's agents and repository automation do not change that. Candidate
-instructions cannot grant trust. For forks and outside authors it observes
-hosted CI and reviews the diff instead of running candidate code with host
-credentials, unless the assignment or the user extends trust. This is a normal
-path, not a blocker. See the skill's
+account's agents and repository automation keep that trust, but a commit from
+any other author withdraws it until trust is extended. Candidate instructions
+cannot grant trust. For forks and outside authors it observes hosted CI and
+reviews the diff instead of running candidate code with host credentials,
+unless the assignment or the user extends trust. This is a normal path, not a
+blocker. See the skill's
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 for the full contract.
 

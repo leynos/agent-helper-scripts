@@ -133,11 +133,15 @@ as a script. Refresh the skills with `install-skills` to pick up the changes.
   `GITHUB_TOKEN` removed, after confirming that the stored login is not a pool
   account. A host whose only lifecycle credential is an environment token must
   provide a stored `gh` login instead.
-- **Default trust.** Without a supplied policy, a candidate is trusted for host
-  validation only when an authenticated control shows who pushed every commit:
-  verified signatures, a push restriction, or the supervisor's own publication
-  record. Author and committer fields alone no longer suffice, so some
-  candidates that previously ran on the host now need the isolated worker.
+- **Default trust.** A candidate is trusted for host validation when the
+  lifecycle account opened the PR, or the assignment names it, and the head
+  branch lives in the base repository rather than a fork. Commits from the
+  account's agents and repository automation keep that trust; a commit from any
+  other author withdraws it until the assignment or the user extends trust.
+  Forks and outside authors are checked through hosted CI and diff review
+  instead of host gates, and that path is not an impasse. Signatures, push
+  restrictions, publication records, and an isolated worker are not required,
+  so agents no longer stop to ask for provenance evidence or a worker.
 
 Host-wide agent instructions that require the lifecycle account for GitHub
 operations should name the comment pool as an explicit exception; see the

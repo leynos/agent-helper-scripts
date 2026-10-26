@@ -119,16 +119,17 @@ Trust the candidate when the PR author is the lifecycle account, or the
 assignment names the PR, and the head branch lives in the base repository
 rather than a fork. Commits created by the lifecycle account, its agents, or
 repository automation such as Dependabot, Renovate, or GitHub's update-branch
-merges do not change that decision. Record the PR author, head repository, and
-head commit with the decision; signatures, push restrictions, and publication
-records are not required.
+merges keep that trust. A commit from any other author withdraws it until the
+assignment or the user extends trust to that author. Record the PR author, head
+repository, and head commit with the decision; signatures, push restrictions,
+and publication records are not required.
 
 For a fork or an author outside the lifecycle account, do not run
 candidate-defined commands on the host with its credentials. Observe hosted CI,
 review the diff, and run local gates only when the assignment or the user
 extends trust to that author. This is a normal operating path, not an impasse:
 do not block the PR on additional provenance evidence or an isolated worker.
-Reassess the decision when commits from a new outside author arrive.
+Reassess the decision for every new head.
 
 ### GitHub conversations
 
