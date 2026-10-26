@@ -30,8 +30,9 @@ Document the conflict in `Decision Log` and escalate.
 Thresholds that trigger escalation when breached. These define the boundaries
 of autonomous action, not quality criteria.
 
-- Scope: if implementation requires changes to more than `<N>` files or `<M>`
-  lines of code (net), stop and escalate.
+- Scope: if implementation requires changes to more than `<N>` non-ExecPlan
+  files or `<M>` net lines of code and other documentation, stop and escalate.
+  Exclude this ExecPlan file from both counts.
 - Interface: if a public API signature must change, stop and escalate.
 - Dependencies: if a new external dependency is required, stop and escalate.
 - Iterations: if tests still fail after `<K>` attempts, stop and escalate.

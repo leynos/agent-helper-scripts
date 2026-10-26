@@ -507,6 +507,13 @@ and hand PR delivery to `pr-babysitting`. The existing `execplans` skill owns
 plan authoring and the living-document contract; `sdlc-implementation` owns
 implementation, not another copy of the PR lifecycle.
 
+Size limits and change-size tolerances exclude ExecPlan files themselves. Count
+non-ExecPlan files toward file-count limits, and code and other documentation
+toward net-line limits. For example, a 1,000-line ExecPlan plus 1,400 lines of
+code and other documentation remains within a 1,500-line limit. See
+[the ExecPlans skill](../skills/execplans/SKILL.md#exception-handling-manage-by-exception)
+for the full rule.
+
 `install-skills` installs the new skill and its references alongside the other
 skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
 `rust-entrypoint` home phase runs that installer too. Its managed helper

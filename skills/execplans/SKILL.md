@@ -374,12 +374,14 @@ If you change course mid-implementation:
 ## Exception handling (manage by exception)
 
 Exclude ExecPlan files themselves from source lines of code (SLoC) and change
-size constraints or tolerances. Count the code and other documentation changes
-against the limit, including when an ExecPlan is added or updated in the same
-change. For example, a 1,000-line ExecPlan plus 1,400 lines of code and other
-documentation changes counts as 1,400 lines against a 1,500-line change limit
-and does not exceed it. Record this exclusion wherever the plan defines a size
-constraint or tolerance so it is applied consistently during execution.
+size constraints or tolerances, including file-count and net-line limits. Count
+only non-ExecPlan files towards file-count limits, and count code and other
+documentation changes towards line limits, including when an ExecPlan is added
+or updated in the same change. For example, a 1,000-line ExecPlan plus 1,400
+lines of code and other documentation counts as 1,400 lines against a
+1,500-line change limit and does not exceed it. Record this exclusion wherever
+the plan defines a size constraint or tolerance so it is applied consistently
+during execution.
 
 When a tolerance threshold is reached, a constraint would be violated, or an
 architecture deviation needs approval:
