@@ -307,21 +307,19 @@ def test_operating_contract_sequences_gates_without_waiting_for_host_idle() -> N
         assert requirement in contract, f"operating contract must state: {requirement}"
 
 
-def test_candidate_boundary_has_a_verifiable_default_trust_policy() -> None:
-    """Without supplied policy, trust follows recorded metadata, never candidate files."""
+def test_candidate_boundary_trusts_the_lifecycle_account_without_extra_provenance() -> None:
+    """Own-repository PRs are trusted; outside authors fall back to hosted CI, not a blocker."""
     contract = section(SKILL.read_text(), "Operating contract")
     for requirement in (
-        "When the assignment supplies no other policy, the default policy trusts a candidate",
-        "every commit author and committer are the lifecycle account",
-        "at least one authenticated control establishes who pushed every commit",
-        "every commit carries a GitHub-verified signature from the lifecycle account's key",
-        "restricts pushes to the head branch to the lifecycle account",
-        "created and pushed every commit in the current assignment",
-        "Git author and committer fields alone do not establish provenance",
-        "not from the candidate's files",
-        "falls under the isolation rule below",
+        "Trust the candidate when the PR author is the lifecycle account",
+        "the head branch lives in the base repository",
+        "signatures, push restrictions, and publication records are not required",
+        "Observe hosted CI",
+        "do not block the PR on additional provenance evidence or an isolated worker",
     ):
         assert requirement in contract, f"candidate boundary must state: {requirement}"
+    for retired in ("trust policy", "isolated worker with no outbound", "report local validation blocked"):
+        assert retired not in contract, f"candidate boundary must not require: {retired}"
 
 
 def test_merge_checklist_accepts_an_approval_that_covers_the_head() -> None:
