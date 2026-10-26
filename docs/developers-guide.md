@@ -1636,6 +1636,15 @@ The skill fixes these constraints:
 - The fact cache is scoped per scenario through `${MOLECULE_SCENARIO_NAME}`.
 - `molecule test --all` is the sequential fallback.
 
+## Scripting standards
+
+New and updated scripts that launch external processes must follow the
+[scripting standards](../documentation-library/scripting-standards.md) and
+[Cuprum v0.2.0-beta2 users' guide](https://github.com/leynos/cuprum/blob/v0.2.0-beta2/docs/users-guide.md).
+Pin `cuprum==0.2.0b2` in the script's PEP 723 metadata or the project's
+dependencies. Do not use plumbum or direct `subprocess` calls for command
+execution.
+
 ## Tested-example contract
 
 The style guide's "Tested correctness" bullet, in

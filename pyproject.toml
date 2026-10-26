@@ -6,7 +6,7 @@ requires-python = ">=3.13"
 [dependency-groups]
 dev = [
   "cmd-mox",
-  "cuprum",
+  "cuprum==0.2.0b2",
   "hypothesis",
   "pytest",
   "pytest-bdd",

@@ -52,6 +52,7 @@ as a default.
 Employ Cyclopts when a script requires parameters, particularly under CI with
 `INPUT_*` variables.
 
+<!-- tested-example: cyclopts-cli -->
 ```python
 from __future__ import annotations
 
@@ -128,6 +129,7 @@ Guidance:
 - Parameter names should be descriptive and stable. Where a legacy flag name
   must remain available, add an alias:
 
+  <!-- tested-example: cyclopts-parameter-name -->
   ```python
   package_name: Annotated[Optional[str], Parameter(aliases=["--name"])] = None
   ```
@@ -135,12 +137,14 @@ Guidance:
 - Where a specific delimiter is required for an environment list (for example,
   comma‑separated `formats`), specify it per parameter:
 
+  <!-- tested-example: cyclopts-parameter-config -->
   ```python
   formats: Annotated[list[str] | None, Parameter(env_var_split=",")] = None
   ```
 
 - Per‑parameter environment names can be pinned for backwards compatibility:
 
+  <!-- tested-example: cyclopts-parameter-output -->
   ```python
   config_out: Annotated[Optional[Path], Parameter(env_var="INPUT_CONFIG_PATH")] = None
   ```
@@ -164,6 +168,7 @@ executable policy and validate caller-supplied arguments separately.
 For a multi-script application, declare programs and a shared catalogue in a
 common module, for example `project/utils/commands.py`:
 
+<!-- tested-example: catalogue-definition -->
 ```python
 from cuprum import Program, ProgramCatalogue
 
@@ -177,6 +182,7 @@ Use `ProgramCatalogue.from_programs()` for a simple executable list. Use
 documentation locations or noise rules are needed. Standalone scripts and tests
 should define a local catalogue containing only the programs they require.
 
+<!-- tested-example: catalogue-scoped-use -->
 ```python
 from project.utils.commands import GIT, PROJECT_CATALOGUE
 from cuprum import scoped, sh
@@ -204,6 +210,7 @@ selecting a catalogue. Review `allow()` calls as explicit policy changes.
 
 ### Capturing output and handling failures
 
+<!-- tested-example: capture-output -->
 ```python
 from cuprum import Program, ProgramCatalogue, RunOutputOptions, scoped, sh
 
@@ -227,17 +234,18 @@ re-encoding text output.
 A completed child with a non-zero exit code returns `CommandResult` with
 `ok == False`; it does not automatically raise. Check `ok` or `exit_code` and
 follow the called tool's exit-code contract. Missing registered executables
-raise `FileNotFoundError`; catalogue and policy errors, timeouts, cancellation
+raise `FileNotFoundError`; catalogue and policy errors, timeouts, cancellation,
 and other execution failures remain exception paths. Do not describe the run
 methods as always returning a result.
 
-### Working directory, environment, input and deadlines
+### Working directory, environment, input, and deadlines
 
 Execution settings belong on `run_sync()` or `run()`, not on the command
 builder. Pass directory and environment settings through `ExecutionContext`;
 pass `stdin`, `timeout` and `output` to the run method. Builder keywords such as
 `cwd=`, `env=` or `timeout=` raise `TypeError` in beta2.
 
+<!-- tested-example: execution-context-input -->
 ```python
 from pathlib import Path
 from cuprum import ExecutionContext, Program, ProgramCatalogue, StdinInput, scoped, sh
@@ -275,7 +283,7 @@ from an overlay. A replacement environment can omit `PATH`, so prefer an
 absolute executable path for deliberately minimal environments.
 
 A deadline raises `cuprum.TimeoutExpired`, a `TimeoutError` subclass; partial
-output is available as `exc.stdout` and `exc.stderr`. Handle it separately from
+output is available as `exc.output` and `exc.stderr`. Handle it separately from
 a non-zero exit. Async cancellation initiates child teardown and re-raises
 `asyncio.CancelledError`; never swallow cancellation. For commands that spawn
 descendants, consider `ExecutionContext(process_group=...)` with
@@ -290,6 +298,7 @@ underscores converted to hyphens. Booleans are values: `release=True` produces
 flags positionally and omit optional arguments before building; `None` is not
 an accepted argument value.
 
+<!-- tested-example: presence-flags -->
 ```python
 from cuprum import Program, ProgramCatalogue, scoped, sh
 
@@ -314,6 +323,7 @@ and inspect `failure_index` or the per-stage results: a successful final stage
 alone does not prove pipeline success. Only final-stage stdout is captured;
 interior stdout feeds the next stage and is `None` in its stage result.
 
+<!-- tested-example: pipeline-results -->
 ```python
 from cuprum import Program, ProgramCatalogue, scoped, sh
 
@@ -335,6 +345,7 @@ Prefer `run_concurrent()` for async command batches and `run_concurrent_sync()`
 for synchronous callers. Bound the number of children with
 `ConcurrentConfig(concurrency=...)`:
 
+<!-- tested-example: concurrent-commands -->
 ```python
 from cuprum import ConcurrentConfig, Program, ProgramCatalogue, run_concurrent, scoped, sh
 
@@ -365,6 +376,7 @@ Use `sh.observe()` for structured lifecycle events. Hooks receive `ExecEvent`,
 not an object containing `event.result`. Filter by phase before reading fields
 specific to that phase:
 
+<!-- tested-example: observer-exit -->
 ```python
 import logging
 from cuprum import Program, ProgramCatalogue, scoped, sh
@@ -386,8 +398,8 @@ with scoped(catalogue=CATALOGUE), sh.observe(log_exit):
 ```
 
 Use the `settled` phase and `terminal_outcome` for definitive completion,
-including timeout, cancellation and spawn failure. Register `after(hook)` with a
-`hook(cmd, result)` callback when completed command results are needed. Hooks
+including timeout, cancellation, and spawn failure. Register `after(hook)` with
+a `hook(cmd, result)` callback when completed command results are needed. Hooks
 can affect a run if they raise; protect logging code accordingly. Redact
 secrets before exporting arguments, environment values or output to telemetry.
 
@@ -395,6 +407,7 @@ secrets before exporting arguments, environment values or output to telemetry.
 
 ### Project roots, joins, and ensuring directories
 
+<!-- tested-example: path-roots -->
 ```python
 from __future__ import annotations
 from pathlib import Path
@@ -409,6 +422,7 @@ cfg = PROJECT_ROOT.joinpath("config", "release.toml").resolve()
 
 ### Reading / writing files and atomic updates
 
+<!-- tested-example: atomic-file-write -->
 ```python
 from pathlib import Path
 import tempfile
@@ -429,6 +443,7 @@ tmp_path.replace(f)  # atomic on POSIX
 
 ### Globbing, filtering, and safe deletion
 
+<!-- tested-example: safe-globbing -->
 ```python
 from pathlib import Path
 
@@ -447,6 +462,7 @@ except FileNotFoundError:
 
 ## Cyclopts + cuprum + pathlib together (reference script)
 
+<!-- tested-example: reference-script -->
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
@@ -530,6 +546,7 @@ if __name__ == "__main__":
 
 ### Mocking Python dependencies (pytest-mock) and environment (monkeypatch)
 
+<!-- tested-example: pytest-environment -->
 ```python
 import os
 from pathlib import Path
@@ -563,6 +580,7 @@ def test_patch_python_dependency(mocker):
 
 Enable the plugin in `conftest.py`:
 
+<!-- tested-example: pytest-plugin -->
 ```python
 pytest_plugins = ("cmd_mox.pytest_plugin",)
 ```
@@ -572,6 +590,7 @@ record, replay and verify step explicitly. Cmd-mox intercepts executable lookup
 through PATH shims; keep the production catalogue in place. This also applies
 to async command batches.
 
+<!-- tested-example: cmd-mox-tests -->
 ```python
 import pytest
 from cuprum import ExecutionContext, Program, ProgramCatalogue, scoped, sh
@@ -612,6 +631,7 @@ def test_git_tag_failure_surface_error(cmd_mox, tmp_path):
 
 ### Spies and passthrough capture (turn real calls into fixtures)
 
+<!-- tested-example: cmd-mox-spy -->
 ```python
 import pytest
 from cuprum import ExecutionContext, Program, ProgramCatalogue, scoped, sh
@@ -702,6 +722,7 @@ results and exceptions that prevent completion.
 
 ## CI wiring: GitHub Actions (Cyclopts‑first)
 
+<!-- tested-example: ci-build-workflow -->
 ```yaml
 - name: Build
   shell: bash
@@ -721,7 +742,7 @@ results and exceptions that prevent completion.
 - Newline‑separated lists are preferred for CI inputs to avoid shell quoting
   issues across platforms.
 - Completed cuprum commands return a `CommandResult`; check `ok` or
-  `exit_code`. Launch failures, policy errors and deadlines can still raise.
+  `exit_code`. Launch failures, policy errors, and deadlines can still raise.
 - Production code should present friendly error messages; tests may assert raw
   behaviours (non‑zero exits, stderr contents) via `cmd-mox`.
 - On Windows, newline‑separated lists are recommended for `list[Path]` to

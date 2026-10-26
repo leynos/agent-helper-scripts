@@ -69,7 +69,7 @@ def run_bash(
     """
     cmd = sh.make(BASH, catalogue=CATALOGUE)(*args)
     child_env = {"BASH_ENV": "", **env}
-    with scoped(allowlist=CATALOGUE.allowlist):
+    with scoped(catalogue=CATALOGUE):
         return cmd.run_sync(context=ExecutionContext(cwd=cwd, env=child_env))
 
 
