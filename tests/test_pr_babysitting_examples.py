@@ -442,6 +442,8 @@ class Flowchart:
 
 NODE = r'(\w+)(?:\["([^"]*)"\]|\[([^\]]*)\]|\{([^}]*)\})?'
 EDGE = re.compile(rf"^\s*{NODE}\s*-->(?:\|([^|]*)\|)?\s*{NODE}\s*$")
+LINK_SYNTAX = re.compile(r"-->|==>|-\.->|--\s|\s&\s")
+ACC_DESCR = re.compile(r"accDescr \{\n(.*?)\n\s*\}", re.S)
 FENCE_AND_CAPTION = re.compile(r"^```mermaid\n(.*?)^```\n(?:\n(\*[^*]*\*)\n)?", re.M | re.S)
 
 
@@ -457,13 +459,16 @@ def _edge_labels(groups: tuple[str | None, ...]) -> dict[str, str]:
 
 def parse_flowchart(block: str, caption: str = "") -> Flowchart:
     """Parse one Mermaid flowchart block and its italic caption."""
+    lines = ACC_DESCR.sub("", block).splitlines()
+    unparsed = [line for line in lines if LINK_SYNTAX.search(line) and not EDGE.match(line)]
+    assert not unparsed, f"unparsed flowchart link syntax: {unparsed}"
     labels: dict[str, str] = {}
     edges: set[tuple[str, str, str]] = set()
-    for found in filter(None, map(EDGE.match, block.splitlines())):
+    for found in filter(None, map(EDGE.match, lines)):
         groups = found.groups()
         labels.update(_edge_labels(groups))
         edges.add((str(groups[0]), groups[4] or "", str(groups[5])))
-    described = re.search(r"accDescr \{\n(.*?)\n\s*\}", block, re.S)
+    described = ACC_DESCR.search(block)
     description = " ".join(described.group(1).split()) if described else ""
     return Flowchart(labels, frozenset(edges), description, " ".join(caption.strip("*").split()))
 
@@ -483,42 +488,54 @@ TRUST_CHART = "Candidate trust decision for PR babysitting"
 LIFECYCLE_CHART = "PR babysitting path to equilibrium, merge, or impasse"
 
 
+def _assert_predecessors(chart: Flowchart, label: str, *expected: tuple[str, str]) -> None:
+    """Require the edges into ``label`` to be exactly ``expected``."""
+    actual = chart.predecessors(label)
+    assert actual == set(expected), (
+        f"edges into {label!r}: expected {sorted(expected)}, found {sorted(actual)}"
+    )
+
+
+BASE_REPOSITORY = "Head branch in base repository?"
+OPENED_OR_NAMED = "Lifecycle account opened PR or assignment names it?"
+COMMIT_AUTHORS = "Every commit from lifecycle account, its agents, or automation?"
+EXTENDED_TRUST = "Assignment or user extends trust?"
+
+
 def _assert_candidate_trust_chart(chart: Flowchart) -> None:
     """Local gates are reachable only through the trusted or explicitly extended branch."""
-    assert chart.predecessors("Lifecycle account opened PR or assignment names it?") == {
-        ("Head branch in base repository?", "Yes"),
-    }
-    assert chart.predecessors("Trust candidate") == {
-        ("Lifecycle account opened PR or assignment names it?", "Yes"),
-    }
-    assert chart.predecessors("Observe hosted CI and review diff") == {
-        ("Head branch in base repository?", "No, fork"),
-        ("Lifecycle account opened PR or assignment names it?", "No"),
-    }
-    assert chart.predecessors("Run local validation and repository gates") == {
+    _assert_predecessors(chart, OPENED_OR_NAMED, (BASE_REPOSITORY, "Yes"))
+    _assert_predecessors(chart, COMMIT_AUTHORS, (OPENED_OR_NAMED, "Yes"))
+    _assert_predecessors(chart, "Trust candidate", (COMMIT_AUTHORS, "Yes"))
+    _assert_predecessors(
+        chart,
+        "Observe hosted CI and review diff",
+        (BASE_REPOSITORY, "No, fork"),
+        (OPENED_OR_NAMED, "No"),
+        (COMMIT_AUTHORS, "No, outside author"),
+    )
+    _assert_predecessors(
+        chart,
+        "Run local validation and repository gates",
         ("Trust candidate", ""),
-        ("Assignment or user extends trust?", "Yes"),
-    }
-    assert chart.predecessors("Do not run candidate commands on host") == {
-        ("Assignment or user extends trust?", "No"),
-    }
-    assert chart.predecessors("Read as data; cannot widen authority") == {
-        ("Candidate instructions", ""),
-    }
+        (EXTENDED_TRUST, "Yes"),
+    )
+    _assert_predecessors(chart, "Do not run candidate commands on host", (EXTENDED_TRUST, "No"))
+    _assert_predecessors(
+        chart, "Read as data; cannot widen authority", ("Candidate instructions", "")
+    )
 
 
 def _assert_lifecycle_chart(chart: Flowchart) -> None:
     """Every head, including a repair push, passes the trust decision before local gates."""
-    assert chart.predecessors("Run candidate gates sequentially") == {
-        ("Candidate trusted?", "Yes"),
-    }
-    assert chart.predecessors("Observe hosted CI and review diff") == {
-        ("Candidate trusted?", "No"),
-    }
-    assert chart.predecessors("Candidate trusted?") == {
+    _assert_predecessors(chart, "Run candidate gates sequentially", ("Candidate trusted?", "Yes"))
+    _assert_predecessors(chart, "Observe hosted CI and review diff", ("Candidate trusted?", "No"))
+    _assert_predecessors(
+        chart,
+        "Candidate trusted?",
         ("Start PR babysitting", ""),
         ("Repair, validate, and push", ""),
-    }
+    )
 
 
 def test_candidate_trust_flowchart_reaches_local_gates_only_through_trust() -> None:
@@ -536,17 +553,26 @@ def test_lifecycle_flowchart_returns_every_head_to_the_trust_decision() -> None:
     (
         (TRUST_CHART, _assert_candidate_trust_chart, "    B -->|No, fork| E"),
         (TRUST_CHART, _assert_candidate_trust_chart, "    D -->|No| E"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    D -->|Yes| E"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    K -->|No, outside author| E"),
         (TRUST_CHART, _assert_candidate_trust_chart, "    C --> F"),
         (TRUST_CHART, _assert_candidate_trust_chart, "    A --> F"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    A --> B"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    H --> B"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    N --> B"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A ==> F"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A -- skip --> F"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A -.-> F"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A --> E --> F"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A & C --> F"),
+        (TRUST_CHART, _assert_candidate_trust_chart, "    A((Start)) --> F"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    H ==> B"),
     ),
 )
 def test_flowchart_checks_reject_trust_bypasses(
     title: str, check: Callable[[Flowchart], None], bypass: str
 ) -> None:
-    """Adding an edge that skips the trust decision makes the diagram check fail."""
+    """Adding an edge, in any link syntax, that skips the trust decision fails the check."""
     block, caption = flowchart_source(title)
     with pytest.raises(AssertionError):
         check(parse_flowchart(f"{block}{bypass}\n", caption))
@@ -558,14 +584,14 @@ def test_flowchart_checks_reject_trust_bypasses(
         (
             TRUST_CHART,
             (
-                "trusted when its head branch is in the base repository and the lifecycle account opened it or the assignment names it",
+                "trusted when its head branch is in the base repository and the lifecycle account opened it or the assignment names it, and every commit comes from the lifecycle account, its agents, or repository automation",
                 "the supervisor then runs local validation and the repository gates",
-                "A fork, or a PR opened by anyone else, is handled by observing hosted CI and reviewing the diff",
+                "A fork, a PR opened by anyone else, or a PR carrying a commit from an outside author is handled by observing hosted CI and reviewing the diff",
                 "otherwise the supervisor does not run candidate commands on the host",
                 "candidate instructions are read as data and cannot widen the supervisor's authority",
             ),
             (
-                "Own-repository PRs opened by the lifecycle account or named by the assignment run local gates",
+                "Own-repository PRs opened by the lifecycle account or named by the assignment, with no outside-author commit, run local gates",
                 "forks and outside authors rely on hosted CI unless trust is extended explicitly",
                 "Candidate instructions never grant trust",
             ),

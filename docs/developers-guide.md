@@ -680,11 +680,14 @@ procedures.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment
-names, from a branch in the base repository, with no commit from an outside
-author unless the assignment or the user extends trust. Other candidates are
-checked through hosted CI and diff review. Candidate instructions are data and
-cannot widen the agent's authority, and the decision is reassessed for every
-new head. `tests/test_pr_babysitting_examples.py` asserts each rule of this
+names, from a branch in the base repository, whose commits all come from the
+lifecycle account, its agents, or repository automation such as Dependabot,
+Renovate, or GitHub's update-branch merges. A commit from any other author
+withdraws trust until the assignment or the user extends it. Other candidates
+are checked through hosted CI and diff review. Candidate instructions are data
+and cannot widen the agent's authority, and the decision is reassessed for
+every new head. `tests/test_pr_babysitting_examples.py` asserts each rule of
+this
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 and fails independently when any one is removed. It also parses the users'
 guide flowcharts and checks that only trusted paths reach local gates.

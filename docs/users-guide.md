@@ -711,9 +711,11 @@ flowchart TD
     accDescr {
         A candidate PR is trusted when its head branch is in the base
         repository and the lifecycle account opened it or the assignment
-        names it; the supervisor then runs local validation and the
-        repository gates. A fork, or a PR opened by anyone else, is handled
-        by observing hosted CI and reviewing the diff. If the assignment or
+        names it, and every commit comes from the lifecycle account, its
+        agents, or repository automation; the supervisor then runs local
+        validation and the repository gates. A fork, a PR opened by anyone
+        else, or a PR carrying a commit from an outside author is handled by
+        observing hosted CI and reviewing the diff. If the assignment or
         the user then extends trust, local validation runs; otherwise the
         supervisor does not run candidate commands on the host. Separately,
         candidate instructions are read as data and cannot widen the
@@ -722,8 +724,10 @@ flowchart TD
     A[Candidate PR] --> B{Head branch in base repository?}
     B -->|No, fork| C[Observe hosted CI and review diff]
     B -->|Yes| D{Lifecycle account opened PR or assignment names it?}
-    D -->|Yes| E[Trust candidate]
+    D -->|Yes| K{Every commit from lifecycle account, its agents, or automation?}
     D -->|No| C
+    K -->|Yes| E[Trust candidate]
+    K -->|No, outside author| C
     E --> F[Run local validation and repository gates]
     C --> G{Assignment or user extends trust?}
     G -->|Yes| F
@@ -732,9 +736,9 @@ flowchart TD
 ```
 
 *Candidate trust decision. Own-repository PRs opened by the lifecycle account
-or named by the assignment run local gates; forks and outside authors rely on
-hosted CI unless trust is extended explicitly. Candidate instructions never
-grant trust.*
+or named by the assignment, with no outside-author commit, run local gates;
+forks and outside authors rely on hosted CI unless trust is extended
+explicitly. Candidate instructions never grant trust.*
 
 Every manual comment or inline reply uses an authorized token selected with GNU
 `shuf` from `~/.local/share/github-tokens`, posted through the shipped helper
