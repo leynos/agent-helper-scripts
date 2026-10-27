@@ -87,6 +87,11 @@ CodeRabbit actually inspected after it runs.
 comenq put OWNER/REPO PR_NUMBER "@coderabbitai review"
 ```
 
+Use `comenq await` to wait in the foreground for a queued comment to be posted.
+Confirm its arguments with `comenq await --help` and await the recorded queue
+ID. Comment posting does not mean CodeRabbit has completed the review; continue
+observing the review on the intended candidate after the comment is posted.
+
 For remote invocation, preserve the comment body as one remote argument. Use
 the configured host in place of the placeholder:
 
