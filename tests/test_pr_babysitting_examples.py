@@ -10,12 +10,19 @@ import subprocess
 
 import pytest
 
+from pr_babysitting_flowchart_support import (
+    LIFECYCLE_CHART,
+    TRUST_CHART,
+    Flowchart,
+    flowchart_source,
+    parse_flowchart,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REBASE = ROOT / "skills/pr-babysitting/references/rebase.md"
 ASSESSMENT = ROOT / "skills/pr-babysitting/references/execplan-assessment.md"
 SKILL = ROOT / "skills/pr-babysitting/SKILL.md"
-USERS_GUIDE = ROOT / "docs/users-guide.md"
 REHEARSAL = ROOT / "skills/pr-babysitting/references/sources-and-rehearsal.md"
 
 
@@ -417,75 +424,6 @@ def test_trust_rehearsal_rows_follow_the_normative_boundary(
     assert response in rows[scenario], f"rehearsal row drifted: {scenario}"
     assert rule in TRUST_BOUNDARY_RULES, f"rehearsal row cites an unchecked rule: {rule}"
     assert rule in _trust_contract(), f"rehearsal row cites a missing rule: {rule}"
-
-
-@dataclass(frozen=True)
-class Flowchart:
-    """Node labels, labelled edges, and accessible text parsed from one Mermaid flowchart."""
-
-    labels: dict[str, str]
-    edges: frozenset[tuple[str, str, str]]
-    description: str
-    caption: str
-
-    def node(self, label: str) -> str:
-        """Return the unique node ID carrying ``label``."""
-        ids = [node for node, text in self.labels.items() if text == label]
-        assert len(ids) == 1, f"expected one node labelled {label!r}, found {ids}"
-        return ids[0]
-
-    def predecessors(self, label: str) -> set[tuple[str, str]]:
-        """Return (source label, edge label) pairs for edges into ``label``."""
-        target = self.node(label)
-        return {(self.labels[src], text) for src, text, dst in self.edges if dst == target}
-
-
-NODE = r'(\w+)(?:\["([^"]*)"\]|\[([^\]]*)\]|\{([^}]*)\})?'
-EDGE = re.compile(rf"^\s*{NODE}\s*-->(?:\|([^|]*)\|)?\s*{NODE}\s*$")
-LINK_SYNTAX = re.compile(r"-->|==>|-\.->|--\s|\s&\s")
-ACC_DESCR = re.compile(r"accDescr \{\n(.*?)\n\s*\}", re.S)
-FENCE_AND_CAPTION = re.compile(r"^```mermaid\n(.*?)^```\n(?:\n(\*[^*]*\*)\n)?", re.M | re.S)
-
-
-def _edge_labels(groups: tuple[str | None, ...]) -> dict[str, str]:
-    """Return the node labels declared inline on one parsed edge."""
-    declared = ((groups[0], groups[1:4]), (groups[5], groups[6:9]))
-    return {
-        str(node): text
-        for node, texts in declared
-        if (text := next((t for t in texts if t is not None), None)) is not None
-    }
-
-
-def parse_flowchart(block: str, caption: str = "") -> Flowchart:
-    """Parse one Mermaid flowchart block and its italic caption."""
-    lines = ACC_DESCR.sub("", block).splitlines()
-    unparsed = [line for line in lines if LINK_SYNTAX.search(line) and not EDGE.match(line)]
-    assert not unparsed, f"unparsed flowchart link syntax: {unparsed}"
-    labels: dict[str, str] = {}
-    edges: set[tuple[str, str, str]] = set()
-    for found in filter(None, map(EDGE.match, lines)):
-        groups = found.groups()
-        labels.update(_edge_labels(groups))
-        edges.add((str(groups[0]), groups[4] or "", str(groups[5])))
-    described = ACC_DESCR.search(block)
-    description = " ".join(described.group(1).split()) if described else ""
-    return Flowchart(labels, frozenset(edges), description, " ".join(caption.strip("*").split()))
-
-
-def flowchart_source(title: str) -> tuple[str, str]:
-    """Return the users' guide flowchart block whose ``accTitle`` is ``title`` and its caption."""
-    matches = [
-        (block, caption)
-        for block, caption in FENCE_AND_CAPTION.findall(USERS_GUIDE.read_text())
-        if f"accTitle: {title}\n" in block
-    ]
-    assert len(matches) == 1, f"expected unique flowchart: {title}"
-    return matches[0]
-
-
-TRUST_CHART = "Candidate trust decision for PR babysitting"
-LIFECYCLE_CHART = "PR babysitting path to equilibrium, merge, or impasse"
 
 
 def _assert_predecessors(chart: Flowchart, label: str, *expected: tuple[str, str]) -> None:

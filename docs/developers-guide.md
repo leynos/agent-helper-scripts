@@ -691,6 +691,12 @@ this
 [candidate execution boundary](../skills/pr-babysitting/SKILL.md#candidate-execution-boundary)
 and fails independently when any one is removed. It also parses the users'
 guide flowcharts and checks that only trusted paths reach local gates.
+`tests/test_pr_babysitting_trust_properties.py` generates candidate histories
+and requires the decision reached by walking the trust flowchart to match the
+rules after every step; `tests/pr_babysitting_flowchart_support.py` holds the
+shared parser. [ADR 0007](adrs/adr-0007-candidate-trust-follows-authorship.md)
+records why trust follows authorship rather than authenticated provenance, and
+the residual risk that decision accepts.
 
 ### PR babysitting comment helper
 
