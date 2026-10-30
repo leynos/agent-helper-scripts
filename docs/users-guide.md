@@ -234,9 +234,12 @@ Tokio documents that value for `main`, not `test`. This bounded spelling
 pattern does not certify every Tokio attribute or argument combination.
 Occurrences of the runtime key in ordinary source and prose remain checked. Use
 a narrowly justified local overlay for a different fixed external API name; do
-not add a blanket accepted word. Since consumers fetch the live shared
-dictionary on each gate run, this policy reaches them without a builder
-release. Any broader consumer-local mask remains a separate cleanup.
+not add a blanket accepted word. A consumer normally receives this policy
+without a builder release, because `gate` fetches and caches the live shared
+dictionary. When `gate` cannot reach the live dictionary and has no cache
+containing it, it falls back to the snapshot packaged with the builder, which
+can omit policy added after that release. Any broader consumer-local mask
+remains a separate cleanup.
 
 Evidence supports the proposal: a suffix match alone is not one because
 `advertise`, `exercise`, `promise` and Rust's `usize` all end the way an Oxford
