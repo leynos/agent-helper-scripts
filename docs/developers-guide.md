@@ -525,6 +525,28 @@ as an expectation. When widening the pattern, keep it free of unbounded
 repetition other than the prefix class, and run that test module. The decision
 is recorded in the 2026-10-08 amendment to ADR 0003.
 
+The Tokio runtime-key ignore pattern is likewise bounded. It matches only a
+complete `#[tokio::main(...)]` or `#[tokio::test(...)]` attribute whose runtime
+value is `current_thread` or `multi_thread`, as in
+`#[tokio::test(flavor = "multi_thread")]`, with at most three fixed arguments
+(`worker_threads`, `start_paused` and `unhandled_panic`) in any order around
+the key, counted in total rather than per side, or the
+`#[tokio::main(flavor = "local")]` form that Tokio documents for `main` only.
+The key outside those attributes is scanned, so ordinary identifiers,
+assignments, prose and non-Tokio APIs report a US spelling. Aliases, the `name`
+option and other arguments stay outside the grammar, and the gate-backed corpus
+pins that rejection for a local attribute and for a common attribute carrying
+an extra argument. Generated forms add a fourth argument in every split around
+the key. `tests/test_tokio_flavour_exemption.py` runs the gate over
+`tests/fixtures/tokio_spelling_cases.json`, and
+`tests/test_tokio_flavour_boundaries.py` generates the delimiter,
+extra-argument and neighbouring-text cases. The gate-backed cases require `uv`
+and `git` on `PATH`, and `assert_pinned_gate_tools()` fails when
+`TYPOS_CONFIG_BUILDER_VERSION` in the Makefile is not `v0.1.3`, the release
+those cases were written against. The generated boundary properties run in
+memory against Python's regular-expression engine and need neither executable.
+The decision is recorded in the 2026-10-30 amendment to ADR 0003.
+
 `scripts/oxford_form_harvest.py` is the one spelling tool this repository still
 owns. It gathers the evidence a curator reads before proposing a stem, because
 a suffix match alone is not evidence: `advertise`, `exercise`, `improvise`,

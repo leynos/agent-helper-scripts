@@ -1,0 +1,313 @@
+{
+  "runtime_key": "flavor",
+  "schema_version": 1,
+  "official_sources": [
+    "https://docs.rs/tokio/latest/tokio/attr.main.html",
+    "https://docs.rs/tokio/latest/tokio/attr.test.html"
+  ],
+  "shared_positive": [
+    {
+      "id": "main-current-thread",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"current_thread\")]\nasync fn main() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-multi-thread-official",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"multi_thread\", worker_threads = 10)]\nasync fn main() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-current-thread",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\")]\nasync fn test_current_thread() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-multi-thread-official",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]\nasync fn test_multi_thread() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-workers-before-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::main(worker_threads = 2, flavor = \"multi_thread\")]\nasync fn main() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-workers-after-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 2)]\nasync fn test_workers() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-multiline-whitespace-trailing-comma",
+      "path": "src.rs",
+      "content": "#[tokio::test(\n    start_paused = true,\n    flavor = \"current_thread\",\n)]\nasync fn test_paused() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-start-paused-before-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(start_paused = true, flavor = \"current_thread\")]\nasync fn test_paused() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-start-paused-after-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\", start_paused = true)]\nasync fn test_paused() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-unhandled-ignore-before-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(unhandled_panic = \"ignore\", flavor = \"current_thread\")]\nasync fn test_ignore() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "test-unhandled-shutdown-runtime-official",
+      "path": "src.rs",
+      "content": "#[cfg(tokio_unstable)]\n#[tokio::test(flavor = \"current_thread\", unhandled_panic = \"shutdown_runtime\")]\nasync fn test_shutdown() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "guide-inline-exact-attribute",
+      "path": "guide.md",
+      "content": "Use `#[tokio::test(flavor = \"current_thread\")]` for this example.\n",
+      "diagnostic": []
+    },
+    {
+      "id": "rust-rendered-attribute-with-escaped-quotes",
+      "path": "src.rs",
+      "content": "assert_eq!(tokio.render(), \"#[tokio::test(flavor = \\\"current_thread\\\")]\");\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-local-source",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\")]\nasync fn main() {}\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-local-rendered-escaped-quotes",
+      "path": "src.rs",
+      "content": "assert_eq!(tokio.render(), \"#[tokio::main(flavor = \\\"local\\\")]\");\n",
+      "diagnostic": []
+    },
+    {
+      "id": "main-local-multiline-trailing-comma",
+      "path": "src.rs",
+      "content": "#[tokio::main(\n    flavor = \"local\",\n)]\nasync fn main() {}\n",
+      "diagnostic": []
+    }
+  ],
+  "shared_negative": [
+    {
+      "id": "function-name",
+      "path": "src.rs",
+      "content": "fn flavor() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "plain-assignment",
+      "path": "src.rs",
+      "content": "fn smoke() { let flavor = \"plain\"; }\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "assignment-with-runtime-like-value",
+      "path": "src.rs",
+      "content": "fn smoke() { let flavor = \"current_thread\"; }\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "prose-plain",
+      "path": "guide.md",
+      "content": "This flavor setting is plain prose.\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "prose-spicy-assignment",
+      "path": "guide.md",
+      "content": "The flavor = spicy option is documented here.\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "standalone-argument",
+      "path": "guide.md",
+      "content": "flavor = \"current_thread\"\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "other-attribute-path",
+      "path": "src.rs",
+      "content": "#[other::test(flavor = \"current_thread\")]\nasync fn test() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "unsupported-runtime-value",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_tread\")]\nasync fn test() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "typo-option-before-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(normalise = true, flavor = \"current_thread\")]\nasync fn test() {}\n",
+      "diagnostic": [
+        "normalise",
+        "flavor"
+      ]
+    },
+    {
+      "id": "typo-option-after-flavor",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\", normalise = true)]\nasync fn test() {}\n",
+      "diagnostic": [
+        "normalise",
+        "flavor"
+      ]
+    },
+    {
+      "id": "misspelling-before-complete-attribute",
+      "path": "src.rs",
+      "content": "async fn setup() {\n    let normalise = \"value\";\n}\n\n#[tokio::test(flavor = \"current_thread\")]\nasync fn test() {}\n",
+      "diagnostic": [
+        "normalise"
+      ]
+    },
+    {
+      "id": "misspelling-after-complete-attribute",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\")]\nasync fn test() {\n    let normalise = \"value\";\n}\n",
+      "diagnostic": [
+        "normalise"
+      ]
+    },
+    {
+      "id": "local-ordinary-assignment",
+      "path": "src.rs",
+      "content": "fn smoke() { let flavor = \"local\"; }\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-adjacent-typo",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\")]\nasync fn main() {\n    let normalise = \"value\";\n}\n",
+      "diagnostic": [
+        "normalise"
+      ]
+    },
+    {
+      "id": "test-local-unsupported",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"local\")]\nasync fn test_local() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-extra-worker-after",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\", worker_threads = 2)]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-extra-worker-before",
+      "path": "src.rs",
+      "content": "#[tokio::main(worker_threads = 2, flavor = \"local\")]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-extra-name",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\", name = \"custom\")]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-extra-name",
+      "path": "src.rs",
+      "content": "#[tokio::test(name = \"custom\", flavor = \"current_thread\")]\nasync fn test_custom() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-fourth-argument",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\", worker_threads = 2, start_paused = true, unhandled_panic = \"ignore\", worker_threads = 4)]\nasync fn test_overfull() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-mixed-fourth-argument",
+      "path": "src.rs",
+      "content": "#[tokio::test(worker_threads = 2, start_paused = true, flavor = \"current_thread\", unhandled_panic = \"ignore\", worker_threads = 4)]\nasync fn test_overfull_mixed() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    }
+  ],
+  "recorded_consumer_positive": {
+    "provenance": {
+      "repository": "leynos/rstest-bdd",
+      "branch": "main",
+      "revision": "b6afd1e46a6dea4735b754fe7b64cc970dd27442",
+      "snapshot_path": "/tmp/gauss-spelling-scope-residual-20261013/rstest-bdd-current-overlay.toml",
+      "overlay_sha256": "cf8bf46b639a4dacc07dceac7194d2cb3b3a07f5e4011e62ea9e6434139b1261",
+      "source_files": [
+        "crates/rstest-bdd-harness/src/policy.rs",
+        "crates/rstest-bdd-harness-tokio/src/policy.rs"
+      ]
+    },
+    "scope_note": "Positive-only compatibility evidence for inherited consumer inputs; this lane does not claim that its broad local masks preserve shared negatives.",
+    "overlay": "# Repository-specific APIs, external contracts and deliberate fixtures.\n\nschema = 1\n\n[oxford]\nstems = []\n\n[words]\n# Hyphenated prefixes are tokenized independently by Typos.\naccepted = [\"inventario\", \"mis\"]\n\n[words.corrections]\n\n[patterns]\nignore = [\n  # \"mold\" names the linker (https://github.com/rui314/mold) in these\n  # contexts only; the mould correction stays active elsewhere.\n  \"-fuse-ld=mold\",\n  \"mold linker\",\n  \"Cranelift \\\\+ mold\",\n  \"Cranelift and mold\",\n  \"`mold`\",\n  # GitHub Actions and Cargo machine interfaces retain upstream spelling.\n  '(?m)^\\s*CARGO_TERM_COLOR: always$',\n  # The environment variable markdownlint-cli2 honours; `make fmt` clears it.\n  '\\bFORCE_COLOR\\b',\n  '\\b--color\\b',\n  # This equivalent punctuation-delimited form avoids Rust regex look-around.\n  '(^|[^[:alnum:]_])--color($|[^[:alnum:]_])',\n  '(?m)^\\s*types: \\[opened, reopened, synchronize, labeled, ready_for_review\\]$',\n  '\\bCompilerArtifact\\b',\n  '\"reason\": \"compiler-artifact\"',\n  # The action's own name, quoted when a contract matches a `uses:` value.\n  'actions/upload-artifact',\n  # Tokio names and attributes are external Rust APIs.\n  '\\bRuntimeFlavor\\b',\n  '\\bruntime_flavor\\b',\n  'flavor = \\\\\"current_thread\\\\\"',\n  'flavor = \"current_thread\"',\n  'expected current_thread flavor in output',\n  # The language-server lifecycle surface and diagnostics are stable public\n  # contracts whose established spellings cannot be renamed in this rollout.\n  '\\b(?:NotInitialised|AlreadyInitialised)\\b',\n  '\\b(?:handle_initialise|handle_initialised)\\b',\n  '\\b(?:is_initialised|mark_initialised)\\b',\n  '\"initialised\"',\n  'server (?:not|already) initialised',\n  'unrecognised boolean value',\n  # Formal upstream names and the ExecPlan template retain their titles.\n  'Rust Analyzer',\n  'Artifacts and [Nn]otes',\n  # Inline code spans are masked; the shared dictionary does not mask them yet.\n  '`[^`\\n]+`',\n  # Deliberate mixed-case and translated fixture text is asserted verbatim.\n  '\\bnOt\\b',\n  '\\bTrUe\\b',\n  '\\{color\\}',\n  '\\bcaf\\b',\n  '\\binventario\\b',\n  \"n'aurait pas dû signaler une étape ignorée\",\n  'La fixture « n » de type « u32 » est introuvable pour la fonction « s »',\n  'syntaxe de paramètre invalide',\n  \"Erreur lors de l'exécution de l'étape « p » via la fonction « f » : boom\",\n  \"Panique dans l'étape « p », fonction « f » : boom\",\n]\n\n[files]\nexclude = [\n  # Fluent catalogues and localized Gherkin fixtures are foreign-language\n  # machine inputs, not English prose.\n  \"crates/rstest-bdd/i18n\",\n  \"crates/rstest-bdd/tests/features/i18n/addition_de.feature\",\n  \"crates/rstest-bdd/tests/features/i18n/addition_es.feature\",\n]\n",
+    "cases": [
+      {
+        "id": "consumer-attribute-constructor",
+        "path": "src.rs",
+        "content": "let tokio = TestAttribute::with_arguments(\"tokio::test\", \"flavor = \\\"current_thread\\\"\");\n",
+        "diagnostic": []
+      },
+      {
+        "id": "consumer-rendered-escaped-attribute",
+        "path": "src.rs",
+        "content": "assert_eq!(tokio.render(), \"#[tokio::test(flavor = \\\"current_thread\\\")]\");\n",
+        "diagnostic": []
+      },
+      {
+        "id": "consumer-arguments-accessor-assertion",
+        "path": "src.rs",
+        "content": "assert_eq!(attribute.arguments(), Some(\"flavor = \\\"current_thread\\\"\"));\n",
+        "diagnostic": []
+      }
+    ]
+  }
+}
