@@ -537,8 +537,12 @@ Aliases, the `name` option and other arguments stay outside the grammar and are
 covered as near misses. `tests/test_tokio_flavour_exemption.py` runs the gate
 over `tests/fixtures/tokio_spelling_cases.json`, and
 `tests/test_tokio_flavour_boundaries.py` generates the delimiter and
-neighbouring-text cases. The decision is recorded in the 2026-10-30 amendment
-to ADR 0003.
+neighbouring-text cases. The gate-backed cases require `uv` and `git` on
+`PATH`, and `assert_pinned_gate_tools()` fails when
+`TYPOS_CONFIG_BUILDER_VERSION` in the Makefile is not `v0.1.3`, the release
+those cases were written against. The generated boundary properties run in
+memory against Python's regular-expression engine and need neither executable.
+The decision is recorded in the 2026-10-30 amendment to ADR 0003.
 
 `scripts/oxford_form_harvest.py` is the one spelling tool this repository still
 owns. It gathers the evidence a curator reads before proposing a stem, because
