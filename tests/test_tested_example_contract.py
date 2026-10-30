@@ -1,13 +1,14 @@
-"""Contract tests for the tested-example markers in the published guides.
+"""Contract tests for tested-example markers in the published guides.
 
-These tests read the two published, user-facing documents named in the
+These tests read the three published, user-facing documents named in the
 style guide's "Tested correctness" bullet directly from their shipped paths,
 never from a copied fixture, and assert that each satisfies the contract in
 full: every executable fence carries a marker, every identifier is unique
-within its document, and no fence is left unterminated. A regression in
-either document's markers, or a bug in the loader itself, fails one of these
-tests rather than surfacing only when a downstream example-execution test
-silently stops running.
+within its document, and no fence is left unterminated. The expected example
+counts are 93 for the daisyUI guide, 14 for the Femtologging guide, and 21 for
+the scripting standards. A regression in any document's markers, or a bug in
+the loader itself, fails one of these tests rather than surfacing only when a
+downstream example-execution test silently stops running.
 """
 
 from __future__ import annotations
@@ -22,12 +23,16 @@ DAISYUI_GUIDE_PATH = REPOSITORY_ROOT / "documentation-library" / "daisyui-v5-gui
 FEMTOLOGGING_GUIDE_PATH = (
     REPOSITORY_ROOT / "documentation-library" / "femtologging-users-guide.md"
 )
+SCRIPTING_STANDARDS_PATH = (
+    REPOSITORY_ROOT / "documentation-library" / "scripting-standards.md"
+)
 
-#: Measured fence counts for each guide, kept here so a change to either
-#: document's example count is a deliberate, reviewed edit to this test
+#: Measured fence counts for each published document, kept here so a change to
+#: any document's example count is a deliberate, reviewed edit to this test
 #: rather than a silent drift.
 DAISYUI_EXPECTED_EXAMPLE_COUNT = 93
 FEMTOLOGGING_EXPECTED_EXAMPLE_COUNT = 14
+SCRIPTING_STANDARDS_EXPECTED_EXAMPLE_COUNT = 21
 
 
 def _assert_contract_satisfied(
@@ -76,4 +81,17 @@ def test_the_femtologging_guide_marks_every_executable_fence_but_not_mermaid() -
     assert "mermaid" not in languages, (
         "mermaid fences are outside the tested-example contract and must "
         "never be returned as tested examples"
+    )
+
+
+def test_scripting_standards_marks_every_python_and_yaml_fence() -> None:
+    """The scripting standards mark all 20 Python examples and the YAML example."""
+    examples = load_tested_examples(SCRIPTING_STANDARDS_PATH)
+    _assert_contract_satisfied(
+        examples, expected_count=SCRIPTING_STANDARDS_EXPECTED_EXAMPLE_COUNT
+    )
+    language_counts = Counter(example.language for example in examples)
+    assert language_counts == Counter({"python": 20, "yaml": 1}), (
+        "expected exactly 20 python and 1 yaml fence, found "
+        f"{language_counts!r}"
     )

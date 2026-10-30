@@ -1656,6 +1656,15 @@ The skill fixes these constraints:
 - The fact cache is scoped per scenario through `${MOLECULE_SCENARIO_NAME}`.
 - `molecule test --all` is the sequential fallback.
 
+## Scripting standards
+
+New and updated scripts that launch external processes must follow the
+[scripting standards](../documentation-library/scripting-standards.md) and
+[Cuprum v0.2.0-beta2 users' guide](https://github.com/leynos/cuprum/blob/v0.2.0-beta2/docs/users-guide.md).
+Pin `cuprum==0.2.0b2` in the script's PEP 723 metadata or the project's
+dependencies. Do not use plumbum or direct `subprocess` calls for command
+execution.
+
 ## Tested-example contract
 
 The style guide's "Tested correctness" bullet, in
@@ -1711,19 +1720,21 @@ message naming the offending line:
 - a duplicate identifier reused within the same document; and
 - a fence that is opened but never closed.
 
-Two published guides currently sit under the contract:
+Three published documents currently sit under the contract:
 `documentation-library/daisyui-v5-guide.md` and
-`documentation-library/femtologging-users-guide.md`.
-`tests/test_tested_example_contract.py` loads both from their shipped paths and
-asserts each satisfies the contract in full — every executable fence marked,
-every identifier unique within its document, and the expected fence count and
-language set unchanged — so a regression in either document's markers, or a bug
-in the loader itself, fails a test rather than surfacing only when a downstream
-example-execution test silently stops running.
-`tests/test_tested_example_loader.py` exercises the four failure modes above
-against small inline documents, checking the specific diagnostic each raises,
-and separately confirms that an unmarked or marked mermaid fence is accepted
-and excluded from the results.
+`documentation-library/femtologging-users-guide.md`, and
+`documentation-library/scripting-standards.md`.
+`tests/test_tested_example_contract.py` loads all three from their shipped
+paths and asserts each satisfies the contract in full — every executable fence
+marked, every identifier unique within its document, and the expected fence
+count and language set unchanged. It checks 93 examples in the daisyUI guide,
+14 in the Femtologging guide, and 21 in the scripting standards, so a
+regression in any document's markers, or a bug in the loader itself, fails a
+test rather than surfacing only when a downstream example-execution test
+silently stops running. `tests/test_tested_example_loader.py` exercises the
+four failure modes above against small inline documents, checking the specific
+diagnostic each raises, and separately confirms that an unmarked or marked
+mermaid fence is accepted and excluded from the results.
 
 ## Validation expectations
 

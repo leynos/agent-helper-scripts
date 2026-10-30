@@ -25,7 +25,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "cmd-mox" },
-    { name = "cuprum" },
+    { name = "cuprum", specifier = "==0.2.0b2" },
     { name = "hypothesis" },
     { name = "pytest" },
     { name = "pytest-bdd" },
@@ -67,11 +67,16 @@ wheels = [
 
 [[package]]
 name = "cuprum"
-version = "0.1.0"
+version = "0.2.0b2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/2a/75534f4578a7437fab7d0075ea5955a1553bf4cf016ab0d9a6e5a24f6f7f/cuprum-0.1.0.tar.gz", hash = "sha256:bdc6ab92b1895613f7bfc35c762376f4830928add3d39061f7b3806d7aa422b4", size = 47214, upload-time = "2025-12-25T23:15:10.091Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/b7/d933ba32a658cef81b6c1aaefb2c938dea836c5ea0e1549092cca609ecf0/cuprum-0.2.0b2.tar.gz", hash = "sha256:325cc0e4d025f313ce09aece37a71267e590848536f6847a986eebf53b0331e3", size = 535661, upload-time = "2026-10-18T23:55:30.771Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/2b/a5ada0f42e8e27c0ce8102256344db5adc339334293431319da06e33a80c/cuprum-0.1.0-py3-none-any.whl", hash = "sha256:b03e813bb56afe75f6cc38ec742091a0b1dc183480630abbaf8f205c984c3e72", size = 60578, upload-time = "2025-12-25T23:15:08.336Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/1a/efb78849a1eaa66a15fa74dbd138068ea1632fa3890f7cfaf6799a114126/cuprum-0.2.0b2-cp312-abi3-macosx_10_12_x86_64.whl", hash = "sha256:bcdfd81e870dbe7f5cf03f88b76c95b9e9a6387e8962f45ca0bd875e5e9c7bc2", size = 740636, upload-time = "2026-10-18T23:55:21.22Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/93/11bb25c6485fd232f9970427571329e5994f234140e3e9fc7cf633eee18a/cuprum-0.2.0b2-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:07e7087d3e7a6beaac460eb065eafd4326e317514f00e50876b630c88c3fbc83", size = 739060, upload-time = "2026-10-18T23:55:23.043Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/7d/ed30accf7f030bb7409b68b7b8fe6c229956930e205166cb5b31cfd9dd09/cuprum-0.2.0b2-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:dfe32d6602c64a1513a2bf4bfe8a8a3f64c195b43df5fc670925c5fe1be34929", size = 781310, upload-time = "2026-10-18T23:55:24.533Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/86/dd7fae1e28a2fed4851c3956b86eda9737728203e3d3d1cf61ead1999b98/cuprum-0.2.0b2-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:4fe9621790634e350e5735ddf3cb400247976bb565f72548e478049e9c1b839a", size = 779690, upload-time = "2026-10-18T23:55:26.423Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/e1/2462d575c80d50e550c0178382689e934f45b59b306d8d1534b6a6ba4faa/cuprum-0.2.0b2-cp312-abi3-win_amd64.whl", hash = "sha256:c3258d254d7495797f06ed4eb23f46580f2bcc801f0ef56862d17644c0aefe0d", size = 629204, upload-time = "2026-10-18T23:55:27.973Z" },
+    { url = "https://files.pythonhosted.org/packages/54/b8/96703f2ff979d21a75c0d860de09caf99503f12191500625955f3aed5331/cuprum-0.2.0b2-py3-none-any.whl", hash = "sha256:723518f51e6242e04c6c7ce4ab4b31bf09d0bfa0b57b75d3c61dc23835db13bf", size = 517450, upload-time = "2026-10-18T23:55:29.295Z" },
 ]
 
 [[package]]
