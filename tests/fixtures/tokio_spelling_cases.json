@@ -225,6 +225,46 @@
       "diagnostic": [
         "flavor"
       ]
+    },
+    {
+      "id": "main-local-extra-worker-after",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\", worker_threads = 2)]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-extra-worker-before",
+      "path": "src.rs",
+      "content": "#[tokio::main(worker_threads = 2, flavor = \"local\")]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "main-local-extra-name",
+      "path": "src.rs",
+      "content": "#[tokio::main(flavor = \"local\", name = \"custom\")]\nasync fn main() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-extra-name",
+      "path": "src.rs",
+      "content": "#[tokio::test(name = \"custom\", flavor = \"current_thread\")]\nasync fn test_custom() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-fourth-argument",
+      "path": "src.rs",
+      "content": "#[tokio::test(flavor = \"current_thread\", worker_threads = 2, start_paused = true, unhandled_panic = \"ignore\", name = \"custom\")]\nasync fn test_overfull() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
     }
   ],
   "recorded_consumer_positive": {

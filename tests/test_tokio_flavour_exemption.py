@@ -312,7 +312,7 @@ def test_corpus_ids_are_unique_and_negative_cases_name_diagnostics() -> None:
     negative_cases = CORPUS["shared_negative"]
 
     assert len(CORPUS["shared_positive"]) == 16, "shared positive count is incorrect"
-    assert len(negative_cases) == 15, "shared negative count is incorrect"
+    assert len(negative_cases) == 20, "shared negative count is incorrect"
     assert len(consumer_cases) == 3, "consumer case count is incorrect"
     assert len(identifiers) == len(set(identifiers)), "case identifiers are not unique"
     assert all(case["path"] in {"src.rs", "guide.md"} for case in all_cases), (

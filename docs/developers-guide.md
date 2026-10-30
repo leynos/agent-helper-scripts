@@ -533,12 +533,14 @@ value is `current_thread` or `multi_thread`, as in
 the key, or the `#[tokio::main(flavor = "local")]` form that Tokio documents for
 `main` only. The key outside those attributes is scanned, so ordinary
 identifiers, assignments, prose and non-Tokio APIs report a US spelling.
-Aliases, the `name` option and other arguments stay outside the grammar and are
-covered as near misses. `tests/test_tokio_flavour_exemption.py` runs the gate
+Aliases, the `name` option and other arguments stay outside the grammar, and
+the gate-backed corpus pins that rejection for a local attribute and for a
+common attribute carrying an extra argument. Generated forms add a fourth
+argument beside the key. `tests/test_tokio_flavour_exemption.py` runs the gate
 over `tests/fixtures/tokio_spelling_cases.json`, and
-`tests/test_tokio_flavour_boundaries.py` generates the delimiter and
-neighbouring-text cases. The gate-backed cases require `uv` and `git` on
-`PATH`, and `assert_pinned_gate_tools()` fails when
+`tests/test_tokio_flavour_boundaries.py` generates the delimiter,
+extra-argument and neighbouring-text cases. The gate-backed cases require `uv`
+and `git` on `PATH`, and `assert_pinned_gate_tools()` fails when
 `TYPOS_CONFIG_BUILDER_VERSION` in the Makefile is not `v0.1.3`, the release
 those cases were written against. The generated boundary properties run in
 memory against Python's regular-expression engine and need neither executable.

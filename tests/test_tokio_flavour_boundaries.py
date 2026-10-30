@@ -29,6 +29,7 @@ from test_tokio_flavour_exemption import (
 WHITESPACE = st.sampled_from(("", " ", "\n", "\t", " \n "))
 QUOTES = st.sampled_from(('"', r'\"'))
 ARGUMENT_NAMES = ("worker_threads", "start_paused", "unhandled_panic")
+UNSUPPORTED_ARGUMENTS = ("name",)
 
 
 def _cases_by_id(case_id: str) -> SpellingCase:
@@ -160,6 +161,48 @@ def _local_attribute(draw: st.DrawFn) -> str:
     )
 
 
+@st.composite
+def _local_attribute_with_argument(draw: st.DrawFn) -> str:
+    """Generate a main-only local form carrying one additional argument."""
+    quote = draw(QUOTES)
+    spacing = draw(WHITESPACE)
+    comma = draw(st.sampled_from((",", ", ", ",\n  ", " , ")))
+    name = draw(st.sampled_from((*ARGUMENT_NAMES, *UNSUPPORTED_ARGUMENTS)))
+    extra = (
+        f"{name}{spacing}={spacing}{quote}generated{quote}"
+        if name in UNSUPPORTED_ARGUMENTS
+        else draw(_rendered_argument(name, quote))
+    )
+    runtime = f"{API_KEY}{spacing}={spacing}{quote}{LOCAL_VALUE}{quote}"
+    parts = (runtime, extra) if draw(st.booleans()) else (extra, runtime)
+    trailing_comma = "," if draw(st.booleans()) else ""
+    return (
+        f"#[{spacing}tokio::main{spacing}({spacing}{comma.join(parts)}"
+        f"{trailing_comma}{spacing}){spacing}]"
+    )
+
+
+@st.composite
+def _overfull_common_attribute(draw: st.DrawFn) -> str:
+    """Generate a common-scope form with four options beside the runtime key."""
+    path = draw(st.sampled_from(("main", "test")))
+    value = draw(st.sampled_from(COMMON_VALUES))
+    quote = draw(QUOTES)
+    spacing = draw(WHITESPACE)
+    names = draw(
+        st.lists(st.sampled_from(ARGUMENT_NAMES), min_size=4, max_size=4)
+    )
+    extras = [draw(_rendered_argument(name, quote)) for name in names]
+    runtime = f"{API_KEY}{spacing}={spacing}{quote}{value}{quote}"
+    parts = (*extras, runtime) if draw(st.booleans()) else (runtime, *extras)
+    comma = draw(st.sampled_from((",", ", ", ",\n  ", " , ")))
+    trailing_comma = "," if draw(st.booleans()) else ""
+    return (
+        f"#[{spacing}tokio::{path}{spacing}({spacing}{comma.join(parts)}"
+        f"{trailing_comma}{spacing}){spacing}]"
+    )
+
+
 def _assert_exact_match(pattern: str, attribute: str) -> None:
     """Require the expression to stop at the full attribute boundaries."""
     before = f"{NEIGHBOUR_WORD} = true\n"
@@ -237,6 +280,26 @@ def test_generated_near_misses_do_not_match_either_scope(
     for attribute in attributes:
         assert re.search(MAIN_TEST_PATTERN, attribute) is None, attribute
         assert re.search(MAIN_LOCAL_PATTERN, attribute) is None, attribute
+
+
+@settings(max_examples=200, deadline=None)
+@given(attribute=_local_attribute_with_argument())
+def test_generated_local_attribute_with_argument_is_rejected(
+    attribute: str,
+) -> None:
+    """The local scope accepts no additional argument on either side."""
+    assert re.search(MAIN_LOCAL_PATTERN, attribute) is None, attribute
+    assert re.search(MAIN_TEST_PATTERN, attribute) is None, attribute
+
+
+@settings(max_examples=200, deadline=None)
+@given(attribute=_overfull_common_attribute())
+def test_generated_common_attribute_with_fourth_argument_is_rejected(
+    attribute: str,
+) -> None:
+    """The optional-argument grammar stops at a fourth argument on either side."""
+    assert re.search(MAIN_TEST_PATTERN, attribute) is None, attribute
+    assert re.search(MAIN_LOCAL_PATTERN, attribute) is None, attribute
 
 
 def test_spaced_attribute_without_closing_parenthesis_is_rejected() -> None:
