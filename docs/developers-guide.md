@@ -530,14 +530,15 @@ complete `#[tokio::main(...)]` or `#[tokio::test(...)]` attribute whose runtime
 value is `current_thread` or `multi_thread`, as in
 `#[tokio::test(flavor = "multi_thread")]`, with at most three fixed arguments
 (`worker_threads`, `start_paused` and `unhandled_panic`) in any order around
-the key, or the `#[tokio::main(flavor = "local")]` form that Tokio documents for
-`main` only. The key outside those attributes is scanned, so ordinary
-identifiers, assignments, prose and non-Tokio APIs report a US spelling.
-Aliases, the `name` option and other arguments stay outside the grammar, and
-the gate-backed corpus pins that rejection for a local attribute and for a
-common attribute carrying an extra argument. Generated forms add a fourth
-argument beside the key. `tests/test_tokio_flavour_exemption.py` runs the gate
-over `tests/fixtures/tokio_spelling_cases.json`, and
+the key, counted in total rather than per side, or the
+`#[tokio::main(flavor = "local")]` form that Tokio documents for `main` only.
+The key outside those attributes is scanned, so ordinary identifiers,
+assignments, prose and non-Tokio APIs report a US spelling. Aliases, the `name`
+option and other arguments stay outside the grammar, and the gate-backed corpus
+pins that rejection for a local attribute and for a common attribute carrying
+an extra argument. Generated forms add a fourth argument in every split around
+the key. `tests/test_tokio_flavour_exemption.py` runs the gate over
+`tests/fixtures/tokio_spelling_cases.json`, and
 `tests/test_tokio_flavour_boundaries.py` generates the delimiter,
 extra-argument and neighbouring-text cases. The gate-backed cases require `uv`
 and `git` on `PATH`, and `assert_pinned_gate_tools()` fails when

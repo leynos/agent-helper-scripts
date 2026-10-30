@@ -117,14 +117,15 @@ def _rendered_argument(draw: st.DrawFn, name: str, quote: str) -> str:
 
 @st.composite
 def _common_attribute(draw: st.DrawFn) -> str:
-    """Generate a policy form with up to three options on either side."""
+    """Generate a policy form with up to three options in total."""
     path = draw(st.sampled_from(("main", "test")))
     value = draw(st.sampled_from(COMMON_VALUES))
     quote = draw(QUOTES)
     before_order = draw(st.permutations(ARGUMENT_NAMES))
     after_order = draw(st.permutations(ARGUMENT_NAMES))
-    before_count = draw(st.integers(min_value=0, max_value=3))
-    after_count = draw(st.integers(min_value=0, max_value=3))
+    total_count = draw(st.integers(min_value=0, max_value=3))
+    before_count = draw(st.integers(min_value=0, max_value=total_count))
+    after_count = total_count - before_count
     before = [
         draw(_rendered_argument(name, quote))
         for name in before_order[:before_count]
@@ -184,7 +185,7 @@ def _local_attribute_with_argument(draw: st.DrawFn) -> str:
 
 @st.composite
 def _overfull_common_attribute(draw: st.DrawFn) -> str:
-    """Generate a common-scope form with four options beside the runtime key."""
+    """Generate a common-scope form with four options in any distribution."""
     path = draw(st.sampled_from(("main", "test")))
     value = draw(st.sampled_from(COMMON_VALUES))
     quote = draw(QUOTES)
@@ -192,9 +193,10 @@ def _overfull_common_attribute(draw: st.DrawFn) -> str:
     names = draw(
         st.lists(st.sampled_from(ARGUMENT_NAMES), min_size=4, max_size=4)
     )
+    split = draw(st.integers(min_value=0, max_value=4))
     extras = [draw(_rendered_argument(name, quote)) for name in names]
     runtime = f"{API_KEY}{spacing}={spacing}{quote}{value}{quote}"
-    parts = (*extras, runtime) if draw(st.booleans()) else (runtime, *extras)
+    parts = (*extras[:split], runtime, *extras[split:])
     comma = draw(st.sampled_from((",", ", ", ",\n  ", " , ")))
     trailing_comma = "," if draw(st.booleans()) else ""
     return (
@@ -297,7 +299,7 @@ def test_generated_local_attribute_with_argument_is_rejected(
 def test_generated_common_attribute_with_fourth_argument_is_rejected(
     attribute: str,
 ) -> None:
-    """The optional-argument grammar stops at a fourth argument on either side."""
+    """The optional-argument grammar stops at a fourth argument in any split."""
     assert re.search(MAIN_TEST_PATTERN, attribute) is None, attribute
     assert re.search(MAIN_LOCAL_PATTERN, attribute) is None, attribute
 

@@ -261,7 +261,15 @@
     {
       "id": "test-common-fourth-argument",
       "path": "src.rs",
-      "content": "#[tokio::test(flavor = \"current_thread\", worker_threads = 2, start_paused = true, unhandled_panic = \"ignore\", name = \"custom\")]\nasync fn test_overfull() {}\n",
+      "content": "#[tokio::test(flavor = \"current_thread\", worker_threads = 2, start_paused = true, unhandled_panic = \"ignore\", worker_threads = 4)]\nasync fn test_overfull() {}\n",
+      "diagnostic": [
+        "flavor"
+      ]
+    },
+    {
+      "id": "test-common-mixed-fourth-argument",
+      "path": "src.rs",
+      "content": "#[tokio::test(worker_threads = 2, start_paused = true, flavor = \"current_thread\", unhandled_panic = \"ignore\", worker_threads = 4)]\nasync fn test_overfull_mixed() {}\n",
       "diagnostic": [
         "flavor"
       ]

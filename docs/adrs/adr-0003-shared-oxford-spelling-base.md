@@ -174,7 +174,9 @@ replace it. The first covers `#[tokio::main(...)]` and `#[tokio::test(...)]`
 with the `current_thread` or `multi_thread` runtime value, as in
 `#[tokio::main(flavor = "current_thread")]`, accepting raw or escaped quotes
 and up to three fixed arguments (`worker_threads`, `start_paused` and
-`unhandled_panic`) in any order on either side of the key. The second covers
+`unhandled_panic`) in any order around the key, counted across both sides
+rather than per side. The pattern spells out each distribution explicitly, so
+the total bound needs no compounded repetition. The second covers
 `#[tokio::main(flavor = "local")]` alone, which Tokio documents for `main` but
 not `test`.
 
