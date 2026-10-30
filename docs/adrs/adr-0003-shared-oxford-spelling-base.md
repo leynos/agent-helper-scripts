@@ -164,3 +164,26 @@ uncovered and needs constructs the builder's bounded-expression rule rejects,
 so the residual is accepted and recorded as an expectation in
 `tests/test_colour_option_exemption.py`. It is tracked as the prefix half of
 leynos/typos-config-builder#108.
+
+## Amendment 2026-10-30
+
+The shared exception for the US spelling of "flavour" as a Tokio runtime key is
+narrowed. It once masked any assignment of that key, which hid the same text in
+ordinary source, prose and non-Tokio APIs. Two complete-attribute patterns
+replace it. The first covers `#[tokio::main(...)]` and `#[tokio::test(...)]`
+with the `current_thread` or `multi_thread` runtime value, as in
+`#[tokio::main(flavor = "current_thread")]`, accepting raw or escaped quotes
+and up to three fixed arguments (`worker_threads`, `start_paused` and
+`unhandled_panic`) in any order on either side of the key. The second covers
+`#[tokio::main(flavor = "local")]` alone, which Tokio documents for `main` but
+not `test`.
+
+A bare-key mask, aliases, the documented `name` option and arguments outside
+that finite set remain outside the exception, so a US spelling beside them is
+still reported. The readable cases are recorded in
+`tests/test_tokio_flavour_exemption.py` over
+`tests/fixtures/tokio_spelling_cases.json`, and the generated boundaries in
+`tests/test_tokio_flavour_boundaries.py`; because the corpus is a fixture,
+`typos.local.toml` excludes it from direct scans. The narrowed policy reaches
+consumers that obtain the live dictionary on their next `gate` run, while the
+builder's packaged snapshot can omit it until the next builder release.
