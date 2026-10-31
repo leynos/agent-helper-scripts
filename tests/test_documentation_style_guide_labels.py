@@ -15,6 +15,7 @@ from __future__ import annotations
 from functools import cache
 from pathlib import Path
 import re
+from typing import NamedTuple
 
 import pytest
 
@@ -24,8 +25,10 @@ STYLE_GUIDE_PATH = (
 )
 
 #: Bold labels that describe a metadata field or give guidance rather than
-#: name a heading. The heading rule exempts them from sentence case.
-EXEMPT_LABELS = frozenset(
+#: name a heading. The heading rule exempts them from sentence case. This is
+#: wider than the template-alignment exemptions: a metadata label may still
+#: appear as a template heading, as ADR ``Status`` and ``Date`` do.
+SENTENCE_CASE_EXEMPT_LABELS = frozenset(
     {"Title", "RFC number", "Status", "Created", "Date", "Opening section"}
 )
 
@@ -61,12 +64,36 @@ ADR_CONDITIONAL_LABELS = (
     "Architectural rationale",
 )
 
+class SectionList(NamedTuple):
+    """One section list and the template it must match."""
+
+    heading: str
+    template: str
+    labels: tuple[str, ...]
+    #: Labels with no template heading of their own. ``Status`` is metadata in
+    #: the RFC template but a heading in the ADR template, so this exemption
+    #: is per list rather than global.
+    alignment_exempt: frozenset[str]
+
+
 #: Each section list, the template it must match, and its exact labels.
 LISTS = (
-    ("RFC required sections", "RFC template", RFC_REQUIRED_LABELS),
-    ("RFC conditional sections", "RFC template", RFC_CONDITIONAL_LABELS),
-    ("Required sections", "ADR template", ADR_REQUIRED_LABELS),
-    ("Conditional sections", "ADR template", ADR_CONDITIONAL_LABELS),
+    SectionList(
+        "RFC required sections",
+        "RFC template",
+        RFC_REQUIRED_LABELS,
+        frozenset({"Title", "RFC number", "Status", "Created", "Opening section"}),
+    ),
+    SectionList(
+        "RFC conditional sections",
+        "RFC template",
+        RFC_CONDITIONAL_LABELS,
+        frozenset(),
+    ),
+    SectionList("Required sections", "ADR template", ADR_REQUIRED_LABELS, frozenset()),
+    SectionList(
+        "Conditional sections", "ADR template", ADR_CONDITIONAL_LABELS, frozenset()
+    ),
 )
 
 _HEADING_RE = re.compile(r"^(?P<hashes>#{2,4}) (?P<title>.+)$")
@@ -156,49 +183,76 @@ def _template_headings(heading: str) -> tuple[str, ...]:
 
 
 def _is_sentence_case(label: str) -> bool:
-    """Return whether a label capitalizes only its first word.
+    """Return whether a label capitalizes its first word and no others.
 
     Proper nouns and acronyms are not modelled; the exact label assertions
     above cover the shipped set, and this generic check guards against a
-    title-case label being added later.
+    title-case or lower-case label being added later.
     """
     words = re.findall(r"[A-Za-z][A-Za-z'-]*", label)
-    return all(word.islower() for word in words[1:])
+    return bool(words) and words[0][0].isupper() and all(
+        word.islower() for word in words[1:]
+    )
 
 
-@pytest.mark.parametrize(("list_heading", "_template", "expected"), LISTS)
+def _matches_template_heading(label: str, headings: set[str]) -> bool:
+    """Return whether a label or one of its alternatives is a template heading.
+
+    A slash-separated label is one heading whose alternatives the template may
+    spell with either choice, so both the whole label and each alternative,
+    capitalized as a heading, are accepted.
+    """
+    if label in headings:
+        return True
+    alternatives = (part.strip() for part in label.split(" / "))
+    return any(
+        alternative[:1].upper() + alternative[1:] in headings
+        for alternative in alternatives
+    )
+
+
+@pytest.mark.parametrize(("list_heading", "_template", "expected", "_exempt"), LISTS)
 def test_section_list_labels_are_spelled_exactly(
-    list_heading: str, _template: str, expected: tuple[str, ...]
+    list_heading: str,
+    _template: str,
+    expected: tuple[str, ...],
+    _exempt: frozenset[str],
 ) -> None:
     """Each section list carries exactly its sentence-case labels."""
     assert _labels(_section_body(list_heading)) == expected
 
 
-@pytest.mark.parametrize(("list_heading", "_template", "expected"), LISTS)
+@pytest.mark.parametrize(("list_heading", "_template", "expected", "_exempt"), LISTS)
 def test_section_labels_use_sentence_case(
-    list_heading: str, _template: str, expected: tuple[str, ...]
+    list_heading: str,
+    _template: str,
+    expected: tuple[str, ...],
+    _exempt: frozenset[str],
 ) -> None:
     """Every non-exempt label capitalizes only its first word."""
     offenders = [
         label
         for label in expected
-        if label not in EXEMPT_LABELS and not _is_sentence_case(label)
+        if label not in SENTENCE_CASE_EXEMPT_LABELS and not _is_sentence_case(label)
     ]
     assert not offenders, f"{list_heading} has title-case labels: {offenders!r}"
 
 
-@pytest.mark.parametrize(("list_heading", "template_heading", "expected"), LISTS)
+@pytest.mark.parametrize(
+    ("list_heading", "template_heading", "expected", "exempt"), LISTS
+)
 def test_every_section_label_matches_a_template_heading(
-    list_heading: str, template_heading: str, expected: tuple[str, ...]
+    list_heading: str,
+    template_heading: str,
+    expected: tuple[str, ...],
+    exempt: frozenset[str],
 ) -> None:
-    """Every non-exempt label resolves to a heading in its template."""
+    """Every label without an alignment exemption resolves to a template heading."""
     headings = set(_template_headings(template_heading))
     missing = [
         label
         for label in expected
-        if label not in EXEMPT_LABELS
-        and label not in headings
-        and label.split(" / ")[0] not in headings
+        if label not in exempt and not _matches_template_heading(label, headings)
     ]
     assert not missing, (
         f"{list_heading} labels without a {template_heading} heading: "
