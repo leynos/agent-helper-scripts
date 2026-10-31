@@ -566,10 +566,10 @@ Include these sections as appropriate to the decision's complexity:
   a caption below the table (e.g. “_Table 1: Trade-offs between X and Y._”).
 - Include code snippets with language identifiers when illustrating technical
   approaches. In Rustdoc, `no_run` still compiles the snippet, so reserve it
-  for complete Rust code that must compile but must not execute, for example
+  for complete Rust code that compiles but does not execute, for example
   because it needs external resources, environment-specific setup, or a
-  long-running service. Use `ignore` for an incomplete snippet, or one that
-  cannot compile, because it is skipped entirely.
+  long-running service. Use `ignore` for an incomplete snippet or one that
+  cannot compile: `ignore` skips both compilation and execution.
 - Add screen reader descriptions before complex diagrams or code blocks.
 - Reference external sources using inline links or footnotes.
 
