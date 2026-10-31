@@ -565,8 +565,11 @@ Include these sections as appropriate to the decision's complexity:
 - Use tables to compare options when multiple dimensions are relevant. Include
   a caption below the table (e.g. “_Table 1: Trade-offs between X and Y._”).
 - Include code snippets with language identifiers when illustrating technical
-  approaches. Use `no_run` for illustrative Rust code that should not be
-  executed.
+  approaches. In Rustdoc, `no_run` still compiles the snippet, so reserve it
+  for complete Rust code that compiles but does not execute, for example
+  because it needs external resources, environment-specific setup, or a
+  long-running service. Use `ignore` for an incomplete snippet or one that
+  cannot compile: `ignore` skips both compilation and execution.
 - Add screen reader descriptions before complex diagrams or code blocks.
 - Reference external sources using inline links or footnotes.
 
@@ -695,9 +698,13 @@ contents of the manual.
 - Document any panics or errors with `# Panics` or `# Errors` as appropriate.
 - Place examples under `# Examples`. Let examples run as documentation tests
   when they can execute correctly, so the compiler verifies that they compile
-  and behave as documented. Mark examples with `no_run` only when they
-  genuinely cannot execute, such as examples that require external resources,
-  incomplete snippets, or environment-specific setup.
+  and behave as documented.
+- Use `no_run` for complete examples that must compile but must not execute,
+  such as examples that require external resources, environment-specific setup,
+  or a long-running service.
+- Use `ignore` for examples that are incomplete or otherwise cannot compile.
+  `no_run` only suppresses execution, so it cannot carry uncompilable code;
+  `ignore` skips both compilation and execution.
 - Put function attributes after the doc comment.
 
 ```rust,no_run
@@ -712,7 +719,7 @@ contents of the manual.
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// assert_eq!(add(2, 3), 5);
 /// ```
 #[inline]
