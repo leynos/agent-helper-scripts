@@ -3,16 +3,15 @@
 The style guide's ``## Headings`` rule requires a bold label in a required or
 conditional section list to use sentence case and to match a heading in the
 corresponding template, treating a slash-separated label as one heading. These
-tests read the shipped guide and assert the exact label sets, that every
-non-exempt label resolves to a template heading, and that the rule keeps its
-slash, exemption, and metadata wording, so a title-case regression or a
-list/template divergence fails here rather than reaching a vendoring
-repository.
+tests load the shipped guide at the test boundary, pass its lines into pure
+parsing helpers, and assert the exact label sets, that every label without an
+alignment exemption resolves to a template heading, and that the rule keeps
+each of its clauses, so a title-case regression, a list/template divergence,
+or an inverted rule fails here rather than reaching a vendoring repository.
 """
 
 from __future__ import annotations
 
-from functools import cache
 from pathlib import Path
 import re
 from typing import NamedTuple
@@ -64,6 +63,7 @@ ADR_CONDITIONAL_LABELS = (
     "Architectural rationale",
 )
 
+
 class SectionList(NamedTuple):
     """One section list and the template it must match."""
 
@@ -96,10 +96,81 @@ LISTS = (
     ),
 )
 
+#: The complete clauses the heading rule must state, with the line breaks
+#: normalized to single spaces. Asserting whole clauses, rather than isolated
+#: phrases, makes negated wording fail as well as missing wording.
+HEADING_RULE_CLAUSES = (
+    "Write headings in sentence case: capitalize only the first word and any "
+    "proper nouns, acronyms, or other words that are always capitalized, for "
+    "example `Context and problem statement` and `RFC number`.",
+    "Treat a bold label in a list of required or conditional sections as a "
+    "heading for this rule because readers write it as the section heading.",
+    "Spell it in sentence case and match the corresponding template heading.",
+    "Where such a label offers alternatives separated by a slash, for example "
+    "`Proposed design / proposed change`, treat the whole label as one heading.",
+    "Capitalize only its first word and any proper nouns or acronyms, and use "
+    "one alternative consistently within the document.",
+    "Labels that describe a metadata field or give guidance rather than name a "
+    "heading, such as `Title` or `Opening section`, are prose and are exempt "
+    "from this rule.",
+    "Use Markdown headings (`#`, `##`, `###`, and so on) in order without "
+    "skipping levels.",
+)
+
+#: Inverted versions of each clause, used to prove the assertions reject a
+#: negated rule rather than merely matching a shared phrase.
+NEGATED_HEADING_RULE_CLAUSES = (
+    (
+        HEADING_RULE_CLAUSES[0],
+        "Write headings in title case: capitalize every significant word.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[1],
+        "Do not treat a bold label in a list of required or conditional "
+        "sections as a heading for this rule because readers write it as the "
+        "section heading.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[2],
+        "Spell it in title case and ignore the corresponding template heading.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[3],
+        "Where such a label offers alternatives separated by a slash, for "
+        "example `Proposed design / proposed change`, treat each alternative "
+        "as its own heading.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[4],
+        "Capitalize only its first word and any proper nouns or acronyms, and "
+        "choose an alternative freely within the document.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[5],
+        "Labels that describe a metadata field or give guidance rather than "
+        "name a heading, such as `Title` or `Opening section`, are headings "
+        "and are subject to this rule.",
+    ),
+    (
+        HEADING_RULE_CLAUSES[6],
+        "Use Markdown headings in any order, skipping levels where convenient.",
+    ),
+)
+
 _HEADING_RE = re.compile(r"^(?P<hashes>#{2,4}) (?P<title>.+)$")
 _LABEL_RE = re.compile(r"^- \*\*(?P<label>[^*]+?):\*\*")
 _TEMPLATE_HEADING_RE = re.compile(r"^## (?P<title>.+)$")
 _FENCE_OPEN_RE = re.compile(r"^(?P<fence>`{3,})(?P<language>[^\s`]*)\s*$")
+
+
+@pytest.fixture(scope="module")
+def guide_lines() -> list[str]:
+    """Return the shipped guide's lines, or fail the test that needs them."""
+    try:
+        text = STYLE_GUIDE_PATH.read_text(encoding="utf-8")
+    except OSError as error:
+        pytest.fail(f"cannot read the style guide at {STYLE_GUIDE_PATH}: {error}")
+    return text.splitlines()
 
 
 def _is_fence_close(line: str, fence: str) -> bool:
@@ -108,20 +179,13 @@ def _is_fence_close(line: str, fence: str) -> bool:
     return len(stripped) >= len(fence) and set(stripped) == {"`"}
 
 
-@cache
-def _guide_text() -> str:
-    """Return the shipped style guide's text."""
-    return STYLE_GUIDE_PATH.read_text(encoding="utf-8")
-
-
-def _section_body(heading: str) -> list[str]:
+def _section_body(lines: list[str], heading: str) -> list[str]:
     """Return the lines under a heading, up to the next same-or-higher heading.
 
     A heading inside a fenced block is template content, not a section
     boundary, so fences are tracked and their lines always belong to the
     enclosing section.
     """
-    lines = _guide_text().splitlines()
     for index, line in enumerate(lines):
         match = _HEADING_RE.match(line)
         if match is None or match.group("title") != heading:
@@ -157,13 +221,13 @@ def _labels(lines: list[str]) -> tuple[str, ...]:
     )
 
 
-def _template_headings(heading: str) -> tuple[str, ...]:
+def _template_headings(lines: list[str], heading: str) -> tuple[str, ...]:
     """Return the level-two headings of a fenced Markdown template."""
-    lines = _section_body(heading)
+    body = _section_body(lines, heading)
     opener = next(
         (
             (index, match)
-            for index, line in enumerate(lines)
+            for index, line in enumerate(body)
             if (match := _FENCE_OPEN_RE.match(line)) is not None
             and match.group("language") == "markdown"
         ),
@@ -173,7 +237,7 @@ def _template_headings(heading: str) -> tuple[str, ...]:
         raise AssertionError(f"{heading!r} has no Markdown fence")
     opener_index, opener_match = opener
     headings: list[str] = []
-    for line in lines[opener_index + 1 :]:
+    for line in body[opener_index + 1 :]:
         if _is_fence_close(line, opener_match.group("fence")):
             break
         match = _TEMPLATE_HEADING_RE.match(line)
@@ -186,8 +250,8 @@ def _is_sentence_case(label: str) -> bool:
     """Return whether a label capitalizes its first word and no others.
 
     Proper nouns and acronyms are not modelled; the exact label assertions
-    above cover the shipped set, and this generic check guards against a
-    title-case or lower-case label being added later.
+    cover the shipped set, and this generic check guards against a title-case,
+    lower-case, or shouted label being added later.
     """
     words = re.findall(r"[A-Za-z][A-Za-z'-]*", label)
     return (
@@ -198,35 +262,47 @@ def _is_sentence_case(label: str) -> bool:
     )
 
 
-def _matches_template_heading(label: str, headings: set[str]) -> bool:
-    """Return whether a label or one of its alternatives is a template heading.
+def _template_heading_matches(label: str, headings: set[str]) -> list[str]:
+    """Return the template headings a label may be written as.
 
     A slash-separated label is one heading whose alternatives the template may
     spell with either choice, so both the whole label and each alternative,
     capitalized as a heading, are accepted.
     """
-    if label in headings:
-        return True
-    alternatives = (part.strip() for part in label.split(" / "))
-    return any(
-        alternative[:1].upper() + alternative[1:] in headings
-        for alternative in alternatives
+    alternatives = [part.strip() for part in label.split(" / ")]
+    candidates = [label]
+    candidates.extend(
+        alternative[:1].upper() + alternative[1:] for alternative in alternatives
     )
+    return sorted({candidate for candidate in candidates if candidate in headings})
+
+
+def _normalize(lines: list[str]) -> str:
+    """Join lines into one space-separated string."""
+    return re.sub(r"\s+", " ", " ".join(line.strip() for line in lines)).strip()
+
+
+def _assert_heading_rule(rule: str) -> None:
+    """Assert the heading rule states each expected clause."""
+    for clause in HEADING_RULE_CLAUSES:
+        assert clause in rule, f"the heading rule is missing {clause!r}"
 
 
 @pytest.mark.parametrize(("list_heading", "_template", "expected", "_exempt"), LISTS)
 def test_section_list_labels_are_spelled_exactly(
+    guide_lines: list[str],
     list_heading: str,
     _template: str,
     expected: tuple[str, ...],
     _exempt: frozenset[str],
 ) -> None:
     """Each section list carries exactly its sentence-case labels."""
-    assert _labels(_section_body(list_heading)) == expected
+    assert _labels(_section_body(guide_lines, list_heading)) == expected
 
 
 @pytest.mark.parametrize(("list_heading", "_template", "expected", "_exempt"), LISTS)
 def test_section_labels_use_sentence_case(
+    guide_lines: list[str],
     list_heading: str,
     _template: str,
     expected: tuple[str, ...],
@@ -245,17 +321,18 @@ def test_section_labels_use_sentence_case(
     ("list_heading", "template_heading", "expected", "exempt"), LISTS
 )
 def test_every_section_label_matches_a_template_heading(
+    guide_lines: list[str],
     list_heading: str,
     template_heading: str,
     expected: tuple[str, ...],
     exempt: frozenset[str],
 ) -> None:
     """Every label without an alignment exemption resolves to a template heading."""
-    headings = set(_template_headings(template_heading))
+    headings = set(_template_headings(guide_lines, template_heading))
     missing = [
         label
         for label in expected
-        if label not in exempt and not _matches_template_heading(label, headings)
+        if label not in exempt and not _template_heading_matches(label, headings)
     ]
     assert not missing, (
         f"{list_heading} labels without a {template_heading} heading: "
@@ -263,10 +340,55 @@ def test_every_section_label_matches_a_template_heading(
     )
 
 
-def test_heading_rule_names_the_slash_rule_and_exempt_labels() -> None:
-    """The heading rule states the slash treatment and the exemptions."""
-    rule = "\n".join(_section_body("Headings"))
-    assert "treat the whole label as one heading" in rule
-    assert "`Proposed design / proposed change`" in rule
-    for label in ("`Title`", "`Opening section`"):
-        assert label in rule, f"the heading rule does not exempt {label}"
+@pytest.mark.parametrize(
+    ("list_heading", "template_heading", "expected", "_exempt"), LISTS
+)
+def test_slash_labels_use_one_template_alternative(
+    guide_lines: list[str],
+    list_heading: str,
+    template_heading: str,
+    expected: tuple[str, ...],
+    _exempt: frozenset[str],
+) -> None:
+    """A slash-separated label uses only one alternative in its template."""
+    headings = set(_template_headings(guide_lines, template_heading))
+    offenders = [
+        label
+        for label in expected
+        if " / " in label and len(_template_heading_matches(label, headings)) > 1
+    ]
+    assert not offenders, (
+        f"{list_heading} labels with more than one {template_heading} heading: "
+        f"{offenders!r}"
+    )
+
+
+def test_heading_rule_states_each_clause(guide_lines: list[str]) -> None:
+    """The heading rule states every required clause in full."""
+    _assert_heading_rule(_normalize(_section_body(guide_lines, "Headings")))
+
+
+@pytest.mark.parametrize(("clause", "inverted"), NEGATED_HEADING_RULE_CLAUSES)
+def test_inverted_heading_rule_clause_is_rejected(
+    guide_lines: list[str], clause: str, inverted: str
+) -> None:
+    """Replacing a clause with its inversion makes the rule assertion fail."""
+    rule = _normalize(_section_body(guide_lines, "Headings"))
+    assert clause in rule
+    with pytest.raises(AssertionError):
+        _assert_heading_rule(rule.replace(clause, inverted))
+
+
+def test_sentence_case_exemptions_are_documented(guide_lines: list[str]) -> None:
+    """Every exempt label is listed by the guide and named by its rule."""
+    rule = _normalize(_section_body(guide_lines, "Headings"))
+    assert "such as `Title` or `Opening section`" in rule
+    documented = {
+        label
+        for section in LISTS
+        for label in _labels(_section_body(guide_lines, section.heading))
+    }
+    undocumented = SENTENCE_CASE_EXEMPT_LABELS - documented
+    assert not undocumented, (
+        f"the tests exempt labels the guide never lists: {sorted(undocumented)!r}"
+    )
