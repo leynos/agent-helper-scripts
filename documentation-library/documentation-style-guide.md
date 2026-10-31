@@ -43,7 +43,7 @@ consistent, and easy to maintain across projects.
   proper nouns, acronyms, or other words that are always capitalized, for
   example `Context and problem statement` and `RFC number`.
 - Treat a bold label in a list of required or conditional sections as a
-  heading for this rule, because readers write it as the section heading. Spell
+  heading for this rule because readers write it as the section heading. Spell
   it in sentence case and match the corresponding template heading.
 - Where such a label offers alternatives separated by a slash, for example
   `Proposed design / proposed change`, write each alternative in sentence case
