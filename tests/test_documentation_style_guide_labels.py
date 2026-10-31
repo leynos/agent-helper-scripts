@@ -190,8 +190,11 @@ def _is_sentence_case(label: str) -> bool:
     title-case or lower-case label being added later.
     """
     words = re.findall(r"[A-Za-z][A-Za-z'-]*", label)
-    return bool(words) and words[0][0].isupper() and all(
-        word.islower() for word in words[1:]
+    return (
+        bool(words)
+        and words[0][0].isupper()
+        and words[0][1:] == words[0][1:].lower()
+        and all(word.islower() for word in words[1:])
     )
 
 
