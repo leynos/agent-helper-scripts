@@ -659,6 +659,11 @@ implementation is required.>
 
 - <Open question 1>
 - <Open question 2>
+
+## Architectural rationale
+
+<Explain how the decision aligns with broader architectural principles
+and project goals.>
 ```
 
 ## Repository layout document
