@@ -40,6 +40,9 @@ consistent, and easy to maintain across projects.
 ## Headings
 
 - Write headings in sentence case.
+- Section labels in the required and conditional section lists, such as
+  `**Context and problem statement:**`, name the headings to write. Spell them
+  in sentence case, and use the same wording as the corresponding template.
 - Use Markdown headings (`#`, `##`, `###`, and so on) in order without skipping
   levels.
 
@@ -390,19 +393,19 @@ proposal:
 
 - **Problem:** Describe the deficiency, risk, or missing capability that
   motivates the RFC.
-- **Current State:** Explain the relevant current behaviour or architecture when
+- **Current state:** Explain the relevant current behaviour or architecture when
   the proposal depends on existing constraints.
-- **Goals and Non-goals:** Clarify what the RFC intends to change and what it
+- **Goals and non-goals:** Clarify what the RFC intends to change and what it
   deliberately leaves out of scope.
-- **Proposed Design / Proposed Change:** Describe the recommended design with
+- **Proposed design / proposed change:** Describe the recommended design with
   enough detail to support implementation review.
 - **Requirements:** Separate functional, technical, safety, or operational
   requirements when the proposal has multiple kinds of constraints.
-- **Compatibility and Migration:** Explain rollout expectations, compatibility
+- **Compatibility and migration:** Explain rollout expectations, compatibility
   impact, and migration sequencing when adoption is not trivial.
-- **Alternatives Considered:** Record rejected options and the reasons they
+- **Alternatives considered:** Record rejected options and the reasons they
   were not chosen.
-- **Open Questions / Outstanding Decisions:** Identify unresolved issues that
+- **Open questions / outstanding decisions:** Identify unresolved issues that
   still need reviewing before the proposal can be treated as settled.
 - **Recommendation:** End with a clear statement of the preferred direction
   when the preceding analysis presents multiple viable choices.
@@ -526,7 +529,7 @@ Every ADR must include the following sections in order:
 - **Status:** One of `Proposed`, `Accepted`, `Superseded`, or `Deprecated`. For
   `Accepted` status, include the date and a brief summary of what was decided.
 - **Date:** The date the ADR was created or last updated (format: YYYY-MM-DD).
-- **Context and Problem Statement:** Describe the situation, constraints, and
+- **Context and problem statement:** Describe the situation, constraints, and
   the problem or question that prompted the decision. Include enough background
   for readers unfamiliar with the history.
 
@@ -538,24 +541,24 @@ When an accepted ADR needs a targeted correction rather than replacement, add an
 
 Include these sections as appropriate to the decision's complexity:
 
-- **Decision Drivers:** Key factors, requirements, or constraints that
+- **Decision drivers:** Key factors, requirements, or constraints that
   influenced the decision. Use bullet points.
 - **Requirements:** For complex decisions, separate functional and technical
   requirements into subsections.
-- **Options Considered:** Describe the alternatives evaluated. Use a comparison
+- **Options considered:** Describe the alternatives evaluated. Use a comparison
   table when contrasting multiple options across several dimensions.
-- **Decision Outcome / Proposed Direction:** State the chosen approach and
+- **Decision outcome / proposed direction:** State the chosen approach and
   summarize the rationale. For `Proposed` ADRs, describe the recommended
   direction.
-- **Goals and Non-Goals:** Clarify what the decision aims to achieve and what
+- **Goals and non-goals:** Clarify what the decision aims to achieve and what
   is explicitly out of scope.
-- **Migration Plan:** For decisions requiring phased implementation, break the
+- **Migration plan:** For decisions requiring phased implementation, break the
   work into numbered phases with clear goals and deliverables.
-- **Known Risks and Limitations:** Document trade-offs, potential issues, and
+- **Known risks and limitations:** Document trade-offs, potential issues, and
   constraints of the chosen approach.
-- **Outstanding Decisions:** For `Proposed` ADRs, list open questions that must
+- **Outstanding decisions:** For `Proposed` ADRs, list open questions that must
   be resolved before acceptance.
-- **Architectural Rationale:** Explain how the decision aligns with broader
+- **Architectural rationale:** Explain how the decision aligns with broader
   architectural principles and project goals.
 
 ### Formatting guidance
@@ -587,7 +590,7 @@ YYYY-MM-DD.
 
 <Describe the situation, constraints, and the question being addressed.>
 
-## Decision Drivers
+## Decision drivers
 
 - <Driver 1>
 - <Driver 2>
