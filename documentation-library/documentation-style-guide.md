@@ -46,8 +46,9 @@ consistent, and easy to maintain across projects.
   heading for this rule because readers write it as the section heading. Spell
   it in sentence case and match the corresponding template heading.
 - Where such a label offers alternatives separated by a slash, for example
-  `Proposed design / proposed change`, write each alternative in sentence case
-  and use one alternative consistently within the document.
+  `Proposed design / proposed change`, treat the whole label as one heading.
+  Capitalize only its first word and any proper nouns or acronyms, and use one
+  alternative consistently within the document.
 - Labels that describe a metadata field or give guidance rather than name a
   heading, such as `Title` or `Opening section`, are prose and are exempt from
   this rule.
