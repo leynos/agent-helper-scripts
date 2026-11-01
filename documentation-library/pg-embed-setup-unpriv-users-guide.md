@@ -4,9 +4,10 @@ The `pg_embedded_setup_unpriv` binary prepares a PostgreSQL installation and
 data directory regardless of whether it starts with `root` privileges. When the
 process runs as `root` it stages directories for `nobody` and delegates
 PostgreSQL lifecycle commands to the worker helper, which executes as the
-sandbox user. Unprivileged invocations keep the current identity and provision
-directories with the caller’s UID. This guide explains how to configure the
-tool and integrate it into automated test flows.
+sandbox user. Unprivileged invocations keep the current identity, create
+missing directories as the caller, and leave existing directory ownership
+unchanged. This guide explains how to configure the tool and integrate it into
+automated test flows.
 
 ## Prerequisites
 
@@ -25,9 +26,9 @@ tool and integrate it into automated test flows.
 - macOS runs the unprivileged path; root executions are expected to fail fast
   because privilege dropping is not supported on that target.
 - Windows always behaves as unprivileged, so the helper runs in-process and
-  ignores root-only scenarios. Windows directory creation uses the current
-  account's access control lists (ACLs); the Unix `0700`/`0755` privacy modes
-  are not applied there.
+  ignores root-only scenarios. The helper applies no Unix modes and does not
+  set or change ACLs. New directories inherit the current account's default
+  ACLs; existing ACLs remain unchanged.
 - Windows on ARM is not a supported target because the upstream PostgreSQL
   binary archive does not provide `aarch64-pc-windows-msvc` binaries.
 
@@ -75,8 +76,11 @@ cargo binstall pg-embed-setup-unpriv
 ```
 
 1. Choose directories for the staged PostgreSQL distribution and the cluster’s
-   data files. They must be writable by whichever user will run the helper; the
-   tool reapplies ownership and permissions on Unix on every invocation.
+   data files. They must be writable by the invoking account on non-root runs
+   or by `nobody` on root runs. On Unix, existing target directories whose
+   modes are reapplied on non-root runs must also be owned by the invoking
+   account. Each run reapplies the target modes; only the root-to-`nobody` path
+   changes directory ownership.
 
 2. Export configuration:
 
@@ -109,18 +113,21 @@ cargo binstall pg-embed-setup-unpriv
    budget. The helper accepts values between `1` and `600` seconds and reports
    an error when the override falls outside that range or cannot be parsed.
 
-3. Run the installed helper (`pg_embedded_setup_unpriv`). The command downloads
-   the specified PostgreSQL release, ensures the directories exist, applies
-   PostgreSQL-compatible permissions on Unix (0755 for the installation cache,
-   0700 for the runtime and data directories), and initializes the cluster with
-   the provided credentials via `initdb`. On Windows, POSIX mode changes are
-   skipped and the current account's ACL defaults apply. The PostgreSQL server
-   is **not** started — the installation is left ready for subsequent use by
-   `TestCluster` or other tools. Invocations that begin as `root` prepare
-   directories for `nobody` and execute lifecycle commands through the worker
-   helper, so the privileged operations run entirely under the sandbox user.
-   Ownership fix-ups occur on every call, so running the tool twice remains
-   idempotent.
+3. Run the installed helper (`pg_embedded_setup_unpriv`). The command reuses an
+   available installation or downloads the selected PostgreSQL release when
+   needed. It ensures the directories exist and applies Unix modes of `0755` to
+   the installation directory and its `cache` child, and `0700` to its `run`
+   child and the data directory. On Unix, both supported privilege flows
+   reapply these modes. On Windows, Unix modes are skipped, and the helper does
+   not set or change ACLs; new directories inherit the current account's
+   default ACLs. The helper reuses an existing data directory when it contains
+   a completed cluster; otherwise, it recovers an invalid directory if needed
+   and initializes the cluster with the provided credentials via `initdb`. The
+   PostgreSQL server is **not** started — the installation is left ready for
+   subsequent use by `TestCluster` or other tools. Invocations that begin as
+   `root` prepare directories for `nobody` before the worker drops privileges
+   for PostgreSQL lifecycle commands. Only this root-to-`nobody` path changes
+   ownership, and it repeats those ownership fix-ups on every call.
 
 4. Pass the resulting paths and credentials to the test suite. Direct
    `postgresql_embedded` usage after the setup step can reuse the staged
@@ -679,22 +686,54 @@ let temp_db = cluster.temporary_database_from_template("test_db", "migrated_temp
 
 ## Privilege detection and idempotence
 
-- `pg_embedded_setup_unpriv` detects its effective user ID at runtime. Root
-  processes follow the privileged branch and complete all filesystem work as
-  `nobody`; non-root invocations leave permissions untouched and keep the
-  caller’s UID on the runtime directories. On unsupported Unix targets such as
-  macOS, root execution fails fast with a "privilege drop is not supported on
-  this target" error rather than attempting the Linux worker path.
-- Both flows create the runtime directory with mode `0700` and the data
-  directory with mode `0700` on Unix. Existing directories are re-chowned or
-  re-mode’d to enforce the expected invariants, allowing two consecutive runs
-  to succeed without manual cleanup. Windows skips POSIX mode changes; choose
-  paths whose ACLs are private to the test account when secrets matter.
-- The XDG cache home stays `0755` so team-mates can inspect extracted binaries
-  and logs when debugging CI issues. The runtime directory is clamped to `0700`
-  because it holds the PostgreSQL socket, `postmaster.pid`, and `.pgpass`, so
-  leaking read or execute access would expose credentials or let other users
-  interfere with the helper’s cluster lifecycle.
+`pg_embedded_setup_unpriv` detects its effective user ID at runtime. Non-root
+runs prepare directories as the invoking user. On supported Unix systems, root
+runs use a privileged setup path to prepare directories for `nobody`, then
+demote the worker before PostgreSQL lifecycle operations.
+
+| Directory                                           | Non-root on Unix                                                                                                           | Root-to-`nobody` on supported Unix                                                                                                               |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Installation directory (`PG_RUNTIME_DIR`)           | The helper preserves existing ownership, creates missing directories as the caller, and reapplies mode `0755` on each run. | The privileged parent assigns ownership to `nobody` and reapplies mode `0755`.                                                                   |
+| `PG_RUNTIME_DIR/cache`                              | The helper preserves existing ownership, creates missing directories as the caller, and reapplies mode `0755` on each run. | The privileged parent assigns ownership to `nobody` and reapplies mode `0755`.                                                                   |
+| XDG runtime directory (`PG_RUNTIME_DIR/run`)        | The helper preserves existing ownership, creates missing directories as the caller, and reapplies mode `0700` on each run. | The privileged parent assigns ownership to `nobody` and reapplies mode `0700`.                                                                   |
+| Data directory (`PG_DATA_DIR` or the selected slot) | The helper preserves existing ownership, creates missing directories as the caller, and reapplies mode `0700` on each run. | The privileged parent assigns ownership to `nobody` and reapplies mode `0700`.                                                                   |
+| Immediate parent of a default-derived directory     | The helper preserves existing ownership and mode, and creates missing parents as the caller.                               | For defaults, the privileged parent assigns ownership to `nobody` and reapplies mode `0755`; explicit overrides skip this handoff for that path. |
+
+_Table 4: Directory ownership and mode handling by privilege flow._
+
+On Unix, non-root mode updates fail if the invoking user does not own an
+existing target directory. The shared per-cluster `<root>/data` parent follows
+the parent row: non-root runs leave an existing parent's owner and mode alone,
+while root runs set it to `nobody` with mode `0755`. Per-cluster slot
+directories follow the data-directory row. With the persistent layout,
+`<root>/data` is itself the data directory and has mode `0700` in both flows.
+
+Only the root-to-`nobody` path reassigns directory ownership. It reassigns
+ownership of installation descendants on every run without changing their
+modes. It also reassigns ownership of data descendants for default-derived data
+paths. For an explicit `PG_DATA_DIR`, the root-to-`nobody` path changes
+ownership and mode on the directory named by that setting, without recursively
+changing ownership or modes below it. Before using an existing explicit data
+directory in a root-to-`nobody` run, ensure its descendants already allow
+`nobody` to access the files PostgreSQL needs. Otherwise, setup or lifecycle
+operations can fail.
+
+Windows always uses the non-root flow. The helper applies no Unix modes and
+does not set or change ACLs. New directories inherit the current account's
+default ACLs, and existing ACLs remain unchanged. Use private directories or
+explicit ACLs when the data or generated `.pgpass` file contains sensitive
+information.
+
+On unsupported Unix targets such as macOS, root execution fails fast with a
+"privilege drop is not supported on this target" error rather than attempting
+the Linux worker path.
+
+The XDG `cache` child stays `0755` so team-mates can inspect extracted binaries
+and logs when debugging CI issues. The XDG `run` child uses mode `0700` and
+restricts access to runtime files used by the helper. `postmaster.pid` is in
+the selected data directory. The `PGPASSFILE` path is separate from `run`. It is
+`<install>/.pgpass` in persistent or explicit-data layouts, and
+`<root>/data/<slot>.pgpass` in the per-cluster layout.
 
 ## Integrating with root-only test agents
 
@@ -710,11 +749,10 @@ still running as `root`, follow these steps:
 - Keep the test process running as `root`; the helper binary demotes itself
   before calling into `postgresql_embedded` so the main process never changes
   UID mid-test.
-- Ensure the `PGPASSFILE` environment variable points to the file created in the
-  runtime directory so subsequent Diesel or libpq connections can authenticate
-  without interactive prompts. The
-  `bootstrap_for_tests().environment.pgpass_file` helper returns the path if
-  the bootstrap ran inside the test process.
+- Use the `PGPASSFILE` path exposed by
+  `bootstrap_for_tests().environment.pgpass_file` for subsequent Diesel or
+  libpq connections. Its location depends on the selected layout; it is not
+  necessarily under the XDG runtime directory.
 - Provide `TZDIR=/usr/share/zoneinfo` (or the correct path for the
   distribution in use) when running the CLI. The library helper sets `TZ`
   automatically and, on Unix-like hosts, also seeds `TZDIR` when it discovers a
@@ -779,9 +817,11 @@ cluster bootstrap concurrently.
   dependency updates from forcing cold release downloads during test execution.
 - **Windows on ARM**: `aarch64-pc-windows-msvc` is not published or tested
   because upstream PostgreSQL binaries are not available for that target.
-- **Windows directory privacy**: POSIX `0700`/`0755` modes are skipped on
-  Windows. Use private directories or explicit ACLs when the generated
-  `.pgpass` file and data directory must be hidden from other local accounts.
+- **Windows directory privacy**: Unix `0700`/`0755` modes are skipped, and the
+  helper does not set or change ACLs. New directories inherit the current
+  account's default ACLs. Use private directories or explicit ACLs when the
+  generated `.pgpass` file and data directory must be hidden from other local
+  accounts.
 - **CLI arguments in tests**: `PgEnvCfg::load()` ignores `std::env::args` during
   library use so Cargo test filters (for example,
   `bootstrap_privileges::bootstrap_as_root`) do not trip the underlying Clap
