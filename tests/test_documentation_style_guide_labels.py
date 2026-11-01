@@ -297,7 +297,10 @@ def test_section_list_labels_are_spelled_exactly(
     _exempt: frozenset[str],
 ) -> None:
     """Each section list carries exactly its sentence-case labels."""
-    assert _labels(_section_body(guide_lines, list_heading)) == expected
+    actual = _labels(_section_body(guide_lines, list_heading))
+    assert actual == expected, (
+        f"{list_heading} labels are {actual!r}, expected {expected!r}"
+    )
 
 
 @pytest.mark.parametrize(("list_heading", "_template", "expected", "_exempt"), LISTS)
@@ -374,7 +377,7 @@ def test_inverted_heading_rule_clause_is_rejected(
 ) -> None:
     """Replacing a clause with its inversion makes the rule assertion fail."""
     rule = _normalize(_section_body(guide_lines, "Headings"))
-    assert clause in rule
+    assert clause in rule, f"the heading rule is missing {clause!r}"
     with pytest.raises(AssertionError):
         _assert_heading_rule(rule.replace(clause, inverted))
 
@@ -382,7 +385,10 @@ def test_inverted_heading_rule_clause_is_rejected(
 def test_sentence_case_exemptions_are_documented(guide_lines: list[str]) -> None:
     """Every exempt label is listed by the guide and named by its rule."""
     rule = _normalize(_section_body(guide_lines, "Headings"))
-    assert "such as `Title` or `Opening section`" in rule
+    assert "such as `Title` or `Opening section`" in rule, (
+        "the heading rule does not document the `Title` and "
+        "`Opening section` exemptions"
+    )
     documented = {
         label
         for section in LISTS
