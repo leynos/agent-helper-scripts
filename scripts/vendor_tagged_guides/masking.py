@@ -13,7 +13,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 
-FENCE_OPEN = re.compile(r" {0,3}(`{3,}|~{3,})(.*)\Z")
+#: A backtick fence's info string may not contain a backtick, but a tilde
+#: fence's may. Rejecting the former stops a paragraph that begins with an
+#: inline code span from being taken for an unclosed fence.
+FENCE_OPEN = re.compile(r" {0,3}(`{3,}(?=[^`]*\Z)|~{3,})(.*)\Z")
 _FENCE_CLOSE = re.compile(r" {0,3}(`{3,}|~{3,})\s*\Z")
 _FOOTNOTE_DEFINITION = re.compile(r" {0,3}\[\^[^\]]+\]:")
 _BLANK_LINE = re.compile(r"\n[ \t]*\n")
@@ -122,11 +125,7 @@ def _footnote_end(lines: Sequence[str], index: int) -> int:
 
 
 def _continuation_end(lines: Sequence[str], index: int) -> int:
-    """Advance past one continuation line, or a blank run leading into one.
-
-    Returns ``index`` unchanged when the line does not continue the definition,
-    which ends the scan.
-    """
+    """Advance past one continuation, or return ``index`` to end the scan."""
     if _starts_continuation(lines[index]):
         return index + 1
     if lines[index].strip():
@@ -179,12 +178,7 @@ class _LineIndex:
 
 
 def _mask_inline_constructs(text: str, index: _LineIndex) -> None:
-    """Protect comments and inline code in one left-to-right pass.
-
-    Whichever construct starts first consumes its own text, so a comment
-    opener inside a code span and a backtick inside a comment are both left to
-    the construct that really contains them.
-    """
+    """Protect whichever of a comment or code span starts first, then continue."""
     cursor = 0
     while cursor < len(text):
         if index.mask[cursor]:
@@ -224,11 +218,7 @@ def _run_end(text: str, start: int) -> int:
 def _closing_run(
     text: str, mask: Sequence[bool], position: int, length: int
 ) -> int | None:
-    """Find the end of a backtick run of exactly ``length`` characters.
-
-    A code span cannot cross a blank line, so an unmatched run in one
-    paragraph must not mask the text up to a backtick in a later one.
-    """
+    """Find a backtick run of ``length``, stopping at a blank line."""
     while position < len(text):
         if mask[position]:
             position += 1

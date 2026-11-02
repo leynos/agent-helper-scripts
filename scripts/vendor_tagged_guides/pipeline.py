@@ -59,31 +59,12 @@ def convert(text: str, config: VendorConfig, source_name: str = "") -> str:
 
 
 def _write(path: Path, text: str) -> None:
-    """Write one converted document with ``\\n`` newlines.
-
-    Parameters
-    ----------
-    path
-        Destination file.
-    text
-        Document content.
-    """
+    """Write one converted document with ``\\n`` newlines and one trailing one."""
     path.write_text(text.rstrip("\n") + "\n", encoding="utf-8", newline="\n")
 
 
 def _read(path: Path) -> str:
-    """Read one document and normalize its newlines.
-
-    Parameters
-    ----------
-    path
-        File to read.
-
-    Returns
-    -------
-    str
-        Content with ``\\n`` newlines.
-    """
+    """Read one document and normalize its newlines to ``\\n``."""
     return (
         path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
     )

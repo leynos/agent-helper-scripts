@@ -129,23 +129,7 @@ def _validate_mapping(
     source_directory: Path,
     output_directory: Path,
 ) -> None:
-    """Check that every filename pair is usable before anything is written.
-
-    Parameters
-    ----------
-    mappings
-        Pairs supplied by the caller.
-    source_directory
-        Directory the source names are resolved against.
-    output_directory
-        Directory the output names are resolved against.
-
-    Raises
-    ------
-    VendorError
-        If a pair is empty, names a directory, repeats a side, names a source
-        that does not exist, or would write over a source file.
-    """
+    """Refuse a pair that repeats a side, misses a source, or overwrites one."""
     if not mappings:
         fail("at least one source/output mapping is required")
     seen_sources: set[str] = set()

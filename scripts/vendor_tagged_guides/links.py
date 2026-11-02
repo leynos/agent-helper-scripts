@@ -20,21 +20,7 @@ _DEFINITION = re.compile(r"(?m)^ {0,3}\[([^\]]+)\]:[ \t]*")
 
 
 def _skip_link_space(text: str, position: int) -> int | None:
-    """Skip the whitespace Markdown allows inside a link's tail.
-
-    Parameters
-    ----------
-    text
-        Document being scanned.
-    position
-        Offset just after the opening delimiter.
-
-    Returns
-    -------
-    int | None
-        Offset of the next significant character, or ``None`` when more than
-        one line ending intervenes and the construct is therefore not a link.
-    """
+    """Skip link whitespace; return ``None`` after a second line ending."""
     newlines = 0
     while position < len(text) and text[position] in " \t\n":
         if text[position] == "\n":
@@ -46,22 +32,7 @@ def _skip_link_space(text: str, position: int) -> int | None:
 
 
 def _find_closing_bracket(text: str, position: int, mask: Sequence[bool]) -> int | None:
-    """Find the ``]`` matching a label opener.
-
-    Parameters
-    ----------
-    text
-        Document being scanned.
-    position
-        Offset of the first character after the opener.
-    mask
-        Protected-character map.
-
-    Returns
-    -------
-    int | None
-        Offset of the matching ``]``, or ``None`` when the label is unclosed.
-    """
+    """Return the ``]`` matching a label opener, or ``None`` if unclosed."""
     depth = 0
     while position < len(text):
         if mask[position]:
@@ -82,21 +53,7 @@ def _find_closing_bracket(text: str, position: int, mask: Sequence[bool]) -> int
 
 
 def _parse_destination(text: str, position: int) -> tuple[int, int, int] | None:
-    """Read one inline-link or definition destination.
-
-    Parameters
-    ----------
-    text
-        Document being scanned.
-    position
-        Offset where the destination may start.
-
-    Returns
-    -------
-    tuple[int, int, int] | None
-        Start, end, and offset after the destination, or ``None`` when no
-        destination can be read there.
-    """
+    """Return a destination's start, end, and offset after it, or ``None``."""
     if position >= len(text):
         return None
     if text[position] == "<":
@@ -142,20 +99,7 @@ def _parse_bare_destination(text: str, position: int) -> tuple[int, int, int] | 
 
 
 def _skip_title(text: str, position: int) -> int | None:
-    """Skip an optional link title and the space after it.
-
-    Parameters
-    ----------
-    text
-        Document being scanned.
-    position
-        Offset just after the destination.
-
-    Returns
-    -------
-    int | None
-        Offset after the title, or ``None`` when a title is malformed.
-    """
+    """Skip an optional link title and its trailing space; ``None`` if malformed."""
     cursor = position
     while cursor < len(text) and text[cursor] in " \t\n":
         cursor += 1
@@ -181,23 +125,7 @@ def _skip_title(text: str, position: int) -> int | None:
 def _parse_inline_link(
     text: str, position: int, mask: Sequence[bool]
 ) -> tuple[int, int, int] | None:
-    """Read an inline link or image tail beginning at ``position``.
-
-    Parameters
-    ----------
-    text
-        Document being scanned.
-    position
-        Offset just after the label's ``]``.
-    mask
-        Protected-character map.
-
-    Returns
-    -------
-    tuple[int, int, int] | None
-        Destination start, destination end, and offset after the closing
-        ``)``; ``None`` when the construct is not an inline link.
-    """
+    """Return an inline link's destination bounds and end, or ``None``."""
     # CommonMark allows no space between a label's ``]`` and its ``(``.
     cursor = position
     if cursor >= len(text) or text[cursor] != "(":

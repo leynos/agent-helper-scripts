@@ -72,36 +72,32 @@ def table_line_flags(lines: Sequence[str]) -> list[bool]:
     return flags
 
 
-def exempt_lines(lines: Sequence[str]) -> set[int]:
-    """Collect line numbers covered by an existing MD013 exemption.
+def exempt_lines(
+    lines: Sequence[str], fence_flags: Sequence[bool]
+) -> set[int]:
+    """Collect line numbers covered by a live MD013 exemption.
 
-    Parameters
-    ----------
-    lines
-        Document lines, without newline characters.
-
-    Returns
-    -------
-    set[int]
-        Zero-based line numbers a later detection pass must ignore.
+    A directive inside fenced code is an example, not an instruction, so it
+    changes nothing; lines inside a real open pair stay exempt.
     """
     exempt: set[int] = set()
     disabled = False
     for index, line in enumerate(lines):
-        if _DISABLE_BLOCK.match(line):
+        live = not fence_flags[index]
+        if live and _DISABLE_BLOCK.match(line):
             disabled = True
             exempt.add(index)
             continue
-        if _ENABLE_BLOCK.match(line):
+        if live and _ENABLE_BLOCK.match(line):
             disabled = False
             exempt.add(index)
             continue
         if disabled:
             exempt.add(index)
-        if _DISABLE_NEXT_LINE.match(line):
+        if live and _DISABLE_NEXT_LINE.match(line):
             exempt.add(index)
             exempt.add(index + 1)
-        if _DISABLE_LINE.match(line):
+        if live and _DISABLE_LINE.match(line):
             exempt.add(index)
     return exempt
 
@@ -174,10 +170,7 @@ def _list_extent(lines: Sequence[str], index: int) -> int:
 
 
 def _blank_run_end(lines: Sequence[str], index: int) -> int | None:
-    """Return the first non-blank line after ``index`` when a list resumes.
-
-    Returns ``None`` when the blank run ends the list instead.
-    """
+    """Return the line that resumes a list after a blank run, else ``None``."""
     cursor = index
     while cursor < len(lines) and _is_blank(lines[cursor]):
         cursor += 1
@@ -263,24 +256,7 @@ def block_ranges(
 
 
 def _is_too_long(line: str, limit: int) -> bool:
-    """Apply MD013's non-strict length check to one line.
-
-    MD013 allows a long line when it has no whitespace beyond the limit, which
-    is how long URLs stay legal. Trailing whitespace is not counted, matching
-    the rule's non-strict mode.
-
-    Parameters
-    ----------
-    line
-        Line to check, without its newline.
-    limit
-        Maximum permitted length.
-
-    Returns
-    -------
-    bool
-        ``True`` when the line violates the rule.
-    """
+    """Apply MD013's non-strict check: a line is long only past whitespace."""
     stripped = line.rstrip()
     if len(stripped) <= limit:
         return False
@@ -300,13 +276,9 @@ def _overlong_lines(
     line_length: int,
     code_line_length: int,
 ) -> Iterator[int]:
-    """Yield lines the consumer's Markdown gate would report.
-
-    A line inside fenced code is always judged against the code limit, even
-    when it begins with ``#``: a shell or Python comment is not a Markdown
-    heading, so the heading exemption must not hide it. Tables are exempt only
-    outside fenced code, where the shared configuration turns their check off.
-    """
+    """Yield lines the consumer's Markdown gate would report."""
+    # A line inside a fence is always judged against the code limit, even when
+    # it begins with ``#``: a shell comment is not a Markdown heading.
     for index, line in enumerate(lines):
         if index in exempt:
             continue
@@ -348,7 +320,7 @@ def long_lines(
     lines = _normalized_lines(text)
     fence_flags = fence_line_flags(lines)
     table_flags = table_line_flags(lines)
-    exempt = exempt_lines(lines)
+    exempt = exempt_lines(lines, fence_flags)
     return tuple(
         _overlong_lines(
             lines,
@@ -390,7 +362,7 @@ def insert_exemptions(
     lines = _normalized_lines(text.rstrip("\n"))
     fence_flags = fence_line_flags(lines)
     table_flags = table_line_flags(lines)
-    exempt = exempt_lines(lines)
+    exempt = exempt_lines(lines, fence_flags)
     ranges, owner = block_ranges(lines, fence_flags, table_flags)
 
     targets = _offending_blocks(

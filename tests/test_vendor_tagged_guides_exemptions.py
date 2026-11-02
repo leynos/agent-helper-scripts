@@ -114,6 +114,31 @@ def test_a_long_comment_inside_a_fence_is_bracketed(
     ) in converted, converted
 
 
+def test_a_directive_inside_a_fence_does_not_exempt_later_prose(
+    vendor: types.ModuleType,
+) -> None:
+    """A fenced example of a disable directive is not an instruction."""
+    paragraph = (
+        "A paragraph whose first line carries a great many words and keeps "
+        "going past the limit.\nIt continues on a second line."
+    )
+    document = (
+        "# Title\n\n"
+        "```markdown\n"
+        "<!-- markdownlint-disable MD013 -->\n"
+        "```\n\n"
+        f"{paragraph}\n"
+    )
+
+    converted = vendor.insert_exemptions(document)
+
+    assert (
+        "<!-- markdownlint-disable MD013 -->\n\n"
+        f"{paragraph}\n\n"
+        "<!-- markdownlint-enable MD013 -->"
+    ) in converted, converted
+
+
 def test_exemption_insertion_is_idempotent(vendor: types.ModuleType) -> None:
     """A second pass sees the first pass's bounded exemptions and adds none."""
     document = (

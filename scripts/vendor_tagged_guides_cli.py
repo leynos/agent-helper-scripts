@@ -64,39 +64,12 @@ DEFAULT_FORMATTER = (
 
 
 def _absolute(path: Path) -> Path:
-    """Resolve a caller-supplied path from the working directory.
-
-    Parameters
-    ----------
-    path
-        Path from the command line or environment.
-
-    Returns
-    -------
-    pathlib.Path
-        Absolute path, unchanged when the caller supplied one.
-    """
+    """Resolve a caller-supplied path from the working directory."""
     return path if path.is_absolute() else Path.cwd() / path
 
 
 def _mappings(values: Sequence[str] | None) -> tuple[tuple[str, str], ...]:
-    """Parse repeatable ``--map SRC=OUT`` options.
-
-    Parameters
-    ----------
-    values
-        Raw option values.
-
-    Returns
-    -------
-    tuple[tuple[str, str], ...]
-        Source and output filename pairs.
-
-    Raises
-    ------
-    vendor_tagged_guides.VendorError
-        If a value is not ``SRC=OUT``.
-    """
+    """Parse repeatable ``--map SRC=OUT`` values, refusing a missing ``=``."""
     pairs: list[tuple[str, str]] = []
     for value in values or ():
         source, separator, output = value.partition("=")
@@ -111,26 +84,7 @@ def _mappings(values: Sequence[str] | None) -> tuple[tuple[str, str], ...]:
 def _format_files(
     command: Sequence[str], paths: Sequence[Path]
 ) -> None:
-    """Run the consumer's formatter over the converted files.
-
-    Parameters
-    ----------
-    command
-        Executable and arguments, defaulting to the shared ``mdtablefix``
-        invocation.
-    paths
-        Files to rewrite in place.
-
-    Returns
-    -------
-    None
-        The formatter rewrites each file; its output is echoed.
-
-    Raises
-    ------
-    vendor_tagged_guides.VendorError
-        If the executable is missing or reports a non-zero status.
-    """
+    """Run the formatter in place, failing on a missing tool or non-zero status."""
     executable, *arguments = command
     program = Program(executable)
     catalogue = ProgramCatalogue.from_programs(program, name="vendor-tagged-guides")

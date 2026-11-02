@@ -100,6 +100,18 @@ def test_an_unmatched_backtick_does_not_mask_a_later_paragraph(
     assert f"[guide]({pinned('docs/other.md')})" in converted, converted
 
 
+def test_a_paragraph_starting_with_a_backtick_span_is_not_a_fence(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A backtick fence's info string cannot contain a backtick."""
+    markdown = "```code``` then prose.\n\n[guide](other.md)\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert "```code``` then prose." in converted, converted
+    assert f"[guide]({pinned('docs/other.md')})" in converted, converted
+
+
 FENCE_BODY = st.text(
     alphabet=st.characters(exclude_characters="`\r"),
     max_size=60,
