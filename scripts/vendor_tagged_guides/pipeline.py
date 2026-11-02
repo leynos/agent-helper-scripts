@@ -44,12 +44,16 @@ def convert(text: str, config: VendorConfig, source_name: str = "") -> str:
         heading.
     """
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-    if IMPORT_MARKER in normalized:
-        fail("source already carries the canonical import marker")
+    mask = masked_regions(normalized)
+    position = normalized.find(IMPORT_MARKER)
+    while position >= 0:
+        if not mask[position]:
+            fail("source already carries the canonical import marker")
+        position = normalized.find(IMPORT_MARKER, position + len(IMPORT_MARKER))
     name = source_name or config.mappings[0][0]
     rewritten = apply_replacements(
         normalized,
-        link_replacements(normalized, masked_regions(normalized), config, name),
+        link_replacements(normalized, mask, config, name),
     )
     return insert_note(rewritten, config).rstrip("\n") + "\n"
 

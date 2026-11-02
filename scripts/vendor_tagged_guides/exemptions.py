@@ -10,7 +10,7 @@ existing pair already covers, which makes a second pass change nothing.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 import re
 
 from .config import DEFAULT_CODE_LINE_LENGTH, DEFAULT_LINE_LENGTH
@@ -293,6 +293,33 @@ def _normalized_lines(text: str) -> list[str]:
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
 
+def _overlong_lines(
+    lines: Sequence[str],
+    fence_flags: Sequence[bool],
+    table_flags: Sequence[bool],
+    exempt: set[int],
+    line_length: int,
+    code_line_length: int,
+) -> Iterator[int]:
+    """Yield lines the consumer's Markdown gate would report.
+
+    A line inside fenced code is always judged against the code limit, even
+    when it begins with ``#``: a shell or Python comment is not a Markdown
+    heading, so the heading exemption must not hide it. Tables are exempt only
+    outside fenced code, where the shared configuration turns their check off.
+    """
+    for index, line in enumerate(lines):
+        if index in exempt:
+            continue
+        if not fence_flags[index] and (
+            table_flags[index] or _HEADING.match(line)
+        ):
+            continue
+        limit = code_line_length if fence_flags[index] else line_length
+        if _is_too_long(line, limit):
+            yield index
+
+
 def long_lines(
     text: str,
     *,
@@ -323,14 +350,16 @@ def long_lines(
     fence_flags = fence_line_flags(lines)
     table_flags = table_line_flags(lines)
     exempt = exempt_lines(lines)
-    offending: list[int] = []
-    for index, line in enumerate(lines):
-        if index in exempt or table_flags[index] or _HEADING.match(line):
-            continue
-        limit = code_line_length if fence_flags[index] else line_length
-        if _is_too_long(line, limit):
-            offending.append(index)
-    return tuple(offending)
+    return tuple(
+        _overlong_lines(
+            lines,
+            fence_flags,
+            table_flags,
+            exempt,
+            line_length,
+            code_line_length,
+        )
+    )
 
 
 def insert_exemptions(
@@ -383,14 +412,18 @@ def _offending_blocks(
     code_line_length: int,
 ) -> set[int]:
     """Return the block indices that contain an over-long line."""
-    targets: set[int] = set()
-    for index, line in enumerate(lines):
-        if index in exempt or table_flags[index] or _HEADING.match(line):
-            continue
-        limit = code_line_length if fence_flags[index] else line_length
-        if _is_too_long(line, limit) and owner[index] >= 0:
-            targets.add(owner[index])
-    return targets
+    return {
+        owner[index]
+        for index in _overlong_lines(
+            lines,
+            fence_flags,
+            table_flags,
+            exempt,
+            line_length,
+            code_line_length,
+        )
+        if owner[index] >= 0
+    }
 
 
 def _bracket(lines: Sequence[str], start: int, end: int) -> list[str]:

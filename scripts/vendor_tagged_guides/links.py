@@ -313,12 +313,11 @@ def _inline_replacements(
 ) -> list[tuple[int, int, str]]:
     """Collect replacements for inline links and images."""
     replacements: list[tuple[int, int, str]] = []
-    skipped: list[tuple[int, int]] = []
+    resume_at: dict[int, int] = {}
     cursor = 0
     while cursor < len(text):
-        region = next((span for span in skipped if span[0] <= cursor < span[1]), None)
-        if region is not None:
-            cursor = region[1]
+        if cursor in resume_at:
+            cursor = resume_at[cursor]
             continue
         if mask[cursor] or text[cursor] != "[":
             cursor += 1
@@ -344,7 +343,7 @@ def _inline_replacements(
         if rewritten != original:
             replacements.append((start, end, rewritten))
         # Resume inside the label; the parsed destination is already handled.
-        skipped.append((label_end + 1, after))
+        resume_at[label_end + 1] = after
         cursor += 1
     return replacements
 

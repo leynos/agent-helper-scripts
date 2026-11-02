@@ -72,13 +72,13 @@ pointing at paths that do not exist in the consuming repository.
 
 Use `scripts/vendor_tagged_guides_cli.py` from `agent-helper-scripts` instead.
 It converts one or more guides from a checkout of the upstream repository at
-the named tag. Relative links are pinned to that tag, links between the guides
-being vendored are rewritten into local links, and fenced code, inline code,
-and footnotes are copied untouched. The script then inserts the canonical note
-below the first level-one heading, runs the consumer's formatter, and brackets
-any remaining over-long prose in a bounded Markdown-lint exemption. It verifies
-that its own formatting pass reached a fixed point, and refuses a source that
-already carries the note.
+the named tag. Relative links outside protected regions are pinned to that tag,
+links between the guides being vendored are rewritten into local links, and
+fenced code, inline code, footnotes, and HTML comments are copied untouched.
+The script then inserts the canonical note below the first level-one heading,
+runs the consumer's formatter, and brackets any remaining over-long prose in a
+bounded Markdown-lint exemption. It verifies that its own formatting pass
+reached a fixed point, and refuses a source that already carries the note.
 
 ```sh
 uv run --script scripts/vendor_tagged_guides_cli.py \

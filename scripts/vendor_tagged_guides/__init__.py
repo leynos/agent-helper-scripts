@@ -4,13 +4,16 @@ A vendored guide is a verbatim copy of an upstream document at one known tag,
 not a merge of the upstream text into a repository-owned document. Three
 transformations make that copy usable in a checkout:
 
-- every relative link becomes an absolute URL pinned to the tag, so the copy
-  cannot silently follow the upstream default branch;
+- relative links outside protected regions are rewritten for the pinned tag,
+  so the copy cannot silently follow the upstream default branch;
 - links between two guides that are imported together stay local, so they
   resolve inside the consuming repository;
 - a canonical "Imported from" note is inserted after the first heading, and
   bounded MD013 exemptions are added where the consumer's formatter cannot
   break a line.
+
+Protected regions include fenced code, inline code, footnote definitions, and
+HTML comments. Their contents remain byte-for-byte unchanged.
 
 The transformations are pure standard-library functions, so a test can call
 them without a formatter or a process. :func:`vendor` composes them with an
@@ -22,7 +25,7 @@ an import, :mod:`~vendor_tagged_guides.masking` finds protected text,
 :mod:`~vendor_tagged_guides.links` rewrites destinations,
 :mod:`~vendor_tagged_guides.note` inserts the provenance record,
 :mod:`~vendor_tagged_guides.exemptions` adds Markdown-lint exemptions, and
-:mod:`~vendor_tagged_guides.pipeline` composes them. Every public name is
+:mod:`~vendor_tagged_guides.pipeline` composes them. The public API is
 re-exported here, so a caller imports only this package.
 
 Examples

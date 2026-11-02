@@ -349,10 +349,11 @@ uv run --script scripts/vendor_tagged_guides_cli.py \
     --map users-guide.md=cuprum-users-guide.md
 ```
 
-The script pins relative links to the tag, rewrites links between the guides
-being vendored into local links, and inserts a provenance note that must not be
-edited by hand. Rerun it with the new tag to refresh the file; the library
-README describes the full contract in
+The script pins relative links outside protected regions to the tag, rewrites
+links between the guides being vendored into local links, and inserts a
+provenance note that must not be edited by hand. Fenced code, inline code,
+footnote definitions, and HTML comments are copied untouched. Rerun it with the
+new tag to refresh the file; the library README describes the full contract in
 [Importing a guide at a pinned tag](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag).
 
 The OpenTofu guide misspells a variable reference on purpose, in its worked

@@ -1,9 +1,11 @@
 """Find the text that link rewriting must leave byte for byte.
 
 Fenced code, inline code spans, footnote definitions, and HTML comments are
-protected. Each is found by its own pass, in an order that keeps one pass from
-opening a construct inside another: fences and footnotes first, then comments,
-then code spans over the characters the earlier passes left alive.
+protected. Fences and footnote definitions are line-based and are marked
+first. One left-to-right pass then protects HTML comments and inline code
+spans, whichever starts first, so a comment opener inside code and a backtick
+inside a comment are each consumed by the construct that actually contains
+them.
 """
 
 from __future__ import annotations
@@ -143,32 +145,6 @@ def _starts_continuation(line: str) -> bool:
     )
 
 
-def comment_spans(text: str) -> list[tuple[int, int]]:
-    """Find each HTML comment's half-open character range.
-
-    Parameters
-    ----------
-    text
-        Document to scan.
-
-    Returns
-    -------
-    list[tuple[int, int]]
-        ``(start, end)`` pairs; an unterminated comment is not returned.
-    """
-    spans: list[tuple[int, int]] = []
-    cursor = 0
-    while True:
-        start = text.find("<!--", cursor)
-        if start < 0:
-            return spans
-        end = text.find("-->", start + 4)
-        if end < 0:
-            return spans
-        spans.append((start, end + 3))
-        cursor = end + 3
-
-
 class _LineIndex:
     """Map character ranges and line numbers onto one protection mask.
 
@@ -201,21 +177,39 @@ class _LineIndex:
         self.mark(self._offsets[first], end)
 
 
-def _mask_code_spans(text: str, index: _LineIndex) -> None:
-    """Protect backtick runs that enclose a code span."""
+def _mask_inline_constructs(text: str, index: _LineIndex) -> None:
+    """Protect comments and inline code in one left-to-right pass.
+
+    Whichever construct starts first consumes its own text, so a comment
+    opener inside a code span and a backtick inside a comment are both left to
+    the construct that really contains them.
+    """
     cursor = 0
     while cursor < len(text):
-        if index.mask[cursor] or text[cursor] != "`":
+        if index.mask[cursor]:
             cursor += 1
             continue
-        opening_end = _run_end(text, cursor)
-        closing_end = _closing_run(text, index.mask, opening_end, opening_end - cursor)
-        if closing_end is None:
-            # An unmatched run is an ordinary literal; continue after it.
-            cursor = opening_end
+        if text.startswith("<!--", cursor):
+            end = text.find("-->", cursor + 4)
+            if end < 0:
+                cursor += 4
+                continue
+            index.mark(cursor, end + 3)
+            cursor = end + 3
             continue
-        index.mark(cursor, closing_end)
-        cursor = closing_end
+        if text[cursor] == "`":
+            opening_end = _run_end(text, cursor)
+            closing_end = _closing_run(
+                text, index.mask, opening_end, opening_end - cursor
+            )
+            if closing_end is None:
+                # An unmatched run is an ordinary literal; continue after it.
+                cursor = opening_end
+                continue
+            index.mark(cursor, closing_end)
+            cursor = closing_end
+            continue
+        cursor += 1
 
 
 def _run_end(text: str, start: int) -> int:
@@ -260,7 +254,5 @@ def masked_regions(text: str) -> list[bool]:
         index.mark_lines(first, last)
     for first, last in footnote_spans(lines):
         index.mark_lines(first, last)
-    for start, end in comment_spans(text):
-        index.mark(start, end)
-    _mask_code_spans(text, index)
+    _mask_inline_constructs(text, index)
     return index.mask

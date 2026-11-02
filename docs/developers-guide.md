@@ -292,8 +292,8 @@ the standard library, so its behaviour can be tested without a subprocess, a
 network, or a checkout of the upstream repository. The package splits the work
 by concern: `config` validates an import, `masking` finds protected text,
 `links` rewrites destinations, `note` inserts the provenance record,
-`exemptions` adds Markdown-lint exemptions, and `pipeline` composes them. Every
-public name is re-exported by the package's `__init__`.
+`exemptions` adds Markdown-lint exemptions, and `pipeline` composes them. The
+public API is re-exported by the package's `__init__`.
 `scripts/vendor_tagged_guides_cli.py` is a PEP 723 script that adds the command
 line and the only process boundary in the tool.
 
@@ -317,7 +317,7 @@ slash becomes a `tree` URL, and an image becomes a `raw.githubusercontent.com`
 URL. A destination naming another file in the mapping becomes the local output
 filename instead, so the vendored guides link to each other rather than to the
 upstream tag. The note is inserted below the first level-one heading outside
-fenced code, and a source that already carries the note is refused so the note
+fenced code, and a source that already carries the note is refused, so the note
 cannot stack.
 
 The front end names the command with Cyclopts, reads `VENDOR_TAGGED_GUIDES_`

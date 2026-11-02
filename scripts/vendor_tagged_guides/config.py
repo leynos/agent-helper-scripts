@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import posixpath
 import re
 from pathlib import Path
+from typing import NoReturn
 
 #: Repository-relative directory the upstream sources live in, used to build
 #: absolute URLs for relative links.
@@ -75,7 +76,7 @@ class VendorConfig:
     code_line_length: int = DEFAULT_CODE_LINE_LENGTH
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     """Raise :class:`VendorError` with a one-line message.
 
     Parameters
@@ -124,7 +125,9 @@ def validate_relative_name(value: str, *, role: str) -> str:
 
 
 def _validate_mapping(
-    mappings: Sequence[tuple[str, str]], source_directory: Path
+    mappings: Sequence[tuple[str, str]],
+    source_directory: Path,
+    output_directory: Path,
 ) -> None:
     """Check that every filename pair is usable before anything is written.
 
@@ -134,12 +137,14 @@ def _validate_mapping(
         Pairs supplied by the caller.
     source_directory
         Directory the source names are resolved against.
+    output_directory
+        Directory the output names are resolved against.
 
     Raises
     ------
     VendorError
-        If a pair is empty, names a directory, repeats a side, or names a
-        source that does not exist.
+        If a pair is empty, names a directory, repeats a side, names a source
+        that does not exist, or would write over a source file.
     """
     if not mappings:
         fail("at least one source/output mapping is required")
@@ -161,6 +166,12 @@ def _validate_mapping(
             fail(f"source file does not exist: {source_file}")
         seen_sources.add(source_relative)
         seen_outputs.add(output_relative)
+
+    source_files = {(source_directory / name).resolve() for name in seen_sources}
+    output_files = {(output_directory / name).resolve() for name in seen_outputs}
+    overlap = sorted(source_files & output_files)
+    if overlap:
+        fail(f"output would overwrite a source file: {overlap[0]}")
 
 
 def validate(config: VendorConfig) -> None:
@@ -194,7 +205,9 @@ def validate(config: VendorConfig) -> None:
         fail(f"source directory does not exist: {config.source_directory}")
     if not config.output_directory.is_dir():
         fail(f"output directory does not exist: {config.output_directory}")
-    _validate_mapping(config.mappings, config.source_directory)
+    _validate_mapping(
+        config.mappings, config.source_directory, config.output_directory
+    )
 
 
 def project_name(config: VendorConfig) -> str:
