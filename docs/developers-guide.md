@@ -284,6 +284,44 @@ distinction visible when adding new bootstrap behaviour.
   `copy_skills` call also ran after the helper checkout's own skills, so the
   external copy won on every run.
 
+### `vendor_tagged_guides` and `vendor_tagged_guides_cli`
+
+The vendoring tool is a pair of modules. `scripts/vendor_tagged_guides.py`
+holds the conversion and imports nothing beyond the standard library, so its
+behaviour can be tested without a subprocess, a network, or a checkout of the
+upstream repository. `scripts/vendor_tagged_guides_cli.py` is a PEP 723 script
+that adds the command line and the only process boundary in the tool.
+
+The core exposes a frozen `VendorConfig` dataclass, a `VendorError`, and a
+`VENDOR_ERRORS` tuple of the errors a caller may report, following the same
+shape as `gate_runner.GATE_ERRORS`. `validate` checks the configuration before
+the first file is written. `convert` rewrites one document. `long_lines` and
+`insert_exemptions` decide where the consumer's Markdown gate needs a bounded
+MD013 exemption. `vendor` composes them: it writes each mapping, optionally
+runs an injected `format_files` callable, inserts exemptions, runs the
+formatter again, and refuses the result unless the second formatting pass
+changed nothing. The fixed-point check is what makes a rerun at the same tag
+reproducible.
+
+Conversion masks fenced code, inline code, comments, and footnotes before it
+looks for links, so none of their contents can be rewritten. Inline links and
+link reference definitions keep their label, angle delimiter, title, and
+fragment; only the destination changes. A destination that is relative to the
+upstream source directory becomes a `blob` URL at the pinned tag, a trailing
+slash becomes a `tree` URL, and an image becomes a `raw.githubusercontent.com`
+URL. A destination naming another file in the mapping becomes the local output
+filename instead, so the vendored guides link to each other rather than to the
+upstream tag. The note is inserted below the first level-one heading outside
+fenced code, and a source that already carries the note is refused so the note
+cannot stack.
+
+The front end names the command with Cyclopts, reads `VENDOR_TAGGED_GUIDES_`
+environment variables, and runs the consumer's formatter through cuprum rather
+than `subprocess`. The default formatter is the repository's `mdtablefix`
+invocation; `--formatter` and `--no-format` replace or disable it. A missing
+executable and a non-zero status both leave the front end as one diagnostic
+line, like the gate runner's own boundary.
+
 ## `clone_or_update_repo`
 
 ```text

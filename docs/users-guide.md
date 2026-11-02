@@ -337,6 +337,24 @@ in a document that repository owns. A library's users' guide is owned by its
 upstream repository; the library snapshots it from upstream, so the upstream
 repository does not refresh its guide from the library.
 
+A repository that vendors a library's users' guide at a released upstream tag
+should generate it rather than copy it:
+
+```sh
+uv run --script scripts/vendor_tagged_guides_cli.py \
+    --tag v0.2.0-beta2 \
+    --repository leynos/cuprum \
+    --source ../cuprum/docs \
+    --output docs \
+    --map users-guide.md=cuprum-users-guide.md
+```
+
+The script pins relative links to the tag, rewrites links between the guides
+being vendored into local links, and inserts a provenance note that must not be
+edited by hand. Rerun it with the new tag to refresh the file; the library
+README describes the full contract in
+[Importing a guide at a pinned tag](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag).
+
 The OpenTofu guide misspells a variable reference on purpose, in its worked
 example of an undeclared-variable error. The shared dictionary exempts only
 that example's exact text, so a repository that carries the guide needs no
