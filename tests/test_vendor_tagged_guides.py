@@ -49,7 +49,7 @@ Cuprum helps Python applications run external programs. See the
 
 ![Architecture diagram](images/architecture.png)
 
-Inline `[sample](examples/sample.py)` is code, but `[the guide](guide.md)` is a
+Inline `[sample](examples/sample.py)` is code, but [the guide](guide.md) is a
 link.
 
 ```markdown
@@ -211,6 +211,15 @@ def pinned(path: str, *, tag: str = "v0.2.0-beta2") -> str:
             "[`code`](other.md)",
             f"[`code`]({pinned('docs/other.md')})",
         ),
+        (
+            "[![alt](images/a.png)](other.md)",
+            "[![alt](https://raw.githubusercontent.com/leynos/cuprum/"
+            f"v0.2.0-beta2/docs/images/a.png)]({pinned('docs/other.md')})",
+        ),
+        (
+            "[outer [inner](other.md)]",
+            f"[outer [inner]({pinned('docs/other.md')})]",
+        ),
     ],
 )
 def test_inline_link_forms_are_rewritten_without_touching_the_label(
@@ -223,6 +232,43 @@ def test_inline_link_forms_are_rewritten_without_touching_the_label(
     converted = convert_fragment(vendor, tmp_path, markdown)
 
     assert expected in converted, converted
+
+
+def test_links_resolve_against_a_nested_source_directory(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A source in a subdirectory resolves siblings and parent paths correctly."""
+    mappings = (
+        ("guides/users-guide.md", "cuprum-users-guide.md"),
+        ("guides/v0-2-0-migration-guide.md", "cuprum-migration-guide.md"),
+    )
+    config = make_config(
+        vendor,
+        tmp_path,
+        sources={
+            "guides/users-guide.md": "# Users' guide\n",
+            "guides/v0-2-0-migration-guide.md": "# Migration guide\n",
+        },
+        mappings=mappings,
+    ).config
+    source = (
+        "# Users' guide\n\n"
+        "See the [sibling](v0-2-0-migration-guide.md#moving), the "
+        "[repository guide](../README.md), [another](other.md), and "
+        "![diagram](images/architecture.png).\n"
+    )
+
+    converted = vendor.convert(source, config, "guides/users-guide.md")
+
+    assert (
+        "[sibling](cuprum-migration-guide.md#moving)" in converted
+    ), converted
+    assert f"[repository guide]({pinned('docs/README.md')})" in converted, converted
+    assert f"[another]({pinned('docs/guides/other.md')})" in converted, converted
+    assert (
+        "![diagram](https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/guides/images/architecture.png)" in converted
+    ), converted
 
 
 @pytest.mark.parametrize(
@@ -302,7 +348,7 @@ def test_converted_document_matches_the_snapshot(
         SNAPSHOT_SOURCE, config.config, "users-guide.md"
     )
 
-    assert converted == snapshot
+    assert converted == snapshot, converted
 
 
 def test_the_note_is_inserted_once_after_the_first_heading(
@@ -322,7 +368,7 @@ def test_the_note_is_inserted_once_after_the_first_heading(
         project="cuprum", tag="v0.2.0-beta2", repository="leynos/cuprum"
     )
 
-    assert converted == f"# Title\n\n{note}\nBody.\n"
+    assert converted == f"# Title\n\n{note}\nBody.\n", converted
 
 
 def test_a_source_carrying_the_note_is_refused(
@@ -358,9 +404,9 @@ def test_a_heading_inside_a_fence_does_not_receive_the_note(
 
     converted = vendor.convert(source, config.config, "users-guide.md")
 
-    assert converted.index("```markdown") < converted.index("Imported from")
-    assert converted.count("Imported from") == 1
-    assert converted.index("Imported from") < converted.index("Body.")
+    assert converted.index("```markdown") < converted.index("Imported from"), converted
+    assert converted.count("Imported from") == 1, converted
+    assert converted.index("Imported from") < converted.index("Body."), converted
 
 
 @pytest.mark.parametrize(
@@ -445,12 +491,12 @@ def test_a_long_paragraph_is_bracketed_for_the_consumer_gate(
 
     converted = vendor.insert_exemptions(document)
 
-    assert vendor.long_lines(document)
+    assert vendor.long_lines(document), "the fixture must exceed the line limit"
     assert (
         "<!-- markdownlint-disable MD013 -->\n\n"
         f"{paragraph}\n\n"
         "<!-- markdownlint-enable MD013 -->"
-    ) in converted
+    ) in converted, converted
 
 
 def test_a_whole_list_is_bracketed_rather_than_one_item(
@@ -468,8 +514,8 @@ def test_a_whole_list_is_bracketed_rather_than_one_item(
 
     disabled = converted.index("<!-- markdownlint-disable MD013 -->")
     enabled = converted.index("<!-- markdownlint-enable MD013 -->")
-    assert converted.index("- A first item") > disabled
-    assert converted.index("- A second, short item.") < enabled
+    assert converted.index("- A first item") > disabled, converted
+    assert converted.index("- A second, short item.") < enabled, converted
 
 
 def test_a_blockquote_is_bracketed_as_a_whole(
@@ -489,10 +535,10 @@ def test_a_blockquote_is_bracketed_as_a_whole(
     assert (
         "<!-- markdownlint-disable MD013 -->\n\n"
         "> A quoted sentence"
-    ) in converted
+    ) in converted, converted
     assert converted.index("> A second quoted line.") < converted.index(
         "<!-- markdownlint-enable MD013 -->"
-    )
+    ), converted
 
 
 def test_tables_headings_and_short_code_are_left_alone(
@@ -513,8 +559,8 @@ def test_tables_headings_and_short_code_are_left_alone(
 
     converted = vendor.insert_exemptions(document)
 
-    assert "markdownlint" not in converted
-    assert vendor.long_lines(document) == ()
+    assert "markdownlint" not in converted, converted
+    assert vendor.long_lines(document) == (), vendor.long_lines(document)
 
 
 def test_exemption_insertion_is_idempotent(vendor: types.ModuleType) -> None:
@@ -527,7 +573,7 @@ def test_exemption_insertion_is_idempotent(vendor: types.ModuleType) -> None:
     once = vendor.insert_exemptions(document)
     twice = vendor.insert_exemptions(once)
 
-    assert once == twice
+    assert once == twice, twice
 
 
 def test_vendor_writes_in_mapping_order_and_is_reproducible(
@@ -553,8 +599,8 @@ def test_vendor_writes_in_mapping_order_and_is_reproducible(
     assert [path.name for path in first] == [
         "zzz-migration.md",
         "aaa-users.md",
-    ]
-    assert first_bytes == second_bytes
+    ], first
+    assert first_bytes == second_bytes, (first_bytes, second_bytes)
 
 
 def test_a_formatter_that_does_not_reach_a_fixed_point_is_refused(
@@ -574,7 +620,7 @@ def test_a_formatter_that_does_not_reach_a_fixed_point_is_refused(
 
 
 FENCE_BODY = st.text(
-    alphabet=st.characters(blacklist_characters="`\r"),
+    alphabet=st.characters(exclude_characters="`\r"),
     max_size=60,
 )
 
@@ -596,7 +642,7 @@ def test_fenced_code_is_preserved_under_generated_content(
 
     converted = vendor.convert(document, config, "users-guide.md")
 
-    assert f"```text\n{body}\n```" in converted
+    assert f"```text\n{body}\n```" in converted, converted
 
 
 @given(document=st.text(max_size=200))
@@ -607,7 +653,7 @@ def test_exemption_insertion_is_idempotent_for_generated_documents(
     """Any input reaches a fixed point after one exemption pass."""
     once = vendor.insert_exemptions(document)
 
-    assert vendor.insert_exemptions(once) == once
+    assert vendor.insert_exemptions(once) == once, once
 
 
 def test_the_command_line_reports_an_invalid_mapping_without_a_traceback(
@@ -644,8 +690,59 @@ def test_the_command_line_reports_an_invalid_mapping_without_a_traceback(
     )
 
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "vendor_tagged_guides: error: --map expects SRC=OUT" in result.stderr
-    assert "Traceback" not in result.stderr
+    assert (
+        "vendor_tagged_guides: error: --map expects SRC=OUT" in result.stderr
+    ), result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+
+
+def test_the_command_line_reports_a_missing_formatter_without_a_traceback(
+    tmp_path: Path,
+) -> None:
+    """A formatter that is not installed is a named failure, not a traceback."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is unavailable to run the command line")
+    source = tmp_path / "source"
+    output = tmp_path / "docs"
+    source.mkdir()
+    output.mkdir()
+    (source / "users-guide.md").write_text(
+        "# Title\n\nBody.\n", encoding="utf-8", newline="\n"
+    )
+
+    result = subprocess.run(  # noqa: S603 - controlled arguments, no shell.
+        [
+            uv,
+            "run",
+            "--script",
+            str(CLI_PATH),
+            "--tag",
+            "v0.2.0-beta2",
+            "--repository",
+            "leynos/cuprum",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--map",
+            "users-guide.md=vendored.md",
+            "--formatter",
+            "definitely-absent-tool",
+        ],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=300,
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert (
+        "vendor_tagged_guides: error: 'definitely-absent-tool' is required, "
+        "but not installed"
+    ) in result.stderr, result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
 
 
 @pytest.mark.slow
@@ -722,7 +819,7 @@ def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
     invoke()
     second = {path.name: path.read_bytes() for path in written}
 
-    assert first == second
+    assert first == second, (first, second)
 
     formatter = subprocess.run(  # noqa: S603 - controlled arguments, no shell.
         [tools[REAL_FORMATTER], "--check", *FORMATTER_ARGUMENTS, *map(str, written)],

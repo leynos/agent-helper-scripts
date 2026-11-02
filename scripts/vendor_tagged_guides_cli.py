@@ -5,7 +5,7 @@
 # ///
 """Vendor an upstream guide at a pinned tag into a consuming repository.
 
-The conversion itself lives in the sibling ``vendor_tagged_guides`` module,
+The conversion itself lives in the sibling ``vendor_tagged_guides`` package,
 which imports nothing beyond the standard library. This front end adds the
 Cyclopts parameters and the cuprum process boundary that runs the consumer's
 Markdown formatter over the converted files.
@@ -32,6 +32,7 @@ Parameters are environment-aware, so a caller can set
 
 from collections.abc import Sequence
 from pathlib import Path
+import shlex
 import sys
 from typing import Annotated
 
@@ -180,8 +181,11 @@ def cli() -> None:
         mapping: Annotated[list[str] | None, Parameter(name="--map")] = None,
         project: str = "",
         source_path: str = vendor_tagged_guides.DEFAULT_SOURCE_PATH,
-        format: bool = True,
-        formatter: list[str] | None = None,
+        run_formatter: Annotated[
+            bool,
+            Parameter(name="--format", negative="--no-format"),
+        ] = True,
+        formatter: str = "",
     ) -> None:
         """Convert every mapped guide and print the paths written.
 
@@ -202,11 +206,12 @@ def cli() -> None:
             Display name for the import note; defaults to the repository name.
         source_path
             Repository-relative directory of the upstream sources.
-        format
+        run_formatter
             Whether to run the formatter. ``--no-format`` disables it.
         formatter
-            Executable and arguments for the formatter, replacing the shared
-            ``mdtablefix`` default.
+            One command line for the formatter, replacing the shared
+            ``mdtablefix`` default. It is split with :func:`shlex.split`, so
+            the formatter's own option-like flags stay its arguments.
 
         Returns
         -------
@@ -214,7 +219,7 @@ def cli() -> None:
             Prints one written path per line.
         """
         pairs = _mappings(mapping)
-        command = tuple(formatter) if formatter else DEFAULT_FORMATTER
+        command = tuple(shlex.split(formatter)) if formatter else DEFAULT_FORMATTER
         config = vendor_tagged_guides.VendorConfig(
             tag=tag,
             repository=repository,
@@ -227,7 +232,9 @@ def cli() -> None:
         written = vendor_tagged_guides.vendor(
             config,
             format_files=(
-                (lambda paths: _format_files(command, paths)) if format else None
+                (lambda paths: _format_files(command, paths))
+                if run_formatter
+                else None
             ),
         )
         for path in written:

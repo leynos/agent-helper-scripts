@@ -286,11 +286,16 @@ distinction visible when adding new bootstrap behaviour.
 
 ### `vendor_tagged_guides` and `vendor_tagged_guides_cli`
 
-The vendoring tool is a pair of modules. `scripts/vendor_tagged_guides.py`
-holds the conversion and imports nothing beyond the standard library, so its
-behaviour can be tested without a subprocess, a network, or a checkout of the
-upstream repository. `scripts/vendor_tagged_guides_cli.py` is a PEP 723 script
-that adds the command line and the only process boundary in the tool.
+The vendoring tool is a package and a front end.
+`scripts/vendor_tagged_guides/` holds the conversion and imports nothing beyond
+the standard library, so its behaviour can be tested without a subprocess, a
+network, or a checkout of the upstream repository. The package splits the work
+by concern: `config` validates an import, `masking` finds protected text,
+`links` rewrites destinations, `note` inserts the provenance record,
+`exemptions` adds Markdown-lint exemptions, and `pipeline` composes them. Every
+public name is re-exported by the package's `__init__`.
+`scripts/vendor_tagged_guides_cli.py` is a PEP 723 script that adds the command
+line and the only process boundary in the tool.
 
 The core exposes a frozen `VendorConfig` dataclass, a `VendorError`, and a
 `VENDOR_ERRORS` tuple of the errors a caller may report, following the same

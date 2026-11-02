@@ -15,7 +15,7 @@
   
   ![Architecture diagram](https://raw.githubusercontent.com/leynos/cuprum/v0.2.0-beta2/docs/images/architecture.png)
   
-  Inline `[sample](examples/sample.py)` is code, but `[the guide](guide.md)` is a
+  Inline `[sample](examples/sample.py)` is code, but [the guide](https://github.com/leynos/cuprum/blob/v0.2.0-beta2/docs/guide.md) is a
   link.
   
   ```markdown
