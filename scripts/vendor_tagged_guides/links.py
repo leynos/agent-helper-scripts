@@ -198,8 +198,9 @@ def _parse_inline_link(
         Destination start, destination end, and offset after the closing
         ``)``; ``None`` when the construct is not an inline link.
     """
-    cursor = _skip_link_space(text, position)
-    if cursor is None or cursor >= len(text) or text[cursor] != "(":
+    # CommonMark allows no space between a label's ``]`` and its ``(``.
+    cursor = position
+    if cursor >= len(text) or text[cursor] != "(":
         return None
     cursor = _skip_link_space(text, cursor + 1)
     if cursor is None:
@@ -230,6 +231,29 @@ def _repository_path(config: VendorConfig, source_name: str, path: str) -> str:
         return posixpath.normpath(path.lstrip("/"))
     base = posixpath.join(config.source_path, posixpath.dirname(source_name))
     return posixpath.normpath(posixpath.join(base, path))
+
+
+def _target_url(
+    config: VendorConfig,
+    repository_path: str,
+    *,
+    image: bool,
+    trailing_slash: bool,
+) -> str:
+    """Choose the local filename or tag-pinned URL for a repository path."""
+    targets = _mapping_targets(config)
+    if repository_path in targets:
+        return targets[repository_path]
+    if image:
+        return (
+            f"https://raw.githubusercontent.com/{config.repository}/"
+            f"{config.tag}/{repository_path}"
+        )
+    kind = "tree" if trailing_slash else "blob"
+    return (
+        f"https://github.com/{config.repository}/{kind}/{config.tag}/"
+        f"{repository_path}"
+    )
 
 
 def destination_url(
@@ -263,7 +287,7 @@ def destination_url(
     VendorError
         If a relative destination escapes the upstream repository root.
     """
-    if destination.startswith("#") or destination.startswith("//"):
+    if destination.startswith(("#", "//")):
         return destination
     if _SCHEME.match(destination):
         return destination
@@ -280,24 +304,12 @@ def destination_url(
             f"{destination}"
         )
 
-    targets = _mapping_targets(config)
-    if repository_path in targets:
-        rewritten = targets[repository_path]
-    elif image:
-        rewritten = (
-            f"https://raw.githubusercontent.com/{config.repository}/"
-            f"{config.tag}/{repository_path}"
-        )
-    elif trailing_slash:
-        rewritten = (
-            f"https://github.com/{config.repository}/tree/{config.tag}/"
-            f"{repository_path}"
-        )
-    else:
-        rewritten = (
-            f"https://github.com/{config.repository}/blob/{config.tag}/"
-            f"{repository_path}"
-        )
+    rewritten = _target_url(
+        config,
+        repository_path,
+        image=image,
+        trailing_slash=trailing_slash,
+    )
     if query:
         rewritten += f"?{query}"
     if fragment:

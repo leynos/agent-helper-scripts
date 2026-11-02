@@ -86,6 +86,20 @@ def test_a_backtick_inside_a_genuine_comment_does_not_start_a_code_span(
     assert f"[guide]({pinned('docs/other.md')})" in converted, converted
 
 
+def test_an_unmatched_backtick_does_not_mask_a_later_paragraph(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A code span cannot cross a blank line, so the later link stays live."""
+    markdown = (
+        "The lone ` key in one paragraph.\n\n"
+        "[guide](other.md) then another ` marker.\n"
+    )
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert f"[guide]({pinned('docs/other.md')})" in converted, converted
+
+
 FENCE_BODY = st.text(
     alphabet=st.characters(exclude_characters="`\r"),
     max_size=60,

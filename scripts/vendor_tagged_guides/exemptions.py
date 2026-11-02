@@ -14,14 +14,13 @@ from collections.abc import Iterator, Sequence
 import re
 
 from .config import DEFAULT_CODE_LINE_LENGTH, DEFAULT_LINE_LENGTH
-from .masking import fence_line_flags
+from .masking import FENCE_OPEN, fence_line_flags
 
 #: Comment pair that brackets a block too long for the prose limit.
 DISABLE_M013 = "<!-- markdownlint-disable MD013 -->"
 ENABLE_M013 = "<!-- markdownlint-enable MD013 -->"
 
 _HEADING = re.compile(r" {0,3}(#{1,6})(?:[ \t]|\Z)")
-_FENCE_OPEN = re.compile(r" {0,3}(`{3,}|~{3,})(.*)\Z")
 _LIST_ITEM = re.compile(r" {0,3}(?:[-*+]|\d+[.)])[ \t]")
 _THEMATIC_BREAK = re.compile(r" {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*\Z")
 _TABLE_DELIMITER = re.compile(
@@ -116,7 +115,7 @@ def _is_block_starter(line: str) -> bool:
     """Say whether a line begins a block that ends a paragraph."""
     return bool(
         _HEADING.match(line)
-        or _FENCE_OPEN.match(line)
+        or FENCE_OPEN.match(line)
         or line.lstrip().startswith(">")
         or _LIST_ITEM.match(line)
         or _THEMATIC_BREAK.match(line)

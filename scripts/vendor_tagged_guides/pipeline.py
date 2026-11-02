@@ -89,6 +89,15 @@ def _read(path: Path) -> str:
     )
 
 
+def _exempt(text: str, config: VendorConfig) -> str:
+    """Bracket over-long blocks using the configured line limits."""
+    return insert_exemptions(
+        text,
+        line_length=config.line_length,
+        code_line_length=config.code_line_length,
+    )
+
+
 def vendor(
     config: VendorConfig,
     *,
@@ -131,11 +140,11 @@ def vendor(
 
     if format_files is None:
         for path, text in zip(written, converted, strict=True):
-            _write(path, insert_exemptions(text))
+            _write(path, _exempt(text, config))
         return tuple(written)
 
     format_files(written)
-    exempted = [insert_exemptions(_read(path)) for path in written]
+    exempted = [_exempt(_read(path), config) for path in written]
     for path, text in zip(written, exempted, strict=True):
         _write(path, text)
 

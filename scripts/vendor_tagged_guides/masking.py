@@ -13,9 +13,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 
-_FENCE_OPEN = re.compile(r" {0,3}(`{3,}|~{3,})(.*)\Z")
+FENCE_OPEN = re.compile(r" {0,3}(`{3,}|~{3,})(.*)\Z")
 _FENCE_CLOSE = re.compile(r" {0,3}(`{3,}|~{3,})\s*\Z")
 _FOOTNOTE_DEFINITION = re.compile(r" {0,3}\[\^[^\]]+\]:")
+_BLANK_LINE = re.compile(r"\n[ \t]*\n")
 
 
 def fence_spans(lines: Sequence[str]) -> list[tuple[int, int]]:
@@ -35,7 +36,7 @@ def fence_spans(lines: Sequence[str]) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
     index = 0
     while index < len(lines):
-        opening = _FENCE_OPEN.match(lines[index])
+        opening = FENCE_OPEN.match(lines[index])
         if opening is None:
             index += 1
             continue
@@ -223,9 +224,18 @@ def _run_end(text: str, start: int) -> int:
 def _closing_run(
     text: str, mask: Sequence[bool], position: int, length: int
 ) -> int | None:
-    """Find the end of a backtick run of exactly ``length`` characters."""
+    """Find the end of a backtick run of exactly ``length`` characters.
+
+    A code span cannot cross a blank line, so an unmatched run in one
+    paragraph must not mask the text up to a backtick in a later one.
+    """
     while position < len(text):
-        if mask[position] or text[position] != "`":
+        if mask[position]:
+            position += 1
+            continue
+        if text[position] != "`":
+            if _BLANK_LINE.match(text, position):
+                return None
             position += 1
             continue
         run_end = _run_end(text, position)

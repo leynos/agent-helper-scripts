@@ -56,6 +56,10 @@ from vendor_tagged_guides_test_support import (
             "[migration](cuprum-v0-2-0-migration-guide.md#moving)",
         ),
         ("[anchor](#program-catalogue)", "[anchor](#program-catalogue)"),
+        (
+            "[optional] (default)",
+            "[optional] (default)",
+        ),
         ("[web](https://example.com/x)", "[web](https://example.com/x)"),
         ("[mail](mailto:dev@example.org)", "[mail](mailto:dev@example.org)"),
         ("[cdn](//cdn.example.org/x)", "[cdn](//cdn.example.org/x)"),

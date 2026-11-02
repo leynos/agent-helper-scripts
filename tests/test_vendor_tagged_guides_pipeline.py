@@ -7,6 +7,7 @@ reach a fixed point, so a rerun at the same tag reproduces the same bytes.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 import types
 
@@ -40,6 +41,24 @@ def test_vendor_writes_in_mapping_order_and_is_reproducible(
         "aaa-users.md",
     ], first
     assert first_bytes == second_bytes, (first_bytes, second_bytes)
+
+
+def test_the_configured_line_limits_control_exemptions(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A library caller's limits reach the exemption pass, not the defaults."""
+    line = "word " * 10 + "end.\n"
+    built = make_config(
+        vendor,
+        tmp_path,
+        sources={"users-guide.md": f"# Title\n\n{line}"},
+        mappings=(("users-guide.md", "out.md"),),
+    )
+    config = replace(built.config, line_length=40)
+
+    written = vendor.vendor(config)
+
+    assert "markdownlint-disable MD013" in written[0].read_text(), written
 
 
 def test_a_formatter_that_does_not_reach_a_fixed_point_is_refused(
