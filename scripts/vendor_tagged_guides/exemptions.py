@@ -17,8 +17,8 @@ from .config import DEFAULT_CODE_LINE_LENGTH, DEFAULT_LINE_LENGTH
 from .masking import FENCE_OPEN, fence_line_flags
 
 #: Comment pair that brackets a block too long for the prose limit.
-DISABLE_M013 = "<!-- markdownlint-disable MD013 -->"
-ENABLE_M013 = "<!-- markdownlint-enable MD013 -->"
+DISABLE_MD013 = "<!-- markdownlint-disable MD013 -->"
+ENABLE_MD013 = "<!-- markdownlint-enable MD013 -->"
 
 _HEADING = re.compile(r" {0,3}(#{1,6})(?:[ \t]|\Z)")
 _LIST_ITEM = re.compile(r" {0,3}(?:[-*+]|\d+[.)])[ \t]")
@@ -79,6 +79,19 @@ def exempt_lines(
 
     A directive inside fenced code is an example, not an instruction, so it
     changes nothing; lines inside a real open pair stay exempt.
+
+    Parameters
+    ----------
+    lines
+        Document lines, without newline characters.
+    fence_flags
+        Fenced-code map from
+        :func:`~vendor_tagged_guides.masking.fence_line_flags`.
+
+    Returns
+    -------
+    set[int]
+        Zero-based numbers of lines that a live exemption covers.
     """
     exempt: set[int] = set()
     disabled = False
@@ -408,11 +421,11 @@ def _bracket(lines: Sequence[str], start: int, end: int) -> list[str]:
     return [
         *lines[:start],
         *before,
-        DISABLE_M013,
+        DISABLE_MD013,
         "",
         *lines[start : end + 1],
         "",
-        ENABLE_M013,
+        ENABLE_MD013,
         *after,
         *lines[end + 1 :],
     ]

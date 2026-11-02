@@ -56,8 +56,8 @@ from .config import (
     validate,
 )
 from .exemptions import (
-    DISABLE_M013,
-    ENABLE_M013,
+    DISABLE_MD013,
+    ENABLE_MD013,
     insert_exemptions,
     long_lines,
 )
@@ -68,8 +68,8 @@ __all__ = (
     "DEFAULT_CODE_LINE_LENGTH",
     "DEFAULT_LINE_LENGTH",
     "DEFAULT_SOURCE_PATH",
-    "DISABLE_M013",
-    "ENABLE_M013",
+    "DISABLE_MD013",
+    "ENABLE_MD013",
     "IMPORT_MARKER",
     "NOTE_TEMPLATE",
     "VENDOR_ERRORS",

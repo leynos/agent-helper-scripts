@@ -81,6 +81,16 @@ def _mappings(values: Sequence[str] | None) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
+def _formatter_command(formatter: str) -> tuple[str, ...]:
+    """Split a formatter command line, defaulting when it is blank."""
+    try:
+        return tuple(shlex.split(formatter)) or DEFAULT_FORMATTER
+    except ValueError as error:
+        raise vendor_tagged_guides.VendorError(
+            f"--formatter is not a valid command line: {error}"
+        ) from error
+
+
 def _format_files(
     command: Sequence[str], paths: Sequence[Path]
 ) -> None:
@@ -173,7 +183,7 @@ def cli() -> None:
             Prints one written path per line.
         """
         pairs = _mappings(mapping)
-        command = tuple(shlex.split(formatter)) if formatter else DEFAULT_FORMATTER
+        command = _formatter_command(formatter)
         config = vendor_tagged_guides.VendorConfig(
             tag=tag,
             repository=repository,

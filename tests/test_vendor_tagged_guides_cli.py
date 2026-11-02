@@ -85,6 +85,41 @@ def test_the_command_line_reports_a_missing_formatter_without_a_traceback(
     assert "Traceback" not in result.stderr, result.stderr
 
 
+def test_the_command_line_reports_a_malformed_formatter_without_a_traceback(
+    tmp_path: Path,
+) -> None:
+    """An unbalanced quote is a named failure, not a ``ValueError``."""
+    source = tmp_path / "source"
+    output = tmp_path / "docs"
+    source.mkdir()
+    output.mkdir()
+    (source / "users-guide.md").write_text(
+        "# Title\n\nBody.\n", encoding="utf-8", newline="\n"
+    )
+
+    result = run_cli(
+        "--tag",
+        "v0.2.0-beta2",
+        "--repository",
+        "leynos/cuprum",
+        "--source",
+        str(source),
+        "--output",
+        str(output),
+        "--map",
+        "users-guide.md=vendored.md",
+        "--formatter",
+        "unbalanced 'quote",
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert (
+        "vendor_tagged_guides: error: --formatter is not a valid command line"
+    ) in result.stderr, result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+
+
 @pytest.mark.slow
 def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
     tmp_path: Path,
