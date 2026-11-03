@@ -93,21 +93,27 @@ uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
     --map v0-2-0-migration-guide.md=cuprum-v0-2-0-migration-guide.md
 ```
 
-`--source` is the directory holding the upstream files, resolved from the
+`--tag` is the upstream revision every relative link is pinned to, and
+`--repository` is the upstream project in `owner/name` form; both appear in the
+note. `--source` is the directory holding the upstream files, resolved from the
 caller's working directory. `--source-path` is the same directory expressed
 relative to the upstream repository root; it defaults to `docs` and is what the
-pinned links are built from. `--map SRC=OUT` is repeatable and names one file
-to convert and the bare filename to write. `--no-format` skips the formatter
-when the output is being inspected rather than committed. Every option also has
-an environment form, named after the option's flag rather than its Python
-parameter: `VENDOR_TAGGED_GUIDES_TAG`, `VENDOR_TAGGED_GUIDES_REPOSITORY`,
-`VENDOR_TAGGED_GUIDES_SOURCE`, `VENDOR_TAGGED_GUIDES_OUTPUT`,
-`VENDOR_TAGGED_GUIDES_MAP`, `VENDOR_TAGGED_GUIDES_PROJECT`,
-`VENDOR_TAGGED_GUIDES_SOURCE_PATH`, `VENDOR_TAGGED_GUIDES_FORMAT`, and
-`VENDOR_TAGGED_GUIDES_FORMATTER`. The list variable `VENDOR_TAGGED_GUIDES_MAP`
-splits its value on whitespace, so `"users-guide.md=one.md other.md=two.md"`
-supplies two mappings, and `VENDOR_TAGGED_GUIDES_FORMAT` takes a boolean such as
-`false`.
+pinned links are built from. `--output` is the directory the converted files
+are written to and defaults to `docs`. `--map SRC=OUT` is repeatable and names
+one file to convert and the bare filename to write. `--project` sets the
+display name in the note and defaults to the repository name. `--no-format`
+skips the formatter when the output is being inspected rather than committed,
+and `--formatter` replaces the default `mdtablefix` command with one command
+line, split with shell quoting rules so the formatter's own option-like flags
+stay its arguments. Every option also has an environment form, named after the
+option's flag rather than its Python parameter: `VENDOR_TAGGED_GUIDES_TAG`,
+`VENDOR_TAGGED_GUIDES_REPOSITORY`, `VENDOR_TAGGED_GUIDES_SOURCE`,
+`VENDOR_TAGGED_GUIDES_OUTPUT`, `VENDOR_TAGGED_GUIDES_MAP`,
+`VENDOR_TAGGED_GUIDES_PROJECT`, `VENDOR_TAGGED_GUIDES_SOURCE_PATH`,
+`VENDOR_TAGGED_GUIDES_FORMAT`, and `VENDOR_TAGGED_GUIDES_FORMATTER`. The list
+variable `VENDOR_TAGGED_GUIDES_MAP` splits its value on whitespace, so
+`"users-guide.md=one.md other.md=two.md"` supplies two mappings, and
+`VENDOR_TAGGED_GUIDES_FORMAT` takes a boolean such as `false`.
 
 The script inserts exactly this note, with `{project}` replaced by the upstream
 project name and `{repository}` and `{tag}` by the arguments:

@@ -77,6 +77,28 @@ def test_a_blockquote_is_bracketed_as_a_whole(
     ), converted
 
 
+def test_a_footnote_definition_is_bracketed_as_a_whole(
+    vendor: types.ModuleType,
+) -> None:
+    """A continuation must stay inside the pair, or it renders as code."""
+    document = (
+        "# Title\n\n"
+        "[^1]: A footnote paragraph whose first line carries a great many "
+        "words and keeps going past the eighty column limit.\n\n"
+        "    A short continuation paragraph.\n\n"
+        "After.\n"
+    )
+
+    converted = vendor.insert_exemptions(document)
+
+    disabled = converted.index("<!-- markdownlint-disable MD013 -->")
+    enabled = converted.index("<!-- markdownlint-enable MD013 -->")
+    assert converted.index("[^1]: A footnote paragraph") > disabled, converted
+    assert converted.index("    A short continuation paragraph.") < enabled, (
+        converted
+    )
+
+
 def test_tables_headings_and_short_code_are_left_alone(
     vendor: types.ModuleType,
 ) -> None:

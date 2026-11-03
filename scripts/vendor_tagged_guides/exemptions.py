@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterator, Sequence
 import re
 
 from .config import DEFAULT_CODE_LINE_LENGTH, DEFAULT_LINE_LENGTH
-from .masking import FENCE_OPEN, fence_line_flags
+from .masking import FENCE_OPEN, fence_line_flags, footnote_spans
 
 #: Comment pair that brackets a block too long for the prose limit.
 DISABLE_MD013 = "<!-- markdownlint-disable MD013 -->"
@@ -267,12 +267,18 @@ def block_ranges(
     """
     ranges: list[tuple[int, int]] = []
     owner = [-1] * len(lines)
+    # A footnote definition owns every blank-separated paragraph it continues
+    # over. Bracketing one paragraph on its own would end the definition with a
+    # column-zero comment, turning the following indented paragraph into code.
+    footnote_ends = dict(footnote_spans(lines))
     index = 0
     while index < len(lines):
         if _is_blank(lines[index]):
             index += 1
             continue
-        end = _block_extent(lines, index, fence_flags, table_flags)
+        end = footnote_ends.get(index)
+        if end is None:
+            end = _block_extent(lines, index, fence_flags, table_flags)
         ranges.append((index, end - 1))
         index = end
 
