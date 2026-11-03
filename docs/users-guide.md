@@ -355,7 +355,9 @@ The script pins relative links outside protected regions to the tag, rewrites
 links between the guides being vendored into local links, and inserts a
 provenance note that must not be edited by hand. Fenced code, inline code,
 footnote definitions, and HTML comments are copied untouched. Rerun it with the
-new tag to refresh the file; the library README describes the full contract in
+new tag to refresh the file; the
+[vendoring tool's reference](developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli)
+lists every option, and the library README states the hand-edit policy in
 [Importing a guide at a pinned tag](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag).
 
 The OpenTofu guide misspells a variable reference on purpose, in its worked

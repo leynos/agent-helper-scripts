@@ -335,6 +335,25 @@ formatter is the repository's `mdtablefix` invocation; `--formatter` and
 both leave the front end as one diagnostic line, like the gate runner's own
 boundary.
 
+The front end takes these options:
+
+- `--tag`: the upstream revision every relative link is pinned to.
+- `--repository`: the upstream project in `owner/name` form.
+- `--source`: the directory holding the upstream files, resolved from the
+  caller's working directory.
+- `--source-path`: the same directory relative to the upstream repository root;
+  defaults to `docs`, and the pinned links are built from it.
+- `--output`: the directory the converted files are written to; defaults to
+  `docs`.
+- `--map SRC=OUT`: repeatable; one file to convert and the bare filename to
+  write. At least one mapping is required.
+- `--project`: the display name in the note; defaults to the repository name.
+- `--no-format`: skip the formatter when the output is being inspected rather
+  than committed.
+- `--formatter`: replace the default `mdtablefix` command with one command
+  line, split with shell quoting rules so the formatter's own option-like flags
+  stay its arguments.
+
 ## `clone_or_update_repo`
 
 ```text

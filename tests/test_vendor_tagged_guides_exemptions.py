@@ -183,3 +183,15 @@ def test_exemption_insertion_is_idempotent_for_generated_documents(
     once = vendor.insert_exemptions(document)
 
     assert vendor.insert_exemptions(once) == once, once
+
+
+@given(document=st.text(alphabet="ab #-*>|`~\n", max_size=200))
+@settings(max_examples=30, deadline=None)
+def test_exemption_insertion_is_idempotent_with_small_limits(
+    vendor: types.ModuleType, document: str
+) -> None:
+    """Small limits and block syntax reach the bracketing path."""
+    limits = {"line_length": 8, "code_line_length": 12}
+    once = vendor.insert_exemptions(document, **limits)
+
+    assert vendor.insert_exemptions(once, **limits) == once, once
