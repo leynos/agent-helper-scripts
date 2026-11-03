@@ -112,6 +112,23 @@ def test_a_paragraph_starting_with_a_backtick_span_is_not_a_fence(
     assert f"[guide]({pinned('docs/other.md')})" in converted, converted
 
 
+def test_a_fence_nested_under_a_list_item_is_protected(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A fence indented by its list marker's width is still code."""
+    markdown = (
+        "- A list item.\n"
+        "  - A nested item.\n\n"
+        "      ```markdown\n"
+        "      [guide](other.md)\n"
+        "      ```\n"
+    )
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert "      [guide](other.md)" in converted, converted
+
+
 FENCE_BODY = st.text(
     alphabet=st.characters(exclude_characters="`\r"),
     max_size=60,

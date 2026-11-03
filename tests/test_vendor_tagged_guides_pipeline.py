@@ -61,6 +61,13 @@ def test_the_configured_line_limits_control_exemptions(
     assert "markdownlint-disable MD013" in written[0].read_text(), written
 
 
+def drifting_format(paths: Sequence[Path]) -> None:
+    """Append one line on every invocation, so no fixed point is reached."""
+    for path in paths:
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write("\nformatter noise\n")
+
+
 def test_a_failed_formatting_run_restores_previous_outputs(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:
@@ -70,30 +77,8 @@ def test_a_failed_formatting_run_restores_previous_outputs(
     absent = built.consumer / "cuprum-v0-2-0-migration-guide.md"
     kept.write_text("previous contents\n", encoding="utf-8", newline="\n")
 
-    def drifting_format(paths: Sequence[Path]) -> None:
-        """Append one line on every invocation."""
-        for path in paths:
-            with path.open("a", encoding="utf-8") as stream:
-                stream.write("\nformatter noise\n")
-
     with pytest.raises(vendor.VendorError, match="did not reach a fixed point"):
         vendor.vendor(built.config, format_files=drifting_format)
 
     assert kept.read_text() == "previous contents\n", kept
     assert not absent.exists(), absent
-
-
-def test_a_formatter_that_does_not_reach_a_fixed_point_is_refused(
-    vendor: types.ModuleType, tmp_path: Path
-) -> None:
-    """A formatter that changes its own output on every pass fails loudly."""
-    config = make_config(vendor, tmp_path).config
-
-    def drifting_format(paths: Sequence[Path]) -> None:
-        """Append one line on every invocation."""
-        for path in paths:
-            with path.open("a", encoding="utf-8") as stream:
-                stream.write("\nformatter noise\n")
-
-    with pytest.raises(vendor.VendorError, match="did not reach a fixed point"):
-        vendor.vendor(config, format_files=drifting_format)

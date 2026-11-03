@@ -15,9 +15,12 @@ import re
 
 #: A backtick fence's info string may not contain a backtick, but a tilde
 #: fence's may. Rejecting the former stops a paragraph that begins with an
-#: inline code span from being taken for an unclosed fence.
-FENCE_OPEN = re.compile(r" {0,3}(`{3,}(?=[^`]*\Z)|~{3,})(.*)\Z")
-_FENCE_CLOSE = re.compile(r" {0,3}(`{3,}|~{3,})\s*\Z")
+#: inline code span from being taken for an unclosed fence. Any indentation is
+#: accepted because a fence nested under a list item is indented by the list
+#: marker's width; an indented line that looks like a fence is code either way,
+#: so protecting it is the safe direction.
+FENCE_OPEN = re.compile(r"[ \t]*(`{3,}(?=[^`]*\Z)|~{3,})(.*)\Z")
+_FENCE_CLOSE = re.compile(r"[ \t]*(`{3,}|~{3,})\s*\Z")
 _FOOTNOTE_DEFINITION = re.compile(r" {0,3}\[\^[^\]]+\]:")
 _BLANK_LINE = re.compile(r"\n[ \t]*\n")
 

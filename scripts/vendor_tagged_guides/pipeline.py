@@ -1,12 +1,12 @@
 """Compose conversion, formatting, and writing into one import.
 
 Every source is converted before any output file is written, so a source that
-cannot be converted leaves the consumer's ``docs/`` unchanged. A formatting
-failure restores the previous output files, so a rejected run does not leave
-unformatted copies behind. The optional formatter then runs twice with the
-exemption pass between, and the pipeline refuses the result unless the second
-pass changed nothing; that fixed point is what makes a rerun at the same tag
-reproduce the same bytes.
+cannot be converted leaves the consumer's ``docs/`` unchanged. Any failure
+after the first write restores the previous output files, so a rejected run
+does not leave unformatted copies behind. The optional formatter then runs
+twice with the exemption pass between, and the pipeline refuses the result
+unless the second pass changed nothing; that fixed point is what makes a rerun
+at the same tag reproduce the same bytes.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from .config import VendorConfig, VendorError, fail, validate
+from .config import VendorConfig, fail, validate
 from .exemptions import insert_exemptions
 from .links import apply_replacements, link_replacements
 from .masking import masked_regions
@@ -142,8 +142,9 @@ def vendor(
     ------
     VendorError
         If an argument is unusable, a source already carries the note, or the
-        formatter does not reach a fixed point. The previous output files are
-        restored before the error is raised.
+        formatter does not reach a fixed point. Any failure after the first
+        write, including an interruption or an I/O error, restores the previous
+        output files before it propagates.
     """
     validate(config)
     converted = [
@@ -159,7 +160,9 @@ def vendor(
     }
     try:
         _write_and_format(config, written, converted, format_files)
-    except VendorError:
+    except BaseException:
+        # Any failure, including an interruption or an I/O error, must leave
+        # the consumer's directory as it was found.
         _restore(previous)
         raise
     return tuple(written)
