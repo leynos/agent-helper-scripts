@@ -145,7 +145,9 @@ def _validate_mapping(
             fail(f"source is mapped more than once: {source_name}")
         if output_relative in seen_outputs:
             fail(f"output is mapped more than once: {output_name}")
-        source_file = source_directory / source_relative
+        source_file = (source_directory / source_relative).resolve()
+        if not source_file.is_relative_to(source_directory.resolve()):
+            fail(f"source must stay inside the source directory: {source_name}")
         if not source_file.is_file():
             fail(f"source file does not exist: {source_file}")
         seen_sources.add(source_relative)

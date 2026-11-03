@@ -85,6 +85,24 @@ def test_a_missing_source_or_output_directory_is_refused(
         )
 
 
+def test_a_source_symlink_that_escapes_the_source_directory_is_refused(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Following a link would import content that is not at the pinned tag."""
+    config = make_config(vendor, tmp_path).config
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Outside\n\nText.\n", encoding="utf-8", newline="\n")
+    (config.source_directory / "linked.md").symlink_to(outside)
+    candidate = dataclasses.replace(
+        config, mappings=(("linked.md", "linked-guide.md"),)
+    )
+
+    with pytest.raises(
+        vendor.VendorError, match="source must stay inside the source directory"
+    ):
+        vendor.validate(candidate)
+
+
 @pytest.mark.parametrize("link_output", [False, True])
 def test_an_output_that_resolves_to_a_source_is_refused(
     vendor: types.ModuleType, tmp_path: Path, *, link_output: bool
