@@ -352,7 +352,8 @@ The front end takes these options:
   than committed.
 - `--formatter`: replace the default `mdtablefix` command with one command
   line, split with shell quoting rules so the formatter's own option-like flags
-  stay its arguments.
+  stay its arguments. The front end appends `--` and the written file paths to
+  that command, so the replacement must accept `--` before its file operands.
 
 ## `clone_or_update_repo`
 
