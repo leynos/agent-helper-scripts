@@ -1,10 +1,12 @@
 """Compose conversion, formatting, and writing into one import.
 
 Every source is converted before any output file is written, so a source that
-cannot be converted leaves the consumer's ``docs/`` unchanged. The optional
-formatter then runs twice with the exemption pass between, and the pipeline
-refuses the result unless the second pass changed nothing; that fixed point is
-what makes a rerun at the same tag reproduce the same bytes.
+cannot be converted leaves the consumer's ``docs/`` unchanged. A formatting
+failure restores the previous output files, so a rejected run does not leave
+unformatted copies behind. The optional formatter then runs twice with the
+exemption pass between, and the pipeline refuses the result unless the second
+pass changed nothing; that fixed point is what makes a rerun at the same tag
+reproduce the same bytes.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from .config import VendorConfig, fail, validate
+from .config import VendorConfig, VendorError, fail, validate
 from .exemptions import insert_exemptions
 from .links import apply_replacements, link_replacements
 from .masking import masked_regions
@@ -79,6 +81,41 @@ def _exempt(text: str, config: VendorConfig) -> str:
     )
 
 
+def _write_and_format(
+    config: VendorConfig,
+    written: Sequence[Path],
+    converted: Sequence[str],
+    format_files: Callable[[Sequence[Path]], None] | None,
+) -> None:
+    """Write the converted text, then reach the formatter's fixed point."""
+    for path, text in zip(written, converted, strict=True):
+        _write(path, text)
+
+    if format_files is None:
+        for path, text in zip(written, converted, strict=True):
+            _write(path, _exempt(text, config))
+        return
+
+    format_files(written)
+    exempted = [_exempt(_read(path), config) for path in written]
+    for path, text in zip(written, exempted, strict=True):
+        _write(path, text)
+
+    format_files(written)
+    for path, text in zip(written, exempted, strict=True):
+        if _read(path) != text:
+            fail(f"formatter did not reach a fixed point for {path}")
+
+
+def _restore(previous: dict[Path, bytes | None]) -> None:
+    """Put each output file back as it was before the run."""
+    for path, content in previous.items():
+        if content is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(content)
+
+
 def vendor(
     config: VendorConfig,
     *,
@@ -105,7 +142,8 @@ def vendor(
     ------
     VendorError
         If an argument is unusable, a source already carries the note, or the
-        formatter does not reach a fixed point.
+        formatter does not reach a fixed point. The previous output files are
+        restored before the error is raised.
     """
     validate(config)
     converted = [
@@ -116,21 +154,12 @@ def vendor(
         config.output_directory / output_name
         for _, output_name in config.mappings
     ]
-    for path, text in zip(written, converted, strict=True):
-        _write(path, text)
-
-    if format_files is None:
-        for path, text in zip(written, converted, strict=True):
-            _write(path, _exempt(text, config))
-        return tuple(written)
-
-    format_files(written)
-    exempted = [_exempt(_read(path), config) for path in written]
-    for path, text in zip(written, exempted, strict=True):
-        _write(path, text)
-
-    format_files(written)
-    for path, text in zip(written, exempted, strict=True):
-        if _read(path) != text:
-            fail(f"formatter did not reach a fixed point for {path}")
+    previous = {
+        path: path.read_bytes() if path.exists() else None for path in written
+    }
+    try:
+        _write_and_format(config, written, converted, format_files)
+    except VendorError:
+        _restore(previous)
+        raise
     return tuple(written)
