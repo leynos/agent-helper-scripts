@@ -10,7 +10,7 @@ existing pair already covers, which makes a second pass change nothing.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 import re
 
 from .config import DEFAULT_CODE_LINE_LENGTH, DEFAULT_LINE_LENGTH
@@ -206,6 +206,25 @@ def _paragraph_extent(lines: Sequence[str], index: int) -> int:
     return cursor + 1
 
 
+def _single_line_extent(lines: Sequence[str], index: int) -> int:
+    """Return the line after a one-line block."""
+    return index + 1
+
+
+#: Block-start predicates and their extent functions, in precedence order.
+_LINE_EXTENTS: tuple[
+    tuple[Callable[[str], bool], Callable[[Sequence[str], int], int]], ...
+] = (
+    (lambda line: bool(_HTML_COMMENT_START.match(line)), _comment_extent),
+    (lambda line: line.lstrip().startswith(">"), _quote_extent),
+    (lambda line: bool(_LIST_ITEM.match(line)), _list_extent),
+    (
+        lambda line: bool(_HEADING.match(line) or _THEMATIC_BREAK.match(line)),
+        _single_line_extent,
+    ),
+)
+
+
 def _block_extent(
     lines: Sequence[str],
     index: int,
@@ -213,18 +232,13 @@ def _block_extent(
     table_flags: Sequence[bool],
 ) -> int:
     """Return the line after the top-level block starting at ``index``."""
-    if fence_flags[index] or table_flags[index]:
-        return _flag_extent(
-            fence_flags if fence_flags[index] else table_flags, index
-        )
-    if _HTML_COMMENT_START.match(lines[index]):
-        return _comment_extent(lines, index)
-    if lines[index].lstrip().startswith(">"):
-        return _quote_extent(lines, index)
-    if _LIST_ITEM.match(lines[index]):
-        return _list_extent(lines, index)
-    if _HEADING.match(lines[index]) or _THEMATIC_BREAK.match(lines[index]):
-        return index + 1
+    for flags in (fence_flags, table_flags):
+        if flags[index]:
+            return _flag_extent(flags, index)
+    line = lines[index]
+    for starts_block, extent in _LINE_EXTENTS:
+        if starts_block(line):
+            return extent(lines, index)
     return _paragraph_extent(lines, index)
 
 
