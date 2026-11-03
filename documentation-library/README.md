@@ -80,8 +80,11 @@ runs the consumer's formatter, and brackets any remaining over-long prose in a
 bounded Markdown-lint exemption. It verifies that its own formatting pass
 reached a fixed point, and refuses a source that already carries the note.
 
+Run the command from the root of the consuming repository, naming the script by
+its path in the `agent-helper-scripts` checkout.
+
 ```sh
-uv run --script scripts/vendor_tagged_guides_cli.py \
+uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
     --tag v0.2.0-beta2 \
     --repository leynos/cuprum \
     --source ../cuprum/docs \

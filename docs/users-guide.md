@@ -338,10 +338,12 @@ upstream repository; the library snapshots it from upstream, so the upstream
 repository does not refresh its guide from the library.
 
 A repository that vendors a library's users' guide at a released upstream tag
-should generate it rather than copy it:
+should generate it rather than copy it. Run the command from the root of the
+consuming repository, naming the script by its path in the
+`agent-helper-scripts` checkout:
 
 ```sh
-uv run --script scripts/vendor_tagged_guides_cli.py \
+uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
     --tag v0.2.0-beta2 \
     --repository leynos/cuprum \
     --source ../cuprum/docs \
