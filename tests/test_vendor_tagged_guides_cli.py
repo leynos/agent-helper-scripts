@@ -7,6 +7,7 @@ Markdown configuration from a separate consumer checkout.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -136,13 +137,17 @@ def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
     tmp_path: Path,
 ) -> None:
     """A consumer checkout converts twice with no diff and passes both gates."""
-    tools = {
-        name: shutil.which(name) or str(Path.home() / ".bun" / "bin" / name)
-        for name in (REAL_FORMATTER, REAL_LINTER)
-    }
-    for name, path in tools.items():
-        if not Path(path).exists():
+    # Resolve both tools against one search path, and give the command the same
+    # path. The `.bun/bin` fallback is common on this host, but a tool found only
+    # there is invisible to the subprocess when it inherits the plain `PATH`.
+    bun_bin = Path.home() / ".bun" / "bin"
+    search_path = os.pathsep.join([os.environ.get("PATH", ""), str(bun_bin)])
+    tools: dict[str, str] = {}
+    for name in (REAL_FORMATTER, REAL_LINTER):
+        path = shutil.which(name, path=search_path)
+        if path is None:
             pytest.skip(f"{name} is unavailable; the end-to-end run is skipped")
+        tools[name] = path
 
     source_directory = write_upstream(
         tmp_path,
@@ -185,6 +190,7 @@ def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
             "--map",
             "v0-2-0-migration-guide.md=cuprum-v0-2-0-migration-guide.md",
             cwd=consumer,
+            env={"PATH": search_path},
             timeout=600,
         )
         assert result.returncode == 0, result.stdout + result.stderr
