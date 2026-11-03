@@ -36,19 +36,25 @@ from vendor_tagged_guides_test_support import (
         ),
         (
             "![diagram](images/diagram.png)",
-            "![diagram](https://raw.githubusercontent.com/leynos/cuprum/"
-            "v0.2.0-beta2/docs/images/diagram.png)",
+            (
+                "![diagram](https://raw.githubusercontent.com/leynos/cuprum/"
+                "v0.2.0-beta2/docs/images/diagram.png)"
+            ),
         ),
         (
             "![diagram](<images/one two.png>)",
-            "![diagram](<https://raw.githubusercontent.com/leynos/cuprum/"
-            "v0.2.0-beta2/docs/images/one two.png>)",
+            (
+                "![diagram](<https://raw.githubusercontent.com/leynos/cuprum/"
+                "v0.2.0-beta2/docs/images/one two.png>)"
+            ),
         ),
         ("[root](/README.md)", f"[root]({pinned('README.md')})"),
         (
             "[directory](adr/)",
-            "[directory](https://github.com/leynos/cuprum/tree/"
-            "v0.2.0-beta2/docs/adr)",
+            (
+                "[directory](https://github.com/leynos/cuprum/tree/"
+                "v0.2.0-beta2/docs/adr)"
+            ),
         ),
         ("[parent](../README.md)", f"[parent]({pinned('README.md')})"),
         (
@@ -73,8 +79,10 @@ from vendor_tagged_guides_test_support import (
         ),
         (
             "[![alt](images/a.png)](other.md)",
-            "[![alt](https://raw.githubusercontent.com/leynos/cuprum/"
-            f"v0.2.0-beta2/docs/images/a.png)]({pinned('docs/other.md')})",
+            (
+                "[![alt](https://raw.githubusercontent.com/leynos/cuprum/"
+                f"v0.2.0-beta2/docs/images/a.png)]({pinned('docs/other.md')})"
+            ),
         ),
         (
             "[outer [inner](other.md)]",

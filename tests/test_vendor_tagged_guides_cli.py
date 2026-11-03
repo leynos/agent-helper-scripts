@@ -55,8 +55,10 @@ def test_the_command_line_reports_an_invalid_mapping_without_a_traceback(
     [
         (
             "definitely-absent-tool",
-            "vendor_tagged_guides: error: 'definitely-absent-tool' is required, "
-            "but not installed",
+            (
+                "vendor_tagged_guides: error: 'definitely-absent-tool' is "
+                "required, but not installed"
+            ),
         ),
         (
             "unbalanced 'quote",

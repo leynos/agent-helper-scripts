@@ -124,6 +124,17 @@ def validate_relative_name(value: str, *, role: str) -> str:
     return normalized
 
 
+def _validate_names(source_name: str, output_name: str) -> tuple[str, str]:
+    """Normalize one mapping pair and check its output filename."""
+    source_relative = validate_relative_name(source_name, role="source name")
+    output_relative = validate_relative_name(output_name, role="output name")
+    if posixpath.basename(output_relative) != output_relative:
+        fail(f"output name must be a bare filename: {output_name}")
+    if not output_relative.endswith(".md"):
+        fail(f"output name must end in '.md': {output_name}")
+    return source_relative, output_relative
+
+
 def _validate_mapping(
     mappings: Sequence[tuple[str, str]],
     source_directory: Path,
@@ -135,12 +146,9 @@ def _validate_mapping(
     seen_sources: set[str] = set()
     seen_outputs: set[str] = set()
     for source_name, output_name in mappings:
-        source_relative = validate_relative_name(source_name, role="source name")
-        output_relative = validate_relative_name(output_name, role="output name")
-        if posixpath.basename(output_relative) != output_relative:
-            fail(f"output name must be a bare filename: {output_name}")
-        if not output_relative.endswith(".md"):
-            fail(f"output name must end in '.md': {output_name}")
+        source_relative, output_relative = _validate_names(
+            source_name, output_name
+        )
         if source_relative in seen_sources:
             fail(f"source is mapped more than once: {source_name}")
         if output_relative in seen_outputs:

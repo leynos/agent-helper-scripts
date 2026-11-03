@@ -206,7 +206,7 @@ def _paragraph_extent(lines: Sequence[str], index: int) -> int:
     return cursor + 1
 
 
-def _single_line_extent(lines: Sequence[str], index: int) -> int:
+def _single_line_extent(_lines: Sequence[str], index: int) -> int:
     """Return the line after a one-line block."""
     return index + 1
 
