@@ -96,7 +96,15 @@ relative to the upstream repository root; it defaults to `docs` and is what the
 pinned links are built from. `--map SRC=OUT` is repeatable and names one file
 to convert and the bare filename to write. `--no-format` skips the formatter
 when the output is being inspected rather than committed. Every option also has
-an environment form, prefixed with `VENDOR_TAGGED_GUIDES_`.
+an environment form, named after the option's flag rather than its Python
+parameter: `VENDOR_TAGGED_GUIDES_TAG`, `VENDOR_TAGGED_GUIDES_REPOSITORY`,
+`VENDOR_TAGGED_GUIDES_SOURCE`, `VENDOR_TAGGED_GUIDES_OUTPUT`,
+`VENDOR_TAGGED_GUIDES_MAP`, `VENDOR_TAGGED_GUIDES_PROJECT`,
+`VENDOR_TAGGED_GUIDES_SOURCE_PATH`, `VENDOR_TAGGED_GUIDES_FORMAT`, and
+`VENDOR_TAGGED_GUIDES_FORMATTER`. The list variable `VENDOR_TAGGED_GUIDES_MAP`
+splits its value on whitespace, so `"users-guide.md=one.md other.md=two.md"`
+supplies two mappings, and `VENDOR_TAGGED_GUIDES_FORMAT` takes a boolean such as
+`false`.
 
 The script inserts exactly this note, with `{project}` replaced by the upstream
 project name and `{repository}` and `{tag}` by the arguments:

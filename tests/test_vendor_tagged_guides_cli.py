@@ -96,6 +96,41 @@ def test_the_command_line_reports_a_bad_formatter_without_a_traceback(
     assert "Traceback" not in result.stderr, result.stderr
 
 
+def test_the_documented_environment_variables_stand_in_for_the_options(
+    tmp_path: Path,
+) -> None:
+    """The list and boolean variables take effect under their flag names."""
+    source = tmp_path / "source"
+    output = tmp_path / "docs"
+    source.mkdir()
+    output.mkdir()
+    for name in ("first.md", "second.md"):
+        (source / name).write_text(
+            "# Title\n\nBody.\n", encoding="utf-8", newline="\n"
+        )
+
+    result = run_cli(
+        cwd=tmp_path,
+        env={
+            "VENDOR_TAGGED_GUIDES_TAG": "v0.2.0-beta2",
+            "VENDOR_TAGGED_GUIDES_REPOSITORY": "leynos/cuprum",
+            "VENDOR_TAGGED_GUIDES_SOURCE": str(source),
+            "VENDOR_TAGGED_GUIDES_OUTPUT": str(output),
+            "VENDOR_TAGGED_GUIDES_MAP": (
+                "first.md=vendored-first.md second.md=vendored-second.md"
+            ),
+            "VENDOR_TAGGED_GUIDES_FORMAT": "false",
+            "VENDOR_TAGGED_GUIDES_FORMATTER": "definitely-absent-tool",
+        },
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert sorted(path.name for path in output.glob("*.md")) == [
+        "vendored-first.md",
+        "vendored-second.md",
+    ], result.stdout
+
+
 @pytest.mark.slow
 def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
     tmp_path: Path,

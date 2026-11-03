@@ -320,12 +320,20 @@ upstream tag. The note is inserted below the first level-one heading outside
 fenced code, and a source that already carries the note is refused, so the note
 cannot stack.
 
-The front end names the command with Cyclopts, reads `VENDOR_TAGGED_GUIDES_`
-environment variables, and runs the consumer's formatter through cuprum rather
-than `subprocess`. The default formatter is the repository's `mdtablefix`
-invocation; `--formatter` and `--no-format` replace or disable it. A missing
-executable and a non-zero status both leave the front end as one diagnostic
-line, like the gate runner's own boundary.
+The front end names the command with Cyclopts and runs the consumer's formatter
+through cuprum rather than `subprocess`. Cyclopts derives each environment name
+from the option's flag, not its Python parameter, so the variables are
+`VENDOR_TAGGED_GUIDES_TAG`, `VENDOR_TAGGED_GUIDES_REPOSITORY`,
+`VENDOR_TAGGED_GUIDES_SOURCE`, `VENDOR_TAGGED_GUIDES_OUTPUT`,
+`VENDOR_TAGGED_GUIDES_MAP`, `VENDOR_TAGGED_GUIDES_PROJECT`,
+`VENDOR_TAGGED_GUIDES_SOURCE_PATH`, `VENDOR_TAGGED_GUIDES_FORMAT`, and
+`VENDOR_TAGGED_GUIDES_FORMATTER`; in particular the list is `_MAP`, not
+`_MAPPING`, and the boolean is `_FORMAT`, not `_RUN_FORMATTER`. The list value
+splits on whitespace and the boolean accepts `true` or `false`. The default
+formatter is the repository's `mdtablefix` invocation; `--formatter` and
+`--no-format` replace or disable it. A missing executable and a non-zero status
+both leave the front end as one diagnostic line, like the gate runner's own
+boundary.
 
 ## `clone_or_update_repo`
 

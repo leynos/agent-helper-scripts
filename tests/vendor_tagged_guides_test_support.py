@@ -8,8 +8,9 @@ place the tests start the PEP 723 front end through ``uv``.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 import importlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -53,7 +54,13 @@ __all__ = (
 
 @pytest.fixture(name="vendor", scope="module")
 def vendor_fixture() -> Iterator[types.ModuleType]:
-    """Load the vendoring core from ``scripts/`` by path."""
+    """Load the vendoring core from ``scripts/`` by path.
+
+    Yields
+    ------
+    types.ModuleType
+        The vendoring core module, imported from ``scripts/``.
+    """
     script_directory = str(SCRIPTS_PATH)
     sys.path.insert(0, script_directory)
     try:
@@ -139,19 +146,48 @@ def make_config(
 
 
 def convert_fragment(vendor: types.ModuleType, tmp_path: Path, markdown: str) -> str:
-    """Convert one Markdown fragment under a valid configuration."""
+    """Convert one Markdown fragment under a valid configuration.
+
+    Parameters
+    ----------
+    vendor
+        Loaded core module.
+    tmp_path
+        Temporary directory for the upstream and consumer trees.
+    markdown
+        Fragment to place below the document's level-one heading.
+
+    Returns
+    -------
+    str
+        Converted document.
+    """
     config = make_config(vendor, tmp_path, sources={"users-guide.md": "# Title\n"})
     return vendor.convert(f"# Title\n\n{markdown}\n", config.config, "users-guide.md")
 
 
 def pinned(path: str, *, tag: str = "v0.2.0-beta2") -> str:
-    """Build the blob URL the tool should emit for one source path."""
+    """Build the blob URL the tool should emit for one source path.
+
+    Parameters
+    ----------
+    path
+        Repository-relative source path.
+    tag
+        Upstream tag the destination is pinned to.
+
+    Returns
+    -------
+    str
+        Tag-pinned ``blob`` URL.
+    """
     return f"https://github.com/leynos/cuprum/blob/{tag}/{path}"
 
 
 def run_cli(
     *arguments: str,
     cwd: Path,
+    env: Mapping[str, str] | None = None,
     timeout: int = 300,
 ) -> subprocess.CompletedProcess[str]:
     """Run the vendoring front end through ``uv``.
@@ -162,6 +198,8 @@ def run_cli(
         Command-line arguments after the script path.
     cwd
         Working directory the front end resolves relative paths from.
+    env
+        Extra environment variables, merged over the current environment.
     timeout
         Seconds to allow the command.
 
@@ -173,9 +211,11 @@ def run_cli(
     uv = shutil.which("uv")
     if uv is None:
         pytest.skip("uv is unavailable to run the command line")
+    environment = None if env is None else {**os.environ, **env}
     return subprocess.run(  # noqa: S603 - fixed argument list, no shell.
         [uv, "run", "--script", str(CLI_PATH), *arguments],
         cwd=cwd,
+        env=environment,
         text=True,
         capture_output=True,
         check=False,
