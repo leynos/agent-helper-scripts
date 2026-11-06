@@ -40,6 +40,7 @@ class Delivery:
     """
 
     def __init__(self, depth: int, merged: int = 0) -> None:
+        """Build a stack of ``depth`` layers whose first ``merged`` are merged."""
         self.layers = [
             Layer(candidate=i + 1, base=i - 1, github_base=i - 1)
             for i in range(depth)

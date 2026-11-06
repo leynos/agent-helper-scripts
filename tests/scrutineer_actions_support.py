@@ -160,6 +160,7 @@ class GhDouble:
         bundle_dir: Path | None = None,
         watcher_marker: str = "watcher-started.marker",
     ) -> None:
+        """Store the assignment and the canned responses and failure settings."""
         self.assignment = assignment
         self.pr_checks = pr_checks
         self.run_list = run_list
@@ -176,10 +177,12 @@ class GhDouble:
     # -- validation -------------------------------------------------------- #
 
     def _require(self, condition: bool, message: str) -> None:  # noqa: FBT001
+        """Record ``message`` as a violation when ``condition`` is false."""
         if not condition:
             self.violations.append(message)
 
     def _check_repo(self, args: Sequence[str]) -> None:
+        """Require ``--repo`` to name the assigned repository."""
         repo = _flag_value(args, "--repo")
         self._require(
             repo == self.assignment.repo,
@@ -187,10 +190,12 @@ class GhDouble:
         )
 
     def _check_flags(self, args: Sequence[str], required: Sequence[str]) -> None:
+        """Require every flag in ``required`` to appear in ``args``."""
         missing = [flag for flag in required if flag not in args]
         self._require(not missing, f"missing required flags {missing} in {list(args)}")
 
     def _check_positional(self, args: Sequence[str], expected: str, what: str) -> None:
+        """Require the positional identifier (``what``) to equal ``expected``."""
         # The identifier is the first argument that is neither a subcommand nor
         # a flag or flag value, which is where every documented call puts it.
         positional = args[2] if len(args) > 2 else None
@@ -202,6 +207,7 @@ class GhDouble:
     # -- responses --------------------------------------------------------- #
 
     def _default_candidate(self) -> dict[str, object]:
+        """Return a completed, failed CI run for the assigned commit and attempt."""
         return {
             "databaseId": int(self.assignment.run_id),
             "workflowName": "CI",
@@ -239,6 +245,7 @@ class GhDouble:
         }
 
     def _default_run_list(self) -> list[dict[str, object]]:
+        """Return one successful CI run per ID in ``ACTIONS_RUN_IDS``."""
         return [
             {
                 "databaseId": int(run_id),
@@ -252,6 +259,7 @@ class GhDouble:
         ]
 
     def _handle_pr(self, args: Sequence[str]) -> tuple[str, str, int]:
+        """Answer ``gh pr view`` with the PR identity and ``gh pr checks`` with the table."""
         self._check_repo(args)
         self._check_positional(args, self.assignment.pr_number, "PR number")
         if args[1] == "view":
@@ -272,6 +280,7 @@ class GhDouble:
         return (self.pr_checks, "", 8)
 
     def _handle_run_list(self, args: Sequence[str]) -> tuple[str, str, int]:
+        """Answer ``gh run list`` after checking the commit filter and flags."""
         self._check_repo(args)
         self._check_flags(args, ["--commit", "--limit", "--json"])
         commit = _flag_value(args, "--commit")
@@ -283,6 +292,7 @@ class GhDouble:
         return (json.dumps(list(runs)), "", 0)
 
     def _handle_run_watch(self, args: Sequence[str]) -> tuple[str, str, int]:
+        """Answer ``gh run watch``: mark the call, optionally delay, then exit."""
         self._check_repo(args)
         self._check_positional(args, self.assignment.run_id, "run ID")
         self._check_flags(args, ["--exit-status", "--interval"])
@@ -295,6 +305,7 @@ class GhDouble:
         return (f"✓ {self.assignment.repo} CI\n", "", self.watch_exit)
 
     def _handle_run_view(self, args: Sequence[str]) -> tuple[str, str, int]:
+        """Answer ``gh run view`` with the failed-step log or the run's JSON."""
         self._check_repo(args)
         self._check_positional(args, self.assignment.run_id, "run ID")
         if "--attempt" in args:
@@ -321,6 +332,7 @@ class GhDouble:
         """Return the cmd-mox handler for the doubled `gh`."""
 
         def handle(invocation: Invocation) -> tuple[str, str, int]:
+            """Record the call and route it to the matching ``gh`` handler."""
             args = list(invocation.args)
             self.invocations.append(args)
             match args[:2]:

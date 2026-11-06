@@ -24,6 +24,12 @@ make spelling
 except that the workflow runs the Markdown gate through the `markdownlint-cli2`
 action.
 
+`make lint` first runs `make interrogate`, which needs `uv` and fails on any
+Python definition under `scripts`, `tests` and `skills` without a docstring
+(and on any `MISSED` row, since interrogate rounds its percentage to one
+decimal; `tests/test_interrogate_gate.py` asserts the wiring). Add a new Python
+directory to `INTERROGATE_TARGETS`.
+
 `make nixie` validates Mermaid diagrams and is not part of `make ci`: it needs
 a renderer the CI runner does not provide. Run it alongside the sequence above
 when a change touches a diagram.

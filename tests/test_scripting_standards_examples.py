@@ -149,6 +149,7 @@ def _run_concurrent_example_batch(
     """Run a generated batch with the catalogue and API from the shipped example."""
 
     async def run_batch() -> Any:
+        """Run the generated cargo commands under the example's concurrency config."""
         with namespace["scoped"](catalogue=namespace["CATALOGUE"]):
             cargo = namespace["sh"].make(namespace["CARGO"])
             commands = [cargo("probe", str(index)) for index in range(command_count)]
@@ -310,6 +311,7 @@ def test_execution_context_example_runs_with_cwd_environment_and_stdin(
 ) -> None:
     """The beta2 context and stdin arguments reach both successful commands."""
     def git_handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Answer the two expected git calls; exit 97 for any other arguments."""
         if invocation.args == ["var", "GIT_AUTHOR_IDENT"]:
             return "CI <ci@example.org> 123456789 +0000\n", "", 0
         if invocation.args == ["hash-object", "--stdin"]:
@@ -399,6 +401,7 @@ def test_concurrent_example_runs_bounded_commands_in_submission_order(
 ) -> None:
     """The beta2 concurrent runner returns both successful commands in order."""
     def cargo_handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Answer the two expected cargo calls; exit 97 for any other arguments."""
         if invocation.args == ["check", "--all-targets"]:
             return "checked", "", 0
         if invocation.args == ["fmt", "--check"]:
