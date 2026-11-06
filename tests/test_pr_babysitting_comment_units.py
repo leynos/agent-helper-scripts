@@ -179,3 +179,19 @@ def test_injected_clock_and_run_id_make_diagnostics_deterministic(tmp_path: Path
         "surface": "issue_comment", "repository": "o/r", "pr": "7", "stage": "post",
         "failure_category": None, "exit_status": 0, "elapsed_ms": 0, "http_status": None,
     }, "the injected clock and run-ID source fully determine the diagnostic"
+
+
+def test_a_backward_clock_step_reports_zero_elapsed_time(tmp_path: Path) -> None:
+    """A wall-clock step back must not produce a negative duration."""
+    result = _source_and_run(
+        'now_ms() { if [[ -f clock_seen ]]; then printf "%s\\n" 1000; '
+        'else : > clock_seen; printf "%s\\n" 2000; fi; }\n'
+        'DIAG_RUN_ID=0123456789abcdef DIAG_SURFACE=issue_comment DIAG_REPOSITORY=o/r DIAG_PR=7\n'
+        'started=$(now_ms)\n'
+        'log_diagnostic post "" 0 "$started" ""',
+        tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stderr)["elapsed_ms"] == 0, (
+        "a backward clock step must be clamped to zero, never reported negative"
+    )
