@@ -134,8 +134,27 @@ def test_the_documented_environment_variables_stand_in_for_the_options(
     ], result.stdout
 
 
+@pytest.mark.parametrize(
+    ("arguments", "environment", "exempted"),
+    [
+        ((), None, False),
+        (("--line-length", "40", "--code-line-length", "20"), None, True),
+        (
+            (),
+            {
+                "VENDOR_TAGGED_GUIDES_LINE_LENGTH": "40",
+                "VENDOR_TAGGED_GUIDES_CODE_LINE_LENGTH": "20",
+            },
+            True,
+        ),
+    ],
+    ids=["default", "options", "environment"],
+)
 def test_the_line_limits_are_configurable_through_options_and_environment(
     tmp_path: Path,
+    arguments: tuple[str, ...],
+    environment: dict[str, str] | None,
+    exempted: bool,
 ) -> None:
     """The exemption pass can match a consumer's own MD013 limits."""
     source = tmp_path / "source"
@@ -153,53 +172,30 @@ def test_the_line_limits_are_configurable_through_options_and_environment(
     )
     written = output / "vendored.md"
 
-    def invoke(
-        *arguments: str, env: dict[str, str] | None = None
-    ) -> subprocess.CompletedProcess[str]:
-        """Vendor the one source from the temporary consumer directory."""
-        return run_cli(
-            "--tag",
-            "v0.2.0-beta2",
-            "--repository",
-            "leynos/cuprum",
-            "--source",
-            str(source),
-            "--output",
-            str(output),
-            "--map",
-            "users-guide.md=vendored.md",
-            "--no-format",
-            *arguments,
-            cwd=tmp_path,
-            env=env,
-        )
-
-    def assert_limits_applied() -> None:
-        """Check that both over-long blocks are bracketed."""
-        text = written.read_text(encoding="utf-8")
-        assert (
-            "<!-- markdownlint-disable MD013 -->\n\nThis prose line" in text
-        ), text
-        assert "<!-- markdownlint-disable MD013 -->\n\n```text" in text, text
-
-    defaulted = invoke()
-    assert defaulted.returncode == 0, defaulted.stdout + defaulted.stderr
-    assert "markdownlint-disable MD013" not in written.read_text(encoding="utf-8")
-
-    limited = invoke("--line-length", "40", "--code-line-length", "20")
-    assert limited.returncode == 0, limited.stdout + limited.stderr
-    assert_limits_applied()
-
-    from_environment = invoke(
-        env={
-            "VENDOR_TAGGED_GUIDES_LINE_LENGTH": "40",
-            "VENDOR_TAGGED_GUIDES_CODE_LINE_LENGTH": "20",
-        }
+    result = run_cli(
+        "--tag",
+        "v0.2.0-beta2",
+        "--repository",
+        "leynos/cuprum",
+        "--source",
+        str(source),
+        "--output",
+        str(output),
+        "--map",
+        "users-guide.md=vendored.md",
+        "--no-format",
+        *arguments,
+        cwd=tmp_path,
+        env=environment,
     )
-    assert from_environment.returncode == 0, (
-        from_environment.stdout + from_environment.stderr
-    )
-    assert_limits_applied()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    text = written.read_text(encoding="utf-8")
+    if not exempted:
+        assert "markdownlint-disable MD013" not in text, text
+        return
+    assert "<!-- markdownlint-disable MD013 -->\n\nThis prose line" in text, text
+    assert "<!-- markdownlint-disable MD013 -->\n\n```text" in text, text
 
 
 @pytest.mark.slow

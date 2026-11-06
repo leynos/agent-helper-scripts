@@ -314,6 +314,27 @@ def _reference_label(
     return _normalize_label(alt)
 
 
+def _inline_image_end(
+    text: str, position: int, mask: Sequence[bool]
+) -> int | None:
+    """Return the end of an inline image's destination, or ``None``.
+
+    :func:`_parse_inline_link` rejects an empty destination, but CommonMark
+    accepts ``![alt]()`` as an inline image, so that form is recognized here.
+    An unterminated destination such as ``![alt](unterminated`` is not an
+    inline image: CommonMark falls back to the shortcut reference ``![alt]``.
+    """
+    parsed = _parse_inline_link(text, position, mask)
+    if parsed is not None:
+        return parsed[2]
+    if position >= len(text) or text[position] != "(":
+        return None
+    cursor = _skip_link_space(text, position + 1)
+    if cursor is None or cursor >= len(text) or text[cursor] != ")":
+        return None
+    return cursor + 1
+
+
 def _image_reference_labels(text: str, mask: Sequence[bool]) -> set[str]:
     """Collect the labels that reference-style images in the document name.
 
@@ -337,7 +358,7 @@ def _image_reference_labels(text: str, mask: Sequence[bool]) -> set[str]:
             cursor += 1
             continue
         alt = text[cursor + 1 : label_end]
-        if label_end + 1 < len(text) and text[label_end + 1] == "(":
+        if _inline_image_end(text, label_end + 1, mask) is not None:
             # An inline image names no definition; ``_inline_replacements``
             # rewrites it directly.
             cursor += 1

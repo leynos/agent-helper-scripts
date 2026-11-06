@@ -318,12 +318,15 @@ URL. A definition used by a reference-style image is rewritten as an image
 source, whether the image writes the label in full, collapsed, or shortcut
 form; when a link shares the same definition, the image form wins because a
 `blob` URL renders as a broken image while a `raw` URL still resolves when
-followed as a link. A destination naming another file in the mapping becomes
-the local output filename instead, so the vendored guides link to each other
-rather than to the upstream tag. The note is inserted below the first level-one
-heading outside protected text, so a heading inside a fence, an HTML comment,
-an inline code span, or a footnote definition is not chosen; a source that
-already carries the note is refused, so the note cannot stack.
+followed as a link. An unterminated inline destination is not an inline image,
+so `![alt](unterminated` falls back to the shortcut reference `![alt]`; an
+empty destination, `![alt]()`, stays inline. A destination naming another file
+in the mapping becomes the local output filename instead, so the vendored
+guides link to each other rather than to the upstream tag. The note is inserted
+below the first level-one heading outside protected text, so a heading inside a
+fence, an HTML comment, an inline code span, or a footnote definition is not
+chosen; a source that already carries the note is refused, so the note cannot
+stack.
 
 The front end names the command with Cyclopts and runs the consumer's formatter
 through cuprum rather than `subprocess`. Cyclopts derives each environment name

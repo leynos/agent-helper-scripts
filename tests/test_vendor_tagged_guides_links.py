@@ -205,6 +205,32 @@ def test_a_definition_used_by_an_image_becomes_a_raw_source(
     ), converted
 
 
+def test_an_unterminated_inline_image_falls_back_to_its_shortcut_reference(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """CommonMark reads ``![diagram](unterminated`` as the shortcut ``![diagram]``."""
+    markdown = "![diagram](unterminated\n\n[diagram]: images/diagram.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/diagram.png" in converted
+    ), converted
+
+
+def test_an_inline_image_with_an_empty_destination_names_no_definition(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """``![diagram]()`` is an inline image, so the definition keeps a blob URL."""
+    markdown = "![diagram]()\n\n[diagram]: images/diagram.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert "github.com/leynos/cuprum/blob/" in converted, converted
+    assert "raw.githubusercontent.com" not in converted, converted
+
+
 def test_a_definition_shared_by_a_link_and_an_image_renders_as_an_image(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:

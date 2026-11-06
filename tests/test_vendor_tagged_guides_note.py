@@ -119,18 +119,31 @@ def test_a_source_without_a_heading_is_refused(
         vendor.convert("Body without a heading.\n", config.config, "users-guide.md")
 
 
-def test_a_heading_inside_an_html_comment_does_not_receive_the_note(
-    vendor: types.ModuleType, tmp_path: Path
+@pytest.mark.parametrize(
+    ("source", "heading"),
+    [
+        (
+            "<!--\n# Example heading\n-->\n\n# Actual guide\n\nBody.\n",
+            "# Actual guide",
+        ),
+        (
+            "`code\n# Not a heading\nmore`\n\n# Actual guide\n\nBody.\n",
+            "# Actual guide",
+        ),
+        ("#\tActual guide\n\nBody.\n", "#\tActual guide"),
+    ],
+)
+def test_a_protected_heading_does_not_receive_the_note(
+    vendor: types.ModuleType, tmp_path: Path, source: str, heading: str
 ) -> None:
-    """A commented-out heading renders as nothing, so it is not the H1."""
+    """A heading that renders as nothing is not the insertion point."""
     config = make_config(vendor, tmp_path)
-    source = "<!--\n# Example heading\n-->\n\n# Actual guide\n\nBody.\n"
 
     converted = vendor.convert(source, config.config, "users-guide.md")
 
     assert converted.count("Imported from") == 1, converted
     assert (
-        converted.index("# Actual guide")
+        converted.index(heading)
         < converted.index("Imported from")
         < converted.index("Body.")
     ), converted
