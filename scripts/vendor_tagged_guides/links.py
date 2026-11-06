@@ -250,6 +250,27 @@ def destination_url(
     return rewritten
 
 
+def _is_escaped(text: str, position: int, mask: Sequence[bool]) -> bool:
+    """Report whether a character follows an odd run of backslashes."""
+    backslashes = 0
+    cursor = position - 1
+    while cursor >= 0 and text[cursor] == "\\" and not mask[cursor]:
+        backslashes += 1
+        cursor -= 1
+    return backslashes % 2 == 1
+
+
+def _is_image_marker(text: str, position: int, mask: Sequence[bool]) -> bool:
+    """Report whether the bracket at ``position`` opens an image.
+
+    The ``!`` must be present, outside protected text, and not escaped itself:
+    ``\\![alt]`` renders as a literal ``!`` followed by a shortcut link.
+    """
+    if position == 0 or text[position - 1] != "!" or mask[position - 1]:
+        return False
+    return not _is_escaped(text, position - 1, mask)
+
+
 def _inline_replacements(
     text: str,
     mask: Sequence[bool],
@@ -267,7 +288,7 @@ def _inline_replacements(
         if mask[cursor] or text[cursor] != "[":
             cursor += 1
             continue
-        image = cursor > 0 and text[cursor - 1] == "!" and not mask[cursor - 1]
+        image = _is_image_marker(text, cursor, mask)
         label_end = _find_closing_bracket(text, cursor + 1, mask)
         if label_end is None:
             cursor += 1
@@ -318,19 +339,20 @@ def _reference_label(
 
     ``![alt][label]`` is a full reference, ``![alt][]`` is collapsed, and
     ``![alt]`` is a shortcut; both of the last two use the alt text as the
-    label. A link label cannot contain an unescaped bracket, so a malformed
-    full reference such as ``![alt][outer[inner]]`` is not a link at all and
-    falls back to the shortcut ``![alt]``. An inline ``![alt](destination)``
-    has no label, but it never reaches this function because the caller only
-    runs on bracket forms.
+    label. A link label needs one character that is not whitespace and cannot
+    contain an unescaped bracket, so a malformed full reference such as
+    ``![alt][ ]`` or ``![alt][outer[inner]]`` is not a link at all and falls
+    back to the shortcut ``![alt]``. An inline ``![alt](destination)`` has no
+    label, but it never reaches this function because the caller only runs on
+    bracket forms.
     """
     if position < len(text) and text[position] == "[" and not mask[position]:
         end = _find_closing_bracket(text, position + 1, mask)
         if end is not None:
             inner = text[position + 1 : end]
-            if inner and _has_unescaped_bracket(inner):
-                return _normalize_label(alt)
-            return _normalize_label(inner or alt)
+            if inner.strip() and not _has_unescaped_bracket(inner):
+                return _normalize_label(inner)
+            return _normalize_label(alt)
     return _normalize_label(alt)
 
 
@@ -369,8 +391,7 @@ def _image_reference_labels(text: str, mask: Sequence[bool]) -> set[str]:
         if mask[cursor] or text[cursor] != "[":
             cursor += 1
             continue
-        image = cursor > 0 and text[cursor - 1] == "!" and not mask[cursor - 1]
-        if not image:
+        if not _is_image_marker(text, cursor, mask):
             cursor += 1
             continue
         label_end = _find_closing_bracket(text, cursor + 1, mask)

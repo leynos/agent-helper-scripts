@@ -260,6 +260,47 @@ def test_an_invalid_nested_reference_label_falls_back_to_the_shortcut(
     ), converted
 
 
+def test_a_whitespace_only_second_bracket_uses_the_shortcut_label(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A label needs one non-space character, so ``![a][ ]`` is ``![a]``."""
+    markdown = "![diagram][ ]\n\n[diagram]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
+def test_an_escaped_image_marker_names_a_link_definition(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """``\\![alt]`` is a literal ``!`` and a shortcut link, not an image."""
+    markdown = "\\![guide]\n\n[guide]: other.md\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert f"[guide]: {pinned('docs/other.md')}" in converted, converted
+    assert "raw.githubusercontent.com" not in converted, converted
+
+
+def test_an_image_inside_a_link_is_rewritten_on_its_own(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """The inner image and the outer link each keep their own destination."""
+    markdown = "[![diagram](images/a.png)](other.md)\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "![diagram](https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png)" in converted
+    ), converted
+    assert f"]({pinned('docs/other.md')})" in converted, converted
+
+
 def test_a_definition_shared_by_a_link_and_an_image_renders_as_an_image(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:
