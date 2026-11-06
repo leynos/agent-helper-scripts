@@ -31,6 +31,11 @@ NOTE_TEMPLATE = (
 IMPORT_MARKER = "**Imported from "
 
 _H1 = re.compile(r" {0,3}#[ \t]+[^\n]*")
+_SETEXT_UNDERLINE = re.compile(r" {0,3}=+[ \t\r]*")
+#: A line that starts a block other than a paragraph cannot be the text of a
+#: Setext heading, so it is not paired with a following underline.
+_BLOCK_START = re.compile(r" {0,3}(?:[#><`~*+-]|\d{1,9}[.)])")
+_DEFINITION_LINE = re.compile(r" {0,3}\[[^\]]*\]:")
 
 
 def render_note(config: VendorConfig) -> str:
@@ -53,12 +58,28 @@ def render_note(config: VendorConfig) -> str:
     )
 
 
+def _marker_offset(offset: int, line: str) -> int:
+    """Return the document offset of a line's first non-space character."""
+    return offset + len(line) - len(line.lstrip(" "))
+
+
+def _setext_title(line: str) -> bool:
+    """Report whether a line can be the text of a Setext heading."""
+    return (
+        bool(line.strip())
+        and _BLOCK_START.match(line) is None
+        and _DEFINITION_LINE.match(line) is None
+    )
+
+
 def _first_heading(lines: Sequence[str], mask: Sequence[bool]) -> int | None:
-    """Return the first level-one heading that is not protected text.
+    """Return the last line of the first level-one heading, or ``None``.
 
     A heading inside a fence, an HTML comment, an inline code span, or a
     footnote definition is not a heading in the rendered document, so the
-    protection mask decides, not the fence map alone.
+    protection mask decides, not the fence map alone. A Setext heading ends
+    at its underline, so its last line is the underline; both lines must be
+    unprotected.
 
     Parameters
     ----------
@@ -76,9 +97,19 @@ def _first_heading(lines: Sequence[str], mask: Sequence[bool]) -> int | None:
     offset = 0
     for index, line in enumerate(lines):
         if _H1.fullmatch(line):
-            marker = offset + len(line) - len(line.lstrip(" "))
-            if not mask[marker]:
+            if not mask[_marker_offset(offset, line)]:
                 return index
+        elif (
+            index + 1 < len(lines)
+            and _setext_title(line)
+            and _SETEXT_UNDERLINE.fullmatch(lines[index + 1])
+        ):
+            underline = lines[index + 1]
+            underline_offset = offset + len(line) + 1
+            if not mask[_marker_offset(offset, line)] and not mask[
+                _marker_offset(underline_offset, underline)
+            ]:
+                return index + 1
         offset += len(line) + 1
     return None
 

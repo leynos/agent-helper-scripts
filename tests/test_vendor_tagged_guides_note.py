@@ -149,6 +149,47 @@ def test_a_protected_heading_does_not_receive_the_note(
     ), converted
 
 
+def test_a_setext_heading_receives_the_note_after_its_underline(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A Setext H1 ends at its underline, so the note follows both lines."""
+    config = make_config(vendor, tmp_path)
+    source = "Cuprum users' guide\n====================\n\nBody.\n"
+
+    converted = vendor.convert(source, config.config, "users-guide.md")
+
+    assert converted.startswith(
+        "Cuprum users' guide\n====================\n\n> **Imported from "
+    ), converted
+    assert converted.count("Imported from") == 1, converted
+
+
+def test_a_setext_heading_inside_a_fence_does_not_receive_the_note(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A protected underline is not a heading, so the live ATX H1 wins."""
+    config = make_config(vendor, tmp_path)
+    source = "```markdown\nNot a heading\n==============\n```\n\n# Title\n\nBody.\n"
+
+    converted = vendor.convert(source, config.config, "users-guide.md")
+
+    assert converted.index("# Title") < converted.index("Imported from"), converted
+    assert converted.count("Imported from") == 1, converted
+
+
+def test_a_setext_level_two_heading_is_not_the_insertion_point(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Only a level-one heading takes the note, so the ATX H1 is used."""
+    config = make_config(vendor, tmp_path)
+    source = "Section\n-------\n\n# Title\n\nBody.\n"
+
+    converted = vendor.convert(source, config.config, "users-guide.md")
+
+    assert converted.index("# Title") < converted.index("Imported from"), converted
+    assert converted.count("Imported from") == 1, converted
+
+
 def test_a_heading_inside_a_fence_does_not_receive_the_note(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:

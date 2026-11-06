@@ -301,6 +301,92 @@ def test_an_image_inside_a_link_is_rewritten_on_its_own(
     assert f"]({pinned('docs/other.md')})" in converted, converted
 
 
+@pytest.mark.parametrize(
+    "usage",
+    ["`![diagram]`", "```text\n![diagram]\n```"],
+    ids=["inline-code", "fenced-code"],
+)
+def test_an_image_reference_inside_protected_text_names_no_definition(
+    vendor: types.ModuleType, tmp_path: Path, usage: str
+) -> None:
+    """Image syntax that renders as code does not make a definition an image."""
+    markdown = f"{usage}\n\n[diagram]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert "github.com/leynos/cuprum/blob/" in converted, converted
+    assert "raw.githubusercontent.com" not in converted, converted
+
+
+def test_a_reference_label_across_a_blank_line_uses_the_shortcut_label(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A label cannot contain a blank line, so the shortcut form applies."""
+    markdown = "![alt][a\n\nb]\n\n[alt]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
+def test_an_overlong_reference_label_uses_the_shortcut_label(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A link label holds at most 999 characters, so a longer one is ignored."""
+    label = "x" * 1000
+    markdown = f"![alt][{label}]\n\n[alt]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
+def test_reference_labels_match_across_case_folding(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """CommonMark matches labels case-insensitively; U+1E9E folds to ``ss``."""
+    markdown = "![ẞ][]\n\n[ss]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
+def test_an_escaped_label_does_not_match_its_unescaped_form(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Label matching uses the raw text, so ``foo\\!`` differs from ``foo!``."""
+    markdown = "![foo\\!]\n\n[foo!]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert "github.com/leynos/cuprum/blob/" in converted, converted
+    assert "raw.githubusercontent.com" not in converted, converted
+
+
+def test_an_escaped_label_matches_the_same_escaped_definition(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Both sides keep the escape, so ``foo\\!`` matches a ``foo\\!`` label."""
+    markdown = "![foo\\!]\n\n[foo\\!]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
 def test_a_definition_shared_by_a_link_and_an_image_renders_as_an_image(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:

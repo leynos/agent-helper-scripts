@@ -22,6 +22,11 @@ _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 #: the escapes too, so both sides normalize to the same text.
 _DEFINITION = re.compile(r"(?m)^ {0,3}\[((?:\\.|[^\\\]])+)\]:[ \t]*")
 _LABEL_SPACE = re.compile(r"\s+")
+_BLANK_LINE = re.compile(r"\n[ \t\r]*\n")
+
+#: Longest link label CommonMark allows, counting the characters between the
+#: brackets.
+_MAX_LABEL = 999
 
 
 def _skip_link_space(text: str, position: int) -> int | None:
@@ -332,6 +337,22 @@ def _has_unescaped_bracket(label: str) -> bool:
     return False
 
 
+def _is_valid_label(label: str) -> bool:
+    """Report whether text between brackets can be a CommonMark link label.
+
+    A label needs one character that is not whitespace, cannot contain an
+    unescaped bracket, cannot cross a blank line, and holds at most 999
+    characters. Anything else is not a label, so the reference falls back to
+    the shortcut form.
+    """
+    return (
+        bool(label.strip())
+        and len(label) <= _MAX_LABEL
+        and _BLANK_LINE.search(label) is None
+        and not _has_unescaped_bracket(label)
+    )
+
+
 def _reference_label(
     text: str, position: int, mask: Sequence[bool], alt: str
 ) -> str:
@@ -339,18 +360,16 @@ def _reference_label(
 
     ``![alt][label]`` is a full reference, ``![alt][]`` is collapsed, and
     ``![alt]`` is a shortcut; both of the last two use the alt text as the
-    label. A link label needs one character that is not whitespace and cannot
-    contain an unescaped bracket, so a malformed full reference such as
-    ``![alt][ ]`` or ``![alt][outer[inner]]`` is not a link at all and falls
-    back to the shortcut ``![alt]``. An inline ``![alt](destination)`` has no
-    label, but it never reaches this function because the caller only runs on
-    bracket forms.
+    label. A malformed full reference such as ``![alt][ ]`` or
+    ``![alt][outer[inner]]`` is not a link at all and falls back to the
+    shortcut ``![alt]``. An inline ``![alt](destination)`` has no label, but it
+    never reaches this function because the caller only runs on bracket forms.
     """
     if position < len(text) and text[position] == "[" and not mask[position]:
         end = _find_closing_bracket(text, position + 1, mask)
         if end is not None:
             inner = text[position + 1 : end]
-            if inner.strip() and not _has_unescaped_bracket(inner):
+            if _is_valid_label(inner):
                 return _normalize_label(inner)
             return _normalize_label(alt)
     return _normalize_label(alt)
