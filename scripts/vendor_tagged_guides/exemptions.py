@@ -23,6 +23,7 @@ ENABLE_MD013 = "<!-- markdownlint-enable MD013 -->"
 _HEADING = re.compile(r" {0,3}(#{1,6})(?:[ \t]|\Z)")
 _LIST_ITEM = re.compile(r" {0,3}(?:[-*+]|\d+[.)])[ \t]")
 _THEMATIC_BREAK = re.compile(r" {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*\Z")
+_SETEXT_UNDERLINE = re.compile(r" {0,3}(?:=+|-+)[ \t]*\Z")
 _TABLE_DELIMITER = re.compile(
     r" {0,3}\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)+\|?[ \t]*\Z"
 )
@@ -138,6 +139,61 @@ def _is_indented(line: str) -> bool:
     return line.startswith(("  ", "\t"))
 
 
+def _is_code_indented(line: str) -> bool:
+    """Say whether a line is indented enough to be an indented code block."""
+    return line.startswith(("    ", "\t"))
+
+
+def setext_heading_flags(
+    lines: Sequence[str], fence_flags: Sequence[bool]
+) -> list[bool]:
+    """Mark the text and underline of every Setext heading.
+
+    A Setext heading is a paragraph line followed by a run of ``=`` or ``-``.
+    Markdownlint excludes headings from MD013, and an exemption placed between
+    the text and its underline would turn the heading into a paragraph and a
+    thematic break, so both lines are treated as one heading block.
+
+    Parameters
+    ----------
+    lines
+        Document lines, without newline characters.
+    fence_flags
+        Fenced-code map from
+        :func:`~vendor_tagged_guides.masking.fence_line_flags`.
+
+    Returns
+    -------
+    list[bool]
+        One flag per line, true for a Setext heading's text or underline.
+    """
+    flags = [False] * len(lines)
+    index = 0
+    while index + 1 < len(lines):
+        if (
+            fence_flags[index]
+            or fence_flags[index + 1]
+            or _is_blank(lines[index])
+            or _is_code_indented(lines[index])
+            or _is_block_starter(lines[index])
+            or not _SETEXT_UNDERLINE.fullmatch(lines[index + 1])
+        ):
+            index += 1
+            continue
+        start = index
+        while (
+            start > 0
+            and not _is_blank(lines[start - 1])
+            and not fence_flags[start - 1]
+            and not _is_block_starter(lines[start - 1])
+        ):
+            start -= 1
+        for line_number in range(start, index + 2):
+            flags[line_number] = True
+        index += 2
+    return flags
+
+
 def _flag_extent(fence_flags: Sequence[bool], index: int) -> int:
     """Return the line after a run of flagged lines."""
     while index < len(fence_flags) and fence_flags[index]:
@@ -230,9 +286,10 @@ def _block_extent(
     index: int,
     fence_flags: Sequence[bool],
     table_flags: Sequence[bool],
+    heading_flags: Sequence[bool],
 ) -> int:
     """Return the line after the top-level block starting at ``index``."""
-    for flags in (fence_flags, table_flags):
+    for flags in (fence_flags, table_flags, heading_flags):
         if flags[index]:
             return _flag_extent(flags, index)
     line = lines[index]
@@ -271,6 +328,7 @@ def block_ranges(
     # over. Bracketing one paragraph on its own would end the definition with a
     # column-zero comment, turning the following indented paragraph into code.
     footnote_ends = dict(footnote_spans(lines))
+    heading_flags = setext_heading_flags(lines, fence_flags)
     index = 0
     while index < len(lines):
         if _is_blank(lines[index]):
@@ -278,7 +336,9 @@ def block_ranges(
             continue
         end = footnote_ends.get(index)
         if end is None:
-            end = _block_extent(lines, index, fence_flags, table_flags)
+            end = _block_extent(
+                lines, index, fence_flags, table_flags, heading_flags
+            )
         ranges.append((index, end - 1))
         index = end
 
@@ -305,6 +365,7 @@ def _overlong_lines(
     lines: Sequence[str],
     fence_flags: Sequence[bool],
     table_flags: Sequence[bool],
+    heading_flags: Sequence[bool],
     exempt: set[int],
     line_length: int,
     code_line_length: int,
@@ -316,7 +377,7 @@ def _overlong_lines(
         if index in exempt:
             continue
         if not fence_flags[index] and (
-            table_flags[index] or _HEADING.match(line)
+            table_flags[index] or heading_flags[index] or _HEADING.match(line)
         ):
             continue
         limit = code_line_length if fence_flags[index] else line_length
@@ -353,12 +414,14 @@ def long_lines(
     lines = _normalized_lines(text)
     fence_flags = fence_line_flags(lines)
     table_flags = table_line_flags(lines)
+    heading_flags = setext_heading_flags(lines, fence_flags)
     exempt = exempt_lines(lines, fence_flags)
     return tuple(
         _overlong_lines(
             lines,
             fence_flags,
             table_flags,
+            heading_flags,
             exempt,
             line_length,
             code_line_length,
@@ -395,11 +458,19 @@ def insert_exemptions(
     lines = _normalized_lines(text.rstrip("\n"))
     fence_flags = fence_line_flags(lines)
     table_flags = table_line_flags(lines)
+    heading_flags = setext_heading_flags(lines, fence_flags)
     exempt = exempt_lines(lines, fence_flags)
     ranges, owner = block_ranges(lines, fence_flags, table_flags)
 
     targets = _offending_blocks(
-        lines, fence_flags, table_flags, exempt, owner, line_length, code_line_length
+        lines,
+        fence_flags,
+        table_flags,
+        heading_flags,
+        exempt,
+        owner,
+        line_length,
+        code_line_length,
     )
     for block in sorted(targets, reverse=True):
         lines = _bracket(lines, *ranges[block])
@@ -410,6 +481,7 @@ def _offending_blocks(
     lines: Sequence[str],
     fence_flags: Sequence[bool],
     table_flags: Sequence[bool],
+    heading_flags: Sequence[bool],
     exempt: set[int],
     owner: Sequence[int],
     line_length: int,
@@ -422,6 +494,7 @@ def _offending_blocks(
             lines,
             fence_flags,
             table_flags,
+            heading_flags,
             exempt,
             line_length,
             code_line_length,

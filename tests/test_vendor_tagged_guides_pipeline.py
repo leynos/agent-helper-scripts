@@ -82,3 +82,106 @@ def test_a_failed_formatting_run_restores_previous_outputs(
 
     assert kept.read_text() == "previous contents\n", kept
     assert not absent.exists(), absent
+
+
+def test_an_output_that_would_overwrite_a_source_is_refused_before_writing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """``vendor`` itself refuses the overwrite, so no byte of the source moves."""
+    built = make_config(vendor, tmp_path)
+    source = built.config.source_directory / "users-guide.md"
+    original = source.read_bytes()
+    config = replace(
+        built.config,
+        output_directory=built.config.source_directory,
+        mappings=(("users-guide.md", "users-guide.md"),),
+    )
+
+    with pytest.raises(
+        vendor.VendorError, match="output would overwrite a source file"
+    ):
+        vendor.vendor(config)
+
+    assert source.read_bytes() == original, source
+    assert list(built.consumer.iterdir()) == [], list(built.consumer.iterdir())
+
+
+def test_an_invalid_second_mapping_leaves_the_first_source_and_output_untouched(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Every mapping is checked before the first conversion or write."""
+    built = make_config(vendor, tmp_path)
+    source = built.config.source_directory / "users-guide.md"
+    original = source.read_bytes()
+    config = replace(
+        built.config,
+        mappings=(
+            ("users-guide.md", "first-output.md"),
+            ("missing.md", "second-output.md"),
+        ),
+    )
+
+    with pytest.raises(vendor.VendorError, match="source file does not exist"):
+        vendor.vendor(config)
+
+    assert source.read_bytes() == original, source
+    assert list(built.consumer.iterdir()) == [], list(built.consumer.iterdir())
+
+
+def test_an_undecodable_source_is_reported_as_a_vendor_error(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A non-UTF-8 source is a one-line diagnostic, not a traceback."""
+    built = make_config(vendor, tmp_path)
+    source = built.config.source_directory / "users-guide.md"
+    source.write_bytes(b"\xff\xfe# Not UTF-8\n")
+
+    with pytest.raises(vendor.VendorError, match="cannot decode"):
+        vendor.vendor(built.config)
+
+    assert list(built.consumer.iterdir()) == [], list(built.consumer.iterdir())
+
+
+def test_a_write_failure_is_reported_as_a_vendor_error(
+    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read-only output directory is a one-line diagnostic, not a traceback."""
+    built = make_config(vendor, tmp_path)
+
+    def failing_write_text(
+        self: Path, *_args: object, **_kwargs: object
+    ) -> int:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(Path, "write_text", failing_write_text)
+
+    with pytest.raises(vendor.VendorError, match="cannot write"):
+        vendor.vendor(built.config)
+
+
+def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
+    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failed restore must not strand the other outputs in converted state."""
+    built = make_config(vendor, tmp_path)
+    first = built.consumer / "cuprum-users-guide.md"
+    second = built.consumer / "cuprum-v0-2-0-migration-guide.md"
+    first.write_text("first previous\n", encoding="utf-8", newline="\n")
+    second.write_text("second previous\n", encoding="utf-8", newline="\n")
+    original_write_bytes = Path.write_bytes
+
+    def failing_write_bytes(self: Path, data: bytes) -> int:
+        if self == first:
+            raise OSError("disk full")
+        return original_write_bytes(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", failing_write_bytes)
+
+    with pytest.raises(vendor.VendorError) as raised:
+        vendor.vendor(built.config, format_files=drifting_format)
+
+    message = str(raised.value)
+    assert "could not restore previous output" in message, message
+    assert str(first) in message, message
+    assert "original failure: VendorError" in message, message
+    assert second.read_text() == "second previous\n", second

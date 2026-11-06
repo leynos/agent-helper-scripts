@@ -119,6 +119,20 @@ def test_tables_headings_and_short_code_are_left_alone(
     assert vendor.long_lines(document) == (), vendor.long_lines(document)
 
 
+def test_a_long_setext_heading_is_not_split_from_its_underline(
+    vendor: types.ModuleType,
+) -> None:
+    """A heading is exempt, and bracketing it would break the heading pair."""
+    heading = ("word " * 17 + "end").rstrip() + "   "
+    document = f"# Title\n\n{heading}\n---\n\nAfter.\n"
+
+    converted = vendor.insert_exemptions(document)
+
+    assert vendor.long_lines(document) == (), vendor.long_lines(document)
+    assert "markdownlint" not in converted, converted
+    assert f"{heading}\n---" in converted, converted
+
+
 def test_a_long_comment_inside_a_fence_is_bracketed(
     vendor: types.ModuleType,
 ) -> None:

@@ -72,16 +72,14 @@ pointing at paths that do not exist in the consuming repository.
 
 Use `scripts/vendor_tagged_guides_cli.py` from `agent-helper-scripts` instead.
 It converts one or more guides from a checkout of the upstream repository at
-the named tag. Relative links outside protected regions are pinned to that tag,
-links between the guides being vendored are rewritten into local links, and
-fenced code, inline code, footnotes, and HTML comments are copied untouched.
-The script then inserts the canonical note below the first level-one heading
-that is not inside protected text, runs the consumer's formatter, and brackets
-any remaining over-long prose in a bounded Markdown-lint exemption. The
-exemption pass assumes the shared non-strict MD013 baseline, with headings and
-tables excluded; its limits can be changed but its other assumptions cannot. It
-verifies that its own formatting pass reached a fixed point, and refuses a
-source that already carries the note.
+the named tag: relative links outside protected regions are pinned to that tag,
+links between the guides being vendored become local links, and fenced code,
+inline code, footnotes, and HTML comments are copied untouched. It then inserts
+the canonical note below the first level-one heading that is not inside
+protected text. The formatter, the bounded Markdown-lint exemption, and the
+fixed-point check are described in the
+[vendoring tool's reference](../docs/developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli),
+which also lists every option, its default, and its environment form.
 
 Run the command from the root of the consuming repository, naming the script by
 its path in the `agent-helper-scripts` checkout.
@@ -95,9 +93,6 @@ uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
     --map users-guide.md=cuprum-users-guide.md \
     --map v0-2-0-migration-guide.md=cuprum-v0-2-0-migration-guide.md
 ```
-
-Every option, its default, and its environment form are documented in the
-[vendoring tool's reference](../docs/developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli).
 
 The script inserts exactly this note, with `{project}` replaced by the upstream
 project name and `{repository}` and `{tag}` by the arguments:

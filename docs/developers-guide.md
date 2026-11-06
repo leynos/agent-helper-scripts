@@ -297,6 +297,13 @@ public API is re-exported by the package's `__init__`.
 `scripts/vendor_tagged_guides_cli.py` is a PEP 723 script that adds the command
 line and the only process boundary in the tool.
 
+The two halves have different interpreter requirements. The core package
+imports nothing beyond the standard library, so it runs under Python 3.13 or
+later, like the rest of the repository. The front end's PEP 723 header requires
+Python 3.14 or later, and `uv run --script` selects that interpreter even when
+the checkout's own Python is older. A caller that imports the package therefore
+does not inherit the front end's requirement.
+
 The core exposes a frozen `VendorConfig` dataclass, a `VendorError`, and a
 `VENDOR_ERRORS` tuple of the errors a caller may report, following the same
 shape as `gate_runner.GATE_ERRORS`. `validate` checks the configuration before

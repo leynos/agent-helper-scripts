@@ -365,6 +365,41 @@ with the new tag to refresh the file; the
 lists every option, and the library README states the hand-edit policy in
 [Importing a guide at a pinned tag](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag).
 
+### Vendoring a guide from Python
+
+The vendoring package is importable, for a repository that drives the
+conversion from its own script rather than from the command line. It imports
+nothing beyond the standard library and runs on Python 3.13 or later, like the
+rest of the repository; the PEP 723 front end needs Python 3.14 or later. Put
+`scripts/` from an `agent-helper-scripts` checkout on `sys.path`, because the
+package is not installed:
+
+```python
+from pathlib import Path
+from vendor_tagged_guides import VendorConfig, vendor
+
+config = VendorConfig(
+    tag="v0.2.0-beta2",
+    repository="leynos/cuprum",
+    source_directory=Path("../cuprum/docs"),
+    output_directory=Path("docs"),
+    mappings=(("users-guide.md", "cuprum-users-guide.md"),),
+)
+vendor(config)
+```
+
+`validate(config)` checks a configuration without writing,
+`convert(text, config, source_name)` rewrites one document, and `long_lines` and
+`insert_exemptions` expose the Markdown-lint pass.
+`vendor(config, format_files=…)` accepts an optional callable that rewrites the
+given paths in place; omit it to skip the formatter, or supply your own instead
+of the default `mdtablefix` command. `VendorConfig` is frozen, and
+`VendorError` is the only error the pipeline raises deliberately;
+`VENDOR_ERRORS` mirrors `gate_runner.GATE_ERRORS` for a caller that reports
+failures as one line. The
+[reference](developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli)
+describes each function.
+
 The OpenTofu guide misspells a variable reference on purpose, in its worked
 example of an undeclared-variable error. The shared dictionary exempts only
 that example's exact text, so a repository that carries the guide needs no
