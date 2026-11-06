@@ -18,7 +18,9 @@ import re
 from .config import VendorConfig, fail
 
 _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
-_DEFINITION = re.compile(r"(?m)^ {0,3}\[([^\]]+)\]:[ \t]*")
+#: A definition label may contain escaped brackets. ``_reference_label`` keeps
+#: the escapes too, so both sides normalize to the same text.
+_DEFINITION = re.compile(r"(?m)^ {0,3}\[((?:\\.|[^\\\]])+)\]:[ \t]*")
 _LABEL_SPACE = re.compile(r"\s+")
 
 
@@ -296,6 +298,19 @@ def _normalize_label(label: str) -> str:
     return _LABEL_SPACE.sub(" ", label.strip()).casefold()
 
 
+def _has_unescaped_bracket(label: str) -> bool:
+    """Report whether a label contains a bracket that is not backslash-escaped."""
+    cursor = 0
+    while cursor < len(label):
+        if label[cursor] == "\\":
+            cursor += 2
+            continue
+        if label[cursor] in "[]":
+            return True
+        cursor += 1
+    return False
+
+
 def _reference_label(
     text: str, position: int, mask: Sequence[bool], alt: str
 ) -> str:
@@ -303,13 +318,18 @@ def _reference_label(
 
     ``![alt][label]`` is a full reference, ``![alt][]`` is collapsed, and
     ``![alt]`` is a shortcut; both of the last two use the alt text as the
-    label. An inline ``![alt](destination)`` has no label, but it never reaches
-    this function because the caller only runs on bracket forms.
+    label. A link label cannot contain an unescaped bracket, so a malformed
+    full reference such as ``![alt][outer[inner]]`` is not a link at all and
+    falls back to the shortcut ``![alt]``. An inline ``![alt](destination)``
+    has no label, but it never reaches this function because the caller only
+    runs on bracket forms.
     """
     if position < len(text) and text[position] == "[" and not mask[position]:
         end = _find_closing_bracket(text, position + 1, mask)
         if end is not None:
             inner = text[position + 1 : end]
+            if inner and _has_unescaped_bracket(inner):
+                return _normalize_label(alt)
             return _normalize_label(inner or alt)
     return _normalize_label(alt)
 

@@ -231,6 +231,35 @@ def test_an_inline_image_with_an_empty_destination_names_no_definition(
     assert "raw.githubusercontent.com" not in converted, converted
 
 
+def test_a_definition_label_with_an_escaped_bracket_is_rewritten(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """An escaped ``]`` is part of the label, so its definition still moves."""
+    markdown = "![a\\]b]\n\n[a\\]b]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+    assert "]: images/a.png" not in converted, converted
+
+
+def test_an_invalid_nested_reference_label_falls_back_to_the_shortcut(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A label containing an unescaped ``[`` is invalid, so ``![alt]`` is used."""
+    markdown = "![alt][outer[inner]]\n\n[alt]: images/a.png\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/a.png" in converted
+    ), converted
+
+
 def test_a_definition_shared_by_a_link_and_an_image_renders_as_an_image(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:
