@@ -134,6 +134,74 @@ def test_the_documented_environment_variables_stand_in_for_the_options(
     ], result.stdout
 
 
+def test_the_line_limits_are_configurable_through_options_and_environment(
+    tmp_path: Path,
+) -> None:
+    """The exemption pass can match a consumer's own MD013 limits."""
+    source = tmp_path / "source"
+    output = tmp_path / "docs"
+    source.mkdir()
+    output.mkdir()
+    (source / "users-guide.md").write_text(
+        "# Title\n\n"
+        "This prose line is deliberately longer than forty characters.\n\n"
+        "```text\n"
+        "alpha beta gamma delta epsilon\n"
+        "```\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    written = output / "vendored.md"
+
+    def invoke(
+        *arguments: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Vendor the one source from the temporary consumer directory."""
+        return run_cli(
+            "--tag",
+            "v0.2.0-beta2",
+            "--repository",
+            "leynos/cuprum",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--map",
+            "users-guide.md=vendored.md",
+            "--no-format",
+            *arguments,
+            cwd=tmp_path,
+            env=env,
+        )
+
+    def assert_limits_applied() -> None:
+        """Check that both over-long blocks are bracketed."""
+        text = written.read_text(encoding="utf-8")
+        assert (
+            "<!-- markdownlint-disable MD013 -->\n\nThis prose line" in text
+        ), text
+        assert "<!-- markdownlint-disable MD013 -->\n\n```text" in text, text
+
+    defaulted = invoke()
+    assert defaulted.returncode == 0, defaulted.stdout + defaulted.stderr
+    assert "markdownlint-disable MD013" not in written.read_text(encoding="utf-8")
+
+    limited = invoke("--line-length", "40", "--code-line-length", "20")
+    assert limited.returncode == 0, limited.stdout + limited.stderr
+    assert_limits_applied()
+
+    from_environment = invoke(
+        env={
+            "VENDOR_TAGGED_GUIDES_LINE_LENGTH": "40",
+            "VENDOR_TAGGED_GUIDES_CODE_LINE_LENGTH": "20",
+        }
+    )
+    assert from_environment.returncode == 0, (
+        from_environment.stdout + from_environment.stderr
+    )
+    assert_limits_applied()
+
+
 @pytest.mark.slow
 def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
     tmp_path: Path,

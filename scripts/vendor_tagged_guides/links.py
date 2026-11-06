@@ -1,10 +1,12 @@
 """Rewrite relative link destinations at the pinned tag.
 
-Inline links and images, plus link reference definitions, are recognized by
-scanning the document with the protection mask. Every construct keeps its
-label, delimiter, title, and fragment; only the destination moves. Destinations
-between two mapped guides become the local output filename, so the vendored
-guides link to each other.
+Inline links and images, link reference definitions, and the reference forms
+that name them are recognized by scanning the document with the protection
+mask. Every construct keeps its label, delimiter, title, and fragment; only the
+destination moves. A definition used by an image is rewritten as an image
+source, whether the image writes the label in full, collapsed, or shortcut
+form. Destinations between two mapped guides become the local output filename,
+so the vendored guides link to each other.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from .config import VendorConfig, fail
 
 _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _DEFINITION = re.compile(r"(?m)^ {0,3}\[([^\]]+)\]:[ \t]*")
+_LABEL_SPACE = re.compile(r"\s+")
 
 
 def _skip_link_space(text: str, position: int) -> int | None:
@@ -288,13 +291,75 @@ def _inline_replacements(
     return replacements
 
 
+def _normalize_label(label: str) -> str:
+    """Normalize a reference label the way CommonMark matches labels."""
+    return _LABEL_SPACE.sub(" ", label.strip()).casefold()
+
+
+def _reference_label(
+    text: str, position: int, mask: Sequence[bool], alt: str
+) -> str:
+    """Return the label an image reference names, defaulting to its alt text.
+
+    ``![alt][label]`` is a full reference, ``![alt][]`` is collapsed, and
+    ``![alt]`` is a shortcut; both of the last two use the alt text as the
+    label. An inline ``![alt](destination)`` has no label, but it never reaches
+    this function because the caller only runs on bracket forms.
+    """
+    if position < len(text) and text[position] == "[" and not mask[position]:
+        end = _find_closing_bracket(text, position + 1, mask)
+        if end is not None:
+            inner = text[position + 1 : end]
+            return _normalize_label(inner or alt)
+    return _normalize_label(alt)
+
+
+def _image_reference_labels(text: str, mask: Sequence[bool]) -> set[str]:
+    """Collect the labels that reference-style images in the document name.
+
+    A definition's destination must render as an image, so the definition has
+    to be rewritten as an image source. Scanning the usages is the only way to
+    know that: a definition alone, ``[diagram]: images/diagram.png``, does not
+    say whether a link or an image will use it.
+    """
+    labels: set[str] = set()
+    cursor = 0
+    while cursor < len(text):
+        if mask[cursor] or text[cursor] != "[":
+            cursor += 1
+            continue
+        image = cursor > 0 and text[cursor - 1] == "!" and not mask[cursor - 1]
+        if not image:
+            cursor += 1
+            continue
+        label_end = _find_closing_bracket(text, cursor + 1, mask)
+        if label_end is None:
+            cursor += 1
+            continue
+        alt = text[cursor + 1 : label_end]
+        if label_end + 1 < len(text) and text[label_end + 1] == "(":
+            # An inline image names no definition; ``_inline_replacements``
+            # rewrites it directly.
+            cursor += 1
+            continue
+        labels.add(_reference_label(text, label_end + 1, mask, alt))
+        cursor += 1
+    return labels
+
+
 def _definition_replacements(
     text: str,
     mask: Sequence[bool],
     config: VendorConfig,
     source_name: str,
 ) -> list[tuple[int, int, str]]:
-    """Collect replacements for link reference definitions."""
+    """Collect replacements for link reference definitions.
+
+    A definition used by an image is rewritten as an image source, even when a
+    link shares the same label: a ``blob`` URL renders as a broken image,
+    whereas a ``raw`` URL still resolves when followed as a link.
+    """
+    image_labels = _image_reference_labels(text, mask)
     replacements: list[tuple[int, int, str]] = []
     for match in _DEFINITION.finditer(text):
         if mask[match.start()] or match.group(1).startswith("^"):
@@ -312,7 +377,7 @@ def _definition_replacements(
         rewritten = destination_url(
             original,
             config=config,
-            image=False,
+            image=_normalize_label(match.group(1)) in image_labels,
             source_name=source_name,
         )
         if rewritten != original:

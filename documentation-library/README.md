@@ -75,10 +75,13 @@ It converts one or more guides from a checkout of the upstream repository at
 the named tag. Relative links outside protected regions are pinned to that tag,
 links between the guides being vendored are rewritten into local links, and
 fenced code, inline code, footnotes, and HTML comments are copied untouched.
-The script then inserts the canonical note below the first level-one heading,
-runs the consumer's formatter, and brackets any remaining over-long prose in a
-bounded Markdown-lint exemption. It verifies that its own formatting pass
-reached a fixed point, and refuses a source that already carries the note.
+The script then inserts the canonical note below the first level-one heading
+that is not inside protected text, runs the consumer's formatter, and brackets
+any remaining over-long prose in a bounded Markdown-lint exemption. The
+exemption pass assumes the shared non-strict MD013 baseline, with headings and
+tables excluded; its limits can be changed but its other assumptions cannot. It
+verifies that its own formatting pass reached a fixed point, and refuses a
+source that already carries the note.
 
 Run the command from the root of the consuming repository, naming the script by
 its path in the `agent-helper-scripts` checkout.

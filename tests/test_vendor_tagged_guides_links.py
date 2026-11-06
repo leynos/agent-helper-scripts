@@ -181,6 +181,60 @@ def test_link_reference_definitions_are_rewritten(
     assert expected in converted, converted
 
 
+@pytest.mark.parametrize(
+    ("usage", "definition"),
+    [
+        ("![diagram][img]", "[img]: images/diagram.png"),
+        ("![diagram][]", "[diagram]: images/diagram.png"),
+        ("![diagram]", "[diagram]: images/diagram.png"),
+        ("![Diagram  Label][]", "[diagram label]: images/diagram.png"),
+    ],
+)
+def test_a_definition_used_by_an_image_becomes_a_raw_source(
+    vendor: types.ModuleType,
+    tmp_path: Path,
+    usage: str,
+    definition: str,
+) -> None:
+    """Full, collapsed, and shortcut image references all name the definition."""
+    converted = convert_fragment(vendor, tmp_path, f"{usage}\n\n{definition}\n")
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/diagram.png" in converted
+    ), converted
+
+
+def test_a_definition_shared_by_a_link_and_an_image_renders_as_an_image(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A blob URL would break the image, while raw still works as a link."""
+    markdown = (
+        "![diagram][shared]\n\n"
+        "[the same file][shared]\n\n"
+        "[shared]: images/diagram.png\n"
+    )
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert (
+        "https://raw.githubusercontent.com/leynos/cuprum/"
+        "v0.2.0-beta2/docs/images/diagram.png" in converted
+    ), converted
+    assert "github.com/leynos/cuprum/blob/" not in converted, converted
+
+
+def test_a_definition_used_only_by_links_stays_a_blob_url(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A link to a file is not an image, so it keeps the rendered view."""
+    markdown = "[guide][ref]\n\n[ref]: other.md\n"
+
+    converted = convert_fragment(vendor, tmp_path, markdown)
+
+    assert f"[ref]: {pinned('docs/other.md')}" in converted, converted
+
+
 def test_a_link_escaping_the_repository_is_refused(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:

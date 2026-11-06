@@ -314,11 +314,16 @@ link reference definitions keep their label, angle delimiter, title, and
 fragment; only the destination changes. A destination that is relative to the
 upstream source directory becomes a `blob` URL at the pinned tag, a trailing
 slash becomes a `tree` URL, and an image becomes a `raw.githubusercontent.com`
-URL. A destination naming another file in the mapping becomes the local output
-filename instead, so the vendored guides link to each other rather than to the
-upstream tag. The note is inserted below the first level-one heading outside
-fenced code, and a source that already carries the note is refused, so the note
-cannot stack.
+URL. A definition used by a reference-style image is rewritten as an image
+source, whether the image writes the label in full, collapsed, or shortcut
+form; when a link shares the same definition, the image form wins because a
+`blob` URL renders as a broken image while a `raw` URL still resolves when
+followed as a link. A destination naming another file in the mapping becomes
+the local output filename instead, so the vendored guides link to each other
+rather than to the upstream tag. The note is inserted below the first level-one
+heading outside protected text, so a heading inside a fence, an HTML comment,
+an inline code span, or a footnote definition is not chosen; a source that
+already carries the note is refused, so the note cannot stack.
 
 The front end names the command with Cyclopts and runs the consumer's formatter
 through cuprum rather than `subprocess`. Cyclopts derives each environment name
@@ -326,7 +331,8 @@ from the option's flag, not its Python parameter, so the variables are
 `VENDOR_TAGGED_GUIDES_TAG`, `VENDOR_TAGGED_GUIDES_REPOSITORY`,
 `VENDOR_TAGGED_GUIDES_SOURCE`, `VENDOR_TAGGED_GUIDES_OUTPUT`,
 `VENDOR_TAGGED_GUIDES_MAP`, `VENDOR_TAGGED_GUIDES_PROJECT`,
-`VENDOR_TAGGED_GUIDES_SOURCE_PATH`, `VENDOR_TAGGED_GUIDES_FORMAT`, and
+`VENDOR_TAGGED_GUIDES_SOURCE_PATH`, `VENDOR_TAGGED_GUIDES_LINE_LENGTH`,
+`VENDOR_TAGGED_GUIDES_CODE_LINE_LENGTH`, `VENDOR_TAGGED_GUIDES_FORMAT`, and
 `VENDOR_TAGGED_GUIDES_FORMATTER`; in particular the list is `_MAP`, not
 `_MAPPING`, and the boolean is `_FORMAT`, not `_RUN_FORMATTER`. The list value
 splits on whitespace and the boolean accepts `true` or `false`. The default
@@ -334,6 +340,13 @@ formatter is the repository's `mdtablefix` invocation; `--formatter` and
 `--no-format` replace or disable it. A missing executable and a non-zero status
 both leave the front end as one diagnostic line, like the gate runner's own
 boundary.
+
+The exemption pass assumes the shared Markdown baseline: non-strict MD013, with
+headings and tables excluded from the length check, and the prose limit applied
+outside fenced code. `--line-length` and `--code-line-length` move the two
+limits, for a consumer whose baseline differs in the numbers; they do not make
+the tool understand an arbitrary Markdown-lint configuration, and the other
+assumptions stay fixed.
 
 The front end takes these options:
 
@@ -348,6 +361,9 @@ The front end takes these options:
 - `--map SRC=OUT`: repeatable; one file to convert and the bare filename to
   write. At least one mapping is required.
 - `--project`: the display name in the note; defaults to the repository name.
+- `--line-length`: the prose limit the exemption pass applies; defaults to 80.
+- `--code-line-length`: the limit it applies inside fenced code; defaults to
+  120.
 - `--no-format`: skip the formatter when the output is being inspected rather
   than committed.
 - `--formatter`: replace the default `mdtablefix` command with one command

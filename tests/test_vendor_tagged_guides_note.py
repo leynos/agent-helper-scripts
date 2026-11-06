@@ -119,6 +119,23 @@ def test_a_source_without_a_heading_is_refused(
         vendor.convert("Body without a heading.\n", config.config, "users-guide.md")
 
 
+def test_a_heading_inside_an_html_comment_does_not_receive_the_note(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A commented-out heading renders as nothing, so it is not the H1."""
+    config = make_config(vendor, tmp_path)
+    source = "<!--\n# Example heading\n-->\n\n# Actual guide\n\nBody.\n"
+
+    converted = vendor.convert(source, config.config, "users-guide.md")
+
+    assert converted.count("Imported from") == 1, converted
+    assert (
+        converted.index("# Actual guide")
+        < converted.index("Imported from")
+        < converted.index("Body.")
+    ), converted
+
+
 def test_a_heading_inside_a_fence_does_not_receive_the_note(
     vendor: types.ModuleType, tmp_path: Path
 ) -> None:

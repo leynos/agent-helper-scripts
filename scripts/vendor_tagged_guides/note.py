@@ -1,7 +1,7 @@
 """Insert the canonical provenance note under the first heading.
 
 The note is the file's record of which upstream revision it came from. It is
-inserted in one place, after the first level-one heading outside fenced code,
+inserted in one place, after the first level-one heading outside protected text,
 so a later run and a reviewer both find it at the same offset. A source that
 already carries it is refused, because converting a vendored copy again would
 stack a second note.
@@ -9,10 +9,11 @@ stack a second note.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
 
 from .config import VendorConfig, fail, project_name
-from .masking import fence_line_flags
+from .masking import masked_regions
 
 #: Canonical note placed after the first level-one heading. The marker
 #: sentence is stable so a later run, or a reviewer, can recognize an already
@@ -52,6 +53,36 @@ def render_note(config: VendorConfig) -> str:
     )
 
 
+def _first_heading(lines: Sequence[str], mask: Sequence[bool]) -> int | None:
+    """Return the first level-one heading that is not protected text.
+
+    A heading inside a fence, an HTML comment, an inline code span, or a
+    footnote definition is not a heading in the rendered document, so the
+    protection mask decides, not the fence map alone.
+
+    Parameters
+    ----------
+    lines
+        Document lines, without newline characters.
+    mask
+        Protected-character map from
+        :func:`~vendor_tagged_guides.masking.masked_regions`.
+
+    Returns
+    -------
+    int | None
+        Zero-based line number, or ``None`` when no live heading exists.
+    """
+    offset = 0
+    for index, line in enumerate(lines):
+        if _H1.fullmatch(line):
+            marker = offset + len(line) - len(line.lstrip(" "))
+            if not mask[marker]:
+                return index
+        offset += len(line) + 1
+    return None
+
+
 def insert_note(text: str, config: VendorConfig) -> str:
     """Insert the canonical note after the first level-one heading.
 
@@ -73,15 +104,7 @@ def insert_note(text: str, config: VendorConfig) -> str:
         If the document has no level-one heading.
     """
     lines = text.split("\n")
-    flags = fence_line_flags(lines)
-    heading = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if not flags[index] and _H1.fullmatch(line)
-        ),
-        None,
-    )
+    heading = _first_heading(lines, masked_regions(text))
     if heading is None:
         fail("source document has no level-one heading")
     body = lines[heading + 1 :]

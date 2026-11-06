@@ -28,6 +28,11 @@ Skip the formatter when the output is inspected rather than committed::
 
 Parameters are environment-aware, so a caller can set
 ``VENDOR_TAGGED_GUIDES_TAG`` instead of passing an option.
+
+``--line-length`` and ``--code-line-length`` change the limits the exemption
+pass applies. Their defaults assume the shared Markdown baseline: non-strict
+MD013, with headings and tables excluded. They do not make the pass understand
+an arbitrary Markdown-lint configuration.
 """
 
 from collections.abc import Sequence
@@ -145,6 +150,8 @@ def cli() -> None:
         mapping: Annotated[list[str] | None, Parameter(name="--map")] = None,
         project: str = "",
         source_path: str = vendor_tagged_guides.DEFAULT_SOURCE_PATH,
+        line_length: int = vendor_tagged_guides.DEFAULT_LINE_LENGTH,
+        code_line_length: int = vendor_tagged_guides.DEFAULT_CODE_LINE_LENGTH,
         run_formatter: Annotated[
             bool,
             Parameter(name="--format", negative="--no-format"),
@@ -170,6 +177,11 @@ def cli() -> None:
             Display name for the import note; defaults to the repository name.
         source_path
             Repository-relative directory of the upstream sources.
+        line_length
+            Prose line length the consumer's Markdown gate enforces. The
+            default matches the shared non-strict MD013 baseline.
+        code_line_length
+            Line length the same gate allows inside fenced code.
         run_formatter
             Whether to run the formatter. ``--no-format`` disables it.
         formatter
@@ -192,6 +204,8 @@ def cli() -> None:
             mappings=pairs,
             project=project,
             source_path=source_path,
+            line_length=line_length,
+            code_line_length=code_line_length,
         )
         written = vendor_tagged_guides.vendor(
             config,
