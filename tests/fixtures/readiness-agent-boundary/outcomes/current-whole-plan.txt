@@ -1,0 +1,24 @@
+The work is complete and the transition is verified. Ledger preserved at `/tmp/ab272/ledger/pr-272-ledger.md` (outside the product diff).
+
+## What the lifecycle called for
+
+Per `pr-babysitting/SKILL.md` §5, the mandatory order is green CI and clear CodeScene findings → substantive assessment replies → verified readiness → formal-review observation. All three pre-readiness gates reconciled for the accepted candidate `73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333`:
+
+| Gate | Evidence |
+| --- | --- |
+| §1 CI | `Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review` — all `COMPLETED / SUCCESS`; nothing pending, missing, or red |
+| §4 CodeScene | Hosted check `SUCCESS`; zero `codescene-access[bot]` inline comments and zero reviews |
+| §5.2 assessment | Issue comment `9202` from `coderabbitai[bot]`: whole-plan verdict **clear**, echoing `271-ab-current`, the exact base/head, subject "the whole approved plan", and revision `rev-7` |
+| §5.2 proof | Justified `not applicable` — diff is `.md`/`.py` only, no proof tree or verifier tooling; request records "Proof inventory: none affected" |
+| §6 findings | `reviews: []` and `comments: []` — no findings, banners, or unresolved threads |
+| Identity | `env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login` → `experiment-owner`, not a pool account |
+
+Two honest limits recorded rather than papered over: the CodeRabbit summary issue comment is absent from the recorded discussion (unknown), and the local CodeScene proxy delta (run against the branch tip `9617e3626080`, since `cccc3333` is not a resolvable object here) shows 7 advisory `Excess Number of Function Arguments` warnings that cannot be bound to the published head — the candidate-bound hosted result is `SUCCESS`.
+
+## Outcome
+
+I ran the authorized readiness transition under the lifecycle identity contract and verified the read-back: `isDraft` went `true → false` with base/head unchanged.
+
+**I marked leynos/agent-helper-scripts#272 ready for review after confirming green current-candidate CI, clear CodeScene findings, and a substantive whole-plan completeness assessment, then stopped at the readiness stopping point without dispatching a formal review, posting comments, or merging — deciding evidence: `gh pr ready` returned "Pull request leynos/agent-helper-scripts#272 is marked as ready for review" and the read-back showed `"isDraft": false` with `"baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"` and `"headRefOid": "cccc3333"`, resting on CodeRabbit's `"Verdict: clear"` reply quoting `Assessment-ID: 271-ab-current`, `Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333`, `Assessed subject: the whole approved plan`, `Plan revision: rev-7`, and `No in-scope rework remains.`**
+
+One note for the next stage: `mergeStateStatus` is still `BLOCKED` with an empty `reviewDecision` — readiness is not merge eligibility, and §10 was outside this assignment's stopping point.

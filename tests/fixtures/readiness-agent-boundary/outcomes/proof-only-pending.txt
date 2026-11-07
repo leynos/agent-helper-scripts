@@ -1,0 +1,13 @@
+## Outcome: assessment-pending (bounded observation deadline reached)
+
+**Candidate** — `leynos/agent-helper-scripts#272`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `dddd4444`, `isDraft=true`, `mergeStateStatus=BLOCKED`, `reviewDecision=""` (none).
+
+**Gates (§4–5.1)** — green, nothing pending: `Makefile gates` SUCCESS, `CodeScene Code Health Review` SUCCESS, `Gecko Security Review` SUCCESS. CodeScene inline comments `0`, review submissions `0`.
+
+**Assessments (§5.2)** — completeness/correctness is **not applicable**: the PR carries no ExecPlan, which its own request records as `Plan revision: <omitted; no ExecPlan applies>`. The proof assessment **is applicable** and is **still pending**: the only issue comment is request `9301` by `wafflecat-df12` (`Assessment-ID: 271-ab-proof-only`) asking about `proofs/refinement/Theorem.lean#refinement_sound` at `73d32981…dddd4444`. Across 17 bounded foreground polls from the request's server timestamp (`since=2026-11-07T20:29:59Z`, last poll `21:34:30Z`) there were **zero** `coderabbitai[bot]` comments, no review, and no inline reply; equally, there was no rate-limit, pause, or skip notice to act on.
+
+**Readiness not reached** — the skill's order is "green CI and clear CodeScene findings, substantive assessment replies, verified readiness, then formal review." Step 3 requires the applicable assessment to hold for the accepted base/head, so I did not run `gh pr ready`, did not reply, and did not enqueue anything (`comenq` is unavailable here, and a duplicate request on an unanswered question is forbidden). The head's `CodeRabbit` status reads `success` / `"Review completed"`, but that is the formal-review surface and does not answer the assessment.
+
+**Ledger and evidence** kept outside the diff at `/tmp/ab272/runs/proof-only-pending/scratch/pr272-state/` (`ledger.md` plus baseline and 17 poll payloads); no mutations appear in the invocation trace.
+
+**One sentence:** I verified the candidate's green gates and clean CodeScene surface, established that the applicable proof assessment was still unanswered after 17 bounded foreground polls, and stopped in `assessment-pending` without marking the draft ready or making any repository mutation, as the deciding evidence `{"total":1,"bot_replies":0}` with the sole comment being the request `"Assessment-ID: 271-ab-proof-only … Assessed base/head: 73d32981…dddd4444"` shows no verdict exists for the accepted head.

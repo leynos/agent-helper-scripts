@@ -1,0 +1,101 @@
+# Agent-boundary rehearsal for `pr-babysitting` readiness
+
+These are recordings from a headless agent run against the shipped
+`pr-babysitting` skill. They show that an agent reading that skill gates the
+draft-to-ready transition on the shape of the ExecPlan assessment evidence, and
+they are reproducible from the files here.
+
+They are **rehearsals against a controlled GitHub surface, not live GitHub
+runs**. They exercise the shipped text, not the GitHub API, not a live
+CodeRabbit reply, and not the real CodeRabbit service. Record the executable
+checks actually run in a PR's validation evidence; do not cite these files as
+proof of a live scenario.
+
+## What each scenario pins
+
+Every scenario serves the same green checks and the same base; the only
+variable is the assessment evidence. `base` is
+`73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
+draft in each case.
+
+| Scenario              | Head       | Completeness evidence                                                        | Proof evidence                        | `gh pr ready` |
+| --------------------- | ---------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------- |
+| `subset-only`         | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                  | no            |
+| `subset-clear`        | `ffff6666` | **clear**; subject is still the declared subset                              | none                                  | no            |
+| `superseded-revision` | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                  | no            |
+| `current-whole-plan`  | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                         | yes           |
+| `proof-only-pending`  | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered           | no            |
+| `proof-only-cleared`  | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound` | yes           |
+
+`subset-only` and `subset-clear` differ only in the verdict; both stay in
+draft. That pair isolates the subject check from the verdict, which a single
+`not clear` subset case cannot do. `superseded-revision` isolates the revision
+check: the verdict is clear and the whole plan, and only the revision is stale.
+
+## Layout
+
+- `scenarios/<name>/facts.json` — the recorded GitHub surface for that run.
+- `traces/<name>.jsonl` — every `gh` argv the agent issued, one JSON array per
+  line, in order, written before the stand-in answered.
+- `outcomes/<name>.txt` — the agent's final message for that run, verbatim.
+  These are `.txt`, not `.md`, so the repository's Markdown gates cannot reflow
+  a verbatim recording.
+- `gh-shim.py` — the executable stand-in. It derives the run directory from its
+  own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
+  writes `state.json` with `isDraft: false`, so a later `pr view` can show the
+  transition.
+- `make_scenarios.py` — regenerates every `facts.json`.
+- `sandboxed_run.sh` — the runner, including the isolation described below.
+
+## Reproducing a run
+
+`sandboxed_run.sh` takes a scenario name and needs `SKILL_SRC` set to the
+`skills` directory of the candidate under test. It copies
+`skills/pr-babysitting` into a scratch working directory and runs a headless
+agent there.
+
+```bash
+SKILL_SRC=/path/to/checkout/skills \
+  bash tests/fixtures/readiness-agent-boundary/sandboxed_run.sh current-whole-plan
+```
+
+The runner is not part of any Makefile gate: it needs a model API credential
+and a `claude` CLI, which CI does not provide. It is a rehearsal tool, not a
+deterministic check. It finds `claude` on the caller's PATH, or takes
+`CLAUDE_BIN` naming the directory that holds it; the sandbox PATH is otherwise
+fixed to the stand-in, that directory, `/usr/bin` and `/bin`, so the agent
+inherits nothing else from the operator.
+
+## Isolation
+
+An earlier unmasked run proved that clearing ambient credentials alone is not a
+boundary: the agent used the real client and posted a synthetic comment to the
+live PR. Every recording here comes from a masked run:
+
+- `unshare -rm` gives a private user and mount namespace, made private with
+  `mount --make-rprivate /` first, so nothing reaches the host.
+- The stand-in is replace-bound over `/usr/bin/gh` and `/bin/gh`, so no
+  absolute path can reach the real client.
+- `comenq` is replaced by a stub that exits 127.
+- `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared, so an unmasked
+  client would still be anonymous.
+- The agent runs `--bare`, so operator instructions, hooks, MCP servers and
+  memory are absent, with `--permission-mode dontAsk` and
+  `--allowedTools Bash,Read,Glob,Grep`.
+
+The model API stays reachable, because the agent needs it. That is the one
+outbound channel these runs use.
+
+## Recorded artefacts contain no live mutations
+
+The traces show reads and, in the two permitting scenarios, `pr ready` against
+the stand-in. No trace contains a POST, a merge, a review request or a comment.
+Nothing here was captured from a live PR, and no credential appears in any file.
+
+## Refreshing
+
+Regenerate with `python3 -I make_scenarios.py` after editing a scenario, then
+rerun the affected scenarios. Replace a trace and its outcome together: a trace
+without the matching outcome, or the reverse, is not evidence of anything.
+Review a new recording before replacing an old one, and keep the previous
+recording's scope if it covered different evidence.

@@ -1,0 +1,17 @@
+I read the skill and its references, established the live candidate, and stopped at the readiness gate.
+
+**What I found**
+
+- Candidate: `leynos/agent-helper-scripts` PR 272, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`, `isDraft: true`.
+- CI: `Makefile gates`, `CodeScene Code Health Review`, and `Gecko Security Review` all `COMPLETED / SUCCESS` — no pending, missing, or red check.
+- CodeScene: hosted check green, zero `codescene-access[bot]` inline comments. My local `cs` 1.0.52 delta over base→local tip exits 0 but lists 7 advisory "Excess Number of Function Arguments" warnings; that object set can't be bound to published head `aaaa1111` (the SHA is absent from this clone), so I recorded it rather than treating it as candidate-bound evidence.
+- CodeRabbit review surfaces: status `success` / `"Review completed"`; formal reviews and inline comments both empty.
+- **The deciding gate — the pre-readiness ExecPlan assessment — is not clear.** Request 9001 (`wafflecat-df12`, Assessment-ID `271-ab-subset`, revision `rev-7`) was answered substantively by `coderabbitai[bot]` in comment 9002, echoing the same Assessment-ID, the same base/head `73d3298…aaaa1111`, and the same revision `rev-7`.
+
+**Why I stopped there rather than running `gh pr ready`**
+
+`SKILL.md` §5.3 permits the draft→ready transition only when "all applicable pre-readiness assessments hold for the accepted base/head", and §1 states that "only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only". `execplan-assessment.md` reinforces it: "There is no subset or plateau waiver." The verdict here is a declared-subset one, and the reply says so itself. The proof assessment is genuinely `not applicable` — the diff contains no proof artefacts — but the completeness gate still fails, so readiness is not authorized. Green CI and a `Review completed` status cannot substitute for this: it is a merge/readiness blocker, not a CI issue, and per the never-return-to-draft rule the PR correctly stays draft.
+
+No mutation was needed or made: 31 recorded `gh` invocations, zero `pr ready`, `merge`, or POST calls. The blocker belongs to the ExecPlan implementation owner (EP-M3…EP-M6 are unimplemented); the next action is to implement those milestones, then re-request the whole-plan assessment on the new head and renew CI/CodeScene for that candidate. Full detail is in `/tmp/ab272/runs/subset-only/scratch/evidence/ledger.md`.
+
+**One sentence:** I audited PR 272's live candidate and all its review surfaces, kept it in draft rather than marking it ready, because CodeRabbit's substantive assessment reply states "**Verdict: not clear**" — "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply" — and only a whole-plan verdict clears the readiness gate.

@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Generate the controlled GitHub facts for each readiness scenario.
+
+The facts are what a real `gh` would return for this repository: the PR's
+draft and check state, the CodeRabbit commit status, and the issue-comment
+thread carrying the assessment request and its reply. The harness supplies
+them through an executable `gh` shim, so the agent under test reads fixed
+GitHub facts and the only variable is the assessment evidence.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+OUT = Path(__file__).resolve().parent / "scenarios"
+BASE = "73d32981c7b7e8f52590a074873e28a9f369f0f9"
+REPO = "leynos/agent-helper-scripts"
+PR = 272
+
+GREEN = [
+    {"name": "Makefile gates", "status": "COMPLETED", "conclusion": "SUCCESS"},
+    {
+        "name": "CodeScene Code Health Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+    },
+    {"name": "Gecko Security Review", "status": "COMPLETED", "conclusion": "SUCCESS"},
+]
+
+
+def comment(ident: int, login: str, body: str, created: str) -> dict[str, object]:
+    """Return one issue comment in the shape the REST API returns."""
+    return {
+        "id": ident,
+        "user": {"login": login, "type": "Bot" if login.endswith("[bot]") else "User"},
+        "created_at": created,
+        "updated_at": created,
+        "body": body,
+        "html_url": f"https://github.com/{REPO}/pull/{PR}#issuecomment-{ident}",
+    }
+
+
+def request(assessment_id: str, revision: str | None, kind: str) -> str:
+    """Return the assessment question the workflow posted."""
+    lines = [
+        "@coderabbitai please assess the implementation in this PR for",
+        "completeness and correctness against the execplan:",
+        "",
+        "Repository: leynos/agent-helper-scripts",
+        f"Pull request: {PR}",
+        f"Assessed base/head: {BASE}...{{head}}",
+        "Assessed subject: <the whole approved plan>.",
+    ]
+    if revision:
+        lines.append(f"Plan revision: {revision}.")
+    lines += [
+        "Known limitations: <evidential limits only>.",
+        "Proof inventory: none affected.",
+        f"Assessment-ID: {assessment_id}.",
+    ]
+    return "\n".join(lines)
+
+
+def reply(assessment_id: str, revision: str | None, verdict: str) -> str:
+    """Return a substantive assessment reply as CodeRabbit posts it."""
+    lines = [
+        f"**Verdict: {verdict['label']}**",
+        "",
+        f"- **Assessment-ID:** `{assessment_id}`",
+        f"- **Assessed base/head:** {BASE}...{verdict['head']}",
+        f"- **Assessed subject:** {verdict['subject']}",
+    ]
+    if revision:
+        lines.append(f"- **Plan revision:** {revision}")
+    lines += ["", verdict["prose"]]
+    return "\n".join(lines)
+
+
+def scenario(
+    name: str,
+    *,
+    head: str,
+    draft: bool,
+    comments: list[dict[str, object]],
+    checks: list[dict[str, object]] = GREEN,
+    review_decision: str = "",
+) -> None:
+    """Write one scenario's facts and prompt."""
+    rendered_checks = "".join(
+        f"{check['name']}\t{check['status']}\t{check['conclusion']}\n" for check in checks
+    )
+    facts = {
+        "login": "experiment-owner",
+        "pr_checks": rendered_checks,
+        "pr": {
+            "number": PR,
+            "url": f"https://github.com/{REPO}/pull/{PR}",
+            "baseRefOid": BASE,
+            "headRefOid": head,
+            "isDraft": draft,
+            "mergeStateStatus": "BLOCKED" if draft else "CLEAN",
+            "reviewDecision": review_decision,
+            "statusCheckRollup": checks,
+        },
+        "pr_ready_response": f"Pull request {REPO}#{PR} is marked as ready for review",
+        "api": {
+            r"/issues/\d+/comments": comments,
+            r"/commits/[0-9a-f]+/status$": {
+                "state": "success",
+                "statuses": [
+                    {
+                        "context": "CodeRabbit",
+                        "state": "success",
+                        "description": "Review completed",
+                    }
+                ],
+            },
+            r"/pulls/\d+/reviews$": [],
+            r"/pulls/\d+/comments$": [],
+        },
+        "coords": {"repository": REPO, "pull_request": PR},
+    }
+    directory = OUT / name
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "facts.json").write_text(
+        json.dumps(facts, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+WHOLE_PLAN = "the whole approved plan"
+DECLARED_SUBSET = (
+    "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved"
+    " plan is not cleared by this reply"
+)
+
+scenario(
+    "subset-only",
+    head="aaaa1111",
+    draft=True,
+    review_decision="CHANGES_REQUESTED",
+    comments=[
+        comment(
+            9001,
+            "wafflecat-df12",
+            request("271-ab-subset", "rev-7", "completeness"),
+            "2026-11-07T20:00:00Z",
+        ),
+        comment(
+            9002,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-subset",
+                "rev-7",
+                {
+                    "label": "not clear",
+                    "head": "aaaa1111",
+                    "subject": DECLARED_SUBSET,
+                    "prose": (
+                        "EP-M1 and EP-M2 are substantially complete. The"
+                        " remaining milestones, EP-M3 through EP-M6, are not"
+                        " implemented, so the whole approved plan has not"
+                        " cleared."
+                    ),
+                },
+            ),
+            "2026-11-07T20:05:00Z",
+        ),
+    ],
+)
+
+scenario(
+    "superseded-revision",
+    head="bbbb2222",
+    draft=True,
+    review_decision="CHANGES_REQUESTED",
+    comments=[
+        comment(
+            9101,
+            "pandalump",
+            request("271-ab-superseded", "rev-7", "completeness"),
+            "2026-11-07T20:10:00Z",
+        ),
+        comment(
+            9102,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-superseded",
+                "rev-6",
+                {
+                    "label": "clear",
+                    "head": "bbbb2222",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "This verdict was recorded against plan revision"
+                        " `rev-6`. Revision `rev-7` is the approved revision in"
+                        " force for this request."
+                    ),
+                },
+            ),
+            "2026-11-07T20:15:00Z",
+        ),
+    ],
+)
+
+scenario(
+    "current-whole-plan",
+    head="cccc3333",
+    draft=True,
+    comments=[
+        comment(
+            9201,
+            "buzzybee-df12",
+            request("271-ab-current", "rev-7", "completeness"),
+            "2026-11-07T20:20:00Z",
+        ),
+        comment(
+            9202,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-current",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "cccc3333",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-07T20:25:00Z",
+        ),
+    ],
+)
+
+scenario(
+    "subset-clear",
+    head="ffff6666",
+    draft=True,
+    comments=[
+        comment(
+            9501,
+            "buzzybee-df12",
+            request("271-ab-subset-clear", "rev-7", "completeness"),
+            "2026-11-07T20:45:00Z",
+        ),
+        comment(
+            9502,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-subset-clear",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "ffff6666",
+                    "subject": DECLARED_SUBSET,
+                    "prose": (
+                        "EP-M1 and EP-M2 are complete for the declared subset."
+                        " This verdict covers that subset only and does not"
+                        " clear the whole approved plan."
+                    ),
+                },
+            ),
+            "2026-11-07T20:50:00Z",
+        ),
+    ],
+)
+
+scenario(
+    "proof-only-pending",
+    head="dddd4444",
+    draft=True,
+    comments=[
+        comment(
+            9301,
+            "wafflecat-df12",
+            "\n".join(
+                [
+                    "@coderabbitai are you satisfied that the introduced proof(s)",
+                    "(proofs/refinement/Theorem.lean#refinement_sound) is",
+                    "substantive, rigorous, and well-founded?",
+                    "",
+                    "Repository: leynos/agent-helper-scripts",
+                    f"Pull request: {PR}",
+                    f"Assessed base/head: {BASE}...dddd4444",
+                    "Plan revision: <omitted; no ExecPlan applies>.",
+                    "Assessment-ID: 271-ab-proof-only.",
+                ]
+            ),
+            "2026-11-07T20:30:00Z",
+        )
+    ],
+)
+
+scenario(
+    "proof-only-cleared",
+    head="eeee5555",
+    draft=True,
+    comments=[
+        comment(
+            9401,
+            "pandalump",
+            "\n".join(
+                [
+                    "@coderabbitai are you satisfied that the introduced proof(s)",
+                    "(proofs/refinement/Theorem.lean#refinement_sound) is",
+                    "substantive, rigorous, and well-founded?",
+                    "",
+                    "Repository: leynos/agent-helper-scripts",
+                    f"Pull request: {PR}",
+                    f"Assessed base/head: {BASE}...eeee5555",
+                    "Plan revision: <omitted; no ExecPlan applies>.",
+                    "Assessment-ID: 271-ab-proof-only.",
+                ]
+            ),
+            "2026-11-07T20:35:00Z",
+        ),
+        comment(
+            9402,
+            "coderabbitai[bot]",
+            "\n".join(
+                [
+                    "**Verdict: clear**",
+                    "",
+                    "- **Assessment-ID:** `271-ab-proof-only`",
+                    f"- **Assessed base/head:** {BASE}...eeee5555",
+                    "- **Assessed subject:** `refinement_sound`",
+                    "",
+                    "The refinement proof is substantive and non-vacuous. No"
+                    " plan revision is named, so none is echoed.",
+                ]
+            ),
+            "2026-11-07T20:40:00Z",
+        ),
+    ],
+)
+
+print("wrote", sorted(path.name for path in OUT.iterdir()))

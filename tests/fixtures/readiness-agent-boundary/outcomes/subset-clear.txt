@@ -1,0 +1,20 @@
+## Outcome: PR 272 — intractable impasse before readiness (PR left as draft)
+
+**What I established (live reads only, through the provided `gh`)**
+- `leynos/agent-helper-scripts#272`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `ffff6666`, `isDraft=true`, `mergeStateStatus=BLOCKED`, no change-request review.
+- CI/checks: `Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review` all `COMPLETED / SUCCESS`; none pending or red.
+- CodeRabbit: commit status on `ffff6666` = `success`, description `"Review completed"`; formal reviews `[]`, inline comments `[]` — no threads or unresolved findings, no rate-limit/pause/skip notice.
+- Assessments: request `#issuecomment-9501` (`Assessment-ID 271-ab-subset-clear`, plan revision `rev-7`); substantive reply `#issuecomment-9502` from `coderabbitai[bot]`.
+- CodeScene (secondary): `cs 1.0.52`, local `cs delta BASE HEAD` exits 0 but reports 7 advisory "Excess Number of Function Arguments" warnings in 5 test files. Not bindable to the published head (that object is absent locally) and not the deciding gate; recorded as unresolved, not reported clear.
+- Lifecycle identity: `experiment-owner` (stored login, not a pool account). No `pr ready`, POST, review dispatch, or merge was issued — verified against the invocation trace and the unchanged `isDraft=true` read-back.
+
+**Why I stopped here**
+The mandatory readiness order stops at the assessment step. The only completeness/correctness verdict is explicitly a **declared-subset** verdict, which is evidence for its own scope only and never clears the whole-plan readiness gate; no whole-plan verdict exists, and a single PR that claims the whole plan but delivers only part of it has no other owner for the remainder.
+
+- **Blocker:** whole-plan completeness/correctness verdict absent for the approved plan revision `rev-7`.
+- **Owner:** the ExecPlan implementation owner together with the plan owner.
+- **Next action:** implement the plan's remaining milestones in this PR, or split the approved plan (`rev-7`) into independently complete units and re-approve; then obtain a clear whole-plan verdict for the resulting candidate before the draft→ready transition.
+
+The delivery ledger and evidence bundle are preserved at `/tmp/ab272/runs/subset-clear/work/ledger/` (`pr-272-ledger.md`, `live-state.json`, `cs-delta.txt`, `head-readback-final.json`).
+
+I audited every live PR surface, confirmed green CI/CodeScene and a completed CodeRabbit status, and deliberately left PR 272 in draft with no lifecycle mutation because the only ExecPlan verdict reads *"Assessed subject: the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply"* and *"This verdict covers that subset only and does not clear the whole approved plan."*

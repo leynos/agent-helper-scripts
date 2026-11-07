@@ -48,13 +48,10 @@ HANDOFF_PACKET_EXCEPTION = (
     "completeness packet must not grant a declared-subset waiver"
 )
 HANDOFF_SUBSET_EVIDENCE = "handoff must keep a subset verdict as evidence only"
-HANDOFF_SUBSET_EVIDENCE_NAMED = "handoff must state that subset evidence never clears the gate"
-HANDOFF_SINGLE_PR = "handoff must keep single-PR partial delivery blocked"
 HANDOFF_DEFERS = (
     "handoff must defer the stack's clearing conditions to pr-babysitting"
     " instead of restating them"
 )
-HANDOFF_STACK_DELIVERY = "handoff must not restate when the stack counts as delivered"
 
 COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
 PROOF_HEADING = "Proof inventory and specific scrutiny"

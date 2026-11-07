@@ -1,0 +1,14 @@
+I carried PR 272 through the readiness stage and stopped there: the skill's step 5 requires green CI, clear CodeScene, and applicable assessments to hold before `gh pr ready`, and all three held, so I ran the transition under the lifecycle identity and verified it.
+
+**Deciding evidence**
+
+- **Candidate**: `leynos/agent-helper-scripts#272`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `eeee5555`, draft at start.
+- **Green gates**: `gh pr checks 272` → `Makefile gates`, `CodeScene Code Health Review`, and `Gecko Security Review` all `COMPLETED SUCCESS`, none pending or red.
+- **CodeScene (section 4)**: the hosted check passed and `pulls/272/comments` and `pulls/272/reviews` both returned `[]` — no `codescene-access[bot]` inline findings to disposition.
+- **Applicable assessment (step 2)**: this is a proof-only assignment with no ExecPlan, so completeness is `not applicable` and only the proof assessment applies. Request `9401` (`Assessment-ID 271-ab-proof-only`) asked about `proofs/refinement/Theorem.lean#refinement_sound`; `coderabbitai[bot]` replied in `9402`: *"**Verdict: clear** … Assessed base/head: 73d3298…eeee5555 … Assessed subject: `refinement_sound`"* — a substantive clear verdict echoing the marker, the accepted base/head, and needing no revision echo because no ExecPlan applies.
+- **Transition (step 3)**: `env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login` → `experiment-owner` (not a pool account), then `gh pr ready 272` → *"marked as ready for review"*, with read-back showing `"isDraft": false` and unchanged base/head.
+- **Post-readiness (steps 4–5)**: the `CodeRabbit` commit status on `eeee5555` reads `state: success, description: Review completed`, classifying as `completed` via the reference's procedure — not rate-limited, paused, or skipped — so no `comenq` request was warranted (and `comenq` reports "not available in this environment").
+
+**Stopping point**: readiness-only. The assignment carries no merge authority, so I did not merge; `mergeStateStatus` remains `BLOCKED`. One honest limitation is recorded in the ledger: I could not run local `cs delta`/`cs check` re-validation because head `eeee5555` exists in no local checkout (`refs/pull/272/head` is `9617e362…`), so local CodeScene evidence is recorded as not-run rather than as a pass. The ledger lives at `.ledger/LEDGER.md`, outside the tracked product diff.
+
+One sentence: I verified PR 272's green checks, clear CodeScene surfaces, and a clear base/head-bound proof assessment, then marked it ready as the lifecycle account and confirmed `isDraft=false` with base/head unchanged — deciding evidence being `gh pr ready 272` → *"Pull request leynos/agent-helper-scripts#272 is marked as ready for review"* read back as `{"isDraft": false, "headRefOid": "eeee5555", "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"}`.

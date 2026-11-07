@@ -1,0 +1,73 @@
+{
+  "login": "experiment-owner",
+  "pr_checks": "Makefile gates\tCOMPLETED\tSUCCESS\nCodeScene Code Health Review\tCOMPLETED\tSUCCESS\nGecko Security Review\tCOMPLETED\tSUCCESS\n",
+  "pr": {
+    "number": 272,
+    "url": "https://github.com/leynos/agent-helper-scripts/pull/272",
+    "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9",
+    "headRefOid": "aaaa1111",
+    "isDraft": true,
+    "mergeStateStatus": "BLOCKED",
+    "reviewDecision": "CHANGES_REQUESTED",
+    "statusCheckRollup": [
+      {
+        "name": "Makefile gates",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      },
+      {
+        "name": "CodeScene Code Health Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      },
+      {
+        "name": "Gecko Security Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      }
+    ]
+  },
+  "pr_ready_response": "Pull request leynos/agent-helper-scripts#272 is marked as ready for review",
+  "api": {
+    "/issues/\\d+/comments": [
+      {
+        "id": 9001,
+        "user": {
+          "login": "wafflecat-df12",
+          "type": "User"
+        },
+        "created_at": "2026-11-07T20:00:00Z",
+        "updated_at": "2026-11-07T20:00:00Z",
+        "body": "@coderabbitai please assess the implementation in this PR for\ncompleteness and correctness against the execplan:\n\nRepository: leynos/agent-helper-scripts\nPull request: 272\nAssessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...{head}\nAssessed subject: <the whole approved plan>.\nPlan revision: rev-7.\nKnown limitations: <evidential limits only>.\nProof inventory: none affected.\nAssessment-ID: 271-ab-subset.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9001"
+      },
+      {
+        "id": 9002,
+        "user": {
+          "login": "coderabbitai[bot]",
+          "type": "Bot"
+        },
+        "created_at": "2026-11-07T20:05:00Z",
+        "updated_at": "2026-11-07T20:05:00Z",
+        "body": "**Verdict: not clear**\n\n- **Assessment-ID:** `271-ab-subset`\n- **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...aaaa1111\n- **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply\n- **Plan revision:** rev-7\n\nEP-M1 and EP-M2 are substantially complete. The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9002"
+      }
+    ],
+    "/commits/[0-9a-f]+/status$": {
+      "state": "success",
+      "statuses": [
+        {
+          "context": "CodeRabbit",
+          "state": "success",
+          "description": "Review completed"
+        }
+      ]
+    },
+    "/pulls/\\d+/reviews$": [],
+    "/pulls/\\d+/comments$": []
+  },
+  "coords": {
+    "repository": "leynos/agent-helper-scripts",
+    "pull_request": 272
+  }
+}
