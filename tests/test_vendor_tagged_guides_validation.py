@@ -138,6 +138,7 @@ def test_an_inaccessible_source_directory_is_refused(
     def failing_stat(
         self: Path, *, follow_symlinks: bool = True
     ) -> os.stat_result:
+        """Raise a permission error for the source directory only."""
         if self == config.source_directory:
             raise PermissionError(13, "Permission denied", str(self))
         return original_stat(self, follow_symlinks=follow_symlinks)

@@ -158,6 +158,7 @@ class _LineIndex:
     """
 
     def __init__(self, lines: Sequence[str], text_length: int) -> None:
+        """Record each line's start offset and allocate the mask."""
         self._lines = lines
         self._text_length = text_length
         self._offsets = [0]

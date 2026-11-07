@@ -151,6 +151,7 @@ def test_a_write_failure_is_reported_as_a_vendor_error(
     def failing_write_text(
         self: Path, *_args: object, **_kwargs: object
     ) -> int:
+        """Fail every text write as a read-only filesystem would."""
         raise OSError("read-only file system")
 
     monkeypatch.setattr(Path, "write_text", failing_write_text)
@@ -171,6 +172,7 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
     original_write_bytes = Path.write_bytes
 
     def failing_write_bytes(self: Path, data: bytes) -> int:
+        """Fail the restore of the first output as a full disk would."""
         if self == first:
             raise OSError("disk full")
         return original_write_bytes(self, data)
