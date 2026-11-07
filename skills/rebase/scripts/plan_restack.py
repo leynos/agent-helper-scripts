@@ -159,6 +159,7 @@ class PlanError(RuntimeError):
         *,
         detail: str | None = None,
     ) -> None:
+        """Record the refusal and build the message from reason and detail."""
         super().__init__(reason if detail is None else f"{reason}: {detail}")
         self.reason = reason
         self.category = category
@@ -714,6 +715,7 @@ def phase(
     trace(operation, "phase-started", phase=name, **fields)
 
     def elapsed_ms() -> int:
+        """Return the milliseconds elapsed on the clock since the phase began."""
         return round((clock() - started) * 1000)
 
     try:
@@ -769,6 +771,7 @@ def operation_span(
     trace(operation, "operation-started", phase=PHASE_OPERATION, branch=branch)
 
     def elapsed_ms() -> int:
+        """Return the milliseconds elapsed on the clock since the operation began."""
         return round((clock() - started) * 1000)
 
     try:

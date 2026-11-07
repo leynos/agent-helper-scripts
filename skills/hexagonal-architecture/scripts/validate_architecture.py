@@ -39,6 +39,8 @@ ADAPTER_IMPORT_PATTERNS = frozenset({
 
 @dataclass
 class Violation:
+    """One architecture rule breach: where it is, which layer, and why."""
+
     file: Path
     line: int
     module: str

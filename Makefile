@@ -59,7 +59,7 @@ NIXIE ?= nixie
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci
+.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci interrogate
 
 all: ci
 
@@ -109,7 +109,32 @@ shell-syntax-check:
 check-home-phase-boundary:
 	@awk 'BEGIN { forbidden = "$(HOME_PHASE_BOUNDARY_PATTERN)" } /^[[:space:]]*#/ { next } $$0 ~ forbidden { printf "%s:%d:%s\n", FILENAME, FNR, $$0; found=1 } END { exit found ? 1 : 0 }' $(HOME_PHASE_SCRIPTS)
 
-lint: syntax-check shell-syntax-check check-home-phase-boundary skill-manifest-check
+# Interrogate measures docstring presence over the Python files it scans under
+# INTERROGATE_TARGETS (it skips some path prefixes by default, so check a new
+# file against the verbose report). Add a new Python directory to the targets.
+# No `--python` pin: a managed interpreter would be downloaded, and a PyO3
+# build could link it.
+INTERROGATE_VERSION ?= 1.7.0
+INTERROGATE_TARGETS ?= scripts tests skills
+# Level 2 prints a MISSED row per undocumented definition, which the
+# `interrogate` target fails on: the rounded percentage alone passes a lone gap.
+INTERROGATE_FLAGS ?= -vv --fail-under 100
+INTERROGATE = uv tool run \
+	--from 'interrogate==$(INTERROGATE_VERSION)' interrogate
+
+# Interrogate rounds its percentage to one decimal, so `--fail-under 100` alone
+# passes a lone gap in a large repository; fail on any MISSED row as well.
+interrogate: ## Enforce complete Python docstring coverage
+	@report="$$($(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS))"; \
+	  status=$$?; \
+	  printf '%s\n' "$$report"; \
+	  test "$$status" -eq 0 || exit "$$status"; \
+	  if printf '%s\n' "$$report" | grep -q '| *MISSED *|'; then \
+	    printf '%s\n' 'interrogate: undocumented definitions remain; see the MISSED rows above' >&2; \
+	    exit 1; \
+	  fi
+
+lint: interrogate syntax-check shell-syntax-check check-home-phase-boundary skill-manifest-check
 
 skill-frontmatter-lint:
 	@set -euo pipefail; for skill_dir in $(SKILL_DIRS); do \

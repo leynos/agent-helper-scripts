@@ -71,6 +71,8 @@ def scenarios(draw: st.DrawFn) -> Scenario:
 
 @dataclass(frozen=True)
 class _Expectation:
+    """The outcome a scenario must produce: HTTP methods, exit code, category."""
+
     methods: list[str]
     returncode: int
     category: str | None

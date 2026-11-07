@@ -638,8 +638,17 @@ recorded drift form now carries one canonical replacement for every consumer.
     tracked file. It rewrites `typos.toml`, so commit the regenerated file
     alongside a dictionary edit.
 - `make lint`
-  - Runs `syntax-check`, `shell-syntax-check`, `check-home-phase-boundary`,
-    and `skill-manifest-check`.
+  - Runs `interrogate`, `syntax-check`, `shell-syntax-check`,
+    `check-home-phase-boundary`, and `skill-manifest-check`.
+- `make interrogate`
+  - Needs `uv`; runs the pinned interrogate (`INTERROGATE_VERSION`) at
+    `-vv --fail-under 100` over `INTERROGATE_TARGETS` (`scripts`, `tests` and
+    `skills`). It fails on any undocumented definition it scans, on any
+    `MISSED` row even when the rounded percentage passes, and when the tool
+    itself fails. Interrogate 1.7.0 skips a path whose first component below a
+    target begins with `.tox`, `.venv`, `venv`, `.git` or `.hg`.
+  - `tests/test_interrogate_gate.py` asserts the wiring and runs the real tool
+    over a generated package.
 - `make skill-manifest-check`
   - Aggregate target; runs both `skill-frontmatter-lint` and
     `skill-manifest-validate` below; wired into `make lint`.

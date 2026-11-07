@@ -177,6 +177,7 @@ def test_read_example_detects_edited_reply_revision(tmp_path: Path) -> None:
     (tmp_path / "comments-before.json").write_text(json.dumps([[baseline]]))
 
     def revision(reply: dict[str, object]) -> tuple[str, str]:
+        """Return a reply's update time and the SHA-256 of its body."""
         return str(reply["updated_at"]), hashlib.sha256(str(reply["body"]).encode()).hexdigest()
 
     before = {str(reply["id"]): revision(reply)
@@ -392,6 +393,10 @@ def _normalize_signal(signal: dict[str, object]) -> dict[str, object]:
         snapshot pins shape and classification rather than fixture values.
     """
     def scrub(section: object) -> object:
+        """Replace non-null values of placeholder keys in a dict section.
+
+        Anything that is not a dict passes through unchanged.
+        """
         if not isinstance(section, dict):
             return section
         return {key: SIGNAL_PLACEHOLDERS[key] if key in SIGNAL_PLACEHOLDERS and value is not None else value

@@ -67,6 +67,7 @@ class GateDiscoveryError(RuntimeError):
     """
 
     def __init__(self, gate: str, reason: str) -> None:
+        """Record the gate and reason, and build the message from them."""
         self.gate = gate
         self.reason = reason
         super().__init__(f"the {gate} gate {reason}")

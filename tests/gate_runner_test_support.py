@@ -34,6 +34,7 @@ class GateModules:
     """
 
     def __init__(self, runner: types.ModuleType, discovery: types.ModuleType) -> None:
+        """Store the loaded runner and discovery modules."""
         self.runner = runner
         self.discovery = discovery
 

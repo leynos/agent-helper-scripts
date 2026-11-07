@@ -553,6 +553,7 @@ def test_build_plan_never_invokes_the_discovery_command_layer(
     evidence = planner.discover(graph.request())
 
     def forbidden(*_args: object, **_kwargs: object) -> object:
+        """Fail the test if the patched discovery operation is ever called."""
         raise AssertionError("build_plan must not invoke the discovery operation")
 
     monkeypatch.setattr(planner, "discover", forbidden)
@@ -563,6 +564,7 @@ def test_build_plan_never_invokes_the_discovery_command_layer(
     real = planner.Subprocess(graph.repository)
 
     def recording(program: str, /, *argv: str, allowed: tuple[int, ...] = (0,)) -> str:
+        """Record the command line, then delegate to the real subprocess runner."""
         seen.append((program, *argv))
         return real(program, *argv, allowed=allowed)
 
@@ -624,6 +626,7 @@ def test_failing_filesystem_probe_refuses_instead_of_assuming_absent(
     """A probe that errors must never be read as 'no marker is present'."""
 
     def unreadable(path: Path) -> bool:
+        """Raise ``PermissionError`` as a probe of an unreadable path would."""
         raise PermissionError(13, "Permission denied")
 
     run = planner.Subprocess(graph.repository)
@@ -642,6 +645,7 @@ def test_probe_reporting_absent_lets_a_clean_checkout_proceed(graph: Graph) -> N
     probed: list[Path] = []
 
     def absent(path: Path) -> bool:
+        """Record the probed path and report that no marker exists there."""
         probed.append(path)
         return False
 
@@ -735,6 +739,7 @@ def test_phase_durations_come_from_the_injected_clock(
     ticks = iter(range(0, 1000))
 
     def clock() -> float:
+        """Return the next tick, advancing half a second per reading."""
         return next(ticks) / 2  # half-second steps, so every phase reports 500ms
 
     expect_parent(cmd_mox, graph)

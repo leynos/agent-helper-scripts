@@ -227,6 +227,7 @@ class ConflictCase:
     theirs_present: bool = True
 
     def __post_init__(self) -> None:
+        """Reject a negative replay count, or any replays on a merge."""
         if self.prior_unverified_replays < 0:
             msg = "prior_unverified_replays must not be negative"
             raise ValueError(msg)

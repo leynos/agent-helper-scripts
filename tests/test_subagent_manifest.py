@@ -30,6 +30,7 @@ def point_manifest_at(
     """
 
     def _redirect(content: str) -> None:
+        """Write ``content`` as the manifest and point the module at it."""
         manifest = tmp_path / "subagents.yml"
         manifest.write_text(content, encoding="utf-8")
         monkeypatch.setattr(subagent_manifest, "SUBAGENT_MANIFEST", manifest)

@@ -24,6 +24,16 @@ make spelling
 except that the workflow runs the Markdown gate through the `markdownlint-cli2`
 action.
 
+`make lint` first runs `make interrogate`, which needs `uv` and fails on any
+Python definition it scans under `scripts`, `tests` and `skills` without a
+docstring (and on any `MISSED` row, since interrogate rounds its percentage to
+one decimal and so can pass a lone gap in a large codebase). Interrogate 1.7.0
+skips a path whose first component below a target begins with `.tox`, `.venv`,
+`venv`, `.git` or `.hg`; `tests/test_interrogate_gate.py` fails if a tracked
+Python file sits at such a name, or in a directory of that name, directly under
+a target, and asserts the rest of the wiring. Add a new Python directory to
+`INTERROGATE_TARGETS`.
+
 `make nixie` validates Mermaid diagrams and is not part of `make ci`: it needs
 a renderer the CI runner does not provide. Run it alongside the sequence above
 when a change touches a diagram.

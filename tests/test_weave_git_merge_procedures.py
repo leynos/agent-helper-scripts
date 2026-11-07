@@ -135,6 +135,7 @@ def _writing_handler(
     """Build a driver handler that writes `%A` and reports `exit_code`."""
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Write the content to the current file and exit with ``exit_code``."""
         _ancestor, current, _other, _marker_size, _pathname = invocation.args
         # `%A` arrives repository-relative and this handler runs in the pytest
         # process, so it must be resolved before writing.
@@ -148,6 +149,7 @@ def _conflict_handler() -> Callable[[Invocation], tuple[str, str, int]]:
     """Build a driver handler that only reports an unresolved conflict."""
 
     def handler(_invocation: Invocation) -> tuple[str, str, int]:
+        """Exit with status 1 and change nothing."""
         return ("", "", 1)
 
     return handler
@@ -455,6 +457,7 @@ def test_a_corrupt_early_replay_becomes_the_ours_stage_of_the_next_replay(
     calls = 0
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Write corrupt output on the first replay, then capture inputs and write the second output."""
         nonlocal calls
         calls += 1
         ancestor, current, _other, _marker_size, _pathname = invocation.args
@@ -836,6 +839,7 @@ def test_driver_stderr_capture_preserves_auto_resolution_and_event_lines(
     capture = repository / "driver.stderr"
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Require the event flag, write the merged source and emit the stderr lines."""
         assert invocation.env.get("WEAVE_EVENT") == "1", (
             "the command-scoped override must reach the driver process"
         )
@@ -973,6 +977,7 @@ def test_recovery_evidence_must_cover_staged_unstaged_and_untracked_work(
     assert staged_only and unstaged_only, "the fixture must produce both diffs"
 
     def restore(patches: tuple[str, ...], keep_untracked: bool) -> None:
+        """Reset to HEAD, optionally drop the untracked file, then apply each patch."""
         _git(repository, "reset", "--hard", "--quiet", "HEAD")
         if not keep_untracked:
             untracked.unlink(missing_ok=True)
@@ -1257,6 +1262,7 @@ def test_baseline_driver_command_supplies_the_event_flag_itself(
     monkeypatch.delenv("WEAVE_EVENT", raising=False)
 
     def handler(invocation: Invocation) -> tuple[str, str, int]:
+        """Require the event flag, write the merged source and emit the event line."""
         assert invocation.env.get("WEAVE_EVENT") == "1", (
             "the flag must come from the registered command, not the caller's "
             "environment"
