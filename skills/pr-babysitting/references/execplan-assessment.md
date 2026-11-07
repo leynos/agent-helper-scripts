@@ -64,6 +64,8 @@ Preserve this opening, substituting the actual approved plan path. Do not post
 unresolved placeholders. Supplement it with the published candidate, acceptance
 evidence, and honest limitations:
 
+<!-- markdownlint-disable MD013 -->
+
 ```text
 @coderabbitai please assess the implementation in this PR for completeness and correctness against the execplan:
 
@@ -71,7 +73,7 @@ evidence, and honest limitations:
 
 Published head: <full head SHA>; comparison base: <full base SHA>.
 Acceptance evidence: <commands, results, and evidence links>.
-Known limitations: <established limitations or none established>.
+Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.
 Assessment-ID: <unique request marker>.
 
 Please echo the Assessment-ID and assessed base/head in your substantive reply.
@@ -81,9 +83,13 @@ Identify remaining in-scope omissions or correctness defects and any access
 or inspection limitations. Assess the implementation, not just the plan text.
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 CodeRabbit must address the actual plan and implementation with no remaining
 in-scope rework. An acknowledgement, silence, generic approval, missing
-inspection, or plan progress checkbox does not establish that result.
+inspection, or plan progress checkbox does not establish that result. An
+unimplemented plan milestone is in-scope work, not a limitation, per
+[applicability and ownership](#applicability-and-ownership).
 
 ## Proof inventory and specific scrutiny
 

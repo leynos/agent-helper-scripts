@@ -191,10 +191,23 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "require passing applicable deterministic correctness and quality gates" in applicability, "request prerequisites must require passing gates"
     assert "for the published candidate" in applicability, "gates must bind to published candidate"
     assert "Verify remote parity" in applicability, "request prerequisites must verify publication"
+    completeness = section(assessment, "ExecPlan completeness and correctness")
+    assert "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>." in completeness, "completeness request must restrict limitations to evidential limits"
+    assert "checks not run" in completeness and "inspection not possible" in completeness, "evidential limitation kinds must remain named"
+    assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
+    assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing and "`shuf`" in routing, "initial comments must use assigned token route"
     assert "Assessment conversations never go through `comenq`" in routing, "assessment follow-ups must not enter the review queue"
+    ledger = section(skill, "1. Establish the candidate and keep a delivery ledger")
+    for requirement in (
+        "a verdict (`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment)",
+        "its subject, either the whole plan or the declared subset",
+        "on the same entry as the base/head and plan revision it was given for",
+        "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+    ):
+        assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
     assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
@@ -222,8 +235,19 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
         ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
         ("skill", "An already-ready PR remains ready\n   while missing or invalidated assessments block merge.", "", True),
         ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
+        ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False),
+        ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False),
+        ("assessment", "An\nunimplemented plan milestone is in-scope work, not a limitation, per\n[applicability and ownership](#applicability-and-ownership).", "", True),
+        ("skill", "`clear`,\n`not clear`, or `pending`, with a justified `not applicable` for the proof\nassessment", "`posted` or `answered`", False),
+        ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies\n[the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True),
+        ("skill", "its subject, either the whole plan or the declared\nsubset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False),
     ],
-    ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],
+    ids=[
+        "inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment",
+        "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard",
+        "removed-limitations-guard", "inverted-limitations-guard", "moved-milestone-ownership",
+        "ledger-drops-verdict", "moved-ledger-readiness-pointer", "unbound-ledger-verdict",
+    ],
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     document: str, old: str, new: str, move: bool
@@ -238,6 +262,31 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     with pytest.raises(AssertionError, match="must|prerequisites"):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "on the same entry as the base/head and plan revision it was given for.",
+            "",
+        ),
+        (
+            "Only a clear whole-plan verdict for the accepted base/head satisfies",
+            "Only a clear declared-subset verdict for the accepted base/head satisfies",
+        ),
+    ],
+    ids=["omitted-candidate", "declared-subset-may-clear"],
+)
+def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
+    old: str, new: str
+) -> None:
+    """A ledger verdict that drops the candidate, or lets a declared subset clear, fails."""
+    skill = SKILL.read_text()
+    assert skill.count(old) == 1, "misbinding fixture must anchor the actual ledger clause"
+    mutated = skill.replace(old, new, 1)
+    with pytest.raises(AssertionError, match="ledger section must state"):
+        assessment_contract(ASSESSMENT.read_text(), mutated)
 
 
 def test_absent_renamed_deleted_lockfiles_require_explicit_planning() -> None:

@@ -217,8 +217,14 @@ Record which reviewers and checks are configured and which are required.
 For an ExecPlan implementation assignment, read
 [ExecPlan assessments](references/execplan-assessment.md) and record its plan
 revision, implementation status, acceptance mapping, and assessment state.
-Record introduced or materially changed proofs and their required scrutiny also
-when no ExecPlan applies. Plan-authoring alone does not trigger an
+Record that state for each applicable assessment as a verdict (`clear`,
+`not clear`, or `pending`, with a justified `not applicable` for the proof
+assessment) together with its subject, either the whole plan or the declared
+subset, on the same entry as the base/head and plan revision it was given for.
+Only a clear whole-plan verdict for the accepted base/head satisfies
+[the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
+Record introduced or materially changed proofs and their required scrutiny
+also when no ExecPlan applies. Plan-authoring alone does not trigger an
 implementation assessment. Missing evidence remains pending, not a reason to
 wait outside this skill until a red or draft PR is already ready.
 

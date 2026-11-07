@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
 
@@ -39,6 +40,17 @@ REBASE_REQUIREMENTS = (
 )
 
 
+READINESS_ANCHOR = (
+    "../pr-babysitting/references/execplan-assessment.md"
+    "#readiness-and-later-changes"
+)
+SETUP_READINESS_ANCHOR = (
+    "../../pr-babysitting/references/execplan-assessment.md"
+    "#readiness-and-later-changes"
+)
+COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
+
+
 def _read(path: Path) -> str:
     """Read a tracked UTF-8 skill document."""
     return path.read_text(encoding="utf-8")
@@ -47,6 +59,62 @@ def _read(path: Path) -> str:
 def _normalize(text: str) -> str:
     """Ignore prose line wrapping without dropping contract punctuation."""
     return " ".join(text.split())
+
+
+def section(text: str, heading: str) -> str:
+    """Find one second-level section without accepting guards moved elsewhere."""
+    matches = re.findall(
+        r"^## " + re.escape(heading) + r"\n(.*?)(?=^## |\Z)", text, re.M | re.S
+    )
+    assert len(matches) == 1, f"expected unique section: {heading}"
+    return matches[0]
+
+
+def _handoff_section(document: str) -> str:
+    """Return the raw handoff section that carries the completeness packet."""
+    return section(document, "4. Hand PR delivery to pr-babysitting")
+
+
+def _completeness_packet_line(document: str) -> str:
+    """Return the single whole-plan completeness packet line of the handoff."""
+    matches = [
+        line
+        for line in _handoff_section(document).splitlines()
+        if line.startswith(COMPLETENESS_PACKET_PREFIX)
+    ]
+    assert len(matches) == 1, "expected one completeness packet line"
+    return _normalize(matches[0])
+
+
+def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
+    """The handoff and draft creation defer to the readiness clearing rule."""
+    packet = _completeness_packet_line(implementation)
+    assert "against the whole approved plan" in packet, (
+        "completeness assessment must name the whole approved plan as its subject"
+    )
+    assert "not the declared PR scope" in packet, (
+        "completeness assessment must exclude the declared PR scope as its subject"
+    )
+    assert "evidence or pending" in packet, (
+        "handoff must still distinguish evidence from pending"
+    )
+    handoff = _normalize(_handoff_section(implementation))
+    assert "does not bound it" in handoff, (
+        "handoff must state that a delivered subset does not bound the assessment"
+    )
+    assert READINESS_ANCHOR in handoff, (
+        "handoff must link pr-babysitting's readiness clearing rule"
+    )
+    creator = _normalize(section(setup, "Resolve the candidate"))
+    assert "stays draft until `pr-babysitting` marks it ready" in creator, (
+        "draft creation must bind the draft's end to pr-babysitting"
+    )
+    assert "neither marks it ready nor ends the draft" in creator, (
+        "draft creation must state this skill does not end the draft"
+    )
+    assert SETUP_READINESS_ANCHOR in creator, (
+        "draft creation must link the readiness clearing rule"
+    )
 
 
 def _assert_no_delivery_loop(text: str) -> None:
@@ -77,6 +145,73 @@ def test_contract_rejects_reintroduced_delivery_commands(command: str) -> None:
     text = _read(IMPLEMENTATION / "SKILL.md") + f"\n{command}\n"
     with pytest.raises(AssertionError, match="duplicated lifecycle command"):
         _assert_no_delivery_loop(text)
+
+
+def test_handoff_binds_the_whole_plan_to_the_readiness_rule() -> None:
+    """The whole approved plan is the assessment subject, not the declared scope."""
+    _assert_handoff_binds_whole_plan(
+        _read(IMPLEMENTATION / "SKILL.md"),
+        _read(IMPLEMENTATION / "references" / "setup.md"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("document", "old", "new", "move_marker"),
+    [
+        (
+            "implementation",
+            "against the whole approved plan, not the declared PR scope; ",
+            "",
+            "",
+        ),
+        (
+            "implementation",
+            "against the whole approved plan",
+            "against the declared PR scope",
+            "",
+        ),
+        (
+            "implementation",
+            "does not bound it",
+            "",
+            "[Readiness and later changes](../pr-babysitting/references/"
+            "execplan-assessment.md#readiness-and-later-changes)",
+        ),
+        (
+            "setup",
+            "neither marks it ready nor ends the draft",
+            "",
+            "[clearing rule](../../pr-babysitting/references/"
+            "execplan-assessment.md#readiness-and-later-changes)",
+        ),
+    ],
+    ids=[
+        "removed-qualifier",
+        "narrowed-to-declared-scope",
+        "moved-readiness-link",
+        "moved-draft-creation-cross-reference",
+    ],
+)
+def test_handoff_contract_rejects_narrowed_or_moved_whole_plan_binding(
+    document: str, old: str, new: str, move_marker: str
+) -> None:
+    """Removing, narrowing, or relocating the binding fails the handoff contract."""
+    implementation = _read(IMPLEMENTATION / "SKILL.md")
+    setup = _read(IMPLEMENTATION / "references" / "setup.md")
+    source = implementation if document == "implementation" else setup
+    assert source.count(old) == 1, "mutation fixture must identify one binding clause"
+    mutated = source.replace(old, new, 1)
+
+    if move_marker:
+        assert source.count(move_marker) == 1, "moved reference must be unique"
+        mutated = mutated.replace(move_marker, "", 1)
+        mutated += "\n## Unrelated notes\n\n" + move_marker + "\n"
+
+    with pytest.raises(AssertionError, match="must|expected"):
+        _assert_handoff_binds_whole_plan(
+            mutated if document == "implementation" else implementation,
+            mutated if document == "setup" else setup,
+        )
 
 
 def test_handoff_accepts_red_draft_candidate() -> None:
