@@ -37,6 +37,10 @@ STACK_EVIDENCE = "subset evidence must record the layer, parent and remainder"
 STACK_LAYER_SCOPE = "subset evidence must not clear the gate"
 STACK_FINAL_WHOLE_PLAN = "final layer must still obtain a whole-plan verdict"
 STACK_SINGLE_PR = "single-PR partial delivery must stay blocked"
+STACK_DEADLOCK_NAMED = "stack deadlock must be named"
+STACK_DELIVERY_PATH = "stack delivery path must give each layer its own complete plan"
+STACK_SINGLE_PR_ALTERNATIVE = "stack delivery path must retain the single-PR alternative"
+STACK_APPROVAL_TIME = "stack delivery path must be resolved at approval, not by waiver"
 REQUEST_SUBJECT = "completeness request must bound the assessed subject"
 REQUEST_SUBJECT_WHOLE_PLAN = "completeness section must state that only the whole plan clears"
 REQUEST_SUBSET_EVIDENCE = "completeness section must keep subset verdicts as evidence only"
@@ -46,6 +50,11 @@ HANDOFF_PACKET_EXCEPTION = (
 HANDOFF_SUBSET_EVIDENCE = "handoff must keep a subset verdict as evidence only"
 HANDOFF_SUBSET_EVIDENCE_NAMED = "handoff must state that subset evidence never clears the gate"
 HANDOFF_SINGLE_PR = "handoff must keep single-PR partial delivery blocked"
+HANDOFF_DEFERS = (
+    "handoff must defer the stack's clearing conditions to pr-babysitting"
+    " instead of restating them"
+)
+HANDOFF_STACK_DELIVERY = "handoff must not restate when the stack counts as delivered"
 
 COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
 PROOF_HEADING = "Proof inventory and specific scrutiny"
@@ -441,6 +450,38 @@ ASSESSMENT_MUTATIONS = (
         False,
         STACK_SINGLE_PR,
         id="stack-path-admits-single-partial-pr",
+    ),
+    pytest.param(
+        "assessment",
+        "That leaves a stack cut from one undivided plan with no delivery path:",
+        "",
+        False,
+        STACK_DEADLOCK_NAMED,
+        id="stack-deadlock-hidden",
+    ),
+    pytest.param(
+        "assessment",
+        "Split the approved plan into independently complete units, one per layer",
+        "Let the readiness gate waive the whole-plan verdict for a lower layer",
+        False,
+        STACK_DELIVERY_PATH,
+        id="stack-delivery-path-waives-rule",
+    ),
+    pytest.param(
+        "assessment",
+        "or deliver the undivided plan in a single PR.",
+        "",
+        False,
+        STACK_SINGLE_PR_ALTERNATIVE,
+        id="stack-drops-single-pr-option",
+    ),
+    pytest.param(
+        "assessment",
+        "restructure the plan before approval rather than discovering the",
+        "restructure the plan when readiness blocks and waive the rule if it",
+        False,
+        STACK_APPROVAL_TIME,
+        id="stack-deadlock-left-to-readiness",
     ),
     pytest.param(
         "assessment",

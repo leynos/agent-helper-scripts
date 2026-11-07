@@ -251,6 +251,10 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "the record never clears the gate" in readiness, "subset evidence must not clear the gate"
     assert "the stack does not count as delivered until the layer that carries the plan's remaining milestones obtains the whole-plan verdict" in readiness, "final layer must still obtain a whole-plan verdict"
     assert "A single PR that claims the whole plan but delivers part of it never qualifies either" in readiness, "single-PR partial delivery must stay blocked"
+    assert "That leaves a stack cut from one undivided plan with no delivery path" in readiness, "stack deadlock must be named"
+    assert "Split the approved plan into independently complete units, one per layer" in readiness, "stack delivery path must give each layer its own complete plan"
+    assert "or deliver the undivided plan in a single PR" in readiness, "stack delivery path must retain the single-PR alternative"
+    assert "restructure the plan before approval rather than discovering the" in readiness, "stack delivery path must be resolved at approval, not by waiver"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"

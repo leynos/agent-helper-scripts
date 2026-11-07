@@ -156,14 +156,13 @@ Authorized publication/merge actions, stopping point, and concrete blockers:
 
 The completeness assessment covers the whole approved plan, so naming a
 delivered subset in the packet does not bound it. A managed-stack layer records
-its declared-subset verdict as evidence for its actual scope only, under
-[pr-babysitting's readiness rule](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes):
-that record names the layer's milestones, its stack parent and the milestones
-remaining above it, and it never clears the gate. The whole-plan verdict is
-still required before any layer's transition, and the stack does not count as
-delivered until the layer carrying the remainder obtains one. Claiming the
-whole plan in a single PR that delivers part of it never qualifies either. See
-the same section for when those assessments clear.
+its declared-subset verdict as evidence for its actual scope only, naming the
+layer's milestones, its stack parent and the milestones remaining above it.
+What that record does and does not clear, what each layer needs before its
+transition, when the stack counts as delivered, and the plan structure that
+gives a stack a delivery path are stated once in
+[pr-babysitting's readiness rule](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes);
+read them there rather than expecting a second copy here.
 
 The receiving skill owns the two applicable hosted CodeRabbit assessments
 before readiness, their feedback and recovery, CI, rebasing, and merge. A

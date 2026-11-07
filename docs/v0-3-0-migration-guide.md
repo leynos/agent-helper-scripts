@@ -104,6 +104,10 @@ revision. Reassess work whose evidence predates this change:
   whole-plan verdict is still required before any layer's transition, the layer
   carrying the plan's remainder still needs it, and a single PR that claims the
   whole plan but delivers part of it never qualifies.
+- One undivided plan delivered as a stack has no readiness path: a lower layer
+  cannot get a whole-plan verdict while upper layers hold the remainder, and
+  every selected PR must be non-draft to merge. Approve one independently
+  complete plan per layer, or deliver the undivided plan in a single PR.
 
 See the [users' guide](users-guide.md#execplan-implementation) and the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) and

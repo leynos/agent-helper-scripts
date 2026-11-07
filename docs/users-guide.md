@@ -902,7 +902,14 @@ layer's actual scope only, naming the layer's own milestones, the
 `github-stacks` parent it builds on and the milestones remaining above it, and
 that record never clears the gate. The whole-plan verdict is still required
 before any layer's transition, and the stack does not count as delivered until
-the layer carrying the plan's remainder obtains one. See
+the layer carrying the plan's remainder obtains one.
+
+A stack cut from one undivided plan therefore has no delivery path: the lower
+layer cannot obtain a whole-plan verdict while the upper layers hold the
+remainder, and each selected PR must be non-draft for the stack to merge. Plan
+that at approval time, not at readiness. Approve one plan per layer, each
+independently complete, so every layer is assessed against the whole of its own
+plan; or deliver the undivided plan in a single PR. See
 [readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 
 For an assessment wait, the agent records the pre-post comment baseline and

@@ -9,9 +9,7 @@ import pytest
 
 from assessment_mutation_cases import (
     HANDOFF_PACKET_EXCEPTION,
-    HANDOFF_SINGLE_PR,
     HANDOFF_SUBSET_EVIDENCE,
-    HANDOFF_SUBSET_EVIDENCE_NAMED,
 )
 from skill_contract_support import (
     mutate_one_clause,
@@ -65,6 +63,19 @@ COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
 WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
 HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
 SETUP_LINK = "draft creation must link the readiness clearing rule"
+HANDOFF_DEFERS = (
+    "handoff must defer the stack's clearing conditions to pr-babysitting"
+    " instead of restating them"
+)
+HANDOFF_DEFERRAL = "read them there rather than expecting a second copy here"
+#: Clearing conditions that only pr-babysitting may state. The handoff names
+#: the subset *subject*, which is not a clearing condition.
+HANDOFF_CLEARING_CONDITIONS = (
+    "it never clears the gate",
+    "the whole-plan verdict is still required",
+    "the stack does not count as delivered",
+    "never qualifies either",
+)
 SETUP_SINGLE_RULE = (
     "draft creation must point at the single clearing rule instead of"
     " restating its conditions"
@@ -142,13 +153,14 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
         " for its actual scope only"
     )
     assert subset_evidence in handoff, HANDOFF_SUBSET_EVIDENCE
-    assert "it never clears the gate" in handoff, HANDOFF_SUBSET_EVIDENCE_NAMED
-    assert "Claiming the whole plan in a single PR that delivers part of it never qualifies" in handoff, (
-        HANDOFF_SINGLE_PR
-    )
+    assert HANDOFF_DEFERRAL in handoff, HANDOFF_DEFERS
     assert READINESS_ANCHOR in handoff, (
         "handoff must link pr-babysitting's readiness clearing rule"
     )
+    restated = [
+        phrase for phrase in HANDOFF_CLEARING_CONDITIONS if phrase in handoff
+    ]
+    assert not restated, f"{HANDOFF_DEFERS}: {restated}"
     creator = section(setup, "Resolve the candidate")
     assert "stays draft until `pr-babysitting` marks it ready" in creator, (
         "draft creation must bind the draft's end to pr-babysitting"
@@ -225,9 +237,23 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
             HANDOFF_SUBSET_EVIDENCE,
         ),
         (
-            "and it never clears the gate",
-            "and it clears the gate",
-            HANDOFF_SUBSET_EVIDENCE_NAMED,
+            "read them there rather than expecting a second copy here.",
+            "",
+            HANDOFF_DEFERS,
+        ),
+        (
+            "read them there rather than expecting a second copy here.",
+            "Read them there rather than expecting a second copy here. That"
+            " record never clears the gate, and the whole-plan verdict is"
+            " still required.",
+            HANDOFF_DEFERS,
+        ),
+        (
+            "read them there rather than expecting a second copy here.",
+            "Read them there rather than expecting a second copy here. The"
+            " stack does not count as delivered until the layer carrying the"
+            " remainder obtains one.",
+            HANDOFF_DEFERS,
         ),
     ],
     ids=[
@@ -235,7 +261,9 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
         "narrowed-to-declared-scope",
         "reintroduced-subset-exception",
         "subset-evidence-widened",
-        "subset-evidence-allowed-to-clear",
+        "deferral-dropped",
+        "restates-subset-clearing",
+        "restates-stack-delivery",
     ],
 )
 def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(

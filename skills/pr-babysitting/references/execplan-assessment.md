@@ -188,6 +188,17 @@ that is the incident this contract closes. Where a boundary between layers
 makes the subject genuinely ambiguous, escalate it under the existing rules
 rather than treating the subset record as clearance.
 
+That leaves a stack cut from one undivided plan with no delivery path: a lower
+layer cannot obtain a whole-plan verdict while the layers above it hold the
+remainder, and [`github-stacks`](../../github-stacks/SKILL.md#merging) requires
+each selected PR to be open and not a draft before the stack merges. Resolve it
+when the plan is approved, not by waiving the rule at readiness. Split the
+approved plan into independently complete units, one per layer, so that each
+layer is assessed against the whole of its own plan; or deliver the undivided
+plan in a single PR. A stack laid out from one undivided plan has no readiness
+path, so restructure the plan before approval rather than discovering the
+deadlock here.
+
 Once those responses, green CI, and clear CodeScene findings cover the current
 candidate, mark it ready and verify the transition. Only then inspect formal
 review progress and rate limiting: await an active or automatic review, or use
