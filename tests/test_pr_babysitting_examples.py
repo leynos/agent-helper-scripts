@@ -236,24 +236,33 @@ def _mutate_one_clause(source: str, old: str, new: str, move: bool) -> str:
     return mutated
 
 
+LIMITATIONS_GUARD = "completeness request must restrict limitations to evidential limits"
+MILESTONE_OWNERSHIP = "completeness section must bind milestones to the ownership rule"
+LEDGER_VERDICT = "ledger section must state: a verdict"
+LEDGER_CANDIDATE = "ledger section must state: on the same entry"
+LEDGER_CLEARING = "ledger section must state: Only a clear whole-plan verdict"
+
+ASSESSMENT_MUTATIONS = (
+    ("assessment", "Both applicable assessments must clear", "Both applicable assessments need not clear", False, "applicable assessments must precede readiness"),
+    ("assessment", "An already-ready PR stays ready; obtain missing assessments before merge.", "", False, "missing assessment must block merge"),
+    ("assessment", "for the published candidate.", "for any old candidate.", False, "gates must bind to published candidate"),
+    ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False, "assessment follow-ups must not enter the review queue"),
+    ("assessment", "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.", "", True, "applicable assessments must precede readiness"),
+    ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False, "parent readiness condition must include assessments"),
+    ("skill", "An already-ready PR remains ready while missing or invalidated assessments block merge.", "", True, "parent must preserve ready state and merge blocker"),
+    ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.", "", True, "merge checklist must require candidate-bound assessments"),
+    ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False, LIMITATIONS_GUARD),
+    ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False, LIMITATIONS_GUARD),
+    ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True, MILESTONE_OWNERSHIP),
+    ("skill", "`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "`posted` or `answered`", False, LEDGER_VERDICT),
+    ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
+    ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False, LEDGER_CANDIDATE),
+)
+
+
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move"),
-    [
-        ("assessment", "Both applicable assessments must clear", "Both applicable assessments need not clear", False),
-        ("assessment", "An already-ready PR stays ready; obtain missing assessments before merge.", "", False),
-        ("assessment", "for the\npublished candidate.", "for any old candidate.", False),
-        ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False),
-        ("assessment", "Both applicable assessments must clear for the\naccepted candidate before its draft-to-ready transition.", "", True),
-        ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
-        ("skill", "An already-ready PR remains ready\n   while missing or invalidated assessments block merge.", "", True),
-        ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
-        ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False),
-        ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False),
-        ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True),
-        ("skill", "`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "`posted` or `answered`", False),
-        ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True),
-        ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False),
-    ],
+    ("document", "old", "new", "move", "expected"),
+    ASSESSMENT_MUTATIONS,
     ids=[
         "inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment",
         "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard",
@@ -262,13 +271,13 @@ def _mutate_one_clause(source: str, old: str, new: str, move: bool) -> str:
     ],
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
-    document: str, old: str, new: str, move: bool
+    document: str, old: str, new: str, move: bool, expected: str
 ) -> None:
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
     source = assessment if document == "assessment" else skill
     mutated = _mutate_one_clause(source, old, new, move)
-    with pytest.raises(AssertionError, match="must|prerequisites"):
+    with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
 

@@ -164,33 +164,30 @@ def _mutate_one_clause(source: str, old: str, new: str) -> str:
     return source[: match.start()] + new + source[match.end() :]
 
 
+WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
+HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
+SETUP_LINK = "draft creation must link the readiness clearing rule"
+
+
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move_marker"),
+    ("document", "old", "new", "move_link", "expected"),
     [
         (
             "implementation",
             "against the whole approved plan, not the declared PR scope; ",
             "",
             "",
+            WHOLE_PLAN_SUBJECT,
         ),
         (
             "implementation",
             "against the whole approved plan",
             "against the declared PR scope",
             "",
+            WHOLE_PLAN_SUBJECT,
         ),
-        (
-            "implementation",
-            "does not bound it",
-            "",
-            "[Readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)",
-        ),
-        (
-            "setup",
-            "neither marks it ready nor ends the draft",
-            "",
-            "[clearing rule](../../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)",
-        ),
+        ("implementation", "", "", READINESS_ANCHOR, HANDOFF_LINK),
+        ("setup", "", "", SETUP_READINESS_ANCHOR, SETUP_LINK),
     ],
     ids=[
         "removed-qualifier",
@@ -200,20 +197,21 @@ def _mutate_one_clause(source: str, old: str, new: str) -> str:
     ],
 )
 def test_handoff_contract_rejects_narrowed_or_moved_whole_plan_binding(
-    document: str, old: str, new: str, move_marker: str
+    document: str, old: str, new: str, move_link: str, expected: str
 ) -> None:
-    """Removing, narrowing, or relocating the binding fails the handoff contract."""
+    """Removing, narrowing, or relocating the binding fails the intended check."""
     implementation = _read(IMPLEMENTATION / "SKILL.md")
     setup = _read(IMPLEMENTATION / "references" / "setup.md")
     source = implementation if document == "implementation" else setup
-    mutated = _mutate_one_clause(source, old, new)
 
-    if move_marker:
-        assert source.count(move_marker) == 1, "moved reference must be unique"
-        mutated = mutated.replace(move_marker, "", 1)
-        mutated += "\n## Unrelated notes\n\n" + move_marker + "\n"
+    if move_link:
+        assert source.count(move_link) == 1, "moved reference must be unique"
+        mutated = source.replace(move_link, "", 1)
+        mutated += "\n## Unrelated notes\n\n" + move_link + "\n"
+    else:
+        mutated = _mutate_one_clause(source, old, new)
 
-    with pytest.raises(AssertionError, match="must|expected"):
+    with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(
             mutated if document == "implementation" else implementation,
             mutated if document == "setup" else setup,
