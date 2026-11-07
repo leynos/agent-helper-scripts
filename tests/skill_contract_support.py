@@ -57,7 +57,9 @@ def raw_section(markdown: str, heading: str) -> str:
         Raised when no section, or more than one, carries the heading.
     """
     matches = re.findall(
-        r"^## " + re.escape(heading) + r"\n(.*?)(?=^## |\Z)", markdown, re.M | re.S
+        r"^## " + re.escape(heading) + r"[ \t]*\r?\n(.*?)(?=^## |\Z)",
+        markdown,
+        re.M | re.S,
     )
     assert len(matches) == 1, f"expected unique section: {heading}"
     return matches[0]

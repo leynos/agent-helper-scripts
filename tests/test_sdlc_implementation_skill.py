@@ -195,8 +195,7 @@ def test_handoff_rejects_a_readiness_link_moved_out_of_its_section(
     implementation = _read(IMPLEMENTATION / "SKILL.md")
     setup = _read(IMPLEMENTATION / "references" / "setup.md")
     source = implementation if document == "implementation" else setup
-    assert source.count(anchor) == 1, "moved reference must be unique"
-    mutated = source.replace(anchor, "", 1) + "\n## Unrelated notes\n\n" + anchor + "\n"
+    mutated = mutate_one_clause(source, anchor, "", move=True)
     with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(
             mutated if document == "implementation" else implementation,

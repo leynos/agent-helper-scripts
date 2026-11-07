@@ -217,21 +217,25 @@ Record which reviewers and checks are configured and which are required.
 For an ExecPlan implementation assignment, read
 [ExecPlan assessments](references/execplan-assessment.md) and record its plan
 revision, implementation status, acceptance mapping, and assessment state.
-Record that state for each applicable assessment as a verdict of `clear`,
-`not clear`, or `pending`, with a justified `not applicable` for the proof
-assessment. Record each verdict on the same entry as the base/head and the plan
-revision it was given for. The completeness assessment's subject is either the
-whole plan or the declared subset; the proof assessment's subject is the named
-proofs it covers. Only a clear whole-plan completeness verdict that covers the
-accepted base/head and was recorded against the currently approved plan
-revision satisfies
-[the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
-A verdict recorded against a superseded plan revision does not carry over,
-even when the base/head is unchanged. Record introduced or materially changed
-proofs and their required scrutiny also when no ExecPlan applies.
-Plan-authoring alone does not trigger an implementation assessment. Missing
-evidence remains pending, not a reason to wait outside this skill until a red
-or draft PR is already ready.
+Record that state for each applicable assessment:
+
+- A verdict of `clear`, `not clear`, or `pending`, with a justified
+  `not applicable` for the proof assessment.
+- Record each verdict on the same entry as the base/head and the plan revision
+  it was given for.
+- The completeness assessment's subject is either the whole plan or the
+  declared subset; the proof assessment's subject is the named proofs it covers.
+- Only a clear whole-plan completeness verdict that covers the accepted
+  base/head and was recorded against the currently approved plan revision
+  satisfies
+  [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
+- A verdict recorded against a superseded plan revision does not carry over,
+  even when the base/head is unchanged.
+
+Record introduced or materially changed proofs and their required scrutiny also
+when no ExecPlan applies. Plan-authoring alone does not trigger an
+implementation assessment. Missing evidence remains pending, not a reason to
+wait outside this skill until a red or draft PR is already ready.
 
 Keep one authoritative candidate and a small durable ledger outside the tracked
 product diff. Include CI run/check IDs and attempts, tested SHAs, review
