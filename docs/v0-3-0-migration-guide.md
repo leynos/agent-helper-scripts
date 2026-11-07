@@ -78,8 +78,31 @@ installer.
 For implementation PRs, applicable hosted completeness/correctness and
 proof-specific assessments must clear before a draft is marked ready. An
 already-ready PR stays ready when evidence is missing or invalidated, while
-merge remains blocked until the applicable assessment clears. See the
-[users' guide](users-guide.md#execplan-implementation) and the
+merge remains blocked until the applicable assessment clears.
+
+### Assessment verdicts bind to a revision
+
+An assessment verdict now counts for the accepted base/head **and** the
+approved plan revision in force, and the substantive reply must echo that
+revision. Reassess work whose evidence predates this change:
+
+- A completeness verdict obtained against an earlier base/head does not cover a
+  later push. Request a candidate-bound follow-up rather than transferring the
+  old result.
+- A verdict stays valid across a new commit only if the plan revision is
+  unchanged, and it stops counting when a newly approved plan revision replaces
+  the one it inspected, even when no commit moved. Reassess against the
+  revision in force.
+- The completeness request covers the whole approved plan, so a message that
+  reports remaining milestones as unimplemented work has not cleared it. Do not
+  record those milestones as known limitations; they are in-scope work.
+- A plan delivered as a managed stack may clear a lower layer on a
+  declared-subset verdict that names the layer's milestones, the
+  `github-stacks` parent and the milestones remaining above it. The layer
+  carrying the plan's remainder still needs the whole-plan verdict, and a
+  single PR that claims the whole plan but delivers part of it never qualifies.
+
+See the [users' guide](users-guide.md#execplan-implementation) and the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) and
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.

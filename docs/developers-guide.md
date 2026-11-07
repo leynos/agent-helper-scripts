@@ -703,11 +703,39 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
-and `tests/test_sdlc_milestone_review.py`. See the
-[`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
+`tests/test_pr_readiness_model.py`, and `tests/test_sdlc_milestone_review.py`.
+See the [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
 and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
 procedures.
+
+### Skill contract test helpers
+
+The skills are Markdown, so their contracts are checked by reading the shipped
+documents. `tests/skill_contract_support.py` holds the operations those checks
+share, and each takes and returns plain strings without touching the filesystem:
+
+- `section(markdown, heading)` returns one unique level-2 section with its line
+  wrapping collapsed, and fails if the document has no such section or more
+  than one. `raw_section` returns the same body with its wrapping intact, for
+  contracts that read whole lines.
+- `fenced_request(markdown, heading)` returns the single fenced block inside a
+  section. A request template is a fence a human copies and posts, so its
+  fields must live inside that fence rather than in nearby prose.
+- `mutate_one_clause(source, old, new, *, move=False)` seeds a defect by
+  replacing the one clause matching `old`. Whitespace in `old` matches any
+  whitespace run, so reflowing prose does not break a fixture, and a clause
+  that matches zero or several times fails the fixture rather than editing the
+  wrong text. `move=True` relocates the clause under an unrelated heading;
+  `move_out_of_fence(markdown, heading, clause)` relocates it from a section's
+  fence to the section's own prose, which only a request-local contract notices.
+
+`tests/assessment_mutation_cases.py` keeps the mutation table as data, and
+`tests/pr_readiness_model.py` restates the documented draft-to-ready gate as an
+executable specification over candidate-bound verdicts.
+`tests/test_pr_readiness_model.py` requires each reason it can return to cite a
+sentence the shipped documents still state, so the model cannot outlive the
+prose it encodes.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment

@@ -17,8 +17,21 @@ from pr_babysitting_flowchart_support import (
     flowchart_source,
     parse_flowchart,
 )
-from assessment_mutation_cases import ASSESSMENT_MUTATIONS
-from skill_contract_support import mutate_one_clause, section
+from assessment_mutation_cases import (
+    ASSESSMENT_MUTATIONS,
+    COMPLETENESS_HEADING,
+    COMPLETENESS_REQUEST_FIELDS,
+    PROOF_CONDITIONAL_ECHO_FIELD,
+    PROOF_HEADING,
+    PROOF_REQUEST_FIELDS,
+    REQUEST_FENCE_MUTATIONS,
+)
+from skill_contract_support import (
+    fenced_request,
+    move_out_of_fence,
+    mutate_one_clause,
+    section,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,18 +205,21 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "inspection not possible" in completeness, "evidential limitation kind must remain named: inspection not possible"
     assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
     assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
-    assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head>." in completeness, "completeness request must identify the assessed plan revision"
-    assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in completeness, "completeness request must require the reply to echo the plan revision"
     assert "a reply that echoes only the base/head cannot bind its verdict to an approved revision" in completeness, "completeness section must state why base/head alone cannot bind a verdict"
-    assert "Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>." in completeness, "completeness request must bound the assessed subject"
     assert "The `Assessed subject:` line is what bounds this one request." in completeness, "completeness section must say what the subject line bounds"
     assert "Ordinary single-PR delivery and the layer carrying the plan's remainder keep the whole approved plan as the subject." in completeness, "completeness section must keep whole-plan subjects"
     assert "Without that line, an assessor follows the whole-plan opening and reports the upper milestones as unfinished work" in completeness, "completeness section must record why an unbounded request deadlocks"
-    proofs = section(assessment, "Proof inventory and specific scrutiny")
-    assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>." in proofs, "proof request must name the plan revision when an ExecPlan applies"
-    assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in proofs, "proof request must require the reply to echo the plan revision"
-    assert "echo the plan revision only when this request names one" in proofs, "proof echo must stay conditional on an ExecPlan"
+    request = fenced_request(assessment, COMPLETENESS_HEADING)
+    for field, expected_message in COMPLETENESS_REQUEST_FIELDS:
+        assert field in request, expected_message
+    proofs = section(assessment, PROOF_HEADING)
     assert "a proof-only assignment with no ExecPlan keeps the base/head as its whole candidate and asks for no revision echo" in proofs, "proof section must preserve the no-plan case"
+    proof_request = fenced_request(assessment, PROOF_HEADING)
+    for field, expected_message in PROOF_REQUEST_FIELDS:
+        assert field in proof_request, expected_message
+    assert PROOF_CONDITIONAL_ECHO_FIELD in proof_request, (
+        "proof echo must stay conditional on an ExecPlan"
+    )
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing, "initial comments must use assigned token route"
@@ -260,6 +276,19 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
+
+
+@pytest.mark.parametrize(
+    ("heading", "clause", "expected"),
+    REQUEST_FENCE_MUTATIONS,
+)
+def test_assessment_contract_rejects_a_field_moved_out_of_its_fence(
+    heading: str, clause: str, expected: str
+) -> None:
+    """Prose inside the same section cannot substitute for a fenced request field."""
+    mutated = move_out_of_fence(ASSESSMENT.read_text(), heading, clause)
+    with pytest.raises(AssertionError, match=re.escape(expected)):
+        assessment_contract(mutated, SKILL.read_text())
 
 
 def test_absent_renamed_deleted_lockfiles_require_explicit_planning() -> None:

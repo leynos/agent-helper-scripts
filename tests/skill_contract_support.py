@@ -83,6 +83,68 @@ def section(markdown: str, heading: str) -> str:
     return normalize(raw_section(markdown, heading))
 
 
+def fenced_request(markdown: str, heading: str) -> str:
+    """Return the single fenced request block inside one level-2 section.
+
+    A request template is a fence a human copies and posts. Its fields must
+    live inside that fence: prose that mentions them elsewhere in the same
+    section does not travel with the request. Extracting the fence keeps a
+    contract on the posted text rather than on the surrounding commentary.
+
+    Parameters
+    ----------
+    markdown : str
+        Document to search.
+    heading : str
+        Level-2 heading text identifying the enclosing section.
+
+    Returns
+    -------
+    str
+        The fenced block's content, whitespace-normalized, without markers.
+
+    Raises
+    ------
+    AssertionError
+        Raised unless the section holds exactly one fenced block.
+    """
+    body = raw_section(markdown, heading)
+    fences = re.findall(r"^```[^\n]*\n(.*?)^```", body, re.M | re.S)
+    assert len(fences) == 1, f"expected one fenced request in section: {heading}"
+    return normalize(fences[0])
+
+
+def move_out_of_fence(markdown: str, heading: str, clause: str) -> str:
+    """Relocate a clause from a section's fence to the prose around it.
+
+    The clause stays inside the same level-2 section, so a section-wide
+    assertion still matches. Only a request-local contract notices the move,
+    which is exactly the defect this proves against.
+
+    Parameters
+    ----------
+    markdown : str
+        Document to mutate.
+    heading : str
+        Level-2 heading text identifying the enclosing section.
+    clause : str
+        Clause to lift out of the fence. Any whitespace run matches any other.
+
+    Returns
+    -------
+    str
+        The mutated document.
+
+    Raises
+    ------
+    AssertionError
+        Raised unless the clause matches exactly once in the section body.
+    """
+    body = raw_section(markdown, heading)
+    mutated_body = mutate_one_clause(body, clause, "")
+    return markdown.replace(body, mutated_body + "\n" + normalize(clause) + "\n", 1)
+
+
 def mutate_one_clause(
     source: str, old: str, new: str, *, move: bool = False
 ) -> str:

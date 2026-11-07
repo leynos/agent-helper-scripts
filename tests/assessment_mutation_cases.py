@@ -45,6 +45,92 @@ HANDOFF_EXCEPTION = "completeness packet must carry the managed-stack exception"
 HANDOFF_EXCEPTION_NAMED = "handoff must name the managed-stack exception"
 HANDOFF_SINGLE_PR = "handoff must keep single-PR partial delivery blocked"
 
+COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
+PROOF_HEADING = "Proof inventory and specific scrutiny"
+
+LIMITATIONS_FIELD = (
+    "Known limitations: <evidential limits only: checks not run, inspection not"
+    " possible, proof bounds; not unimplemented plan milestones>."
+)
+REQUEST_REVISION_FIELD = (
+    "Plan revision: <approved revision identifier and the plan file's blob SHA"
+    " at this head>."
+)
+REQUEST_SUBJECT_FIELD = (
+    "Assessed subject: <the whole approved plan, or this managed-stack layer's"
+    " named milestones with its stack parent and the milestones remaining above"
+    " it, per pr-babysitting's stack path>."
+)
+COMPLETENESS_ECHO_FIELD = (
+    "Please echo the Assessment-ID, assessed base/head, and plan revision in"
+    " your substantive reply."
+)
+PROOF_REVISION_FIELD = (
+    "Plan revision: <approved revision identifier and the plan file's blob SHA"
+    " at this head; omit when no ExecPlan applies>."
+)
+PROOF_ECHO_PREFIX_FIELD = (
+    "Please echo the Assessment-ID, assessed base/head, and plan revision in"
+    " your substantive reply"
+)
+PROOF_ECHO_FIELD = (
+    PROOF_ECHO_PREFIX_FIELD
+    + "; echo the plan revision only when this request names one."
+)
+PROOF_CONDITIONAL_ECHO_FIELD = (
+    "echo the plan revision only when this request names one."
+)
+
+COMPLETENESS_REQUEST_FIELDS = (
+    (LIMITATIONS_FIELD, LIMITATIONS_GUARD),
+    (REQUEST_REVISION_FIELD, REQUEST_REVISION),
+    (REQUEST_SUBJECT_FIELD, REQUEST_SUBJECT),
+    (COMPLETENESS_ECHO_FIELD, ECHOED_REVISION),
+)
+PROOF_REQUEST_FIELDS = (
+    (PROOF_REVISION_FIELD, PROOF_REVISION),
+    (PROOF_ECHO_PREFIX_FIELD, PROOF_ECHO_REVISION),
+)
+
+REQUEST_FENCE_MUTATIONS = (
+    pytest.param(
+        COMPLETENESS_HEADING,
+        LIMITATIONS_FIELD,
+        LIMITATIONS_GUARD,
+        id="moved-limitations-field-to-section-prose",
+    ),
+    pytest.param(
+        COMPLETENESS_HEADING,
+        REQUEST_SUBJECT_FIELD,
+        REQUEST_SUBJECT,
+        id="moved-request-subject-to-section-prose",
+    ),
+    pytest.param(
+        COMPLETENESS_HEADING,
+        REQUEST_REVISION_FIELD,
+        REQUEST_REVISION,
+        id="moved-request-plan-revision-to-section-prose",
+    ),
+    pytest.param(
+        COMPLETENESS_HEADING,
+        COMPLETENESS_ECHO_FIELD,
+        ECHOED_REVISION,
+        id="moved-request-echo-to-section-prose",
+    ),
+    pytest.param(
+        PROOF_HEADING,
+        PROOF_REVISION_FIELD,
+        PROOF_REVISION,
+        id="moved-proof-plan-revision-to-section-prose",
+    ),
+    pytest.param(
+        PROOF_HEADING,
+        PROOF_ECHO_FIELD,
+        PROOF_ECHO_REVISION,
+        id="moved-proof-echo-to-section-prose",
+    ),
+)
+
 ASSESSMENT_MUTATIONS = (
     pytest.param(
         "assessment",

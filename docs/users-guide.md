@@ -592,7 +592,9 @@ assessment conversations, not formal review requests. The agent actively awaits
 and reads the substantive issue-comment replies before readiness. Assessment
 conversations never enter `comenq`; formal review dispatch and its rate-limit
 recovery belong after the verified ready transition. See
-[awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md).
+[awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md)
+and, for the verdict a reply must return and the revision it must bind to,
+[readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 
 ## PR babysitting
 
@@ -885,6 +887,20 @@ already-ready PR stays ready while missing or invalidated assessments block
 merge; the workflow never sets it back to draft. Ready-only and no-merge
 assignments stop at their authorized boundary, and all local validation follows
 the candidate execution boundary above.
+
+A verdict clears only the candidate it was given for. The completeness
+assessment covers the whole approved plan, not the delivered subset, so
+remaining milestones stay in scope rather than counting as known limitations.
+Its verdict belongs to an accepted base/head and to the approved plan revision
+in force, and the reply must echo that revision: a verdict recorded against a
+later-adjusted base/head, or against a revision that a newly approved plan has
+replaced, does not clear the gate even when the commit is unchanged. The same
+revision binding applies to a proof assessment under an ExecPlan. A plan
+delivered as a managed stack is the one exception: a lower layer may clear on a
+declared-subset verdict once it names its own milestones, the `github-stacks`
+parent it builds on and the milestones remaining above it, and the layer that
+carries the plan's remainder still needs the whole-plan verdict. See
+[readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 
 For an assessment wait, the agent records the pre-post comment baseline and
 server-assigned request ID, reads immediately, then polls all updated comment
