@@ -17,6 +17,7 @@ from pr_babysitting_flowchart_support import (
     flowchart_source,
     parse_flowchart,
 )
+from skill_contract_support import mutate_one_clause, section
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,13 +25,6 @@ REBASE = ROOT / "skills/pr-babysitting/references/rebase.md"
 ASSESSMENT = ROOT / "skills/pr-babysitting/references/execplan-assessment.md"
 SKILL = ROOT / "skills/pr-babysitting/SKILL.md"
 REHEARSAL = ROOT / "skills/pr-babysitting/references/sources-and-rehearsal.md"
-
-
-def section(text: str, heading: str) -> str:
-    """Find one second-level section without accepting guards moved elsewhere."""
-    matches = re.findall(r"^## " + re.escape(heading) + r"\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    assert len(matches) == 1, f"expected unique section: {heading}"
-    return " ".join(matches[0].split())
 
 
 def git_example(marker: str) -> str:
@@ -193,19 +187,21 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "Verify remote parity" in applicability, "request prerequisites must verify publication"
     completeness = section(assessment, "ExecPlan completeness and correctness")
     assert "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>." in completeness, "completeness request must restrict limitations to evidential limits"
-    assert "checks not run" in completeness and "inspection not possible" in completeness, "evidential limitation kinds must remain named"
+    assert "checks not run" in completeness, "evidential limitation kind must remain named: checks not run"
+    assert "inspection not possible" in completeness, "evidential limitation kind must remain named: inspection not possible"
     assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
     assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
-    assert "assigned token procedure" in routing and "`shuf`" in routing, "initial comments must use assigned token route"
+    assert "assigned token procedure" in routing, "initial comments must use assigned token route"
+    assert "`shuf`" in routing, "initial comments must shuffle the assigned token"
     assert "Assessment conversations never go through `comenq`" in routing, "assessment follow-ups must not enter the review queue"
     ledger = section(skill, "1. Establish the candidate and keep a delivery ledger")
     for requirement in (
-        "a verdict (`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment)",
+        "a verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment",
         "its subject, either the whole plan or the declared subset",
         "on the same entry as the base/head and plan revision it was given for",
-        "Only a clear whole-plan verdict for the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "Only a clear whole-plan verdict covering the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
@@ -222,18 +218,6 @@ def assessment_contract(assessment: str, skill: str) -> None:
 def test_assessment_guards_control_the_real_workflow_sections() -> None:
     """Readiness and merge guards must live in their controlling documentation sections."""
     assessment_contract(ASSESSMENT.read_text(), SKILL.read_text())
-
-
-def _mutate_one_clause(source: str, old: str, new: str, move: bool) -> str:
-    """Replace or relocate the one clause matching ``old`` regardless of wrapping."""
-    pattern = r"\s+".join(map(re.escape, old.split()))
-    matches = list(re.finditer(pattern, source))
-    assert len(matches) == 1, "mutation fixture must identify one actual controlling clause"
-    match = matches[0]
-    mutated = source[: match.start()] + new + source[match.end() :]
-    if move:
-        mutated += "\n## Unrelated notes\n\n" + match.group() + "\n"
-    return mutated
 
 
 LIMITATIONS_GUARD = "completeness request must restrict limitations to evidential limits"
@@ -254,8 +238,8 @@ ASSESSMENT_MUTATIONS = (
     ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False, LIMITATIONS_GUARD),
     ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False, LIMITATIONS_GUARD),
     ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True, MILESTONE_OWNERSHIP),
-    ("skill", "`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "`posted` or `answered`", False, LEDGER_VERDICT),
-    ("skill", "Only a clear whole-plan verdict for the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
+    ("skill", "a verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "a verdict of `posted` or `answered`", False, LEDGER_VERDICT),
+    ("skill", "Only a clear whole-plan verdict covering the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
     ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False, LEDGER_CANDIDATE),
 )
 
@@ -276,36 +260,39 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
     source = assessment if document == "assessment" else skill
-    mutated = _mutate_one_clause(source, old, new, move)
+    mutated = mutate_one_clause(source, old, new, move=move)
     with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
 
 
 @pytest.mark.parametrize(
-    ("old", "new"),
+    ("old", "new", "expected"),
     [
         (
             "on the same entry as the base/head and plan revision it was given for.",
             "",
+            LEDGER_CANDIDATE,
         ),
         (
-            "Only a clear whole-plan verdict for the accepted base/head and the plan revision",
-            "Only a clear declared-subset verdict for the accepted base/head and the plan revision",
+            "Only a clear whole-plan verdict covering the accepted base/head and the plan revision",
+            "Only a clear declared-subset verdict covering the accepted base/head and the plan revision",
+            LEDGER_CLEARING,
         ),
         (
-            "for the accepted base/head and the plan revision it was recorded against satisfies",
-            "for the accepted base/head satisfies",
+            "covering the accepted base/head and the plan revision it was recorded against satisfies",
+            "covering the accepted base/head satisfies",
+            LEDGER_CLEARING,
         ),
     ],
     ids=["omitted-candidate", "declared-subset-may-clear", "unbound-plan-revision"],
 )
 def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
-    old: str, new: str
+    old: str, new: str, expected: str
 ) -> None:
     """A ledger verdict that drops the candidate, or lets a declared subset clear, fails."""
-    mutated = _mutate_one_clause(SKILL.read_text(), old, new, False)
-    with pytest.raises(AssertionError, match="ledger section must state"):
+    mutated = mutate_one_clause(SKILL.read_text(), old, new)
+    with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(ASSESSMENT.read_text(), mutated)
 
 

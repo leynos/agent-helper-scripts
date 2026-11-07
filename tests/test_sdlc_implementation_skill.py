@@ -7,6 +7,13 @@ import re
 
 import pytest
 
+from skill_contract_support import (
+    mutate_one_clause,
+    normalize,
+    raw_section,
+    section,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IMPLEMENTATION = REPO_ROOT / "skills" / "sdlc-implementation"
@@ -56,23 +63,9 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _normalize(text: str) -> str:
-    """Ignore prose line wrapping without dropping contract punctuation."""
-    return " ".join(text.split())
-
-
-def section(text: str, heading: str) -> str:
-    """Find one second-level section without accepting guards moved elsewhere."""
-    matches = re.findall(
-        r"^## " + re.escape(heading) + r"\n(.*?)(?=^## |\Z)", text, re.M | re.S
-    )
-    assert len(matches) == 1, f"expected unique section: {heading}"
-    return matches[0]
-
-
 def _handoff_section(document: str) -> str:
     """Return the raw handoff section that carries the completeness packet."""
-    return section(document, "4. Hand PR delivery to pr-babysitting")
+    return raw_section(document, "4. Hand PR delivery to pr-babysitting")
 
 
 def _completeness_packet_line(document: str) -> str:
@@ -83,7 +76,7 @@ def _completeness_packet_line(document: str) -> str:
         if line.startswith(COMPLETENESS_PACKET_PREFIX)
     ]
     assert len(matches) == 1, "expected one completeness packet line"
-    return _normalize(matches[0])
+    return normalize(matches[0])
 
 
 def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
@@ -98,18 +91,18 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert "evidence or pending" in packet, (
         "handoff must still distinguish evidence from pending"
     )
-    handoff = _normalize(_handoff_section(implementation))
+    handoff = normalize(_handoff_section(implementation))
     assert "does not bound it" in handoff, (
         "handoff must state that a delivered subset does not bound the assessment"
     )
     assert READINESS_ANCHOR in handoff, (
         "handoff must link pr-babysitting's readiness clearing rule"
     )
-    creator = _normalize(section(setup, "Resolve the candidate"))
+    creator = section(setup, "Resolve the candidate")
     assert "stays draft until `pr-babysitting` marks it ready" in creator, (
         "draft creation must bind the draft's end to pr-babysitting"
     )
-    assert "neither marks it ready nor ends the draft" in creator, (
+    assert "does not mark the draft ready and does not end it" in creator, (
         "draft creation must state this skill does not end the draft"
     )
     assert SETUP_READINESS_ANCHOR in creator, (
@@ -119,14 +112,14 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
 
 def _assert_no_delivery_loop(text: str) -> None:
     """Keep operational delivery commands in the PR lifecycle owner."""
-    normalized = _normalize(text)
+    normalized = normalize(text)
     for command in LIFECYCLE_COMMANDS:
         assert command not in normalized, f"duplicated lifecycle command: {command}"
 
 
 def _assert_rebase_contract(text: str) -> None:
     """Require the explicit replay and publication safeguards."""
-    normalized = _normalize(text)
+    normalized = normalize(text)
     for requirement in REBASE_REQUIREMENTS:
         assert requirement in normalized, f"missing rebase requirement: {requirement}"
 
@@ -155,62 +148,55 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule() -> None:
     )
 
 
-def _mutate_one_clause(source: str, old: str, new: str) -> str:
-    """Replace the one clause matching ``old`` regardless of its line wrapping."""
-    pattern = r"\s+".join(map(re.escape, old.split()))
-    matches = list(re.finditer(pattern, source))
-    assert len(matches) == 1, "mutation fixture must identify one binding clause"
-    match = matches[0]
-    return source[: match.start()] + new + source[match.end() :]
-
-
 WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
 HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
 SETUP_LINK = "draft creation must link the readiness clearing rule"
 
 
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move_link", "expected"),
+    ("old", "new", "expected"),
     [
         (
-            "implementation",
             "against the whole approved plan, not the declared PR scope; ",
-            "",
             "",
             WHOLE_PLAN_SUBJECT,
         ),
         (
-            "implementation",
             "against the whole approved plan",
             "against the declared PR scope",
-            "",
             WHOLE_PLAN_SUBJECT,
         ),
-        ("implementation", "", "", READINESS_ANCHOR, HANDOFF_LINK),
-        ("setup", "", "", SETUP_READINESS_ANCHOR, SETUP_LINK),
     ],
-    ids=[
-        "removed-qualifier",
-        "narrowed-to-declared-scope",
-        "moved-readiness-link",
-        "moved-draft-creation-cross-reference",
-    ],
+    ids=["removed-qualifier", "narrowed-to-declared-scope"],
 )
-def test_handoff_contract_rejects_narrowed_or_moved_whole_plan_binding(
-    document: str, old: str, new: str, move_link: str, expected: str
+def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
+    old: str, new: str, expected: str
 ) -> None:
-    """Removing, narrowing, or relocating the binding fails the intended check."""
+    """Deleting or narrowing the whole-plan qualifier fails the handoff contract."""
+    implementation = _read(IMPLEMENTATION / "SKILL.md")
+    setup = _read(IMPLEMENTATION / "references" / "setup.md")
+    mutated = mutate_one_clause(implementation, old, new)
+    with pytest.raises(AssertionError, match=re.escape(expected)):
+        _assert_handoff_binds_whole_plan(mutated, setup)
+
+
+@pytest.mark.parametrize(
+    ("document", "anchor", "expected"),
+    [
+        ("implementation", READINESS_ANCHOR, HANDOFF_LINK),
+        ("setup", SETUP_READINESS_ANCHOR, SETUP_LINK),
+    ],
+    ids=["moved-readiness-link", "moved-draft-creation-cross-reference"],
+)
+def test_handoff_rejects_a_readiness_link_moved_out_of_its_section(
+    document: str, anchor: str, expected: str
+) -> None:
+    """A readiness cross-reference pasted outside its section cannot satisfy the contract."""
     implementation = _read(IMPLEMENTATION / "SKILL.md")
     setup = _read(IMPLEMENTATION / "references" / "setup.md")
     source = implementation if document == "implementation" else setup
-
-    if move_link:
-        assert source.count(move_link) == 1, "moved reference must be unique"
-        mutated = source.replace(move_link, "", 1)
-        mutated += "\n## Unrelated notes\n\n" + move_link + "\n"
-    else:
-        mutated = _mutate_one_clause(source, old, new)
-
+    assert source.count(anchor) == 1, "moved reference must be unique"
+    mutated = source.replace(anchor, "", 1) + "\n## Unrelated notes\n\n" + anchor + "\n"
     with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(
             mutated if document == "implementation" else implementation,
@@ -220,7 +206,7 @@ def test_handoff_contract_rejects_narrowed_or_moved_whole_plan_binding(
 
 def test_handoff_accepts_red_draft_candidate() -> None:
     """Delivery starts before hosted success, with explicit assessment state."""
-    text = _normalize(_read(IMPLEMENTATION / "SKILL.md"))
+    text = normalize(_read(IMPLEMENTATION / "SKILL.md"))
     assert (
         "even if the published PR is still draft or its CI is red" in text
     ), "missing red/draft candidate handoff contract"
@@ -252,7 +238,7 @@ def test_assessments_remain_in_babysitting() -> None:
     ) in text, (
         "missing substantive, rigorous, well-founded proof assessment question"
     )
-    normalized = _normalize(text)
+    normalized = normalize(text)
     for requirement in (
         "CrossHair, Kani, Verus, LemmaScript",
         "non-vacuity",
@@ -275,7 +261,7 @@ def test_pr_rebase_contract() -> None:
 @pytest.mark.parametrize("requirement", REBASE_REQUIREMENTS)
 def test_contract_rejects_missing_rebase_safeguard(requirement: str) -> None:
     """Removing each safeguard makes the contract fail independently."""
-    text = _normalize(_read(DELIVERY / "rebase.md"))
+    text = normalize(_read(DELIVERY / "rebase.md"))
     assert requirement in text, (
         f"mutation fixture is missing rebase requirement: {requirement}"
     )
@@ -286,7 +272,7 @@ def test_contract_rejects_missing_rebase_safeguard(requirement: str) -> None:
 
 def test_bounded_delegation_and_external_evidence() -> None:
     """Agent packets retain narrow scope, evidence, and escalation boundaries."""
-    text = _normalize(_read(IMPLEMENTATION / "references" / "delegation.md"))
+    text = normalize(_read(IMPLEMENTATION / "references" / "delegation.md"))
     for requirement in (
         "firecrawl-mcp",
         "version-matched documentation",
