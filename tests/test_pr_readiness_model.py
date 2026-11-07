@@ -43,7 +43,6 @@ ASSESSMENT = ROOT / "skills/pr-babysitting/references/execplan-assessment.md"
 BASE = "base0000"
 HEAD = "head0000"
 REVISION = "rev-2026-11-01"
-SESSION_ID = "271-boundary"
 
 
 def candidate(
@@ -51,10 +50,18 @@ def candidate(
     revision: str | None = REVISION,
     layer: StackLayer | None = None,
     head: str = HEAD,
+    ci_green: bool = True,
+    codescene_clear: bool = True,
 ) -> Candidate:
     """Return the accepted candidate, optionally with a plan revision or stack."""
-    return Candidate(base=BASE, head=head, approved_plan_revision=revision,
-                     stack_layer=layer)
+    return Candidate(
+        base=BASE,
+        head=head,
+        approved_plan_revision=revision,
+        stack_layer=layer,
+        ci_green=ci_green,
+        codescene_clear=codescene_clear,
+    )
 
 
 def completeness(
@@ -289,6 +296,67 @@ def test_a_proof_only_assignment_needs_no_plan_revision() -> None:
     assert decision.ready, decision.reason
 
 
+def test_an_unaffected_proof_under_an_execplan_needs_no_reply() -> None:
+    """A not-applicable proof has no reply to bind, so no revision is echoed."""
+    decision = readiness(
+        candidate(),
+        completeness(),
+        proof(verdict=NOT_APPLICABLE, revision=None, echoed=None),
+    )
+    assert decision.ready, decision.reason
+
+
+def test_an_unaffected_completeness_needs_no_subject_or_revision() -> None:
+    """A not-applicable completeness is skipped, not checked against a stack."""
+    decision = readiness(
+        candidate(revision=None),
+        completeness(verdict=NOT_APPLICABLE, revision=None, echoed=None,
+                     subject=DECLARED_SUBSET,
+                     justification="This PR only authors the plan."),
+        proof(verdict=NOT_APPLICABLE, revision=None, echoed=None,
+              justification="No proof is affected by this change."),
+    )
+    assert decision.ready, decision.reason
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    ["acknowledged", "posted", "answered", "substantially complete"],
+)
+def test_an_unrecognized_verdict_is_not_settled(verdict: str) -> None:
+    """Only the four documented verdicts settle an assessment."""
+    decision = readiness(
+        candidate(),
+        Verdict(verdict=verdict, base=BASE, head=HEAD,
+                plan_revision=REVISION, echoed_revision=REVISION),
+        proof(),
+    )
+    assert not decision.ready
+    assert decision.reason == "assessment-unrecognized-verdict"
+
+
+@pytest.mark.parametrize(
+    ("ci_green", "codescene_clear", "reason"),
+    [
+        (False, True, "ci-not-green"),
+        (True, False, "codescene-not-clear"),
+        (False, False, "ci-not-green"),
+    ],
+    ids=["red-ci", "open-codescene", "both"],
+)
+def test_the_delivery_gates_precede_the_assessments(
+    ci_green: bool, codescene_clear: bool, reason: str
+) -> None:
+    """Green CI and clear CodeScene findings come before any ready transition."""
+    decision = readiness(
+        candidate(ci_green=ci_green, codescene_clear=codescene_clear),
+        completeness(verdict=PENDING),
+        proof(),
+    )
+    assert not decision.ready
+    assert decision.reason == reason, "delivery gates must be checked first"
+
+
 @pytest.mark.parametrize(("reason", "citation"), sorted(REASON_CITATIONS.items()))
 def test_each_readiness_reason_cites_a_sentence_in_the_shipped_documents(
     reason: str, citation: str
@@ -300,19 +368,86 @@ def test_each_readiness_reason_cites_a_sentence_in_the_shipped_documents(
     )
 
 
-def test_the_model_covers_every_reason_it_can_return() -> None:
-    """The citation table must name each reason, so none is silently uncited."""
-    produced = {
-        readiness(candidate(), completeness(verdict=verdict), proof()).reason
-        for verdict in (PENDING, NOT_CLEAR)
-    }
-    produced |= {
-        readiness(candidate(), completeness(), proof(verdict=verdict)).reason
-        for verdict in (PENDING, NOT_CLEAR)
-    }
-    produced |= {readiness(candidate(), completeness(), proof()).reason}
-    missing = produced - set(REASON_CITATIONS)
-    assert not missing, f"reasons without a citation: {sorted(missing)}"
+def _lower_stack() -> StackLayer:
+    """Return a layer with a parent and milestones above it."""
+    return StackLayer(
+        milestones=("EP-M1",), parent="stack#12", remaining_above=("EP-M3",)
+    )
+
+
+#: One candidate and verdict pair per reason the model can return. Every entry
+#: is a state, so the coverage test can require the model to produce exactly
+#: the cited reasons rather than a sample of them.
+REASON_STATES = {
+    "ci-not-green": (candidate(ci_green=False), completeness(), proof()),
+    "codescene-not-clear": (
+        candidate(codescene_clear=False), completeness(), proof()
+    ),
+    "assessment-unrecognized-verdict": (
+        candidate(),
+        Verdict(verdict="acknowledged", base=BASE, head=HEAD),
+        proof(),
+    ),
+    "not-applicable-undefended": (
+        candidate(),
+        completeness(),
+        proof(verdict=NOT_APPLICABLE, justification="  "),
+    ),
+    "completeness-pending": (
+        candidate(), completeness(verdict=PENDING), proof()
+    ),
+    "completeness-not-clear": (
+        candidate(), completeness(verdict=NOT_CLEAR), proof()
+    ),
+    "completeness-candidate-mismatch": (
+        candidate(), completeness(head="superseded-head"), proof()
+    ),
+    "completeness-superseded-revision": (
+        candidate(), completeness(revision="rev-previous", echoed="rev-previous"),
+        proof(),
+    ),
+    "completeness-revision-unbound": (
+        candidate(), completeness(echoed=None), proof()
+    ),
+    "completeness-whole-plan-required": (
+        candidate(), completeness(subject=DECLARED_SUBSET), proof()
+    ),
+    "completeness-stack-evidence-missing": (
+        candidate(layer=StackLayer(milestones=(), parent="stack#12",
+                                  remaining_above=("EP-M3",))),
+        completeness(subject=DECLARED_SUBSET),
+        proof(),
+    ),
+    "proof-pending": (
+        candidate(), completeness(), proof(verdict=PENDING, justification="")
+    ),
+    "proof-not-clear": (
+        candidate(), completeness(), proof(verdict=NOT_CLEAR, justification="")
+    ),
+    "proof-candidate-mismatch": (
+        candidate(), completeness(), proof(verdict=CLEAR, head="superseded-head")
+    ),
+    "proof-superseded-revision": (
+        candidate(), completeness(),
+        proof(verdict=CLEAR, revision="rev-previous", echoed="rev-previous"),
+    ),
+    "proof-revision-unbound": (
+        candidate(), completeness(), proof(verdict=CLEAR, echoed=None)
+    ),
+    "ready": (candidate(), completeness(), proof()),
+}
+
+
+def test_the_model_produces_exactly_the_reasons_it_cites() -> None:
+    """Every cited reason is reachable, and no other reason is returned."""
+    produced = {reason: readiness(*state).reason for reason, state in REASON_STATES.items()}
+    wrong = {reason: got for reason, got in produced.items() if got != reason}
+    assert not wrong, f"states produced a different reason: {wrong}"
+    assert set(produced) == set(REASON_CITATIONS), (
+        "cited reasons and reachable reasons must match: "
+        f"{sorted(set(produced) ^ set(REASON_CITATIONS))}"
+    )
+    assert set(readiness_module.REASONS) == set(REASON_CITATIONS)
 
 
 def test_the_readiness_section_states_the_transition_under_assessment() -> None:
@@ -404,8 +539,82 @@ DEFECTIVE_RULES = (
         "completeness-whole-plan-required",
         id="final-layer-exemption-widened",
     ),
+    pytest.param(
+        "_delivery_gates",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module,
+            "_delivery_gates",
+            lambda cand: (
+                _real_delivery_gates(cand)
+                if not cand.codescene_clear
+                else None
+            ),
+        ),
+        (candidate(ci_green=False), completeness(), proof()),
+        "ci-not-green",
+        id="ci-gate-dropped",
+    ),
+    pytest.param(
+        "_delivery_gates",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module,
+            "_delivery_gates",
+            lambda cand: (
+                _real_delivery_gates(cand) if not cand.ci_green else None
+            ),
+        ),
+        (candidate(codescene_clear=False), completeness(), proof()),
+        "codescene-not-clear",
+        id="codescene-gate-dropped",
+    ),
+    pytest.param(
+        "VERDICTS",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module, "VERDICTS", (*readiness_module.VERDICTS, "acknowledged")
+        ),
+        (candidate(),
+         Verdict(verdict="acknowledged", base=BASE, head=HEAD,
+                 plan_revision=REVISION, echoed_revision=REVISION),
+         proof()),
+        "assessment-unrecognized-verdict",
+        id="unrecognized-verdict-accepted",
+    ),
+    pytest.param(
+        "_revision_bound",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module, "_revision_bound", lambda verdict, cand, kind: None
+        ),
+        (candidate(), completeness(), proof(verdict=CLEAR, echoed=None)),
+        "proof-revision-unbound",
+        id="proof-revision-binding-dropped",
+    ),
+    pytest.param(
+        "_revision_bound",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module, "_revision_bound", lambda verdict, cand, kind: None
+        ),
+        (candidate(), completeness(echoed=None), proof()),
+        "completeness-revision-unbound",
+        id="completeness-echo-binding-dropped",
+    ),
+    pytest.param(
+        "_disposition",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module,
+            "_disposition",
+            lambda verdict, kind, cand: (
+                None
+                if verdict.verdict == NOT_APPLICABLE and not verdict.justification.strip()
+                else _real_disposition(verdict, kind, cand)
+            ),
+        ),
+        (candidate(), completeness(), proof(verdict=NOT_APPLICABLE, justification="  ")),
+        "not-applicable-undefended",
+        id="undefended-not-applicable-accepted",
+    ),
 )
 _real_disposition = readiness_module._disposition
+_real_delivery_gates = readiness_module._delivery_gates
 
 
 @pytest.mark.parametrize(

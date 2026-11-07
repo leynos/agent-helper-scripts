@@ -703,8 +703,9 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
-`tests/test_pr_readiness_model.py`, and `tests/test_sdlc_milestone_review.py`.
-See the [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
+`tests/test_pr_readiness_model.py`, `tests/test_pr_readiness_workflow.py`, and
+`tests/test_sdlc_milestone_review.py`. See the
+[`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
 and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
 procedures.
@@ -735,7 +736,17 @@ share, and each takes and returns plain strings without touching the filesystem:
 executable specification over candidate-bound verdicts.
 `tests/test_pr_readiness_model.py` requires each reason it can return to cite a
 sentence the shipped documents still state, so the model cannot outlive the
-prose it encodes.
+prose it encodes, and it pairs every rule with a mutation control that drops or
+widens it and must reverse the decision.
+
+`tests/pr_readiness_workflow.py` wraps that model in the sequence the skills
+describe: it posts the applicable assessment questions to a `Discussion`
+double, reads only a correlated reply from the assessment bot, decides, and
+calls `mark_ready` only when the gate holds. The double records the transition
+instead of performing it, so `tests/test_pr_readiness_workflow.py` proves the
+sequence reaches readiness for a current verdict and stays in draft for a
+subset-only or superseded one, with the proof assessment applying and with no
+ExecPlan in force.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment

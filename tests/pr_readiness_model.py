@@ -6,10 +6,11 @@ contract tests can exercise the agent workflow boundary with candidate-bound
 verdicts, subjects and plan revisions instead of only matching sentences.
 
 It is a specification rehearsal, not skill enforcement. Every reason it can
-return cites the sentence that states the rule, and
-``test_pr_readiness_model.py`` requires that sentence to remain in the shipped
+return appears in ``REASONS`` and cites the sentence that states the rule, and
+``test_pr_readiness_model.py`` requires both to stay in step with the shipped
 documents, so the model cannot quietly outlive the prose it encodes. Nothing
-here talks to GitHub, posts a comment, or moves a PR out of draft.
+here talks to GitHub, posts a comment, or moves a PR out of draft; the
+lifecycle double in ``pr_readiness_workflow`` supplies those surfaces.
 """
 
 from __future__ import annotations
@@ -20,6 +21,8 @@ CLEAR = "clear"
 NOT_CLEAR = "not clear"
 PENDING = "pending"
 NOT_APPLICABLE = "not applicable"
+
+VERDICTS = (CLEAR, NOT_CLEAR, PENDING, NOT_APPLICABLE)
 
 READY = "ready"
 STAY_DRAFT = "stay draft"
@@ -82,13 +85,18 @@ class Candidate:
 
     ``approved_plan_revision`` is ``None`` for an assignment no ExecPlan
     governs. ``stack_layer`` is present only when this PR is one layer of a
-    managed stack rather than ordinary single-PR delivery.
+    managed stack rather than ordinary single-PR delivery. ``ci_green`` and
+    ``codescene_clear`` are the other two documented pre-readiness gates:
+    readiness needs green CI and clear CodeScene findings as well as the
+    assessments, so the model refuses to mark a candidate ready without them.
     """
 
     base: str
     head: str
     approved_plan_revision: str | None = None
     stack_layer: StackLayer | None = None
+    ci_green: bool = True
+    codescene_clear: bool = True
 
 
 @dataclass(frozen=True)
@@ -106,6 +114,21 @@ class Readiness:
 #: The sentence in the shipped documents that states each decision's rule.
 #: Contract tests assert these remain present, so a reason cannot outlive it.
 REASON_CITATIONS = {
+    "ci-not-green": (
+        "Only when CI is green, CodeScene is clear, and all applicable"
+        " pre-readiness assessments hold for the accepted base/head"
+    ),
+    "codescene-not-clear": (
+        "Only when CI is green, CodeScene is clear, and all applicable"
+        " pre-readiness assessments hold for the accepted base/head"
+    ),
+    "assessment-unrecognized-verdict": (
+        "A verdict of `clear`, `not clear`, or `pending`, with a justified"
+        " `not applicable` for an assessment that does not apply."
+    ),
+    "not-applicable-undefended": (
+        "with a justified `not applicable` for an assessment that does not apply"
+    ),
     "completeness-pending": (
         "Both applicable assessments must clear for the accepted candidate"
         " before its draft-to-ready transition."
@@ -118,20 +141,7 @@ REASON_CITATIONS = {
         "Both applicable assessments must clear for the accepted candidate"
         " before its draft-to-ready transition."
     ),
-    "completeness-whole-plan-required": (
-        "Ordinary single-PR delivery and the layer carrying the plan's"
-        " remainder keep the whole approved plan as the subject."
-    ),
-    "completeness-stack-evidence-missing": (
-        "name the layer's milestones, the `github-stacks` parent it builds on,"
-        " and the milestones remaining above it"
-    ),
     "completeness-superseded-revision": (
-        "a verdict recorded against a revision that has since been superseded"
-        " by a newly approved revision does not clear the gate, even when the"
-        " base/head is unchanged"
-    ),
-    "proof-superseded-revision": (
         "a verdict recorded against a revision that has since been superseded"
         " by a newly approved revision does not clear the gate, even when the"
         " base/head is unchanged"
@@ -139,6 +149,14 @@ REASON_CITATIONS = {
     "completeness-revision-unbound": (
         "a reply that echoes only the base/head does not establish which"
         " revision was inspected"
+    ),
+    "completeness-whole-plan-required": (
+        "Ordinary single-PR delivery and the layer carrying the plan's"
+        " remainder keep the whole approved plan as the subject."
+    ),
+    "completeness-stack-evidence-missing": (
+        "name the layer's milestones, the `github-stacks` parent it builds on,"
+        " and the milestones remaining above it"
     ),
     "proof-pending": (
         "When the proof assessment applies, readiness also requires its clear"
@@ -152,35 +170,76 @@ REASON_CITATIONS = {
         "When the proof assessment applies, readiness also requires its clear"
         " verdict for the same base/head;"
     ),
+    "proof-superseded-revision": (
+        "a verdict recorded against a revision that has since been superseded"
+        " by a newly approved revision does not clear the gate, even when the"
+        " base/head is unchanged"
+    ),
     "proof-revision-unbound": (
         "a proof request under an ExecPlan must also name and echo the revision"
-    ),
-    "not-applicable-undefended": (
-        "with a justified `not applicable` for an assessment that does not apply"
     ),
     "ready": (
         "Only when CI is green, CodeScene is clear, and all applicable"
         " pre-readiness assessments hold for the accepted base/head"
     ),
 }
+REASONS = frozenset(REASON_CITATIONS)
+
+
+def _delivery_gates(candidate: Candidate) -> Readiness | None:
+    """Reject a candidate whose CI or CodeScene state blocks readiness.
+
+    Parameters
+    ----------
+    candidate : Candidate
+        The accepted candidate and its delivery-gate state.
+
+    Returns
+    -------
+    Readiness or None
+        A draft-preserving decision, or None when both gates hold.
+    """
+    if not candidate.ci_green:
+        return _decision("ci-not-green")
+    if not candidate.codescene_clear:
+        return _decision("codescene-not-clear")
+    return None
 
 
 def _decision(reason: str) -> Readiness:
-    """Return the draft-preserving decision for one blocked reason."""
+    """Return the draft-preserving decision for one blocked reason.
+
+    Parameters
+    ----------
+    reason : str
+        One key of ``REASON_CITATIONS``.
+
+    Returns
+    -------
+    Readiness
+        ``stay draft``, carrying the reason.
+
+    Raises
+    ------
+    AssertionError
+        Raised when the reason has no citation, which would let a rule enter
+        the model without a sentence that states it.
+    """
+    assert reason in REASONS, f"uncited readiness reason: {reason}"
     return Readiness(ready=False, reason=reason)
 
 
-def _revision_bound(verdict: Verdict, candidate: Candidate, reason: str) -> Readiness | None:
+def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readiness | None:
     """Reject a verdict that is not bound to the revision in force.
 
     Parameters
     ----------
     verdict : Verdict
-        The assessment verdict under test.
+        The assessment verdict under test, already settled as clear.
     candidate : Candidate
         The accepted candidate whose approved revision is in force.
-    reason : str
-        Reason code to report when the verdict names another revision.
+    kind : str
+        ``completeness`` or ``proof``, selecting the reason codes.
 
     Returns
     -------
@@ -190,9 +249,9 @@ def _revision_bound(verdict: Verdict, candidate: Candidate, reason: str) -> Read
     if candidate.approved_plan_revision is None:
         return None
     if verdict.plan_revision != candidate.approved_plan_revision:
-        return _decision(f"{reason}-superseded-revision")
+        return _decision(f"{kind}-superseded-revision")
     if verdict.echoed_revision != candidate.approved_plan_revision:
-        return _decision(f"{reason}-revision-unbound")
+        return _decision(f"{kind}-revision-unbound")
     return None
 
 
@@ -213,8 +272,10 @@ def _disposition(
     Returns
     -------
     Readiness or None
-        A draft-preserving decision, or None when the verdict has settled.
+        A draft-preserving decision, or None when the verdict is settled.
     """
+    if verdict.verdict not in VERDICTS:
+        return _decision("assessment-unrecognized-verdict")
     if verdict.verdict == NOT_APPLICABLE:
         if not verdict.justification.strip():
             return _decision("not-applicable-undefended")
@@ -243,7 +304,7 @@ def _subject(subject: Verdict, candidate: Candidate) -> Readiness | None:
     Readiness or None
         A draft-preserving decision, or None when the subject is admissible.
     """
-    if subject.subject == WHOLE_PLAN:
+    if subject.subject == WHOLE_PLAN or subject.verdict == NOT_APPLICABLE:
         return None
     layer = candidate.stack_layer
     if layer is None or layer.claims_whole_plan or layer.is_final_layer:
@@ -260,10 +321,17 @@ def readiness(
 ) -> Readiness:
     """Decide whether the accepted candidate may leave draft.
 
+    The documented order is green CI and clear CodeScene findings, substantive
+    assessment replies, then the verified ready transition, so the two delivery
+    gates are checked before any assessment. An assessment established as
+    ``not applicable`` has no reply to bind, so it is skipped rather than
+    subjected to the candidate and revision checks.
+
     Parameters
     ----------
     candidate : Candidate
-        The accepted base/head, approved plan revision, and stack topology.
+        The accepted base/head, approved plan revision, stack topology, and
+        delivery-gate state.
     completeness : Verdict
         The completeness assessment's verdict, subject, and candidate.
     proof : Verdict
@@ -272,13 +340,19 @@ def readiness(
     Returns
     -------
     Readiness
-        ``ready`` only when every applicable assessment holds for the accepted
-        candidate; otherwise ``stay draft`` with the deciding rule's reason.
+        ``ready`` only when both delivery gates hold and every applicable
+        assessment is settled for the accepted candidate; otherwise
+        ``stay draft`` with the deciding rule's reason.
     """
+    blocked = _delivery_gates(candidate)
+    if blocked is not None:
+        return blocked
     for kind, verdict in ((COMPLETENESS, completeness), (PROOF, proof)):
         blocked = _disposition(verdict, kind, candidate)
         if blocked is not None:
             return blocked
+        if verdict.verdict == NOT_APPLICABLE:
+            continue
         blocked = _revision_bound(verdict, candidate, kind)
         if blocked is not None:
             return blocked

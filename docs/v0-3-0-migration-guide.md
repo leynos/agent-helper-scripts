@@ -89,10 +89,11 @@ revision. Reassess work whose evidence predates this change:
 - A completeness verdict obtained against an earlier base/head does not cover a
   later push. Request a candidate-bound follow-up rather than transferring the
   old result.
-- A verdict stays valid across a new commit only if the plan revision is
-  unchanged, and it stops counting when a newly approved plan revision replaces
-  the one it inspected, even when no commit moved. Reassess against the
-  revision in force.
+- A changed candidate needs renewed coverage even when the plan revision is
+  unchanged: a new commit, rebase or retarget moves the base/head, and the old
+  verdict covered the one it inspected. A verdict also stops counting when a
+  newly approved plan revision replaces the one it inspected, even when no
+  commit moved. In both cases, reassess against the revision in force.
 - The completeness request covers the whole approved plan, so a message that
   reports remaining milestones as unimplemented work has not cleared it. Do not
   record those milestones as known limitations; they are in-scope work.
