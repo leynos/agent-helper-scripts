@@ -222,7 +222,9 @@ Record that state for each applicable assessment:
 - A verdict of `clear`, `not clear`, or `pending`, with a justified
   `not applicable` for an assessment that does not apply.
 - Each verdict sits on the same entry as the base/head and the plan revision it
-  was given for.
+  was given for; reconcile the revision the substantive reply echoes against
+  the revision in force, since a reply that echoes only the base/head does not
+  bind the verdict to an approved revision.
 - The completeness assessment's subject is either the whole plan or the
   declared subset; the proof assessment's subject is the named proofs it covers.
 - When the completeness assessment applies, only a clear whole-plan

@@ -72,11 +72,13 @@ evidence, and honest limitations:
 > `docs/execplans/<slug>.md`
 
 Published head: <full head SHA>; comparison base: <full base SHA>.
+Plan revision: <approved revision identifier and the plan file's blob SHA at this head>.
 Acceptance evidence: <commands, results, and evidence links>.
 Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.
 Assessment-ID: <unique request marker>.
 
-Please echo the Assessment-ID and assessed base/head in your substantive reply.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Identify remaining in-scope omissions or correctness defects and any access
@@ -89,7 +91,10 @@ CodeRabbit must address the actual plan and implementation with no remaining
 in-scope rework. An acknowledgement, silence, generic approval, missing
 inspection, or plan progress checkbox does not establish that result. An
 unimplemented plan milestone is in-scope work, not a limitation, per
-[applicability and ownership](#applicability-and-ownership).
+[applicability and ownership](#applicability-and-ownership). Name the plan
+revision in the request, because base/head alone cannot identify which revision
+was inspected when the approved revision changes without a new head; a reply
+that echoes only the base/head cannot bind its verdict to an approved revision.
 
 ## Proof inventory and specific scrutiny
 
@@ -167,6 +172,8 @@ candidate-bound evidence and affected assessment coverage. The plan revision is
 part of that candidate: a verdict recorded against a revision that has since
 been superseded by a newly approved revision does not clear the gate, even when
 the base/head is unchanged. Reassess against the approved revision in force.
+Reconcile the revision a reply echoes with the revision in force; a reply that
+echoes only the base/head does not establish which revision was inspected.
 Preserve earlier evidence for its actual scope without relabelling it as a new
 review. Do not set the PR back to draft. If the assessment service explicitly
 cannot process the question, retain its response and report the specific

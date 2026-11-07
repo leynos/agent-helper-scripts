@@ -192,6 +192,9 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "inspection not possible" in completeness, "evidential limitation kind must remain named: inspection not possible"
     assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
     assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
+    assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head>." in completeness, "completeness request must identify the assessed plan revision"
+    assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in completeness, "completeness request must require the reply to echo the plan revision"
+    assert "a reply that echoes only the base/head cannot bind its verdict to an approved revision" in completeness, "completeness section must state why base/head alone cannot bind a verdict"
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing, "initial comments must use assigned token route"
@@ -205,12 +208,14 @@ def assessment_contract(assessment: str, skill: str) -> None:
         "When the completeness assessment applies, only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
         "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
         "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
+        "reconcile the revision the substantive reply echoes against the revision in force",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
     assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
     assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
+    assert "Reconcile the revision a reply echoes with the revision in force" in readiness, "readiness section must reconcile the echoed plan revision"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"

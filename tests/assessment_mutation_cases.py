@@ -20,6 +20,11 @@ LEDGER_CLEARING = "ledger section must state: When the completeness assessment a
 LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
 LEDGER_PROOF_READINESS = "ledger section must state: When the proof assessment applies"
 READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
+REQUEST_REVISION = "completeness request must identify the assessed plan revision"
+ECHOED_REVISION = "completeness request must require the reply to echo the plan revision"
+BASE_HEAD_LIMIT = "completeness section must state why base/head alone cannot bind a verdict"
+READINESS_REVISION_RECONCILIATION = "readiness section must reconcile the echoed plan revision"
+LEDGER_ECHO_REVISION = "ledger section must state: reconcile the revision the substantive reply echoes"
 
 ASSESSMENT_MUTATIONS = (
     pytest.param(
@@ -128,7 +133,7 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "skill",
-        "on the same entry as the base/head and the plan revision it was given for.",
+        "on the same entry as the base/head and the plan revision it was given for;",
         "",
         False,
         LEDGER_CANDIDATE,
@@ -181,5 +186,45 @@ ASSESSMENT_MUTATIONS = (
         False,
         LEDGER_CLEARING,
         id="unbound-plan-revision",
+    ),
+    pytest.param(
+        "assessment",
+        "Plan revision: <approved revision identifier and the plan file's blob SHA at this head>.",
+        "",
+        False,
+        REQUEST_REVISION,
+        id="request-omits-plan-revision",
+    ),
+    pytest.param(
+        "assessment",
+        "Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply.",
+        "Please echo the Assessment-ID and assessed base/head in your substantive reply.",
+        False,
+        ECHOED_REVISION,
+        id="reply-echo-drops-plan-revision",
+    ),
+    pytest.param(
+        "assessment",
+        "a reply that echoes only the base/head cannot bind its verdict to an approved revision.",
+        "",
+        True,
+        BASE_HEAD_LIMIT,
+        id="moved-base-head-limit",
+    ),
+    pytest.param(
+        "assessment",
+        "Reconcile the revision a reply echoes with the revision in force;",
+        "",
+        False,
+        READINESS_REVISION_RECONCILIATION,
+        id="readiness-skips-echo-reconciliation",
+    ),
+    pytest.param(
+        "skill",
+        "reconcile the revision the substantive reply echoes against the revision in force",
+        "accept any reply that echoes the base/head",
+        False,
+        LEDGER_ECHO_REVISION,
+        id="ledger-binds-verdict-to-base-head-only",
     ),
 )
