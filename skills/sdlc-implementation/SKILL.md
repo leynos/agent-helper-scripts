@@ -155,9 +155,9 @@ Authorized publication/merge actions, stopping point, and concrete blockers:
 <!-- markdownlint-enable MD013 -->
 
 The completeness assessment covers the whole approved plan, so naming a
-delivered subset in the packet does not bound it.
-[Readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)
-owns the rule for when those assessments clear.
+delivered subset in the packet does not bound it; see
+[readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)
+for when those assessments clear.
 
 The receiving skill owns the two applicable hosted CodeRabbit assessments
 before readiness, their feedback and recovery, CI, rebasing, and merge. A
