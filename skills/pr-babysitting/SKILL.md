@@ -220,14 +220,14 @@ revision, implementation status, acceptance mapping, and assessment state.
 Record that state for each applicable assessment:
 
 - A verdict of `clear`, `not clear`, or `pending`, with a justified
-  `not applicable` for the proof assessment.
+  `not applicable` for an assessment that does not apply.
 - Record each verdict on the same entry as the base/head and the plan revision
   it was given for.
 - The completeness assessment's subject is either the whole plan or the
   declared subset; the proof assessment's subject is the named proofs it covers.
-- Only a clear whole-plan completeness verdict that covers the accepted
-  base/head and was recorded against the currently approved plan revision
-  satisfies
+- When the completeness assessment applies, only a clear whole-plan
+  completeness verdict that covers the accepted base/head and was recorded
+  against the currently approved plan revision satisfies
   [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
 - A verdict recorded against a superseded plan revision does not carry over,
   even when the base/head is unchanged.
