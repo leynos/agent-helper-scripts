@@ -119,8 +119,8 @@ failed `gh` call keeps its exit status and is classified as
 bodies, account names, and raw GitHub error text. They are the helper's
 complete telemetry: there is no separate metrics sink, and the per-stage
 `elapsed_ms` values already give each external call's latency. They come from
-the wall clock, so an adjustment during a stage can make a value inaccurate, and
-a reading that would be negative is reported as zero.
+the wall clock, so an adjustment during a stage can make a value inaccurate,
+and a reading that would be negative is reported as zero.
 
 The credential is scoped to the helper's process; never log the selected
 record, enable HTTP debug output, put it in an argument/header string, or write
