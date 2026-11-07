@@ -71,7 +71,7 @@ evidence, and honest limitations:
 
 > `docs/execplans/<slug>.md`
 
-Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>.
+Assessed subject: <the whole approved plan>.
 Published head: <full head SHA>; comparison base: <full base SHA>.
 Plan revision: <approved revision identifier and the plan file's blob SHA at this head>.
 Acceptance evidence: <commands, results, and evidence links>.
@@ -96,14 +96,13 @@ unimplemented plan milestone is in-scope work, not a limitation, per
 revision in the request, because base/head alone cannot identify which revision
 was inspected when the approved revision changes without a new head; a reply
 that echoes only the base/head cannot bind its verdict to an approved revision.
-The `Assessed subject:` line is what bounds this one request. For a
-managed-stack layer on the stack path, name that layer's milestones and the
-milestones remaining above it, say explicitly that the upper milestones are in
-scope for the stack rather than for this layer, and expect a verdict on the
-named layer only. Without that line, an assessor follows the whole-plan opening
-and reports the upper milestones as unfinished work, which no lower layer can
-ever clear. Ordinary single-PR delivery and the layer carrying the plan's
-remainder keep the whole approved plan as the subject.
+The `Assessed subject:` line is always the whole approved plan, and no other
+subject clears the gate. A managed-stack layer may record a declared-subset
+verdict as evidence for that layer's actual scope only, naming the layer's own
+milestones, the `github-stacks` parent it builds on and the milestones
+remaining above it. The whole-plan verdict remains required before any layer's
+transition, and the stack does not count as delivered until the layer carrying
+the plan's remainder obtains one.
 
 ## Proof inventory and specific scrutiny
 
@@ -173,22 +172,21 @@ remaining in-scope defects has not cleared the gate. Fix, validate, push, and
 await confirmation of the affected assessment. Never interpret a posted
 request, green formal-review check, or queue receipt as completion.
 
-A plan delivered as a managed stack has more than one layer in flight. A lower
-layer that implements only its own milestones cannot obtain a whole-plan
-verdict while the upper layers are unimplemented, and refusing readiness would
-block every layer, since the upper layers cannot land first. That layer may
-become ready only on a clear declared-subset verdict that covers its accepted
-base/head and approved plan revision, and only when the stack topology makes
-the unimplemented milestones demonstrably absent from that layer: name the
-layer's milestones, the `github-stacks` parent it builds on, and the milestones
+A plan delivered as a managed stack has more than one layer in flight. There is
+no subset or plateau waiver: a lower layer that implements only its own
+milestones stays in draft until a clear whole-plan verdict covers its
+candidate, exactly as ordinary delivery does. Record its declared-subset
+verdict as evidence for that layer's actual scope only, naming the layer's
+milestones, the `github-stacks` parent it builds on and the milestones
 remaining above it, and show that the deliverable they contain is not claimed
-here. The unimplemented milestones are still in-scope work for the stack as a
-whole, so a subset verdict clears only its own layer. The whole-plan verdict
-remains required for the layer that carries the plan's remaining milestones,
-and the stack does not count as delivered until that final layer obtains one. A
-single PR that claims the whole plan but delivers part of it never qualifies:
-it has no layer above it to carry the remainder, which is the incident this
-contract closes.
+here; the record never clears the gate. The unimplemented milestones are still
+in-scope work for the stack as a whole, and the stack does not count as
+delivered until the layer that carries the plan's remaining milestones obtains
+the whole-plan verdict. A single PR that claims the whole plan but delivers
+part of it never qualifies either, because the remainder has no other owner;
+that is the incident this contract closes. Where a boundary between layers
+makes the subject genuinely ambiguous, escalate it under the existing rules
+rather than treating the subset record as clearance.
 
 Once those responses, green CI, and clear CodeScene findings cover the current
 candidate, mark it ready and verify the transition. Only then inspect formal

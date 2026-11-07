@@ -97,11 +97,13 @@ revision. Reassess work whose evidence predates this change:
 - The completeness request covers the whole approved plan, so a message that
   reports remaining milestones as unimplemented work has not cleared it. Do not
   record those milestones as known limitations; they are in-scope work.
-- A plan delivered as a managed stack may clear a lower layer on a
-  declared-subset verdict that names the layer's milestones, the
-  `github-stacks` parent and the milestones remaining above it. The layer
-  carrying the plan's remainder still needs the whole-plan verdict, and a
-  single PR that claims the whole plan but delivers part of it never qualifies.
+- A plan delivered as a managed stack gets no readiness exception for a lower
+  layer. Record that layer's declared-subset verdict as evidence for its actual
+  scope only, naming the layer's milestones, the `github-stacks` parent and the
+  milestones remaining above it; the record never clears the gate. The
+  whole-plan verdict is still required before any layer's transition, the layer
+  carrying the plan's remainder still needs it, and a single PR that claims the
+  whole plan but delivers part of it never qualifies.
 
 See the [users' guide](users-guide.md#execplan-implementation) and the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) and

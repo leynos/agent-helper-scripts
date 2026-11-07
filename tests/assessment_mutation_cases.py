@@ -32,17 +32,19 @@ PROOF_REVISION = "proof request must name the plan revision when an ExecPlan app
 PROOF_ECHO_REVISION = "proof request must require the reply to echo the plan revision"
 PROOF_CONDITIONAL_ECHO = "proof echo must stay conditional on an ExecPlan"
 PROOF_NO_PLAN_CASE = "proof section must preserve the no-plan case"
-STACK_SUBSET_ONLY = "stack path must clear only on a declared-subset verdict"
-STACK_EVIDENCE = "stack path must require the named layer, parent and remainder"
-STACK_LAYER_SCOPE = "subset verdict must not clear the stack"
+STACK_NO_WAIVER = "stack path must state that no subset waiver exists"
+STACK_EVIDENCE = "subset evidence must record the layer, parent and remainder"
+STACK_LAYER_SCOPE = "subset evidence must not clear the gate"
 STACK_FINAL_WHOLE_PLAN = "final layer must still obtain a whole-plan verdict"
 STACK_SINGLE_PR = "single-PR partial delivery must stay blocked"
 REQUEST_SUBJECT = "completeness request must bound the assessed subject"
-REQUEST_SUBJECT_SCOPE = "completeness section must say what the subject line bounds"
-REQUEST_DEADLOCK_RATIONALE = "completeness section must record why an unbounded request deadlocks"
-REQUEST_WHOLE_PLAN_DEFAULT = "completeness section must keep whole-plan subjects"
-HANDOFF_EXCEPTION = "completeness packet must carry the managed-stack exception"
-HANDOFF_EXCEPTION_NAMED = "handoff must name the managed-stack exception"
+REQUEST_SUBJECT_WHOLE_PLAN = "completeness section must state that only the whole plan clears"
+REQUEST_SUBSET_EVIDENCE = "completeness section must keep subset verdicts as evidence only"
+HANDOFF_PACKET_EXCEPTION = (
+    "completeness packet must not grant a declared-subset waiver"
+)
+HANDOFF_SUBSET_EVIDENCE = "handoff must keep a subset verdict as evidence only"
+HANDOFF_SUBSET_EVIDENCE_NAMED = "handoff must state that subset evidence never clears the gate"
 HANDOFF_SINGLE_PR = "handoff must keep single-PR partial delivery blocked"
 
 COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
@@ -56,11 +58,7 @@ REQUEST_REVISION_FIELD = (
     "Plan revision: <approved revision identifier and the plan file's blob SHA"
     " at this head>."
 )
-REQUEST_SUBJECT_FIELD = (
-    "Assessed subject: <the whole approved plan, or this managed-stack layer's"
-    " named milestones with its stack parent and the milestones remaining above"
-    " it, per pr-babysitting's stack path>."
-)
+REQUEST_SUBJECT_FIELD = "Assessed subject: <the whole approved plan>."
 COMPLETENESS_ECHO_FIELD = (
     "Please echo the Assessment-ID, assessed base/head, and plan revision in"
     " your substantive reply."
@@ -246,11 +244,19 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "skill",
-        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "The completeness assessment's subject is recorded as either the whole plan or the declared subset; only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only.",
         "Every assessment's subject is the whole plan.",
         False,
         LEDGER_SUBJECT,
         id="proof-subject-collapsed-to-whole-plan",
+    ),
+    pytest.param(
+        "skill",
+        "only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only",
+        "a declared-subset verdict clears the gate",
+        False,
+        LEDGER_SUBJECT,
+        id="declared-subset-may-clear-ledger",
     ),
     pytest.param(
         "skill",
@@ -294,15 +300,15 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "skill",
-        "A managed-stack layer that implements only its own milestones may instead satisfy it on a clear declared-subset verdict",
-        "Every draft may instead satisfy it on a clear declared-subset verdict",
+        "A managed-stack layer that implements only its own milestones therefore stays in draft until a whole-plan verdict covers its candidate",
+        "A managed-stack layer that implements only its own milestones may leave draft without a whole-plan verdict",
         False,
         LEDGER_STACK_PATH,
-        id="stack-path-widened-to-any-draft",
+        id="stack-layer-exempted-from-whole-plan",
     ),
     pytest.param(
         "skill",
-        "which requires the named layer milestones, the stack parent, and the milestones remaining above it.",
+        "the record of its subset is evidence, not a readiness waiver.",
         "",
         False,
         LEDGER_STACK_PATH,
@@ -398,39 +404,39 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "assessment",
-        "That layer may become ready only on a clear declared-subset verdict",
-        "That layer may become ready on any pending verdict",
+        "There is no subset or plateau waiver:",
+        "A declared subset is sufficient for a lower layer:",
         False,
-        STACK_SUBSET_ONLY,
-        id="stack-ready-on-uncleared-verdict",
+        STACK_NO_WAIVER,
+        id="stack-path-admits-subset-waiver",
     ),
     pytest.param(
         "assessment",
-        "name the layer's milestones, the `github-stacks` parent it builds on, and the milestones remaining above it",
+        "naming the layer's milestones, the `github-stacks` parent it builds on and the milestones remaining above it",
         "",
         False,
         STACK_EVIDENCE,
-        id="stack-path-unbound",
+        id="subset-evidence-unbound",
     ),
     pytest.param(
         "assessment",
-        "a subset verdict clears only its own layer.",
-        "a subset verdict clears the whole stack.",
+        "the record never clears the gate.",
+        "the record clears the gate.",
         False,
         STACK_LAYER_SCOPE,
-        id="subset-verdict-clears-stack",
+        id="subset-evidence-clears-gate",
     ),
     pytest.param(
         "assessment",
-        "The whole-plan verdict remains required for the layer that carries the plan's remaining milestones",
-        "The whole-plan verdict is never required",
+        "the stack does not count as delivered until the layer that carries the plan's remaining milestones obtains the whole-plan verdict",
+        "the stack counts as delivered on each layer's subset verdict",
         False,
         STACK_FINAL_WHOLE_PLAN,
         id="stack-drops-final-whole-plan",
     ),
     pytest.param(
         "assessment",
-        "A single PR that claims the whole plan but delivers part of it never qualifies:",
+        "A single PR that claims the whole plan but delivers part of it never qualifies either",
         "",
         False,
         STACK_SINGLE_PR,
@@ -438,7 +444,7 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "assessment",
-        "Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>.",
+        REQUEST_SUBJECT_FIELD,
         "",
         False,
         REQUEST_SUBJECT,
@@ -446,26 +452,18 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "assessment",
-        "The `Assessed subject:` line is what bounds this one request.",
-        "The plan path alone is what bounds this one request.",
+        "The `Assessed subject:` line is always the whole approved plan, and no other subject clears the gate.",
+        "The `Assessed subject:` line may name a subset instead of the whole approved plan.",
         False,
-        REQUEST_SUBJECT_SCOPE,
-        id="request-subject-unbounded",
+        REQUEST_SUBJECT_WHOLE_PLAN,
+        id="request-subject-admits-subset",
     ),
     pytest.param(
         "assessment",
-        "Ordinary single-PR delivery and the layer carrying the plan's remainder keep the whole approved plan as the subject.",
+        "A managed-stack layer may record a declared-subset verdict as evidence for that layer's actual scope only",
         "",
         True,
-        REQUEST_WHOLE_PLAN_DEFAULT,
-        id="moved-request-whole-plan-default",
-    ),
-    pytest.param(
-        "assessment",
-        "Without that line, an assessor follows the whole-plan opening and reports the upper milestones as unfinished work, which no lower layer can ever clear.",
-        "",
-        False,
-        REQUEST_DEADLOCK_RATIONALE,
-        id="request-drops-deadlock-rationale",
+        REQUEST_SUBSET_EVIDENCE,
+        id="moved-subset-evidence-rule",
     ),
 )

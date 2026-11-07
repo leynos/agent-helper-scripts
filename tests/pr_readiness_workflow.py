@@ -24,7 +24,6 @@ from pr_readiness_model import (
     WHOLE_PLAN,
     Candidate,
     Readiness,
-    StackLayer,
     Verdict,
     delivery_gate,
     readiness,
@@ -45,7 +44,6 @@ class Reply:
     plan_revision: str | None = None
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
-    named_milestones: tuple[str, ...] = ()
     justification: str = ""
 
 
@@ -114,7 +112,6 @@ class PullRequest:
     ci_green: bool = True
     codescene_clear: bool = True
     approved_plan_revision: str | None = None
-    stack_layer: StackLayer | None = None
     ready_transitions: list[str] = field(default_factory=list)
 
     def mark_ready(self) -> None:
@@ -142,7 +139,6 @@ class PullRequest:
             base=self.base,
             head=self.head,
             approved_plan_revision=self.approved_plan_revision,
-            stack_layer=self.stack_layer,
             ci_green=self.ci_green,
             codescene_clear=self.codescene_clear,
         )
@@ -183,7 +179,6 @@ def _verdict(
         plan_revision=reply.plan_revision,
         echoed_revision=reply.echoed_revision,
         subject=reply.subject,
-        named_milestones=reply.named_milestones,
         justification=reply.justification,
     )
 

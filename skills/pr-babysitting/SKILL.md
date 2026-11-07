@@ -228,16 +228,17 @@ Record that state for each applicable assessment:
   assessment is in scope, so a proof request under an ExecPlan must also name
   and echo the revision; without an ExecPlan, the base/head is the whole
   candidate and there is no revision to reconcile.
-- The completeness assessment's subject is either the whole plan or the
-  declared subset; the proof assessment's subject is the named proofs it covers.
+- The completeness assessment's subject is recorded as either the whole plan or
+  the declared subset; only the whole approved plan clears the gate, and a
+  declared-subset verdict is evidence for its actual scope only. The proof
+  assessment's subject is the named proofs it covers.
 - When the completeness assessment applies, a clear whole-plan completeness
   verdict covering the accepted base/head and recorded against the currently
   approved plan revision satisfies
   [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
-  A managed-stack layer that implements only its own milestones may instead
-  satisfy it on a clear declared-subset verdict, but only through that
-  section's stack path, which requires the named layer milestones, the stack
-  parent, and the milestones remaining above it.
+  A managed-stack layer that implements only its own milestones therefore
+  stays in draft until a whole-plan verdict covers its candidate; the record of
+  its subset is evidence, not a readiness waiver.
 - A verdict recorded against a superseded plan revision does not carry over,
   even when the base/head is unchanged.
 - When the proof assessment applies, readiness also requires its clear verdict

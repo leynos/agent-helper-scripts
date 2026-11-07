@@ -7,6 +7,12 @@ import re
 
 import pytest
 
+from assessment_mutation_cases import (
+    HANDOFF_PACKET_EXCEPTION,
+    HANDOFF_SINGLE_PR,
+    HANDOFF_SUBSET_EVIDENCE,
+    HANDOFF_SUBSET_EVIDENCE_NAMED,
+)
 from skill_contract_support import (
     mutate_one_clause,
     normalize,
@@ -120,11 +126,9 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert "against the whole approved plan" in packet, (
         "completeness assessment must name the whole approved plan as its subject"
     )
+    assert "declared-subset" not in packet, HANDOFF_PACKET_EXCEPTION
     assert "not the declared PR scope" in packet, (
         "completeness assessment must exclude the declared PR scope as its subject"
-    )
-    assert "except a managed-stack layer on pr-babysitting's stack path" in packet, (
-        "completeness packet must carry the managed-stack exception"
     )
     assert "evidence or pending" in packet, (
         "handoff must still distinguish evidence from pending"
@@ -133,11 +137,14 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert "does not bound it" in handoff, (
         "handoff must state that a delivered subset does not bound the assessment"
     )
-    assert "A layer in a managed stack is the one exception" in handoff, (
-        "handoff must name the managed-stack exception"
+    subset_evidence = (
+        "A managed-stack layer records its declared-subset verdict as evidence"
+        " for its actual scope only"
     )
-    assert "Claiming the whole plan in a single PR that delivers part of it is never that exception" in handoff, (
-        "handoff must keep single-PR partial delivery blocked"
+    assert subset_evidence in handoff, HANDOFF_SUBSET_EVIDENCE
+    assert "it never clears the gate" in handoff, HANDOFF_SUBSET_EVIDENCE_NAMED
+    assert "Claiming the whole plan in a single PR that delivers part of it never qualifies" in handoff, (
+        HANDOFF_SINGLE_PR
     )
     assert READINESS_ANCHOR in handoff, (
         "handoff must link pr-babysitting's readiness clearing rule"
@@ -196,8 +203,7 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
     ("old", "new", "expected"),
     [
         (
-            "against the whole approved plan, not the declared PR scope,"
-            " except a managed-stack layer on pr-babysitting's stack path; ",
+            "against the whole approved plan, not the declared PR scope;",
             "",
             WHOLE_PLAN_SUBJECT,
         ),
@@ -206,13 +212,36 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
             "against the declared PR scope",
             WHOLE_PLAN_SUBJECT,
         ),
+        (
+            "execplan-assessment readiness rule; evidence or pending.",
+            "execplan-assessment readiness rule; evidence or pending, except a"
+            " managed-stack layer clearing on its declared-subset verdict.",
+            HANDOFF_PACKET_EXCEPTION,
+        ),
+        (
+            "A managed-stack layer records its declared-subset verdict as"
+            " evidence for its actual scope only",
+            "A managed-stack layer may clear on its declared-subset verdict",
+            HANDOFF_SUBSET_EVIDENCE,
+        ),
+        (
+            "and it never clears the gate",
+            "and it clears the gate",
+            HANDOFF_SUBSET_EVIDENCE_NAMED,
+        ),
     ],
-    ids=["removed-qualifier", "narrowed-to-declared-scope"],
+    ids=[
+        "removed-qualifier",
+        "narrowed-to-declared-scope",
+        "reintroduced-subset-exception",
+        "subset-evidence-widened",
+        "subset-evidence-allowed-to-clear",
+    ],
 )
-def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
+def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
     implementation_text: str, setup_text: str, old: str, new: str, expected: str
 ) -> None:
-    """Deleting or narrowing the whole-plan qualifier fails the handoff contract."""
+    """Deleting, narrowing, or inventing an exception fails the handoff contract."""
     mutated = mutate_one_clause(implementation_text, old, new)
     with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(mutated, setup_text)

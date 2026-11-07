@@ -27,6 +27,7 @@ VERDICTS = (CLEAR, NOT_CLEAR, PENDING, NOT_APPLICABLE)
 READY = "ready"
 STAY_DRAFT = "stay draft"
 
+#: The ledger records either of these subjects; only the whole plan clears.
 WHOLE_PLAN = "whole-plan"
 DECLARED_SUBSET = "declared-subset"
 
@@ -37,42 +38,15 @@ PROOF = "proof"
 
 
 @dataclass(frozen=True)
-class StackLayer:
-    """The topology a declared-subset verdict must name to clear its layer.
-
-    A layer clears on a subset only when the stack makes the unimplemented
-    milestones demonstrably absent from it, so the evidence names the layer's
-    own milestones, the `github-stacks` parent, and the milestones remaining
-    above it. An empty ``remaining_above`` means nothing sits above this layer,
-    so it carries the plan's remainder and needs the whole-plan verdict.
-    """
-
-    milestones: tuple[str, ...]
-    parent: str
-    remaining_above: tuple[str, ...]
-    claims_whole_plan: bool = False
-
-    @property
-    def is_final_layer(self) -> bool:
-        """Whether nothing sits above this layer, which then carries the rest."""
-        return not self.remaining_above
-
-    @property
-    def names_its_evidence(self) -> bool:
-        """Whether the layer, its parent and the milestones above it are named."""
-        return bool(self.milestones) and bool(self.parent)
-
-
-@dataclass(frozen=True)
 class Verdict:
     """One assessment verdict with the candidate and subject it was given for.
 
     ``echoed_revision`` is the plan revision the substantive reply itself
     echoed, which is what binds the verdict to a revision rather than to a
     base/head alone. It stays ``None`` for an assessment with no ExecPlan.
-    ``named_milestones`` is what a declared-subset subject names, so the model
-    can require it to be the layer's own milestones rather than any text at
-    all.
+    ``subject`` is the ledger's record of what the verdict covered: the whole
+    approved plan, or a declared subset that is evidence for its actual scope
+    only and never clears the gate.
     """
 
     verdict: str
@@ -81,26 +55,23 @@ class Verdict:
     plan_revision: str | None = None
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
-    named_milestones: tuple[str, ...] = ()
     justification: str = ""
 
 
 @dataclass(frozen=True)
 class Candidate:
-    """The accepted candidate, its approved plan revision, and its stack.
+    """The accepted candidate and its approved plan revision.
 
     ``approved_plan_revision`` is ``None`` for an assignment no ExecPlan
-    governs. ``stack_layer`` is present only when this PR is one layer of a
-    managed stack rather than ordinary single-PR delivery. ``ci_green`` and
-    ``codescene_clear`` are the other two documented pre-readiness gates:
-    readiness needs green CI and clear CodeScene findings as well as the
-    assessments, so the model refuses to mark a candidate ready without them.
+    governs. ``ci_green`` and ``codescene_clear`` are the other two documented
+    pre-readiness gates: readiness needs green CI and clear CodeScene findings
+    as well as the assessments, so the model refuses to mark a candidate ready
+    without them.
     """
 
     base: str
     head: str
     approved_plan_revision: str | None = None
-    stack_layer: StackLayer | None = None
     ci_green: bool = True
     codescene_clear: bool = True
 
@@ -157,20 +128,12 @@ REASON_CITATIONS = {
         " revision was inspected"
     ),
     "completeness-subject-unrecognized": (
-        "The completeness assessment's subject is either the whole plan or the"
-        " declared subset"
+        "The completeness assessment's subject is recorded as either the whole"
+        " plan or the declared subset"
     ),
-    "completeness-whole-plan-required": (
-        "Ordinary single-PR delivery and the layer carrying the plan's"
-        " remainder keep the whole approved plan as the subject."
-    ),
-    "completeness-stack-evidence-missing": (
-        "name the layer's milestones, the `github-stacks` parent it builds on,"
-        " and the milestones remaining above it"
-    ),
-    "completeness-stack-milestones-unnamed": (
-        "name that layer's milestones and the"
-        " milestones remaining above it"
+    "completeness-declared-subset-does-not-clear": (
+        "only the whole approved plan clears the gate, and a declared-subset"
+        " verdict is evidence for its actual scope only"
     ),
     "proof-pending": (
         "When the proof assessment applies, readiness also requires its clear"
@@ -327,45 +290,23 @@ def _disposition(
     return None
 
 
-def _names_the_layer(
-    named: tuple[str, ...], layer: StackLayer
-) -> bool:
-    """Whether a subset subject names exactly the milestones the layer carries.
+def _subject(subject: Verdict) -> Readiness | None:
+    """Reject a subject that is not the whole approved plan.
 
-    Parameters
-    ----------
-    named : tuple of str
-        The milestones the assessed subject declared.
-    layer : StackLayer
-        The layer the subject claims to cover.
-
-    Returns
-    -------
-    bool
-        True only when the named milestones are the layer's own.
-    """
-    return tuple(named) == layer.milestones
-
-
-def _subject(subject: Verdict, candidate: Candidate) -> Readiness | None:
-    """Reject a subject the documented request could not have produced.
-
-    The assessed subject is either the whole approved plan or a declared
-    subset, and a subset must name exactly the milestones the stack layer
-    carries. Any other subject is not a documented answer, so it cannot clear
-    the gate even when the layer's topology would otherwise qualify.
+    The ledger records either the whole plan or a declared subset, and only the
+    whole plan clears: a subset verdict is evidence for its actual scope, so a
+    managed-stack layer records one without being able to leave draft on it.
+    An unrecognized subject is not a documented record at all.
 
     Parameters
     ----------
     subject : Verdict
         The completeness verdict, whose subject bounds what it assessed.
-    candidate : Candidate
-        The accepted candidate, carrying any stack layer topology.
 
     Returns
     -------
     Readiness or None
-        A draft-preserving decision, or None when the subject is admissible.
+        A draft-preserving decision, or None when the subject is the whole plan.
     """
     if subject.verdict == NOT_APPLICABLE:
         return None
@@ -373,14 +314,7 @@ def _subject(subject: Verdict, candidate: Candidate) -> Readiness | None:
         return None
     if subject.subject not in SUBJECTS:
         return _decision("completeness-subject-unrecognized")
-    layer = candidate.stack_layer
-    if layer is None or layer.claims_whole_plan or layer.is_final_layer:
-        return _decision("completeness-whole-plan-required")
-    if not layer.names_its_evidence:
-        return _decision("completeness-stack-evidence-missing")
-    if not _names_the_layer(subject.named_milestones, layer):
-        return _decision("completeness-stack-milestones-unnamed")
-    return None
+    return _decision("completeness-declared-subset-does-not-clear")
 
 
 def readiness(
@@ -399,8 +333,7 @@ def readiness(
     Parameters
     ----------
     candidate : Candidate
-        The accepted base/head, approved plan revision, stack topology, and
-        delivery-gate state.
+        The accepted base/head, approved plan revision, and delivery-gate state.
     completeness : Verdict
         The completeness assessment's verdict, subject, and candidate.
     proof : Verdict
@@ -425,7 +358,7 @@ def readiness(
         blocked = _revision_bound(verdict, candidate, kind)
         if blocked is not None:
             return blocked
-    blocked = _subject(completeness, candidate)
+    blocked = _subject(completeness)
     if blocked is not None:
         return blocked
     return _cleared()

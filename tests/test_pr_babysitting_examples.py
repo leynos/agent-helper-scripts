@@ -206,9 +206,9 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
     assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
     assert "a reply that echoes only the base/head cannot bind its verdict to an approved revision" in completeness, "completeness section must state why base/head alone cannot bind a verdict"
-    assert "The `Assessed subject:` line is what bounds this one request." in completeness, "completeness section must say what the subject line bounds"
-    assert "Ordinary single-PR delivery and the layer carrying the plan's remainder keep the whole approved plan as the subject." in completeness, "completeness section must keep whole-plan subjects"
-    assert "Without that line, an assessor follows the whole-plan opening and reports the upper milestones as unfinished work" in completeness, "completeness section must record why an unbounded request deadlocks"
+    assert "The `Assessed subject:` line is always the whole approved plan, and no other subject clears the gate." in completeness, "completeness section must state that only the whole plan clears"
+    assert "A managed-stack layer may record a declared-subset verdict as evidence for that layer's actual scope only" in completeness, "completeness section must keep subset verdicts as evidence only"
+    assert "The whole-plan verdict remains required before any layer's transition" in completeness, "completeness section must require a whole-plan verdict for every transition"
     request = fenced_request(assessment, COMPLETENESS_HEADING)
     for field, expected_message in COMPLETENESS_REQUEST_FIELDS:
         assert field in request, expected_message
@@ -229,9 +229,10 @@ def assessment_contract(assessment: str, skill: str) -> None:
     for requirement in (
         "A verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for an assessment that does not apply",
         "on the same entry as the base/head and the plan revision it was given for",
-        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "The completeness assessment's subject is recorded as either the whole plan or the declared subset; only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only.",
+        "The proof assessment's subject is the named proofs it covers.",
         "When the completeness assessment applies, a clear whole-plan completeness verdict covering the accepted base/head and recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
-        "A managed-stack layer that implements only its own milestones may instead satisfy it on a clear declared-subset verdict, but only through that section's stack path, which requires the named layer milestones, the stack parent, and the milestones remaining above it.",
+        "A managed-stack layer that implements only its own milestones therefore stays in draft until a whole-plan verdict covers its candidate; the record of its subset is evidence, not a readiness waiver.",
         "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
         "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
         "reconcile the revision the substantive reply echoes against the revision in force",
@@ -244,11 +245,12 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
     assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
     assert "Reconcile the revision a reply echoes with the revision in force" in readiness, "readiness section must reconcile the echoed plan revision"
-    assert "That layer may become ready only on a clear declared-subset verdict" in readiness, "stack path must clear only on a declared-subset verdict"
-    assert "name the layer's milestones, the `github-stacks` parent it builds on, and the milestones remaining above it" in readiness, "stack path must require the named layer, parent and remainder"
-    assert "a subset verdict clears only its own layer" in readiness, "subset verdict must not clear the stack"
-    assert "The whole-plan verdict remains required for the layer that carries the plan's remaining milestones" in readiness, "final layer must still obtain a whole-plan verdict"
-    assert "A single PR that claims the whole plan but delivers part of it never qualifies" in readiness, "single-PR partial delivery must stay blocked"
+    assert "There is no subset or plateau waiver" in readiness, "stack path must state that no subset waiver exists"
+    assert "stays in draft until a clear whole-plan verdict covers its candidate" in readiness, "a lower layer must wait for the whole-plan verdict"
+    assert "naming the layer's milestones, the `github-stacks` parent it builds on and the milestones remaining above it" in readiness, "subset evidence must record the layer, parent and remainder"
+    assert "the record never clears the gate" in readiness, "subset evidence must not clear the gate"
+    assert "the stack does not count as delivered until the layer that carries the plan's remaining milestones obtains the whole-plan verdict" in readiness, "final layer must still obtain a whole-plan verdict"
+    assert "A single PR that claims the whole plan but delivers part of it never qualifies either" in readiness, "single-PR partial delivery must stay blocked"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"

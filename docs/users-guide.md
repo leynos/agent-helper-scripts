@@ -896,10 +896,13 @@ in force, and the reply must echo that revision: a verdict recorded against a
 later-adjusted base/head, or against a revision that a newly approved plan has
 replaced, does not clear the gate even when the commit is unchanged. The same
 revision binding applies to a proof assessment under an ExecPlan. A plan
-delivered as a managed stack is the one exception: a lower layer may clear on a
-declared-subset verdict once it names its own milestones, the `github-stacks`
-parent it builds on and the milestones remaining above it, and the layer that
-carries the plan's remainder still needs the whole-plan verdict. See
+delivered as a managed stack gets no readiness exception for its lower layers:
+a lower layer's declared-subset verdict is recorded as evidence for that
+layer's actual scope only, naming the layer's own milestones, the
+`github-stacks` parent it builds on and the milestones remaining above it, and
+that record never clears the gate. The whole-plan verdict is still required
+before any layer's transition, and the stack does not count as delivered until
+the layer carrying the plan's remainder obtains one. See
 [readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 
 For an assessment wait, the agent records the pre-post comment baseline and

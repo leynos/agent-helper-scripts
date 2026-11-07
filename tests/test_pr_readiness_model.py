@@ -2,9 +2,9 @@
 
 The skills state the readiness gate in prose, so these tests drive its
 executable specification with whole candidates: accepted base/head, approved
-plan revision, stack topology, and the two assessment verdicts. Each case
-checks whether the candidate may leave draft, which is the externally
-observable transition this work changes.
+plan revision, and the two assessment verdicts. Each case checks whether the
+candidate may leave draft, which is the externally observable transition this
+work changes.
 
 The specification is not product code. ``pr_readiness_model`` restates the
 gate, and the cases below keep the restatement honest: every reason the model
@@ -28,9 +28,9 @@ from pr_readiness_model import (
     PENDING,
     PROOF,
     REASON_CITATIONS,
+    SUBJECTS,
     WHOLE_PLAN,
     Candidate,
-    StackLayer,
     Verdict,
     readiness,
 )
@@ -48,17 +48,15 @@ REVISION = "rev-2026-11-01"
 def candidate(
     *,
     revision: str | None = REVISION,
-    layer: StackLayer | None = None,
     head: str = HEAD,
     ci_green: bool = True,
     codescene_clear: bool = True,
 ) -> Candidate:
-    """Return the accepted candidate, optionally with a plan revision or stack."""
+    """Return the accepted candidate, optionally with a plan revision."""
     return Candidate(
         base=BASE,
         head=head,
         approved_plan_revision=revision,
-        stack_layer=layer,
         ci_green=ci_green,
         codescene_clear=codescene_clear,
     )
@@ -68,7 +66,6 @@ def completeness(
     *,
     verdict: str = CLEAR,
     subject: str = WHOLE_PLAN,
-    milestones: tuple[str, ...] = (),
     revision: str | None = REVISION,
     echoed: str | None = REVISION,
     head: str = HEAD,
@@ -78,7 +75,7 @@ def completeness(
     """Return a completeness verdict, whole-plan and exact by default."""
     return Verdict(verdict=verdict, base=base, head=head,
                    plan_revision=revision, echoed_revision=echoed,
-                   subject=subject, named_milestones=milestones,
+                   subject=subject,
                    justification=justification)
 
 
@@ -150,49 +147,22 @@ def test_a_verdict_on_another_candidate_keeps_the_pr_in_draft(
     assert decision.reason == reason
 
 
-def test_a_subset_verdict_without_a_stack_keeps_the_pr_in_draft() -> None:
-    """A single PR that claims the whole plan cannot clear on its subset."""
-    decision = readiness(
-        candidate(), completeness(subject=DECLARED_SUBSET), proof()
-    )
-    assert not decision.ready
-    assert decision.reason == "completeness-whole-plan-required"
-
-
-def test_a_lower_stack_layer_clears_on_its_named_subset() -> None:
-    """A layer with its parent and milestones above clears only its own work."""
-    layer = StackLayer(
-        milestones=("EP-M1", "EP-M2"),
-        parent="stack#12",
-        remaining_above=("EP-M3", "EP-M4"),
-    )
-    decision = readiness(
-        candidate(layer=layer),
-        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
-        proof(),
-    )
-    assert decision.ready, decision.reason
-
-
 @pytest.mark.parametrize(
-    "layer",
+    "candidate_state",
     [
-        StackLayer(milestones=(), parent="stack#12", remaining_above=("EP-M3",)),
-        StackLayer(milestones=("EP-M1",), parent="", remaining_above=("EP-M3",)),
+        pytest.param(candidate(), id="single-pr"),
+        pytest.param(candidate(revision=None), id="no-execplan"),
     ],
-    ids=["unnamed-layer-milestones", "unnamed-parent"],
 )
-def test_a_subset_verdict_without_stack_evidence_keeps_the_pr_in_draft(
-    layer: StackLayer,
+def test_a_declared_subset_verdict_never_clears_the_gate(
+    candidate_state: Candidate,
 ) -> None:
-    """A claimed subset must name its layer milestones and stack parent."""
+    """A subset verdict is evidence for its actual scope only, never clearance."""
     decision = readiness(
-        candidate(layer=layer),
-        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
-        proof(),
+        candidate_state, completeness(subject=DECLARED_SUBSET), proof()
     )
     assert not decision.ready
-    assert decision.reason == "completeness-stack-evidence-missing"
+    assert decision.reason == "completeness-declared-subset-does-not-clear"
 
 
 @pytest.mark.parametrize(
@@ -200,63 +170,10 @@ def test_a_subset_verdict_without_stack_evidence_keeps_the_pr_in_draft(
     ["", "declared-scope", "this PR", "whole plan"],
 )
 def test_an_unrecognized_subject_keeps_the_pr_in_draft(subject: str) -> None:
-    """Only the two documented subjects can clear the gate."""
-    decision = readiness(
-        candidate(layer=_lower_stack()),
-        completeness(subject=subject, milestones=_lower_stack().milestones),
-        proof(),
-    )
+    """Only the whole plan or a declared subset is a documented record."""
+    decision = readiness(candidate(), completeness(subject=subject), proof())
     assert not decision.ready
     assert decision.reason == "completeness-subject-unrecognized"
-
-
-@pytest.mark.parametrize(
-    "milestones",
-    [(), ("EP-M1",), ("EP-M1", "EP-M2", "EP-M3"), ("EP-M9",)],
-    ids=["none-named", "partial", "includes-work-above", "unrelated"],
-)
-def test_a_subset_verdict_must_name_the_layers_own_milestones(
-    milestones: tuple[str, ...],
-) -> None:
-    """A subset subject that does not match the layer cannot clear it."""
-    decision = readiness(
-        candidate(layer=_lower_stack()),
-        completeness(subject=DECLARED_SUBSET, milestones=milestones),
-        proof(),
-    )
-    assert not decision.ready
-    assert decision.reason == "completeness-stack-milestones-unnamed"
-
-
-def test_the_final_stack_layer_cannot_clear_on_its_subset() -> None:
-    """The layer carrying the remainder needs the whole-plan verdict."""
-    layer = StackLayer(
-        milestones=("EP-M3", "EP-M4"), parent="stack#12", remaining_above=()
-    )
-    decision = readiness(
-        candidate(layer=layer),
-        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
-        proof(),
-    )
-    assert not decision.ready
-    assert decision.reason == "completeness-whole-plan-required"
-
-
-def test_a_single_pr_claiming_the_whole_plan_cannot_clear_on_a_subset() -> None:
-    """A PR with no layer above it has no one to carry the remainder."""
-    layer = StackLayer(
-        milestones=("EP-M1",),
-        parent="stack#12",
-        remaining_above=("EP-M3",),
-        claims_whole_plan=True,
-    )
-    decision = readiness(
-        candidate(layer=layer),
-        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
-        proof(),
-    )
-    assert not decision.ready
-    assert decision.reason == "completeness-whole-plan-required"
 
 
 @pytest.mark.parametrize(
@@ -350,7 +267,7 @@ def test_an_unaffected_proof_under_an_execplan_needs_no_reply() -> None:
 
 
 def test_an_unaffected_completeness_needs_no_subject_or_revision() -> None:
-    """A not-applicable completeness is skipped, not checked against a stack."""
+    """A not-applicable completeness is skipped, not checked against a subject."""
     decision = readiness(
         candidate(revision=None),
         completeness(verdict=NOT_APPLICABLE, revision=None, echoed=None,
@@ -411,15 +328,6 @@ def test_each_readiness_reason_cites_a_sentence_in_the_shipped_documents(
     )
 
 
-def _lower_stack() -> StackLayer:
-    """Return a layer with its own milestones, a parent and work above it."""
-    return StackLayer(
-        milestones=("EP-M1", "EP-M2"),
-        parent="stack#12",
-        remaining_above=("EP-M3", "EP-M4"),
-    )
-
-
 #: One candidate and verdict pair per reason the model can return. Every entry
 #: is a state, so the coverage test can require the model to produce exactly
 #: the cited reasons rather than a sample of them.
@@ -455,23 +363,10 @@ REASON_STATES = {
         candidate(), completeness(echoed=None), proof()
     ),
     "completeness-subject-unrecognized": (
-        candidate(layer=_lower_stack()),
-        completeness(subject="declared-scope", milestones=_lower_stack().milestones),
-        proof(),
+        candidate(), completeness(subject="declared-scope"), proof()
     ),
-    "completeness-whole-plan-required": (
+    "completeness-declared-subset-does-not-clear": (
         candidate(), completeness(subject=DECLARED_SUBSET), proof()
-    ),
-    "completeness-stack-evidence-missing": (
-        candidate(layer=StackLayer(milestones=(), parent="stack#12",
-                                  remaining_above=("EP-M3",))),
-        completeness(subject=DECLARED_SUBSET),
-        proof(),
-    ),
-    "completeness-stack-milestones-unnamed": (
-        candidate(layer=_lower_stack()),
-        completeness(subject=DECLARED_SUBSET, milestones=("EP-M9",)),
-        proof(),
     ),
     "proof-pending": (
         candidate(), completeness(), proof(verdict=PENDING, justification="")
@@ -541,48 +436,36 @@ def test_readiness_model_names_the_completeness_and_proof_kinds() -> None:
     assert (COMPLETENESS, PROOF) == ("completeness", "proof")
 
 
-def _subject_accepting_any_subject(subject, cand):  # noqa: ANN001
-    """Drop the recognized-subject check but keep the rest of the rule."""
-    if subject.verdict == NOT_APPLICABLE or subject.subject == WHOLE_PLAN:
+def _subject_accepting_declared_subset(subject):  # noqa: ANN001
+    """Let the recorded subset clear, but keep rejecting unknown subjects."""
+    if subject.verdict == NOT_APPLICABLE or subject.subject in SUBJECTS:
         return None
-    return _real_subject(
-        completeness(subject=DECLARED_SUBSET, milestones=subject.named_milestones),
-        cand,
-    )
+    return _real_subject(subject)
+
+
+def _subject_accepting_any_subject(subject):  # noqa: ANN001
+    """Drop the subject rule entirely, as a widened gate would."""
+    return None
 
 
 DEFECTIVE_RULES = (
     pytest.param(
         "_subject",
         lambda monkeypatch: monkeypatch.setattr(
-            readiness_module, "_subject", lambda subject, cand: None
+            readiness_module, "_subject", _subject_accepting_declared_subset
         ),
         (candidate(), completeness(subject=DECLARED_SUBSET), proof()),
-        "completeness-whole-plan-required",
-        id="subject-rule-dropped",
+        "completeness-declared-subset-does-not-clear",
+        id="declared-subset-accepted",
     ),
     pytest.param(
         "_subject",
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module, "_subject", _subject_accepting_any_subject
         ),
-        (candidate(layer=_lower_stack()),
-         completeness(subject="declared-scope",
-                      milestones=_lower_stack().milestones),
-         proof()),
+        (candidate(), completeness(subject="declared-scope"), proof()),
         "completeness-subject-unrecognized",
         id="unrecognized-subject-accepted",
-    ),
-    pytest.param(
-        "milestones",
-        lambda monkeypatch: monkeypatch.setattr(
-            readiness_module, "_names_the_layer", lambda named, layer: True
-        ),
-        (candidate(layer=_lower_stack()),
-         completeness(subject=DECLARED_SUBSET, milestones=("EP-M9",)),
-         proof()),
-        "completeness-stack-milestones-unnamed",
-        id="named-milestones-selection-dropped",
     ),
     pytest.param(
         "_revision_bound",
@@ -621,28 +504,6 @@ DEFECTIVE_RULES = (
         (candidate(), completeness(verdict=NOT_CLEAR), proof()),
         "completeness-not-clear",
         id="not-clear-treated-as-settled",
-    ),
-    pytest.param(
-        "names_its_evidence",
-        lambda monkeypatch: monkeypatch.setattr(
-            StackLayer, "names_its_evidence", property(lambda self: True)
-        ),
-        (candidate(layer=StackLayer(milestones=(), parent="stack#12",
-                                    remaining_above=("EP-M3",))),
-         completeness(subject=DECLARED_SUBSET), proof()),
-        "completeness-stack-evidence-missing",
-        id="stack-evidence-requirement-dropped",
-    ),
-    pytest.param(
-        "is_final_layer",
-        lambda monkeypatch: monkeypatch.setattr(
-            StackLayer, "is_final_layer", property(lambda self: False)
-        ),
-        (candidate(layer=StackLayer(milestones=("EP-M3",), parent="stack#12",
-                                    remaining_above=())),
-         completeness(subject=DECLARED_SUBSET, milestones=("EP-M3",)), proof()),
-        "completeness-whole-plan-required",
-        id="final-layer-exemption-widened",
     ),
     pytest.param(
         "delivery_gate",

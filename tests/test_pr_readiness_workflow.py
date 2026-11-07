@@ -20,7 +20,6 @@ from pr_readiness_model import (
     NOT_CLEAR,
     PENDING,
     WHOLE_PLAN,
-    StackLayer,
 )
 from pr_readiness_workflow import (
     CODERABBIT,
@@ -41,7 +40,6 @@ def pull(
     *,
     draft: bool = True,
     revision: str | None = REVISION,
-    layer: StackLayer | None = None,
     ci_green: bool = True,
     codescene_clear: bool = True,
 ) -> PullRequest:
@@ -53,7 +51,6 @@ def pull(
         ci_green=ci_green,
         codescene_clear=codescene_clear,
         approved_plan_revision=revision,
-        stack_layer=layer,
     )
 
 
@@ -69,7 +66,6 @@ def reply(
     revision: str | None = REVISION,
     echoed: str | None = REVISION,
     subject: str = WHOLE_PLAN,
-    milestones: tuple[str, ...] = (),
     head: str = HEAD,
     base: str = BASE,
     justification: str = "",
@@ -85,17 +81,7 @@ def reply(
         plan_revision=revision,
         echoed_revision=echoed,
         subject=subject,
-        named_milestones=milestones,
         justification=justification,
-    )
-
-
-def _lower_stack() -> StackLayer:
-    """Return a layer with its own milestones, a parent and work above it."""
-    return StackLayer(
-        milestones=("EP-M1", "EP-M2"),
-        parent="stack#12",
-        remaining_above=("EP-M3", "EP-M4"),
     )
 
 
@@ -113,38 +99,29 @@ def test_a_current_verdict_marks_the_draft_ready() -> None:
     assert candidate.ready_transitions == [HEAD]
 
 
-def test_a_subset_only_verdict_keeps_the_draft_in_place() -> None:
-    """A PR that claims the whole plan cannot leave draft on its subset."""
+@pytest.mark.parametrize(
+    "candidate_state",
+    [
+        pytest.param("with-revision", id="single-pr"),
+        pytest.param("no-revision", id="no-execplan"),
+    ],
+)
+def test_a_subset_only_verdict_keeps_the_draft_in_place(
+    candidate_state: str,
+) -> None:
+    """A declared-subset verdict is evidence for its scope, not readiness."""
     thread = discussion()
     thread.responses.append(reply(COMPLETENESS_ID, subject=DECLARED_SUBSET))
     thread.responses.append(reply(PROOF_ID))
-    candidate = pull()
+    revision = REVISION if candidate_state == "with-revision" else None
+    candidate = pull(revision=revision)
 
     decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
 
     assert not decision.ready
-    assert decision.reason == "completeness-whole-plan-required"
+    assert decision.reason == "completeness-declared-subset-does-not-clear"
     assert candidate.is_draft
     assert candidate.ready_transitions == []
-
-
-def test_a_lower_stack_layer_clears_on_its_named_subset() -> None:
-    """The managed-stack exception is what makes a subset verdict sufficient."""
-    thread = discussion()
-    thread.responses.append(
-        reply(
-            COMPLETENESS_ID,
-            subject=DECLARED_SUBSET,
-            milestones=_lower_stack().milestones,
-        )
-    )
-    thread.responses.append(reply(PROOF_ID))
-    candidate = pull(layer=_lower_stack())
-
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
-
-    assert decision.ready, decision.reason
-    assert candidate.ready_transitions == [HEAD]
 
 
 def test_a_superseded_revision_keeps_the_draft_in_place() -> None:
@@ -386,13 +363,13 @@ def test_the_doubles_record_but_never_perform_the_transition() -> None:
 def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> None:
     """The workflow passes the reply's subject rather than assuming one."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, subject=DECLARED_SUBSET))
+    thread.responses.append(reply(COMPLETENESS_ID, subject="declared-scope"))
     thread.responses.append(reply(PROOF_ID))
     candidate = pull()
 
     decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
 
-    assert decision.reason == "completeness-whole-plan-required"
+    assert decision.reason == "completeness-subject-unrecognized"
 
 
 def test_both_requests_are_posted_before_the_decision() -> None:
