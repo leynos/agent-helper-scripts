@@ -97,6 +97,9 @@ log_diagnostic() {
   local stage=$1 failure_category=$2 exit_status=$3 started_at_ms=$4
   local http_status=$5 elapsed_ms
   elapsed_ms=$(( $(now_ms) - started_at_ms ))
+  # `now_ms` reads the wall clock, which a runner can step backwards (NTP), and a
+  # negative duration is meaningless, so report zero rather than a negative.
+  if (( elapsed_ms < 0 )); then elapsed_ms=0; fi
   jq -cn \
     --arg operation 'manual_pr_comment' \
     --arg run_id "$DIAG_RUN_ID" \
