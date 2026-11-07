@@ -145,7 +145,7 @@ Approved ExecPlan path and revision; accepted scope and tolerances:
 Implementation status and acceptance evidence; remaining in-scope work:
 Local gate and milestone CLI results with candidate identities and logs:
 Proof inventory and verifier evidence, or justified not applicable:
-ExecPlan completeness/correctness assessment: required against the whole approved plan, not the declared PR scope; the clearing rule is pr-babysitting's execplan-assessment readiness rule; evidence or pending.
+ExecPlan completeness/correctness assessment: required against the whole approved plan, not the declared PR scope, except a managed-stack layer on pr-babysitting's stack path; the clearing rule is pr-babysitting's execplan-assessment readiness rule; evidence or pending.
 Proof-specific assessment: required when applicable; evidence or pending.
 Roadmap association/status; PR description and Lody references:
 Observed CI/review state, existing requests, and current lifecycle owner:
@@ -155,9 +155,13 @@ Authorized publication/merge actions, stopping point, and concrete blockers:
 <!-- markdownlint-enable MD013 -->
 
 The completeness assessment covers the whole approved plan, so naming a
-delivered subset in the packet does not bound it; see
-[readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)
-for when those assessments clear.
+delivered subset in the packet does not bound it. A layer in a managed stack is
+the one exception, and only under
+[pr-babysitting's stack path](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes):
+that path names the layer's milestones, its stack parent and the milestones
+remaining above it, and leaves the whole-plan verdict to the layer that carries
+the remainder. Claiming the whole plan in a single PR that delivers part of it
+is never that exception. See the same section for when those assessments clear.
 
 The receiving skill owns the two applicable hosted CodeRabbit assessments
 before readiness, their feedback and recovery, CI, rebasing, and merge. A

@@ -71,6 +71,7 @@ evidence, and honest limitations:
 
 > `docs/execplans/<slug>.md`
 
+Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>.
 Published head: <full head SHA>; comparison base: <full base SHA>.
 Plan revision: <approved revision identifier and the plan file's blob SHA at this head>.
 Acceptance evidence: <commands, results, and evidence links>.
@@ -95,6 +96,14 @@ unimplemented plan milestone is in-scope work, not a limitation, per
 revision in the request, because base/head alone cannot identify which revision
 was inspected when the approved revision changes without a new head; a reply
 that echoes only the base/head cannot bind its verdict to an approved revision.
+The `Assessed subject:` line is what bounds this one request. For a
+managed-stack layer on the stack path, name that layer's milestones and the
+milestones remaining above it, say explicitly that the upper milestones are in
+scope for the stack rather than for this layer, and expect a verdict on the
+named layer only. Without that line, an assessor follows the whole-plan opening
+and reports the upper milestones as unfinished work, which no lower layer can
+ever clear. Ordinary single-PR delivery and the layer carrying the plan's
+remainder keep the whole approved plan as the subject.
 
 ## Proof inventory and specific scrutiny
 

@@ -37,6 +37,13 @@ STACK_EVIDENCE = "stack path must require the named layer, parent and remainder"
 STACK_LAYER_SCOPE = "subset verdict must not clear the stack"
 STACK_FINAL_WHOLE_PLAN = "final layer must still obtain a whole-plan verdict"
 STACK_SINGLE_PR = "single-PR partial delivery must stay blocked"
+REQUEST_SUBJECT = "completeness request must bound the assessed subject"
+REQUEST_SUBJECT_SCOPE = "completeness section must say what the subject line bounds"
+REQUEST_DEADLOCK_RATIONALE = "completeness section must record why an unbounded request deadlocks"
+REQUEST_WHOLE_PLAN_DEFAULT = "completeness section must keep whole-plan subjects"
+HANDOFF_EXCEPTION = "completeness packet must carry the managed-stack exception"
+HANDOFF_EXCEPTION_NAMED = "handoff must name the managed-stack exception"
+HANDOFF_SINGLE_PR = "handoff must keep single-PR partial delivery blocked"
 
 ASSESSMENT_MUTATIONS = (
     pytest.param(
@@ -342,5 +349,37 @@ ASSESSMENT_MUTATIONS = (
         False,
         STACK_SINGLE_PR,
         id="stack-path-admits-single-partial-pr",
+    ),
+    pytest.param(
+        "assessment",
+        "Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>.",
+        "",
+        False,
+        REQUEST_SUBJECT,
+        id="request-omits-assessed-subject",
+    ),
+    pytest.param(
+        "assessment",
+        "The `Assessed subject:` line is what bounds this one request.",
+        "The plan path alone is what bounds this one request.",
+        False,
+        REQUEST_SUBJECT_SCOPE,
+        id="request-subject-unbounded",
+    ),
+    pytest.param(
+        "assessment",
+        "Ordinary single-PR delivery and the layer carrying the plan's remainder keep the whole approved plan as the subject.",
+        "",
+        True,
+        REQUEST_WHOLE_PLAN_DEFAULT,
+        id="moved-request-whole-plan-default",
+    ),
+    pytest.param(
+        "assessment",
+        "Without that line, an assessor follows the whole-plan opening and reports the upper milestones as unfinished work, which no lower layer can ever clear.",
+        "",
+        False,
+        REQUEST_DEADLOCK_RATIONALE,
+        id="request-drops-deadlock-rationale",
     ),
 )

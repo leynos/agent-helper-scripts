@@ -106,12 +106,21 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert "not the declared PR scope" in packet, (
         "completeness assessment must exclude the declared PR scope as its subject"
     )
+    assert "except a managed-stack layer on pr-babysitting's stack path" in packet, (
+        "completeness packet must carry the managed-stack exception"
+    )
     assert "evidence or pending" in packet, (
         "handoff must still distinguish evidence from pending"
     )
     handoff = normalize(_handoff_section(implementation))
     assert "does not bound it" in handoff, (
         "handoff must state that a delivered subset does not bound the assessment"
+    )
+    assert "A layer in a managed stack is the one exception" in handoff, (
+        "handoff must name the managed-stack exception"
+    )
+    assert "Claiming the whole plan in a single PR that delivers part of it is never that exception" in handoff, (
+        "handoff must keep single-PR partial delivery blocked"
     )
     assert READINESS_ANCHOR in handoff, (
         "handoff must link pr-babysitting's readiness clearing rule"
@@ -128,7 +137,8 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     )
     assert (
         "That gate requires a clear whole-plan completeness verdict for the"
-        " approved plan revision" in creator
+        " approved plan revision, or a declared-subset verdict for a layer on its"
+        " stack path" in creator
     ), "draft creation must name the completeness verdict as the gate's subject"
 
 
@@ -173,7 +183,8 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
     ("old", "new", "expected"),
     [
         (
-            "against the whole approved plan, not the declared PR scope; ",
+            "against the whole approved plan, not the declared PR scope,"
+            " except a managed-stack layer on pr-babysitting's stack path; ",
             "",
             WHOLE_PLAN_SUBJECT,
         ),

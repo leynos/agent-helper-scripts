@@ -195,6 +195,10 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head>." in completeness, "completeness request must identify the assessed plan revision"
     assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in completeness, "completeness request must require the reply to echo the plan revision"
     assert "a reply that echoes only the base/head cannot bind its verdict to an approved revision" in completeness, "completeness section must state why base/head alone cannot bind a verdict"
+    assert "Assessed subject: <the whole approved plan, or this managed-stack layer's named milestones with its stack parent and the milestones remaining above it, per pr-babysitting's stack path>." in completeness, "completeness request must bound the assessed subject"
+    assert "The `Assessed subject:` line is what bounds this one request." in completeness, "completeness section must say what the subject line bounds"
+    assert "Ordinary single-PR delivery and the layer carrying the plan's remainder keep the whole approved plan as the subject." in completeness, "completeness section must keep whole-plan subjects"
+    assert "Without that line, an assessor follows the whole-plan opening and reports the upper milestones as unfinished work" in completeness, "completeness section must record why an unbounded request deadlocks"
     proofs = section(assessment, "Proof inventory and specific scrutiny")
     assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>." in proofs, "proof request must name the plan revision when an ExecPlan applies"
     assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in proofs, "proof request must require the reply to echo the plan revision"
