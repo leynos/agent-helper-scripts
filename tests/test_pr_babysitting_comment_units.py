@@ -165,6 +165,18 @@ def test_failures_are_classified_without_raw_output(
     assert result.stdout == f"{category}|{http_status}", f"classify {stderr!r}"
 
 
+def test_a_clock_that_steps_backwards_reports_zero_elapsed_time(tmp_path: Path) -> None:
+    """A wall clock stepped back during a stage must not yield a negative elapsed time."""
+    result = _source_and_run(
+        'now_ms() { printf "%s\\n" 900; }\n'
+        'DIAG_RUN_ID=0123456789abcdef DIAG_SURFACE=issue_comment DIAG_REPOSITORY=o/r DIAG_PR=7\n'
+        'log_diagnostic post "" 0 1000 ""',
+        tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stderr)["elapsed_ms"] == 0, "a backwards step reports zero"
+
+
 def test_injected_clock_and_run_id_make_diagnostics_deterministic(tmp_path: Path) -> None:
     """Replacing now_ms and new_run_id fixes every diagnostic's run ID and elapsed time."""
     result = _source_and_run(
