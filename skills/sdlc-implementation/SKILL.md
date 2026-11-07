@@ -137,18 +137,27 @@ unfinished publication. Local validation does not establish hosted success.
 Invoke `pr-babysitting` now, even if the published PR is still draft or its CI
 is red, pending, or missing. Supply the existing ledger and this packet:
 
+<!-- markdownlint-disable MD013 -->
+
 ```text
 Repository, PR, worktree, target, and verified base/head:
 Approved ExecPlan path and revision; accepted scope and tolerances:
 Implementation status and acceptance evidence; remaining in-scope work:
 Local gate and milestone CLI results with candidate identities and logs:
 Proof inventory and verifier evidence, or justified not applicable:
-ExecPlan completeness/correctness assessment: required; evidence or pending.
+ExecPlan completeness/correctness assessment: required against the whole approved plan, not the declared PR scope; the clearing rule is pr-babysitting's execplan-assessment readiness rule; evidence or pending.
 Proof-specific assessment: required when applicable; evidence or pending.
 Roadmap association/status; PR description and Lody references:
 Observed CI/review state, existing requests, and current lifecycle owner:
 Authorized publication/merge actions, stopping point, and concrete blockers:
 ```
+
+<!-- markdownlint-enable MD013 -->
+
+The completeness assessment covers the whole approved plan, so naming a
+delivered subset in the packet does not bound it; see
+[readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)
+for when those assessments clear.
 
 The receiving skill owns the two applicable hosted CodeRabbit assessments
 before readiness, their feedback and recovery, CI, rebasing, and merge. A

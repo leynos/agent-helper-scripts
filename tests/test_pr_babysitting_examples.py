@@ -17,6 +17,7 @@ from pr_babysitting_flowchart_support import (
     flowchart_source,
     parse_flowchart,
 )
+from skill_contract_support import mutate_one_clause, section
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,13 +25,6 @@ REBASE = ROOT / "skills/pr-babysitting/references/rebase.md"
 ASSESSMENT = ROOT / "skills/pr-babysitting/references/execplan-assessment.md"
 SKILL = ROOT / "skills/pr-babysitting/SKILL.md"
 REHEARSAL = ROOT / "skills/pr-babysitting/references/sources-and-rehearsal.md"
-
-
-def section(text: str, heading: str) -> str:
-    """Find one second-level section without accepting guards moved elsewhere."""
-    matches = re.findall(r"^## " + re.escape(heading) + r"\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    assert len(matches) == 1, f"expected unique section: {heading}"
-    return " ".join(matches[0].split())
 
 
 def git_example(marker: str) -> str:
@@ -191,13 +185,30 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "require passing applicable deterministic correctness and quality gates" in applicability, "request prerequisites must require passing gates"
     assert "for the published candidate" in applicability, "gates must bind to published candidate"
     assert "Verify remote parity" in applicability, "request prerequisites must verify publication"
+    completeness = section(assessment, "ExecPlan completeness and correctness")
+    assert "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>." in completeness, "completeness request must restrict limitations to evidential limits"
+    assert "checks not run" in completeness, "evidential limitation kind must remain named: checks not run"
+    assert "inspection not possible" in completeness, "evidential limitation kind must remain named: inspection not possible"
+    assert "not unimplemented plan milestones" in completeness, "completeness request must exclude unimplemented milestones"
+    assert "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership)." in completeness, "completeness section must bind milestones to the ownership rule"
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
-    assert "assigned token procedure" in routing and "`shuf`" in routing, "initial comments must use assigned token route"
+    assert "assigned token procedure" in routing, "initial comments must use assigned token route"
+    assert "`shuf`" in routing, "initial comments must shuffle the assigned token"
     assert "Assessment conversations never go through `comenq`" in routing, "assessment follow-ups must not enter the review queue"
+    ledger = section(skill, "1. Establish the candidate and keep a delivery ledger")
+    for requirement in (
+        "A verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment",
+        "on the same entry as the base/head and the plan revision it was given for",
+        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+    ):
+        assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
     assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
+    assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"
@@ -211,33 +222,209 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
     assessment_contract(ASSESSMENT.read_text(), SKILL.read_text())
 
 
+LIMITATIONS_GUARD = "completeness request must restrict limitations to evidential limits"
+MILESTONE_OWNERSHIP = "completeness section must bind milestones to the ownership rule"
+LEDGER_VERDICT = "ledger section must state: A verdict"
+LEDGER_CANDIDATE = "ledger section must state: on the same entry"
+LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
+LEDGER_CLEARING = "ledger section must state: Only a clear whole-plan completeness verdict"
+LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
+READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
+
+ASSESSMENT_MUTATIONS = (
+    pytest.param(
+        'assessment',
+        'Both applicable assessments must clear',
+        'Both applicable assessments need not clear',
+        False,
+        'applicable assessments must precede readiness',
+        id='inverted-readiness',
+    ),
+    pytest.param(
+        'assessment',
+        'An already-ready PR stays ready; obtain missing assessments before merge.',
+        '',
+        False,
+        'missing assessment must block merge',
+        id='removed-ready-preservation',
+    ),
+    pytest.param(
+        'assessment',
+        'for the published candidate.',
+        'for any old candidate.',
+        False,
+        'gates must bind to published candidate',
+        id='stale-publication',
+    ),
+    pytest.param(
+        'assessment',
+        'Assessment conversations never go through `comenq`.',
+        'Assessment conversations always go through `comenq`.',
+        False,
+        'assessment follow-ups must not enter the review queue',
+        id='queued-assessment',
+    ),
+    pytest.param(
+        'assessment',
+        'Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.',
+        '',
+        True,
+        'applicable assessments must precede readiness',
+        id='moved-readiness',
+    ),
+    pytest.param(
+        'skill',
+        'all applicable pre-readiness assessments hold',
+        'no assessments hold',
+        False,
+        'parent readiness condition must include assessments',
+        id='parent-waiver',
+    ),
+    pytest.param(
+        'skill',
+        'An already-ready PR remains ready while missing or invalidated assessments block merge.',
+        '',
+        True,
+        'parent must preserve ready state and merge blocker',
+        id='moved-parent-preservation',
+    ),
+    pytest.param(
+        'skill',
+        '7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.',
+        '',
+        True,
+        'merge checklist must require candidate-bound assessments',
+        id='moved-merge-guard',
+    ),
+    pytest.param(
+        'assessment',
+        'Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.',
+        '',
+        False,
+        'completeness request must restrict limitations to evidential limits',
+        id='removed-limitations-guard',
+    ),
+    pytest.param(
+        'assessment',
+        'not unimplemented plan milestones',
+        'including unimplemented plan milestones',
+        False,
+        'completeness request must restrict limitations to evidential limits',
+        id='inverted-limitations-guard',
+    ),
+    pytest.param(
+        'assessment',
+        'An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).',
+        '',
+        True,
+        'completeness section must bind milestones to the ownership rule',
+        id='moved-milestone-ownership',
+    ),
+    pytest.param(
+        'skill',
+        'A verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment',
+        'a verdict of `posted` or `answered`',
+        False,
+        LEDGER_VERDICT,
+        id='ledger-drops-verdict',
+    ),
+    pytest.param(
+        'skill',
+        'Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).',
+        '',
+        True,
+        'ledger section must state: Only a clear whole-plan completeness verdict',
+        id='moved-ledger-readiness-pointer',
+    ),
+    pytest.param(
+        'skill',
+        'on the same entry as the base/head and the plan revision it was given for.',
+        '',
+        False,
+        'ledger section must state: on the same entry',
+        id='unbound-ledger-verdict',
+    ),
+    pytest.param(
+        'skill',
+        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "Every assessment's subject is the whole plan.",
+        False,
+        "ledger section must state: The completeness assessment's subject",
+        id='proof-subject-collapsed-to-whole-plan',
+    ),
+    pytest.param(
+        'skill',
+        'A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.',
+        '',
+        False,
+        'ledger section must state: A verdict recorded against a superseded plan revision',
+        id='ledger-accepts-superseded-plan-revision',
+    ),
+    pytest.param(
+        'assessment',
+        'a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged.',
+        '',
+        False,
+        'readiness section must compare the currently approved plan revision',
+        id='readiness-accepts-superseded-plan-revision',
+    ),
+)
+
+
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move"),
-    [
-        ("assessment", "Both applicable assessments must clear", "Both applicable assessments need not clear", False),
-        ("assessment", "An already-ready PR stays ready; obtain missing assessments before merge.", "", False),
-        ("assessment", "for the\npublished candidate.", "for any old candidate.", False),
-        ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False),
-        ("assessment", "Both applicable assessments must clear for the\naccepted candidate before its draft-to-ready transition.", "", True),
-        ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False),
-        ("skill", "An already-ready PR remains ready\n   while missing or invalidated assessments block merge.", "", True),
-        ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
-    ],
-    ids=["inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment", "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard"],
+    ("document", "old", "new", "move", "expected"),
+    ASSESSMENT_MUTATIONS,
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
-    document: str, old: str, new: str, move: bool
+    document: str, old: str, new: str, move: bool, expected: str
 ) -> None:
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
     source = assessment if document == "assessment" else skill
-    assert source.count(old) == 1, "mutation fixture must identify one actual controlling clause"
-    mutated = source.replace(old, new, 1)
-    if move:
-        mutated += "\n## Unrelated notes\n\n" + old + "\n"
-    with pytest.raises(AssertionError, match="must|prerequisites"):
+    mutated = mutate_one_clause(source, old, new, move=move)
+    with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        (
+            "on the same entry as the base/head and the plan revision it was given for.",
+            "",
+            LEDGER_CANDIDATE,
+        ),
+        (
+            "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
+            "Only a clear declared-subset completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
+            LEDGER_CLEARING,
+        ),
+        (
+            "and was recorded against the currently approved plan revision satisfies",
+            "and satisfies",
+            LEDGER_CLEARING,
+        ),
+        (
+            "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+            "A verdict recorded against a superseded plan revision still clears, when the base/head is unchanged.",
+            LEDGER_STALE_REVISION,
+        ),
+    ],
+    ids=[
+        "omitted-candidate",
+        "declared-subset-may-clear",
+        "unbound-plan-revision",
+        "accepts-any-earlier-plan-revision",
+    ],
+)
+def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
+    old: str, new: str, expected: str
+) -> None:
+    """A ledger verdict that drops the candidate, or lets a declared subset clear, fails."""
+    mutated = mutate_one_clause(SKILL.read_text(), old, new)
+    with pytest.raises(AssertionError, match=re.escape(expected)):
+        assessment_contract(ASSESSMENT.read_text(), mutated)
 
 
 def test_absent_renamed_deleted_lockfiles_require_explicit_planning() -> None:
