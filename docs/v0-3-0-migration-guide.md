@@ -271,3 +271,31 @@ bootstrap continues.
 - If you relied on a source build, for example to try an unpublished lint
   change, run `whitaker-installer` yourself from a Whitaker checkout. This
   script no longer builds from source.
+
+## Tag-pinned guide vendoring
+
+A repository that carries a library's users' guide under `docs/` can now
+generate that copy from the upstream repository at a released tag, instead of
+copying it by hand or merging it from the library. The converter lives in this
+repository as `scripts/vendor_tagged_guides_cli.py`.
+
+### Migrating
+
+If the copy is a verbatim snapshot of an upstream guide:
+
+1. Check out the upstream repository at the tag to pin.
+2. From the repository root, run the converter against that checkout, mapping
+   each upstream file to the name that `docs/` uses. The invocation and the
+   exact note are documented in the
+   [users' guide](users-guide.md#vendoring-a-guide-from-the-command-line); the
+   [library README](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag)
+   states the hand-edit policy.
+3. Commit the generated file. Do not edit it by hand afterwards; rerun the
+   converter with a new `--tag` to refresh it.
+
+A copy that carries repository-specific notes is not a verbatim import and
+should not be converted: the tool refuses a file that already carries the
+canonical note. Keep such a document as repository-owned, or move its local
+notes elsewhere and vendor the upstream text separately, as the library README
+describes. Repositories that refresh by merging the library edition are
+unaffected by this change.

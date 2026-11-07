@@ -62,6 +62,49 @@ guide is owned by its upstream repository; the library snapshots it from
 upstream, so the upstream repository does not refresh its guide from the
 library.
 
+## Importing a guide at a pinned tag
+
+A repository may vendor a library's users' guide into its own `docs/` so the
+guide reads as part of that repository's documentation. When the source is a
+released tag of the upstream project, do not copy the file by hand. A hand copy
+loses the record of which revision it came from and leaves relative links
+pointing at paths that do not exist in the consuming repository.
+
+Use `scripts/vendor_tagged_guides_cli.py` from `agent-helper-scripts` instead.
+It converts one or more guides from a checkout of the upstream repository at
+the named tag: relative links outside protected regions are pinned to that tag,
+links between the guides being vendored become local links, and fenced code,
+inline code, footnotes, and HTML comments are copied untouched. It then inserts
+the canonical note below the first level-one heading that is not inside
+protected text. The formatter, the bounded Markdown-lint exemption, and the
+fixed-point check are described in the
+[vendoring tool's reference](../docs/developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli),
+which also lists every option, its default, and its environment form.
+
+Run the command from the root of the consuming repository, naming the script by
+its path in the `agent-helper-scripts` checkout.
+
+```sh
+uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
+    --tag v0.2.0-beta2 \
+    --repository leynos/cuprum \
+    --source ../cuprum/docs \
+    --output docs \
+    --map users-guide.md=cuprum-users-guide.md \
+    --map v0-2-0-migration-guide.md=cuprum-v0-2-0-migration-guide.md
+```
+
+The exact note text is quoted in the
+[users' guide](../docs/users-guide.md#vendoring-a-guide-from-the-command-line).
+
+The note is the file's provenance record, and the rest of the file is
+generated. Do not edit the note, the imported text, its links, or any Markdown
+lint exemption by hand: all of them are script output, and a hand edit is lost
+the next time the script runs. To move to a newer upstream revision, rerun the
+same command with the new `--tag`; do not patch the vendored file. Regenerate
+from the upstream checkout rather than from the vendored copy, because the
+script refuses a file that already carries the note.
+
 ## Catalogue
 
 The "copies" column counts the estate repositories holding the document at the
