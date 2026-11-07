@@ -210,7 +210,8 @@ def assessment_contract(assessment: str, skill: str) -> None:
         "A verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for an assessment that does not apply",
         "on the same entry as the base/head and the plan revision it was given for",
         "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
-        "When the completeness assessment applies, only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "When the completeness assessment applies, a clear whole-plan completeness verdict covering the accepted base/head and recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "A managed-stack layer that implements only its own milestones may instead satisfy it on a clear declared-subset verdict, but only through that section's stack path, which requires the named layer milestones, the stack parent, and the milestones remaining above it.",
         "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
         "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
         "reconcile the revision the substantive reply echoes against the revision in force",
@@ -223,6 +224,11 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
     assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
     assert "Reconcile the revision a reply echoes with the revision in force" in readiness, "readiness section must reconcile the echoed plan revision"
+    assert "That layer may become ready only on a clear declared-subset verdict" in readiness, "stack path must clear only on a declared-subset verdict"
+    assert "name the layer's milestones, the `github-stacks` parent it builds on, and the milestones remaining above it" in readiness, "stack path must require the named layer, parent and remainder"
+    assert "a subset verdict clears only its own layer" in readiness, "subset verdict must not clear the stack"
+    assert "The whole-plan verdict remains required for the layer that carries the plan's remaining milestones" in readiness, "final layer must still obtain a whole-plan verdict"
+    assert "A single PR that claims the whole plan but delivers part of it never qualifies" in readiness, "single-PR partial delivery must stay blocked"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"

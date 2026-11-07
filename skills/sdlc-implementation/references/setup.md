@@ -31,8 +31,9 @@ If the assignment permits publication and no PR exists, establish the intended
 base and create a draft through the repository's normal process. Creating a new
 PR must not silently replace an existing planning PR or discard its discussion.
 The new draft stays draft until `pr-babysitting` marks it ready under its
-readiness gate. That gate also requires green CI, clear CodeScene findings, and
-any applicable proof verdict; see the
+readiness gate. That gate requires a clear whole-plan completeness verdict for
+the approved plan revision, green CI, clear CodeScene findings, and any
+applicable proof verdict; see the
 [clearing rule](../../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 This skill does not mark the draft ready and does not end it.
 

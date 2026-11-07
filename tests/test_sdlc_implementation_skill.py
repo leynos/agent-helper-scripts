@@ -59,6 +59,9 @@ COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
 WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
 HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
 SETUP_LINK = "draft creation must link the readiness clearing rule"
+SETUP_COMPLETENESS = (
+    "draft creation must name the completeness verdict as the gate's subject"
+)
 
 
 @pytest.fixture(scope="module")
@@ -123,6 +126,10 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert SETUP_READINESS_ANCHOR in creator, (
         "draft creation must link the readiness clearing rule"
     )
+    assert (
+        "That gate requires a clear whole-plan completeness verdict for the"
+        " approved plan revision" in creator
+    ), "draft creation must name the completeness verdict as the gate's subject"
 
 
 def _assert_no_delivery_loop(text: str) -> None:
@@ -185,6 +192,20 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
     mutated = mutate_one_clause(implementation_text, old, new)
     with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(mutated, setup_text)
+
+
+def test_handoff_rejects_a_setup_gate_that_omits_its_subject(
+    implementation_text: str, setup_text: str
+) -> None:
+    """A gate description that hides its main requirement cannot satisfy the handoff."""
+    mutated = mutate_one_clause(
+        setup_text,
+        "That gate requires a clear whole-plan completeness verdict for"
+        " the approved plan revision,",
+        "That gate also requires",
+    )
+    with pytest.raises(AssertionError, match=re.escape(SETUP_COMPLETENESS)):
+        _assert_handoff_binds_whole_plan(implementation_text, mutated)
 
 
 @pytest.mark.parametrize(

@@ -17,6 +17,7 @@ LEDGER_VERDICT = "ledger section must state: A verdict of `clear`"
 LEDGER_CANDIDATE = "ledger section must state: on the same entry"
 LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
 LEDGER_CLEARING = "ledger section must state: When the completeness assessment applies"
+LEDGER_STACK_PATH = "ledger section must state: A managed-stack layer that implements only its own milestones"
 LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
 LEDGER_PROOF_READINESS = "ledger section must state: When the proof assessment applies"
 READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
@@ -31,6 +32,11 @@ PROOF_REVISION = "proof request must name the plan revision when an ExecPlan app
 PROOF_ECHO_REVISION = "proof request must require the reply to echo the plan revision"
 PROOF_CONDITIONAL_ECHO = "proof echo must stay conditional on an ExecPlan"
 PROOF_NO_PLAN_CASE = "proof section must preserve the no-plan case"
+STACK_SUBSET_ONLY = "stack path must clear only on a declared-subset verdict"
+STACK_EVIDENCE = "stack path must require the named layer, parent and remainder"
+STACK_LAYER_SCOPE = "subset verdict must not clear the stack"
+STACK_FINAL_WHOLE_PLAN = "final layer must still obtain a whole-plan verdict"
+STACK_SINGLE_PR = "single-PR partial delivery must stay blocked"
 
 ASSESSMENT_MUTATIONS = (
     pytest.param(
@@ -131,7 +137,7 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "skill",
-        "When the completeness assessment applies, only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "When the completeness assessment applies, a clear whole-plan completeness verdict covering the accepted base/head and recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
         "",
         True,
         LEDGER_CLEARING,
@@ -179,19 +185,35 @@ ASSESSMENT_MUTATIONS = (
     ),
     pytest.param(
         "skill",
-        "When the completeness assessment applies, only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
-        "When the completeness assessment applies, only a clear declared-subset completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
+        "When the completeness assessment applies, a clear whole-plan completeness verdict covering the accepted base/head",
+        "When the completeness assessment applies, a clear declared-subset completeness verdict covering the accepted base/head",
         False,
         LEDGER_CLEARING,
         id="declared-subset-may-clear",
     ),
     pytest.param(
         "skill",
-        "and was recorded against the currently approved plan revision satisfies",
+        "and recorded against the currently approved plan revision satisfies",
         "and satisfies",
         False,
         LEDGER_CLEARING,
         id="unbound-plan-revision",
+    ),
+    pytest.param(
+        "skill",
+        "A managed-stack layer that implements only its own milestones may instead satisfy it on a clear declared-subset verdict",
+        "Every draft may instead satisfy it on a clear declared-subset verdict",
+        False,
+        LEDGER_STACK_PATH,
+        id="stack-path-widened-to-any-draft",
+    ),
+    pytest.param(
+        "skill",
+        "which requires the named layer milestones, the stack parent, and the milestones remaining above it.",
+        "",
+        False,
+        LEDGER_STACK_PATH,
+        id="ledger-stack-path-unbound",
     ),
     pytest.param(
         "assessment",
@@ -280,5 +302,45 @@ ASSESSMENT_MUTATIONS = (
         False,
         LEDGER_NO_PLAN,
         id="ledger-loses-no-plan-case",
+    ),
+    pytest.param(
+        "assessment",
+        "That layer may become ready only on a clear declared-subset verdict",
+        "That layer may become ready on any pending verdict",
+        False,
+        STACK_SUBSET_ONLY,
+        id="stack-ready-on-uncleared-verdict",
+    ),
+    pytest.param(
+        "assessment",
+        "name the layer's milestones, the `github-stacks` parent it builds on, and the milestones remaining above it",
+        "",
+        False,
+        STACK_EVIDENCE,
+        id="stack-path-unbound",
+    ),
+    pytest.param(
+        "assessment",
+        "a subset verdict clears only its own layer.",
+        "a subset verdict clears the whole stack.",
+        False,
+        STACK_LAYER_SCOPE,
+        id="subset-verdict-clears-stack",
+    ),
+    pytest.param(
+        "assessment",
+        "The whole-plan verdict remains required for the layer that carries the plan's remaining milestones",
+        "The whole-plan verdict is never required",
+        False,
+        STACK_FINAL_WHOLE_PLAN,
+        id="stack-drops-final-whole-plan",
+    ),
+    pytest.param(
+        "assessment",
+        "A single PR that claims the whole plan but delivers part of it never qualifies:",
+        "",
+        False,
+        STACK_SINGLE_PR,
+        id="stack-path-admits-single-partial-pr",
     ),
 )

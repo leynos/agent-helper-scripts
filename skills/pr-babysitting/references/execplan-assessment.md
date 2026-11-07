@@ -164,6 +164,23 @@ remaining in-scope defects has not cleared the gate. Fix, validate, push, and
 await confirmation of the affected assessment. Never interpret a posted
 request, green formal-review check, or queue receipt as completion.
 
+A plan delivered as a managed stack has more than one layer in flight. A lower
+layer that implements only its own milestones cannot obtain a whole-plan
+verdict while the upper layers are unimplemented, and refusing readiness would
+block every layer, since the upper layers cannot land first. That layer may
+become ready only on a clear declared-subset verdict that covers its accepted
+base/head and approved plan revision, and only when the stack topology makes
+the unimplemented milestones demonstrably absent from that layer: name the
+layer's milestones, the `github-stacks` parent it builds on, and the milestones
+remaining above it, and show that the deliverable they contain is not claimed
+here. The unimplemented milestones are still in-scope work for the stack as a
+whole, so a subset verdict clears only its own layer. The whole-plan verdict
+remains required for the layer that carries the plan's remaining milestones,
+and the stack does not count as delivered until that final layer obtains one. A
+single PR that claims the whole plan but delivers part of it never qualifies:
+it has no layer above it to carry the remainder, which is the incident this
+contract closes.
+
 Once those responses, green CI, and clear CodeScene findings cover the current
 candidate, mark it ready and verify the transition. Only then inspect formal
 review progress and rate limiting: await an active or automatic review, or use
