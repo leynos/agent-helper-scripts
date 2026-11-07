@@ -203,6 +203,7 @@ def assessment_contract(assessment: str, skill: str) -> None:
         "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
         "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
         "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+        "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
@@ -229,6 +230,7 @@ LEDGER_CANDIDATE = "ledger section must state: on the same entry"
 LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
 LEDGER_CLEARING = "ledger section must state: Only a clear whole-plan completeness verdict"
 LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
+LEDGER_PROOF_READINESS = "ledger section must state: When the proof assessment applies"
 READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
 
 ASSESSMENT_MUTATIONS = (
@@ -368,6 +370,30 @@ ASSESSMENT_MUTATIONS = (
         'readiness section must compare the currently approved plan revision',
         id='readiness-accepts-superseded-plan-revision',
     ),
+    pytest.param(
+        'skill',
+        'When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.',
+        'A clear completeness verdict alone satisfies the readiness gate, whatever the proof verdict.',
+        False,
+        LEDGER_PROOF_READINESS,
+        id='completeness-alone-may-clear',
+    ),
+    pytest.param(
+        'skill',
+        'Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision',
+        'Only a clear declared-subset completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision',
+        False,
+        LEDGER_CLEARING,
+        id='declared-subset-may-clear',
+    ),
+    pytest.param(
+        'skill',
+        'and was recorded against the currently approved plan revision satisfies',
+        'and satisfies',
+        False,
+        LEDGER_CLEARING,
+        id='unbound-plan-revision',
+    ),
 )
 
 
@@ -385,46 +411,6 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     with pytest.raises(AssertionError, match=re.escape(expected)):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
-
-
-@pytest.mark.parametrize(
-    ("old", "new", "expected"),
-    [
-        (
-            "on the same entry as the base/head and the plan revision it was given for.",
-            "",
-            LEDGER_CANDIDATE,
-        ),
-        (
-            "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
-            "Only a clear declared-subset completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
-            LEDGER_CLEARING,
-        ),
-        (
-            "and was recorded against the currently approved plan revision satisfies",
-            "and satisfies",
-            LEDGER_CLEARING,
-        ),
-        (
-            "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
-            "A verdict recorded against a superseded plan revision still clears, when the base/head is unchanged.",
-            LEDGER_STALE_REVISION,
-        ),
-    ],
-    ids=[
-        "omitted-candidate",
-        "declared-subset-may-clear",
-        "unbound-plan-revision",
-        "accepts-any-earlier-plan-revision",
-    ],
-)
-def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
-    old: str, new: str, expected: str
-) -> None:
-    """A ledger verdict that drops the candidate, or lets a declared subset clear, fails."""
-    mutated = mutate_one_clause(SKILL.read_text(), old, new)
-    with pytest.raises(AssertionError, match=re.escape(expected)):
-        assessment_contract(ASSESSMENT.read_text(), mutated)
 
 
 def test_absent_renamed_deleted_lockfiles_require_explicit_planning() -> None:

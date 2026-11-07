@@ -231,6 +231,9 @@ Record that state for each applicable assessment:
   [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
 - A verdict recorded against a superseded plan revision does not carry over,
   even when the base/head is unchanged.
+- When the proof assessment applies, readiness also requires its clear verdict
+  for the same base/head; a clear completeness verdict alone does not satisfy
+  the gate.
 
 Record introduced or materially changed proofs and their required scrutiny also
 when no ExecPlan applies. Plan-authoring alone does not trigger an
