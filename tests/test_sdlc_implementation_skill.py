@@ -59,9 +59,26 @@ COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
 WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
 HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
 SETUP_LINK = "draft creation must link the readiness clearing rule"
-SETUP_COMPLETENESS = (
-    "draft creation must name the completeness verdict as the gate's subject"
+SETUP_SINGLE_RULE = (
+    "draft creation must point at the single clearing rule instead of"
+    " restating its conditions"
 )
+#: Phrases from the clearing rule that only pr-babysitting may state. If one
+#: reappears in `sdlc-implementation`, the readiness contract has two copies.
+RESTATED_CONDITIONS = (
+    "whole-plan completeness verdict",
+    "declared-subset verdict",
+    "green CI",
+    "CodeScene findings",
+    "proof verdict",
+)
+
+
+def _assert_single_clearing_rule(creator: str) -> None:
+    """The draft creator defers to the clearing rule rather than copying it."""
+    assert "read its conditions there" in creator, SETUP_SINGLE_RULE
+    restated = [phrase for phrase in RESTATED_CONDITIONS if phrase in creator]
+    assert not restated, f"{SETUP_SINGLE_RULE}: {restated}"
 
 
 @pytest.fixture(scope="module")
@@ -135,11 +152,7 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert SETUP_READINESS_ANCHOR in creator, (
         "draft creation must link the readiness clearing rule"
     )
-    assert (
-        "That gate requires a clear whole-plan completeness verdict for the"
-        " approved plan revision, or a declared-subset verdict for a layer on its"
-        " stack path" in creator
-    ), "draft creation must name the completeness verdict as the gate's subject"
+    _assert_single_clearing_rule(creator)
 
 
 def _assert_no_delivery_loop(text: str) -> None:
@@ -205,17 +218,30 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
         _assert_handoff_binds_whole_plan(mutated, setup_text)
 
 
-def test_handoff_rejects_a_setup_gate_that_omits_its_subject(
-    implementation_text: str, setup_text: str
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "read its conditions there rather than expecting a second copy here.",
+            "It requires a clear whole-plan completeness verdict.",
+        ),
+        (
+            "read its conditions there rather than expecting a second copy here.",
+            "It also requires green CI and CodeScene findings.",
+        ),
+        (
+            "read its conditions there rather than expecting a second copy here.",
+            "",
+        ),
+    ],
+    ids=["restates-the-verdict", "restates-the-delivery-gates", "drops-the-pointer"],
+)
+def test_handoff_rejects_a_setup_gate_that_restates_or_drops_the_rule(
+    implementation_text: str, setup_text: str, old: str, new: str
 ) -> None:
-    """A gate description that hides its main requirement cannot satisfy the handoff."""
-    mutated = mutate_one_clause(
-        setup_text,
-        "That gate requires a clear whole-plan completeness verdict for"
-        " the approved plan revision,",
-        "That gate also requires",
-    )
-    with pytest.raises(AssertionError, match=re.escape(SETUP_COMPLETENESS)):
+    """A second copy of the clearing conditions fails the single-rule contract."""
+    mutated = mutate_one_clause(setup_text, old, new)
+    with pytest.raises(AssertionError, match=re.escape(SETUP_SINGLE_RULE)):
         _assert_handoff_binds_whole_plan(implementation_text, mutated)
 
 

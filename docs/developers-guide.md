@@ -740,13 +740,15 @@ prose it encodes, and it pairs every rule with a mutation control that drops or
 widens it and must reverse the decision.
 
 `tests/pr_readiness_workflow.py` wraps that model in the sequence the skills
-describe: it posts the applicable assessment questions to a `Discussion`
-double, reads only a correlated reply from the assessment bot, decides, and
-calls `mark_ready` only when the gate holds. The double records the transition
-instead of performing it, so `tests/test_pr_readiness_workflow.py` proves the
-sequence reaches readiness for a current verdict and stays in draft for a
-subset-only or superseded one, with the proof assessment applying and with no
-ExecPlan in force.
+describe: it establishes the delivery gates, posts the applicable assessment
+questions to a `Discussion` double, reads only a correlated reply from the
+assessment bot, decides, and calls `mark_ready` only when the gate holds. A
+blocked delivery gate returns before a question is posted. The double records
+the transition instead of performing it, so
+`tests/test_pr_readiness_workflow.py` proves the sequence reaches readiness for
+a current verdict and stays in draft for a subset-only or superseded one, with
+the proof assessment applying, with no ExecPlan in force, and on a no-ExecPlan
+proof-only assignment.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment

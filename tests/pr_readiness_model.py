@@ -30,6 +30,8 @@ STAY_DRAFT = "stay draft"
 WHOLE_PLAN = "whole-plan"
 DECLARED_SUBSET = "declared-subset"
 
+SUBJECTS = (WHOLE_PLAN, DECLARED_SUBSET)
+
 COMPLETENESS = "completeness"
 PROOF = "proof"
 
@@ -68,6 +70,9 @@ class Verdict:
     ``echoed_revision`` is the plan revision the substantive reply itself
     echoed, which is what binds the verdict to a revision rather than to a
     base/head alone. It stays ``None`` for an assessment with no ExecPlan.
+    ``named_milestones`` is what a declared-subset subject names, so the model
+    can require it to be the layer's own milestones rather than any text at
+    all.
     """
 
     verdict: str
@@ -76,6 +81,7 @@ class Verdict:
     plan_revision: str | None = None
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
+    named_milestones: tuple[str, ...] = ()
     justification: str = ""
 
 
@@ -150,6 +156,10 @@ REASON_CITATIONS = {
         "a reply that echoes only the base/head does not establish which"
         " revision was inspected"
     ),
+    "completeness-subject-unrecognized": (
+        "The completeness assessment's subject is either the whole plan or the"
+        " declared subset"
+    ),
     "completeness-whole-plan-required": (
         "Ordinary single-PR delivery and the layer carrying the plan's"
         " remainder keep the whole approved plan as the subject."
@@ -157,6 +167,10 @@ REASON_CITATIONS = {
     "completeness-stack-evidence-missing": (
         "name the layer's milestones, the `github-stacks` parent it builds on,"
         " and the milestones remaining above it"
+    ),
+    "completeness-stack-milestones-unnamed": (
+        "name that layer's milestones and the"
+        " milestones remaining above it"
     ),
     "proof-pending": (
         "When the proof assessment applies, readiness also requires its clear"
@@ -186,8 +200,14 @@ REASON_CITATIONS = {
 REASONS = frozenset(REASON_CITATIONS)
 
 
-def _delivery_gates(candidate: Candidate) -> Readiness | None:
+def delivery_gate(candidate: Candidate) -> Readiness | None:
     """Reject a candidate whose CI or CodeScene state blocks readiness.
+
+    The documented order is green CI and clear CodeScene findings, substantive
+    assessment replies, then verified readiness, so the workflow sequence asks
+    this before it posts an assessment question. ``readiness()`` asks it too,
+    because a decision that assumed an unasked question would accept facts the
+    sequence had never established.
 
     Parameters
     ----------
@@ -307,8 +327,33 @@ def _disposition(
     return None
 
 
+def _names_the_layer(
+    named: tuple[str, ...], layer: StackLayer
+) -> bool:
+    """Whether a subset subject names exactly the milestones the layer carries.
+
+    Parameters
+    ----------
+    named : tuple of str
+        The milestones the assessed subject declared.
+    layer : StackLayer
+        The layer the subject claims to cover.
+
+    Returns
+    -------
+    bool
+        True only when the named milestones are the layer's own.
+    """
+    return tuple(named) == layer.milestones
+
+
 def _subject(subject: Verdict, candidate: Candidate) -> Readiness | None:
-    """Reject a declared-subset completeness claim without stack evidence.
+    """Reject a subject the documented request could not have produced.
+
+    The assessed subject is either the whole approved plan or a declared
+    subset, and a subset must name exactly the milestones the stack layer
+    carries. Any other subject is not a documented answer, so it cannot clear
+    the gate even when the layer's topology would otherwise qualify.
 
     Parameters
     ----------
@@ -322,13 +367,19 @@ def _subject(subject: Verdict, candidate: Candidate) -> Readiness | None:
     Readiness or None
         A draft-preserving decision, or None when the subject is admissible.
     """
-    if subject.subject == WHOLE_PLAN or subject.verdict == NOT_APPLICABLE:
+    if subject.verdict == NOT_APPLICABLE:
         return None
+    if subject.subject == WHOLE_PLAN:
+        return None
+    if subject.subject not in SUBJECTS:
+        return _decision("completeness-subject-unrecognized")
     layer = candidate.stack_layer
     if layer is None or layer.claims_whole_plan or layer.is_final_layer:
         return _decision("completeness-whole-plan-required")
     if not layer.names_its_evidence:
         return _decision("completeness-stack-evidence-missing")
+    if not _names_the_layer(subject.named_milestones, layer):
+        return _decision("completeness-stack-milestones-unnamed")
     return None
 
 
@@ -362,7 +413,7 @@ def readiness(
         assessment is settled for the accepted candidate; otherwise
         ``stay draft`` with the deciding rule's reason.
     """
-    blocked = _delivery_gates(candidate)
+    blocked = delivery_gate(candidate)
     if blocked is not None:
         return blocked
     for kind, verdict in ((COMPLETENESS, completeness), (PROOF, proof)):

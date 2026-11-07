@@ -69,6 +69,7 @@ def reply(
     revision: str | None = REVISION,
     echoed: str | None = REVISION,
     subject: str = WHOLE_PLAN,
+    milestones: tuple[str, ...] = (),
     head: str = HEAD,
     base: str = BASE,
     justification: str = "",
@@ -84,6 +85,7 @@ def reply(
         plan_revision=revision,
         echoed_revision=echoed,
         subject=subject,
+        named_milestones=milestones,
         justification=justification,
     )
 
@@ -129,7 +131,13 @@ def test_a_subset_only_verdict_keeps_the_draft_in_place() -> None:
 def test_a_lower_stack_layer_clears_on_its_named_subset() -> None:
     """The managed-stack exception is what makes a subset verdict sufficient."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, subject=DECLARED_SUBSET))
+    thread.responses.append(
+        reply(
+            COMPLETENESS_ID,
+            subject=DECLARED_SUBSET,
+            milestones=_lower_stack().milestones,
+        )
+    )
     thread.responses.append(reply(PROOF_ID))
     candidate = pull(layer=_lower_stack())
 
@@ -245,6 +253,58 @@ def test_a_red_ci_candidate_never_leaves_draft() -> None:
 
     assert not decision.ready
     assert decision.reason == "ci-not-green"
+    assert candidate.is_draft
+
+
+@pytest.mark.parametrize(
+    ("ci_green", "codescene_clear", "reason"),
+    [
+        (False, True, "ci-not-green"),
+        (True, False, "codescene-not-clear"),
+    ],
+    ids=["red-ci", "open-codescene"],
+)
+def test_a_blocked_delivery_gate_asks_no_assessment_question(
+    ci_green: bool, codescene_clear: bool, reason: str
+) -> None:
+    """The sequence establishes the gates before it spends a reply on them."""
+    thread = discussion()
+    candidate = pull(ci_green=ci_green, codescene_clear=codescene_clear)
+
+    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+
+    assert not decision.ready
+    assert decision.reason == reason
+    assert thread.requests == [], "no assessment question before the delivery gates"
+    assert candidate.is_draft
+
+
+def test_a_no_execplan_proof_only_assignment_clears_without_revisions() -> None:
+    """A proof-only change with no ExecPlan needs no completeness or echo."""
+    thread = discussion()
+    thread.responses.append(reply(PROOF_ID, revision=None, echoed=None))
+    candidate = pull(revision=None)
+
+    decision = assess_and_maybe_mark_ready(
+        candidate, thread, completeness_applies=False, proof_applies=True
+    )
+
+    assert decision.ready, decision.reason
+    assert candidate.ready_transitions == [HEAD]
+    assert [request["kind"] for request in thread.requests] == ["proof"]
+
+
+def test_a_no_execplan_proof_only_assignment_waits_for_its_reply() -> None:
+    """The proof-only path is still gated on the proof reply."""
+    thread = discussion()
+    candidate = pull(revision=None)
+
+    decision = assess_and_maybe_mark_ready(
+        candidate, thread, completeness_applies=False, proof_applies=True
+    )
+
+    assert not decision.ready
+    assert decision.reason == "proof-pending"
     assert candidate.is_draft
 
 

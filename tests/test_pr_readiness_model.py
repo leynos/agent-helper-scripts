@@ -68,6 +68,7 @@ def completeness(
     *,
     verdict: str = CLEAR,
     subject: str = WHOLE_PLAN,
+    milestones: tuple[str, ...] = (),
     revision: str | None = REVISION,
     echoed: str | None = REVISION,
     head: str = HEAD,
@@ -77,7 +78,8 @@ def completeness(
     """Return a completeness verdict, whole-plan and exact by default."""
     return Verdict(verdict=verdict, base=base, head=head,
                    plan_revision=revision, echoed_revision=echoed,
-                   subject=subject, justification=justification)
+                   subject=subject, named_milestones=milestones,
+                   justification=justification)
 
 
 def proof(
@@ -165,7 +167,9 @@ def test_a_lower_stack_layer_clears_on_its_named_subset() -> None:
         remaining_above=("EP-M3", "EP-M4"),
     )
     decision = readiness(
-        candidate(layer=layer), completeness(subject=DECLARED_SUBSET), proof()
+        candidate(layer=layer),
+        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
+        proof(),
     )
     assert decision.ready, decision.reason
 
@@ -183,10 +187,45 @@ def test_a_subset_verdict_without_stack_evidence_keeps_the_pr_in_draft(
 ) -> None:
     """A claimed subset must name its layer milestones and stack parent."""
     decision = readiness(
-        candidate(layer=layer), completeness(subject=DECLARED_SUBSET), proof()
+        candidate(layer=layer),
+        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
+        proof(),
     )
     assert not decision.ready
     assert decision.reason == "completeness-stack-evidence-missing"
+
+
+@pytest.mark.parametrize(
+    "subject",
+    ["", "declared-scope", "this PR", "whole plan"],
+)
+def test_an_unrecognized_subject_keeps_the_pr_in_draft(subject: str) -> None:
+    """Only the two documented subjects can clear the gate."""
+    decision = readiness(
+        candidate(layer=_lower_stack()),
+        completeness(subject=subject, milestones=_lower_stack().milestones),
+        proof(),
+    )
+    assert not decision.ready
+    assert decision.reason == "completeness-subject-unrecognized"
+
+
+@pytest.mark.parametrize(
+    "milestones",
+    [(), ("EP-M1",), ("EP-M1", "EP-M2", "EP-M3"), ("EP-M9",)],
+    ids=["none-named", "partial", "includes-work-above", "unrelated"],
+)
+def test_a_subset_verdict_must_name_the_layers_own_milestones(
+    milestones: tuple[str, ...],
+) -> None:
+    """A subset subject that does not match the layer cannot clear it."""
+    decision = readiness(
+        candidate(layer=_lower_stack()),
+        completeness(subject=DECLARED_SUBSET, milestones=milestones),
+        proof(),
+    )
+    assert not decision.ready
+    assert decision.reason == "completeness-stack-milestones-unnamed"
 
 
 def test_the_final_stack_layer_cannot_clear_on_its_subset() -> None:
@@ -195,7 +234,9 @@ def test_the_final_stack_layer_cannot_clear_on_its_subset() -> None:
         milestones=("EP-M3", "EP-M4"), parent="stack#12", remaining_above=()
     )
     decision = readiness(
-        candidate(layer=layer), completeness(subject=DECLARED_SUBSET), proof()
+        candidate(layer=layer),
+        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
+        proof(),
     )
     assert not decision.ready
     assert decision.reason == "completeness-whole-plan-required"
@@ -210,7 +251,9 @@ def test_a_single_pr_claiming_the_whole_plan_cannot_clear_on_a_subset() -> None:
         claims_whole_plan=True,
     )
     decision = readiness(
-        candidate(layer=layer), completeness(subject=DECLARED_SUBSET), proof()
+        candidate(layer=layer),
+        completeness(subject=DECLARED_SUBSET, milestones=layer.milestones),
+        proof(),
     )
     assert not decision.ready
     assert decision.reason == "completeness-whole-plan-required"
@@ -369,9 +412,11 @@ def test_each_readiness_reason_cites_a_sentence_in_the_shipped_documents(
 
 
 def _lower_stack() -> StackLayer:
-    """Return a layer with a parent and milestones above it."""
+    """Return a layer with its own milestones, a parent and work above it."""
     return StackLayer(
-        milestones=("EP-M1",), parent="stack#12", remaining_above=("EP-M3",)
+        milestones=("EP-M1", "EP-M2"),
+        parent="stack#12",
+        remaining_above=("EP-M3", "EP-M4"),
     )
 
 
@@ -409,6 +454,11 @@ REASON_STATES = {
     "completeness-revision-unbound": (
         candidate(), completeness(echoed=None), proof()
     ),
+    "completeness-subject-unrecognized": (
+        candidate(layer=_lower_stack()),
+        completeness(subject="declared-scope", milestones=_lower_stack().milestones),
+        proof(),
+    ),
     "completeness-whole-plan-required": (
         candidate(), completeness(subject=DECLARED_SUBSET), proof()
     ),
@@ -416,6 +466,11 @@ REASON_STATES = {
         candidate(layer=StackLayer(milestones=(), parent="stack#12",
                                   remaining_above=("EP-M3",))),
         completeness(subject=DECLARED_SUBSET),
+        proof(),
+    ),
+    "completeness-stack-milestones-unnamed": (
+        candidate(layer=_lower_stack()),
+        completeness(subject=DECLARED_SUBSET, milestones=("EP-M9",)),
         proof(),
     ),
     "proof-pending": (
@@ -486,6 +541,16 @@ def test_readiness_model_names_the_completeness_and_proof_kinds() -> None:
     assert (COMPLETENESS, PROOF) == ("completeness", "proof")
 
 
+def _subject_accepting_any_subject(subject, cand):  # noqa: ANN001
+    """Drop the recognized-subject check but keep the rest of the rule."""
+    if subject.verdict == NOT_APPLICABLE or subject.subject == WHOLE_PLAN:
+        return None
+    return _real_subject(
+        completeness(subject=DECLARED_SUBSET, milestones=subject.named_milestones),
+        cand,
+    )
+
+
 DEFECTIVE_RULES = (
     pytest.param(
         "_subject",
@@ -495,6 +560,29 @@ DEFECTIVE_RULES = (
         (candidate(), completeness(subject=DECLARED_SUBSET), proof()),
         "completeness-whole-plan-required",
         id="subject-rule-dropped",
+    ),
+    pytest.param(
+        "_subject",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module, "_subject", _subject_accepting_any_subject
+        ),
+        (candidate(layer=_lower_stack()),
+         completeness(subject="declared-scope",
+                      milestones=_lower_stack().milestones),
+         proof()),
+        "completeness-subject-unrecognized",
+        id="unrecognized-subject-accepted",
+    ),
+    pytest.param(
+        "milestones",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module, "_names_the_layer", lambda named, layer: True
+        ),
+        (candidate(layer=_lower_stack()),
+         completeness(subject=DECLARED_SUBSET, milestones=("EP-M9",)),
+         proof()),
+        "completeness-stack-milestones-unnamed",
+        id="named-milestones-selection-dropped",
     ),
     pytest.param(
         "_revision_bound",
@@ -552,15 +640,15 @@ DEFECTIVE_RULES = (
         ),
         (candidate(layer=StackLayer(milestones=("EP-M3",), parent="stack#12",
                                     remaining_above=())),
-         completeness(subject=DECLARED_SUBSET), proof()),
+         completeness(subject=DECLARED_SUBSET, milestones=("EP-M3",)), proof()),
         "completeness-whole-plan-required",
         id="final-layer-exemption-widened",
     ),
     pytest.param(
-        "_delivery_gates",
+        "delivery_gate",
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
-            "_delivery_gates",
+            "delivery_gate",
             lambda cand: (
                 _real_delivery_gates(cand)
                 if not cand.codescene_clear
@@ -572,10 +660,10 @@ DEFECTIVE_RULES = (
         id="ci-gate-dropped",
     ),
     pytest.param(
-        "_delivery_gates",
+        "delivery_gate",
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
-            "_delivery_gates",
+            "delivery_gate",
             lambda cand: (
                 _real_delivery_gates(cand) if not cand.ci_green else None
             ),
@@ -631,7 +719,8 @@ DEFECTIVE_RULES = (
     ),
 )
 _real_disposition = readiness_module._disposition
-_real_delivery_gates = readiness_module._delivery_gates
+_real_delivery_gates = readiness_module.delivery_gate
+_real_subject = readiness_module._subject
 
 
 @pytest.mark.parametrize(

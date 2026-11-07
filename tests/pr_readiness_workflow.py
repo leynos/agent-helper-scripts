@@ -26,6 +26,7 @@ from pr_readiness_model import (
     Readiness,
     StackLayer,
     Verdict,
+    delivery_gate,
     readiness,
 )
 
@@ -44,6 +45,7 @@ class Reply:
     plan_revision: str | None = None
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
+    named_milestones: tuple[str, ...] = ()
     justification: str = ""
 
 
@@ -181,6 +183,7 @@ def _verdict(
         plan_revision=reply.plan_revision,
         echoed_revision=reply.echoed_revision,
         subject=reply.subject,
+        named_milestones=reply.named_milestones,
         justification=reply.justification,
     )
 
@@ -219,10 +222,12 @@ def assess_and_maybe_mark_ready(
 ) -> Readiness:
     """Run the documented sequence for one candidate and return its decision.
 
-    The sequence is the one the skills state: post the applicable assessment
-    questions, read their substantive replies, decide readiness, and only then
-    perform the ready transition. A pending reply stays pending; it is never
-    read as clearance.
+    The sequence is the one the skills state: establish green CI and clear
+    CodeScene findings, post the applicable assessment questions, read their
+    substantive replies, decide readiness, and only then perform the ready
+    transition. A pending reply stays pending; it is never read as clearance.
+    A blocked delivery gate returns before any question is posted, so the
+    assessor is not asked to spend a reply on a candidate that cannot proceed.
 
     Parameters
     ----------
@@ -244,6 +249,9 @@ def assess_and_maybe_mark_ready(
     Readiness
         The decision, after the ready transition has or has not been performed.
     """
+    blocked = delivery_gate(pull.candidate())
+    if blocked is not None:
+        return blocked
     revision = pull.approved_plan_revision
     if completeness_applies:
         posted = discussion.post(COMPLETENESS, completeness_id, revision)
