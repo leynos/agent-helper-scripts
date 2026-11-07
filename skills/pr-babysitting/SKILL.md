@@ -221,7 +221,8 @@ Record that state for each applicable assessment as a verdict (`clear`,
 `not clear`, or `pending`, with a justified `not applicable` for the proof
 assessment) together with its subject, either the whole plan or the declared
 subset, on the same entry as the base/head and plan revision it was given for.
-Only a clear whole-plan verdict for the accepted base/head satisfies
+Only a clear whole-plan verdict for the accepted base/head and the plan
+revision it was recorded against satisfies
 [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
 Record introduced or materially changed proofs and their required scrutiny
 also when no ExecPlan applies. Plan-authoring alone does not trigger an

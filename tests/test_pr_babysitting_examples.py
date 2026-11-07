@@ -205,7 +205,7 @@ def assessment_contract(assessment: str, skill: str) -> None:
         "a verdict (`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment)",
         "its subject, either the whole plan or the declared subset",
         "on the same entry as the base/head and plan revision it was given for",
-        "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "Only a clear whole-plan verdict for the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
@@ -255,7 +255,7 @@ ASSESSMENT_MUTATIONS = (
     ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False, LIMITATIONS_GUARD),
     ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True, MILESTONE_OWNERSHIP),
     ("skill", "`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "`posted` or `answered`", False, LEDGER_VERDICT),
-    ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
+    ("skill", "Only a clear whole-plan verdict for the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
     ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False, LEDGER_CANDIDATE),
 )
 
@@ -290,11 +290,15 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
             "",
         ),
         (
-            "Only a clear whole-plan verdict for the accepted base/head satisfies",
-            "Only a clear declared-subset verdict for the accepted base/head satisfies",
+            "Only a clear whole-plan verdict for the accepted base/head and the plan revision",
+            "Only a clear declared-subset verdict for the accepted base/head and the plan revision",
+        ),
+        (
+            "for the accepted base/head and the plan revision it was recorded against satisfies",
+            "for the accepted base/head satisfies",
         ),
     ],
-    ids=["omitted-candidate", "declared-subset-may-clear"],
+    ids=["omitted-candidate", "declared-subset-may-clear", "unbound-plan-revision"],
 )
 def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
     old: str, new: str
