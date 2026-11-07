@@ -790,7 +790,9 @@ The posting helper writes bounded JSON diagnostics to standard error for token
 selection, the lifecycle-account lookup, identity checks, and posting, with the
 operation, a per-invocation `run_id` for correlation, comment surface,
 repository/PR, failure category, exit status, elapsed time, and recognized HTTP
-status. It omits tokens, account names, comment bodies, and raw GitHub error
+status. The elapsed time comes from the wall clock, so an adjustment during a
+stage can make it inaccurate, and a reading that would be negative is reported
+as zero. It omits tokens, account names, comment bodies, and raw GitHub error
 text.
 
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
