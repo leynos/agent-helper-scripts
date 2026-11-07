@@ -450,6 +450,23 @@ def test_the_model_produces_exactly_the_reasons_it_cites() -> None:
     assert set(readiness_module.REASONS) == set(REASON_CITATIONS)
 
 
+@pytest.mark.parametrize("reason", sorted(REASON_CITATIONS))
+def test_dropping_any_single_citation_is_detected(reason: str) -> None:
+    """No citation can be deleted without failing the model's own check."""
+    reduced = {
+        key: value for key, value in REASON_CITATIONS.items() if key != reason
+    }
+    assert set(REASON_STATES) != set(reduced), (
+        f"dropping {reason!r} would leave the reachable reasons unchanged"
+    )
+    real_state = REASON_STATES[reason]
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(readiness_module, "REASON_CITATIONS", reduced)
+        monkeypatch.setattr(readiness_module, "REASONS", frozenset(reduced))
+        with pytest.raises(AssertionError):
+            readiness(*real_state)
+
+
 def test_the_readiness_section_states_the_transition_under_assessment() -> None:
     """The prose and the model agree on where the gate sits in the lifecycle."""
     readiness_text = normalize(raw_section(ASSESSMENT.read_text(), "Readiness and later changes"))

@@ -229,6 +229,24 @@ def _decision(reason: str) -> Readiness:
     return Readiness(ready=False, reason=reason)
 
 
+def _cleared() -> Readiness:
+    """Return the ready decision, which is cited like every blocking reason.
+
+    Returns
+    -------
+    Readiness
+        ``ready``, the one decision that permits the draft-to-ready transition.
+
+    Raises
+    ------
+    AssertionError
+        Raised when the ready outcome has lost its citation, so the citation
+        check would otherwise pass while the shipped rule went unrecorded.
+    """
+    assert "ready" in REASONS, "uncited readiness reason: ready"
+    return Readiness(ready=True, reason="ready")
+
+
 def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readiness | None:
     """Reject a verdict that is not bound to the revision in force.
 
@@ -359,4 +377,4 @@ def readiness(
     blocked = _subject(completeness, candidate)
     if blocked is not None:
         return blocked
-    return Readiness(ready=True, reason="ready")
+    return _cleared()
