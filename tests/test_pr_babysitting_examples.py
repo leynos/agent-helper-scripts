@@ -199,14 +199,16 @@ def assessment_contract(assessment: str, skill: str) -> None:
     ledger = section(skill, "1. Establish the candidate and keep a delivery ledger")
     for requirement in (
         "a verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment",
-        "its subject, either the whole plan or the declared subset",
-        "on the same entry as the base/head and plan revision it was given for",
-        "Only a clear whole-plan verdict covering the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "on the same entry as the base/head and the plan revision it was given for",
+        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
     assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
+    assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
     assert "Do not set the PR back to draft" in readiness, "redrafting prohibition must remain in readiness section"
     parent_ready = section(skill, "5. Assess applicable delivery gates, then mark green drafts ready")
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"
@@ -224,38 +226,158 @@ LIMITATIONS_GUARD = "completeness request must restrict limitations to evidentia
 MILESTONE_OWNERSHIP = "completeness section must bind milestones to the ownership rule"
 LEDGER_VERDICT = "ledger section must state: a verdict"
 LEDGER_CANDIDATE = "ledger section must state: on the same entry"
-LEDGER_CLEARING = "ledger section must state: Only a clear whole-plan verdict"
+LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
+LEDGER_CLEARING = "ledger section must state: Only a clear whole-plan completeness verdict"
+LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
+READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
 
 ASSESSMENT_MUTATIONS = (
-    ("assessment", "Both applicable assessments must clear", "Both applicable assessments need not clear", False, "applicable assessments must precede readiness"),
-    ("assessment", "An already-ready PR stays ready; obtain missing assessments before merge.", "", False, "missing assessment must block merge"),
-    ("assessment", "for the published candidate.", "for any old candidate.", False, "gates must bind to published candidate"),
-    ("assessment", "Assessment conversations never go through `comenq`.", "Assessment conversations always go through `comenq`.", False, "assessment follow-ups must not enter the review queue"),
-    ("assessment", "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.", "", True, "applicable assessments must precede readiness"),
-    ("skill", "all applicable pre-readiness assessments hold", "no assessments hold", False, "parent readiness condition must include assessments"),
-    ("skill", "An already-ready PR remains ready while missing or invalidated assessments block merge.", "", True, "parent must preserve ready state and merge blocker"),
-    ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.", "", True, "merge checklist must require candidate-bound assessments"),
-    ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False, LIMITATIONS_GUARD),
-    ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False, LIMITATIONS_GUARD),
-    ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True, MILESTONE_OWNERSHIP),
-    ("skill", "a verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "a verdict of `posted` or `answered`", False, LEDGER_VERDICT),
-    ("skill", "Only a clear whole-plan verdict covering the accepted base/head and the plan revision it was recorded against satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True, LEDGER_CLEARING),
-    ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False, LEDGER_CANDIDATE),
+    (
+        "inverted-readiness",
+        "assessment",
+        "Both applicable assessments must clear",
+        "Both applicable assessments need not clear",
+        False,
+        "applicable assessments must precede readiness",
+    ),
+    (
+        "removed-ready-preservation",
+        "assessment",
+        "An already-ready PR stays ready; obtain missing assessments before merge.",
+        "",
+        False,
+        "missing assessment must block merge",
+    ),
+    (
+        "stale-publication",
+        "assessment",
+        "for the published candidate.",
+        "for any old candidate.",
+        False,
+        "gates must bind to published candidate",
+    ),
+    (
+        "queued-assessment",
+        "assessment",
+        "Assessment conversations never go through `comenq`.",
+        "Assessment conversations always go through `comenq`.",
+        False,
+        "assessment follow-ups must not enter the review queue",
+    ),
+    (
+        "moved-readiness",
+        "assessment",
+        "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.",
+        "",
+        True,
+        "applicable assessments must precede readiness",
+    ),
+    (
+        "parent-waiver",
+        "skill",
+        "all applicable pre-readiness assessments hold",
+        "no assessments hold",
+        False,
+        "parent readiness condition must include assessments",
+    ),
+    (
+        "moved-parent-preservation",
+        "skill",
+        "An already-ready PR remains ready while missing or invalidated assessments block merge.",
+        "",
+        True,
+        "parent must preserve ready state and merge blocker",
+    ),
+    (
+        "moved-merge-guard",
+        "skill",
+        "7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.",
+        "",
+        True,
+        "merge checklist must require candidate-bound assessments",
+    ),
+    (
+        "removed-limitations-guard",
+        "assessment",
+        "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.",
+        "",
+        False,
+        LIMITATIONS_GUARD,
+    ),
+    (
+        "inverted-limitations-guard",
+        "assessment",
+        "not unimplemented plan milestones",
+        "including unimplemented plan milestones",
+        False,
+        LIMITATIONS_GUARD,
+    ),
+    (
+        "moved-milestone-ownership",
+        "assessment",
+        "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).",
+        "",
+        True,
+        MILESTONE_OWNERSHIP,
+    ),
+    (
+        "ledger-drops-verdict",
+        "skill",
+        "a verdict of `clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment",
+        "a verdict of `posted` or `answered`",
+        False,
+        LEDGER_VERDICT,
+    ),
+    (
+        "moved-ledger-readiness-pointer",
+        "skill",
+        "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
+        "",
+        True,
+        LEDGER_CLEARING,
+    ),
+    (
+        "unbound-ledger-verdict",
+        "skill",
+        "on the same entry as the base/head and the plan revision it was given for.",
+        "",
+        False,
+        LEDGER_CANDIDATE,
+    ),
+    (
+        "proof-subject-collapsed-to-whole-plan",
+        "skill",
+        "The completeness assessment's subject is either the whole plan or the declared subset; the proof assessment's subject is the named proofs it covers.",
+        "Every assessment's subject is the whole plan.",
+        False,
+        LEDGER_SUBJECT,
+    ),
+    (
+        "ledger-accepts-superseded-plan-revision",
+        "skill",
+        "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+        "",
+        False,
+        LEDGER_STALE_REVISION,
+    ),
+    (
+        "readiness-accepts-superseded-plan-revision",
+        "assessment",
+        "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged.",
+        "",
+        False,
+        READINESS_STALE_REVISION,
+    ),
 )
 
 
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move", "expected"),
+    ("case_id", "document", "old", "new", "move", "expected"),
     ASSESSMENT_MUTATIONS,
-    ids=[
-        "inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment",
-        "moved-readiness", "parent-waiver", "moved-parent-preservation", "moved-merge-guard",
-        "removed-limitations-guard", "inverted-limitations-guard", "moved-milestone-ownership",
-        "ledger-drops-verdict", "moved-ledger-readiness-pointer", "unbound-ledger-verdict",
-    ],
+    ids=[row[0] for row in ASSESSMENT_MUTATIONS],
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
-    document: str, old: str, new: str, move: bool, expected: str
+    case_id: str, document: str, old: str, new: str, move: bool, expected: str
 ) -> None:
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
@@ -270,22 +392,32 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     ("old", "new", "expected"),
     [
         (
-            "on the same entry as the base/head and plan revision it was given for.",
+            "on the same entry as the base/head and the plan revision it was given for.",
             "",
             LEDGER_CANDIDATE,
         ),
         (
-            "Only a clear whole-plan verdict covering the accepted base/head and the plan revision",
-            "Only a clear declared-subset verdict covering the accepted base/head and the plan revision",
+            "Only a clear whole-plan completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
+            "Only a clear declared-subset completeness verdict that covers the accepted base/head and was recorded against the currently approved plan revision",
             LEDGER_CLEARING,
         ),
         (
-            "covering the accepted base/head and the plan revision it was recorded against satisfies",
-            "covering the accepted base/head satisfies",
+            "and was recorded against the currently approved plan revision satisfies",
+            "and satisfies",
             LEDGER_CLEARING,
         ),
+        (
+            "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+            "A verdict recorded against a superseded plan revision still clears, when the base/head is unchanged.",
+            LEDGER_STALE_REVISION,
+        ),
     ],
-    ids=["omitted-candidate", "declared-subset-may-clear", "unbound-plan-revision"],
+    ids=[
+        "omitted-candidate",
+        "declared-subset-may-clear",
+        "unbound-plan-revision",
+        "accepts-any-earlier-plan-revision",
+    ],
 )
 def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
     old: str, new: str, expected: str

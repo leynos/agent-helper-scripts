@@ -163,9 +163,12 @@ a later stage, not the mechanism for obtaining the pre-ready assessment.
 
 An already-ready PR stays ready; obtain missing assessments before merge.
 Subsequent repairs, proof changes, rebases, or retargeting require renewed
-candidate-bound evidence and affected assessment coverage. Preserve earlier
-evidence for its actual scope without relabelling it as a new review. Do not
-set the PR back to draft. If the assessment service explicitly cannot process
-the question, retain its response and report the specific blocker rather than
-inferring failure from automatic draft-review policy. Do not bypass the gate.
-Generic approval cannot discharge missing proof scrutiny.
+candidate-bound evidence and affected assessment coverage. The plan revision is
+part of that candidate: a verdict recorded against a revision that has since
+been superseded by a newly approved revision does not clear the gate, even when
+the base/head is unchanged. Reassess against the approved revision in force.
+Preserve earlier evidence for its actual scope without relabelling it as a new
+review. Do not set the PR back to draft. If the assessment service explicitly
+cannot process the question, retain its response and report the specific
+blocker rather than inferring failure from automatic draft-review policy. Do
+not bypass the gate. Generic approval cannot discharge missing proof scrutiny.
