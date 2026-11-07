@@ -185,3 +185,38 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
     assert str(first) in message, message
     assert "original failure: VendorError" in message, message
     assert second.read_text() == "second previous\n", second
+
+
+def test_a_later_mapping_without_a_heading_writes_nothing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Every source is converted before the first output is written."""
+    built = make_config(
+        vendor,
+        tmp_path,
+        sources={
+            "users-guide.md": "# Users\n\nText.\n",
+            "v0-2-0-migration-guide.md": "Text without a heading.\n",
+        },
+        mappings=(
+            ("users-guide.md", "aaa-users.md"),
+            ("v0-2-0-migration-guide.md", "zzz-migration.md"),
+        ),
+    )
+    first = built.config.output_directory / "aaa-users.md"
+    first.write_text("previous\n", encoding="utf-8")
+    second = built.config.output_directory / "zzz-migration.md"
+    sources_before = {
+        path.name: path.read_bytes()
+        for path in built.config.source_directory.iterdir()
+    }
+
+    with pytest.raises(vendor.VendorError, match="level-one heading"):
+        vendor.vendor(built.config)
+
+    assert first.read_text(encoding="utf-8") == "previous\n"
+    assert not second.exists()
+    assert {
+        path.name: path.read_bytes()
+        for path in built.config.source_directory.iterdir()
+    } == sources_before

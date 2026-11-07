@@ -281,13 +281,15 @@ repository as `scripts/vendor_tagged_guides_cli.py`.
 
 ### Migrating
 
-If your copy is a verbatim snapshot of an upstream guide:
+If the copy is a verbatim snapshot of an upstream guide:
 
-1. Check out the upstream repository at the tag you intend to pin.
-2. From your repository's root, run the converter against that checkout,
-   mapping each upstream file to the name your `docs/` uses. The invocation and
-   the canonical note are documented in the
-   [library README](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag).
+1. Check out the upstream repository at the tag to pin.
+2. From the repository root, run the converter against that checkout, mapping
+   each upstream file to the name that `docs/` uses. The invocation and the
+   exact note are documented in the
+   [users' guide](users-guide.md#vendoring-a-guide-from-the-command-line); the
+   [library README](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag)
+   states the hand-edit policy.
 3. Commit the generated file. Do not edit it by hand afterwards; rerun the
    converter with a new `--tag` to refresh it.
 

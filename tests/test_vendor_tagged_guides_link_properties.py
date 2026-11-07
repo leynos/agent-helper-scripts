@@ -29,8 +29,10 @@ _DESTINATIONS = {
     ),
     "image": (
         "images/diagram.png",
-        f"https://raw.githubusercontent.com/{_REPOSITORY}/{_TAG}/"
-        "docs/images/diagram.png",
+        (
+            f"https://raw.githubusercontent.com/{_REPOSITORY}/{_TAG}/"
+            "docs/images/diagram.png"
+        ),
     ),
     "directory": (
         "adr/",

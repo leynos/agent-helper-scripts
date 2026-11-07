@@ -348,12 +348,22 @@ def block_ranges(
     return ranges, owner
 
 
+_TRAILING_WORD = re.compile(r"\S*\Z")
+
+
 def _is_too_long(line: str, limit: int) -> bool:
-    """Apply MD013's non-strict check: a line is long only past whitespace."""
-    stripped = line.rstrip()
-    if len(stripped) <= limit:
-        return False
-    return any(character.isspace() for character in stripped[limit:])
+    """Apply MD013's non-strict check to one line.
+
+    markdownlint replaces the final run of non-whitespace with a single ``#``
+    and measures the result. Trailing whitespace is therefore counted, and a
+    break immediately after the final allowed column leaves that break inside
+    the measured line. Collapsing the final word keeps an unbreakable long
+    word exempt, which is what non-strict mode is for. Only the first match is
+    replaced, as JavaScript's non-global ``replace`` does; a global
+    substitution would append a second ``#`` at the end of the line and
+    lengthen it.
+    """
+    return len(_TRAILING_WORD.sub("#", line, count=1)) > limit
 
 
 def _normalized_lines(text: str) -> list[str]:

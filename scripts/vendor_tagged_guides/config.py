@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import posixpath
 import re
+import stat
 from pathlib import Path
 from typing import NoReturn
 
@@ -135,6 +136,34 @@ def _validate_names(source_name: str, output_name: str) -> tuple[str, str]:
     return source_relative, output_relative
 
 
+def _stat_mode(path: Path) -> int | None:
+    """Return a path's mode bits, or ``None`` when it does not exist.
+
+    ``Path.is_dir`` and ``Path.is_file`` swallow some filesystem errors on
+    newer interpreters, so a permission denial would read as a missing path.
+    ``Path.stat`` reports the denial, which is translated here rather than
+    escaping as a traceback.
+    """
+    try:
+        return path.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError as error:
+        fail(f"cannot inspect the import paths: {error}")
+
+
+def _is_directory(path: Path) -> bool:
+    """Report whether a path is a directory, refusing an inspectable error."""
+    mode = _stat_mode(path)
+    return mode is not None and stat.S_ISDIR(mode)
+
+
+def _is_file(path: Path) -> bool:
+    """Report whether a path is a regular file, refusing an inspectable error."""
+    mode = _stat_mode(path)
+    return mode is not None and stat.S_ISREG(mode)
+
+
 def _validate_mapping(
     mappings: Sequence[tuple[str, str]],
     source_directory: Path,
@@ -156,7 +185,7 @@ def _validate_mapping(
         source_file = (source_directory / source_relative).resolve()
         if not source_file.is_relative_to(source_directory.resolve()):
             fail(f"source must stay inside the source directory: {source_name}")
-        if not source_file.is_file():
+        if not _is_file(source_file):
             fail(f"source file does not exist: {source_file}")
         seen_sources.add(source_relative)
         seen_outputs.add(output_relative)
@@ -166,6 +195,17 @@ def _validate_mapping(
     overlap = sorted(source_files & output_files)
     if overlap:
         fail(f"output would overwrite a source file: {overlap[0]}")
+
+
+def _validate_filesystem(config: VendorConfig) -> None:
+    """Check the directories and mappings that touch the filesystem."""
+    if not _is_directory(config.source_directory):
+        fail(f"source directory does not exist: {config.source_directory}")
+    if not _is_directory(config.output_directory):
+        fail(f"output directory does not exist: {config.output_directory}")
+    _validate_mapping(
+        config.mappings, config.source_directory, config.output_directory
+    )
 
 
 def validate(config: VendorConfig) -> None:
@@ -195,13 +235,12 @@ def validate(config: VendorConfig) -> None:
     if config.code_line_length < 1:
         fail(f"code line length must be positive: {config.code_line_length}")
     validate_relative_name(config.source_path, role="source path")
-    if not config.source_directory.is_dir():
-        fail(f"source directory does not exist: {config.source_directory}")
-    if not config.output_directory.is_dir():
-        fail(f"output directory does not exist: {config.output_directory}")
-    _validate_mapping(
-        config.mappings, config.source_directory, config.output_directory
-    )
+    try:
+        _validate_filesystem(config)
+    except OSError as error:
+        # Path resolution can still raise an environmental error. The front
+        # end promises one diagnostic line, so translate it here as well.
+        fail(f"cannot inspect the import paths: {error}")
 
 
 def project_name(config: VendorConfig) -> str:

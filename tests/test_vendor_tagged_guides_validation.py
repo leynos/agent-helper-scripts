@@ -7,6 +7,7 @@ argument class the front end must reject, and the diagnostic it reports.
 from __future__ import annotations
 
 import dataclasses
+import os
 from pathlib import Path
 import types
 
@@ -123,3 +124,27 @@ def test_an_output_that_resolves_to_a_source_is_refused(
         vendor.VendorError, match="output would overwrite a source file"
     ):
         vendor.validate(candidate)
+
+
+def test_an_inaccessible_source_directory_is_refused(
+    vendor: types.ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A permission error while inspecting a path is a VendorError."""
+    config = make_config(vendor, tmp_path).config
+    original_stat = Path.stat
+
+    def failing_stat(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == config.source_directory:
+            raise PermissionError(13, "Permission denied", str(self))
+        return original_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", failing_stat)
+
+    with pytest.raises(
+        vendor.VendorError, match="cannot inspect the import paths"
+    ):
+        vendor.validate(config)

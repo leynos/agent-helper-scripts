@@ -288,3 +288,39 @@ def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
         timeout=60,
     )
     assert linter.returncode == 0, linter.stdout + linter.stderr
+
+
+def test_the_command_line_reports_an_inaccessible_source_without_a_traceback(
+    tmp_path: Path,
+) -> None:
+    """A permission error while inspecting the source is one diagnostic line."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses directory permissions")
+    outer = tmp_path / "outer"
+    (outer / "docs").mkdir(parents=True)
+    (tmp_path / "output").mkdir()
+    outer.chmod(0)
+    try:
+        result = run_cli(
+            "--tag",
+            "v0.2.0-beta2",
+            "--repository",
+            "leynos/cuprum",
+            "--source",
+            "outer/docs",
+            "--output",
+            "output",
+            "--map",
+            "users-guide.md=cuprum-users-guide.md",
+            "--no-format",
+            cwd=tmp_path,
+        )
+    finally:
+        outer.chmod(0o755)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert (
+        "vendor_tagged_guides: error: cannot inspect the import paths"
+        in result.stderr
+    ), result.stderr
+    assert "Traceback" not in result.stderr, result.stderr

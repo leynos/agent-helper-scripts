@@ -309,11 +309,16 @@ The core exposes a frozen `VendorConfig` dataclass, a `VendorError`, and a
 shape as `gate_runner.GATE_ERRORS`. `validate` checks the configuration before
 the first file is written. `convert` rewrites one document. `long_lines` and
 `insert_exemptions` decide where the consumer's Markdown gate needs a bounded
-MD013 exemption. `vendor` composes them: it writes each mapping, optionally
-runs an injected `format_files` callable, inserts exemptions, runs the
-formatter again, and refuses the result unless the second formatting pass
-changed nothing. The fixed-point check is what makes a rerun at the same tag
-reproducible.
+MD013 exemption. `vendor` composes them. It validates the configuration and
+converts every mapping before it writes any output, so a source that cannot be
+converted leaves the consumer's directory untouched. It then writes each
+mapping, optionally runs an injected `format_files` callable, inserts
+exemptions, runs the formatter again, and refuses the result unless the second
+formatting pass changed nothing. The fixed-point check is what makes a rerun at
+the same tag reproducible. Once writing has begun, a failure attempts to
+restore the previous outputs, but restoration is best effort rather than
+guaranteed: every remaining output is still attempted, and a restore that fails
+is reported together with the original failure.
 
 Conversion masks fenced code, inline code, comments, and footnotes before it
 looks for links, so none of their contents can be rewritten. Inline links and

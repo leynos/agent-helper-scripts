@@ -1,12 +1,14 @@
 """Compose conversion, formatting, and writing into one import.
 
 Every source is converted before any output file is written, so a source that
-cannot be converted leaves the consumer's ``docs/`` unchanged. Any failure
-after the first write restores the previous output files, so a rejected run
-does not leave unformatted copies behind. The optional formatter then runs
-twice with the exemption pass between, and the pipeline refuses the result
-unless the second pass changed nothing; that fixed point is what makes a rerun
-at the same tag reproduce the same bytes.
+cannot be converted leaves the consumer's ``docs/`` unchanged. A failure after
+the first write attempts to restore every previous output file, so a rejected
+run does not normally leave unformatted copies behind. Restoration is best
+effort rather than guaranteed: each remaining path is still attempted, and a
+restore that fails is reported together with the original failure. The
+optional formatter then runs twice with the exemption pass between, and the
+pipeline refuses the result unless the second pass changed nothing; that fixed
+point is what makes a rerun at the same tag reproduce the same bytes.
 """
 
 from __future__ import annotations

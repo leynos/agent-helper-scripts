@@ -209,3 +209,35 @@ def test_exemption_insertion_is_idempotent_with_small_limits(
     once = vendor.insert_exemptions(document, **limits)
 
     assert vendor.insert_exemptions(once, **limits) == once, once
+
+
+def test_a_hard_break_after_the_final_allowed_column_is_detected(
+    vendor: types.ModuleType,
+) -> None:
+    """MD013 measures a break that lands just past the limit, so bracket it."""
+    paragraph = "x" * 79 + " y"
+    document = f"# Title\n\n{paragraph}\n"
+
+    assert vendor.long_lines(document) == (2,), vendor.long_lines(document)
+
+    converted = vendor.insert_exemptions(document)
+
+    assert vendor.long_lines(converted) == (), converted
+    assert "<!-- markdownlint-disable MD013 -->" in converted, converted
+
+
+def test_trailing_whitespace_counts_but_an_unbreakable_word_stays_exempt(
+    vendor: types.ModuleType,
+) -> None:
+    """Non-strict MD013 exempts only a last word that crosses the limit."""
+    trailing = "word " * 16 + "end" + "   "
+    unbreakable = "x" * 200
+    at_limit = "w" * 76 + " end"
+    document = f"# Title\n\n{trailing}\n\n{unbreakable}\n\n{at_limit}\n"
+
+    assert len(at_limit) == 80, len(at_limit)
+    assert vendor.long_lines(document) == (2,), vendor.long_lines(document)
+
+    converted = vendor.insert_exemptions(document)
+
+    assert vendor.long_lines(converted) == (), converted
