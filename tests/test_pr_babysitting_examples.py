@@ -229,7 +229,7 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
     ASSESSMENT_MUTATIONS,
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
-    document: str, old: str, new: str, move: bool, expected: str
+    document: str, old: str, new: str, move: bool, expected: str  # noqa: FBT001 - supplied positionally by pytest parametrize
 ) -> None:
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()

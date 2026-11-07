@@ -56,6 +56,21 @@ SETUP_READINESS_ANCHOR = (
     "#readiness-and-later-changes"
 )
 COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
+WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
+HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
+SETUP_LINK = "draft creation must link the readiness clearing rule"
+
+
+@pytest.fixture(scope="module")
+def implementation_text() -> str:
+    """Return the implementation skill document once per module."""
+    return _read(IMPLEMENTATION / "SKILL.md")
+
+
+@pytest.fixture(scope="module")
+def setup_text() -> str:
+    """Return the setup reference once per module."""
+    return _read(IMPLEMENTATION / "references" / "setup.md")
 
 
 def _read(path: Path) -> str:
@@ -140,17 +155,11 @@ def test_contract_rejects_reintroduced_delivery_commands(command: str) -> None:
         _assert_no_delivery_loop(text)
 
 
-def test_handoff_binds_the_whole_plan_to_the_readiness_rule() -> None:
+def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
+    implementation_text: str, setup_text: str
+) -> None:
     """The whole approved plan is the assessment subject, not the declared scope."""
-    _assert_handoff_binds_whole_plan(
-        _read(IMPLEMENTATION / "SKILL.md"),
-        _read(IMPLEMENTATION / "references" / "setup.md"),
-    )
-
-
-WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
-HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
-SETUP_LINK = "draft creation must link the readiness clearing rule"
+    _assert_handoff_binds_whole_plan(implementation_text, setup_text)
 
 
 @pytest.mark.parametrize(
@@ -170,14 +179,12 @@ SETUP_LINK = "draft creation must link the readiness clearing rule"
     ids=["removed-qualifier", "narrowed-to-declared-scope"],
 )
 def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
-    old: str, new: str, expected: str
+    implementation_text: str, setup_text: str, old: str, new: str, expected: str
 ) -> None:
     """Deleting or narrowing the whole-plan qualifier fails the handoff contract."""
-    implementation = _read(IMPLEMENTATION / "SKILL.md")
-    setup = _read(IMPLEMENTATION / "references" / "setup.md")
-    mutated = mutate_one_clause(implementation, old, new)
+    mutated = mutate_one_clause(implementation_text, old, new)
     with pytest.raises(AssertionError, match=re.escape(expected)):
-        _assert_handoff_binds_whole_plan(mutated, setup)
+        _assert_handoff_binds_whole_plan(mutated, setup_text)
 
 
 @pytest.mark.parametrize(
@@ -189,17 +196,19 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_its_scope(
     ids=["moved-readiness-link", "moved-draft-creation-cross-reference"],
 )
 def test_handoff_rejects_a_readiness_link_moved_out_of_its_section(
-    document: str, anchor: str, expected: str
+    implementation_text: str,
+    setup_text: str,
+    document: str,
+    anchor: str,
+    expected: str,
 ) -> None:
     """A readiness cross-reference pasted outside its section cannot satisfy the contract."""
-    implementation = _read(IMPLEMENTATION / "SKILL.md")
-    setup = _read(IMPLEMENTATION / "references" / "setup.md")
-    source = implementation if document == "implementation" else setup
+    source = implementation_text if document == "implementation" else setup_text
     mutated = mutate_one_clause(source, anchor, "", move=True)
     with pytest.raises(AssertionError, match=re.escape(expected)):
         _assert_handoff_binds_whole_plan(
-            mutated if document == "implementation" else implementation,
-            mutated if document == "setup" else setup,
+            mutated if document == "implementation" else implementation_text,
+            mutated if document == "setup" else setup_text,
         )
 
 
