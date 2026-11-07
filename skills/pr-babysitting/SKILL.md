@@ -224,7 +224,10 @@ Record that state for each applicable assessment:
 - Each verdict sits on the same entry as the base/head and the plan revision it
   was given for; reconcile the revision the substantive reply echoes against
   the revision in force, since a reply that echoes only the base/head does not
-  bind the verdict to an approved revision.
+  bind the verdict to an approved revision. That applies to whichever
+  assessment is in scope, so a proof request under an ExecPlan must also name
+  and echo the revision; without an ExecPlan, the base/head is the whole
+  candidate and there is no revision to reconcile.
 - The completeness assessment's subject is either the whole plan or the
   declared subset; the proof assessment's subject is the named proofs it covers.
 - When the completeness assessment applies, only a clear whole-plan

@@ -195,6 +195,11 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head>." in completeness, "completeness request must identify the assessed plan revision"
     assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in completeness, "completeness request must require the reply to echo the plan revision"
     assert "a reply that echoes only the base/head cannot bind its verdict to an approved revision" in completeness, "completeness section must state why base/head alone cannot bind a verdict"
+    proofs = section(assessment, "Proof inventory and specific scrutiny")
+    assert "Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>." in proofs, "proof request must name the plan revision when an ExecPlan applies"
+    assert "Please echo the Assessment-ID, assessed base/head, and plan revision in your" in proofs, "proof request must require the reply to echo the plan revision"
+    assert "echo the plan revision only when this request names one" in proofs, "proof echo must stay conditional on an ExecPlan"
+    assert "a proof-only assignment with no ExecPlan keeps the base/head as its whole candidate and asks for no revision echo" in proofs, "proof section must preserve the no-plan case"
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing, "initial comments must use assigned token route"
@@ -209,6 +214,8 @@ def assessment_contract(assessment: str, skill: str) -> None:
         "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
         "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
         "reconcile the revision the substantive reply echoes against the revision in force",
+        "a proof request under an ExecPlan must also name and echo the revision",
+        "without an ExecPlan, the base/head is the whole candidate and there is no revision to reconcile",
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")

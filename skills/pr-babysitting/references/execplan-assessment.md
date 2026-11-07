@@ -133,9 +133,11 @@ Production correspondence: <implementation paths and relevant requirements>.
 Assumptions, trusted boundaries, domain, and bounds: <specific evidence>.
 Verifier evidence: <versions, commands, configuration, and per-proof outcomes>.
 Non-vacuity and limitations: <witnesses, negative controls, and residual gaps>.
+Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>.
 Assessment-ID: <unique request marker>.
 
-Please echo the Assessment-ID and assessed base/head in your substantive reply.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.
@@ -148,7 +150,9 @@ Require an explicit satisfactory assessment of the listed proofs with no
 unresolved substantive proof concern. Verifier success and CodeRabbit's
 judgement complement each other; neither replaces the other. When no proof is
 affected, record a justified `not applicable` instead of posting an empty
-inventory or creating a ceremonial proof.
+inventory or creating a ceremonial proof. Name the plan revision only when an
+ExecPlan applies; a proof-only assignment with no ExecPlan keeps the base/head
+as its whole candidate and asks for no revision echo.
 
 ## Readiness and later changes
 

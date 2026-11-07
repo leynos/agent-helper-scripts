@@ -25,6 +25,12 @@ ECHOED_REVISION = "completeness request must require the reply to echo the plan 
 BASE_HEAD_LIMIT = "completeness section must state why base/head alone cannot bind a verdict"
 READINESS_REVISION_RECONCILIATION = "readiness section must reconcile the echoed plan revision"
 LEDGER_ECHO_REVISION = "ledger section must state: reconcile the revision the substantive reply echoes"
+LEDGER_PROOF_REVISION = "ledger section must state: a proof request under an ExecPlan must also name and echo the revision"
+LEDGER_NO_PLAN = "ledger section must state: without an ExecPlan, the base/head is the whole candidate"
+PROOF_REVISION = "proof request must name the plan revision when an ExecPlan applies"
+PROOF_ECHO_REVISION = "proof request must require the reply to echo the plan revision"
+PROOF_CONDITIONAL_ECHO = "proof echo must stay conditional on an ExecPlan"
+PROOF_NO_PLAN_CASE = "proof section must preserve the no-plan case"
 
 ASSESSMENT_MUTATIONS = (
     pytest.param(
@@ -226,5 +232,53 @@ ASSESSMENT_MUTATIONS = (
         False,
         LEDGER_ECHO_REVISION,
         id="ledger-binds-verdict-to-base-head-only",
+    ),
+    pytest.param(
+        "assessment",
+        "Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>.",
+        "",
+        False,
+        PROOF_REVISION,
+        id="proof-request-omits-plan-revision",
+    ),
+    pytest.param(
+        "assessment",
+        "Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply; echo the plan revision only when this request names one.",
+        "Please echo the Assessment-ID and assessed base/head in your substantive reply.",
+        False,
+        PROOF_ECHO_REVISION,
+        id="proof-reply-echo-drops-plan-revision",
+    ),
+    pytest.param(
+        "assessment",
+        "echo the plan revision only when this request names one.",
+        "echo the plan revision in every reply.",
+        False,
+        PROOF_CONDITIONAL_ECHO,
+        id="proof-echo-unconditional",
+    ),
+    pytest.param(
+        "assessment",
+        "a proof-only assignment with no ExecPlan keeps the base/head as its whole candidate and asks for no revision echo.",
+        "",
+        True,
+        PROOF_NO_PLAN_CASE,
+        id="moved-proof-no-plan-case",
+    ),
+    pytest.param(
+        "skill",
+        "so a proof request under an ExecPlan must also name and echo the revision;",
+        "",
+        False,
+        LEDGER_PROOF_REVISION,
+        id="ledger-proof-request-omits-revision",
+    ),
+    pytest.param(
+        "skill",
+        "without an ExecPlan, the base/head is the whole candidate and there is no revision to reconcile.",
+        "",
+        False,
+        LEDGER_NO_PLAN,
+        id="ledger-loses-no-plan-case",
     ),
 )
