@@ -155,6 +155,15 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule() -> None:
     )
 
 
+def _mutate_one_clause(source: str, old: str, new: str) -> str:
+    """Replace the one clause matching ``old`` regardless of its line wrapping."""
+    pattern = r"\s+".join(map(re.escape, old.split()))
+    matches = list(re.finditer(pattern, source))
+    assert len(matches) == 1, "mutation fixture must identify one binding clause"
+    match = matches[0]
+    return source[: match.start()] + new + source[match.end() :]
+
+
 @pytest.mark.parametrize(
     ("document", "old", "new", "move_marker"),
     [
@@ -174,15 +183,13 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule() -> None:
             "implementation",
             "does not bound it",
             "",
-            "[Readiness and later changes](../pr-babysitting/references/"
-            "execplan-assessment.md#readiness-and-later-changes)",
+            "[Readiness and later changes](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)",
         ),
         (
             "setup",
             "neither marks it ready nor ends the draft",
             "",
-            "[clearing rule](../../pr-babysitting/references/"
-            "execplan-assessment.md#readiness-and-later-changes)",
+            "[clearing rule](../../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes)",
         ),
     ],
     ids=[
@@ -199,8 +206,7 @@ def test_handoff_contract_rejects_narrowed_or_moved_whole_plan_binding(
     implementation = _read(IMPLEMENTATION / "SKILL.md")
     setup = _read(IMPLEMENTATION / "references" / "setup.md")
     source = implementation if document == "implementation" else setup
-    assert source.count(old) == 1, "mutation fixture must identify one binding clause"
-    mutated = source.replace(old, new, 1)
+    mutated = _mutate_one_clause(source, old, new)
 
     if move_marker:
         assert source.count(move_marker) == 1, "moved reference must be unique"

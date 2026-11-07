@@ -224,6 +224,18 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
     assessment_contract(ASSESSMENT.read_text(), SKILL.read_text())
 
 
+def _mutate_one_clause(source: str, old: str, new: str, move: bool) -> str:
+    """Replace or relocate the one clause matching ``old`` regardless of wrapping."""
+    pattern = r"\s+".join(map(re.escape, old.split()))
+    matches = list(re.finditer(pattern, source))
+    assert len(matches) == 1, "mutation fixture must identify one actual controlling clause"
+    match = matches[0]
+    mutated = source[: match.start()] + new + source[match.end() :]
+    if move:
+        mutated += "\n## Unrelated notes\n\n" + match.group() + "\n"
+    return mutated
+
+
 @pytest.mark.parametrize(
     ("document", "old", "new", "move"),
     [
@@ -237,10 +249,10 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
         ("skill", "7. Applicable ExecPlan completeness/correctness and proof-specific assessments\n   cover the accepted candidate, with no unresolved substantive concern.", "", True),
         ("assessment", "Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.", "", False),
         ("assessment", "not unimplemented plan milestones", "including unimplemented plan milestones", False),
-        ("assessment", "An\nunimplemented plan milestone is in-scope work, not a limitation, per\n[applicability and ownership](#applicability-and-ownership).", "", True),
-        ("skill", "`clear`,\n`not clear`, or `pending`, with a justified `not applicable` for the proof\nassessment", "`posted` or `answered`", False),
-        ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies\n[the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True),
-        ("skill", "its subject, either the whole plan or the declared\nsubset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False),
+        ("assessment", "An unimplemented plan milestone is in-scope work, not a limitation, per [applicability and ownership](#applicability-and-ownership).", "", True),
+        ("skill", "`clear`, `not clear`, or `pending`, with a justified `not applicable` for the proof assessment", "`posted` or `answered`", False),
+        ("skill", "Only a clear whole-plan verdict for the accepted base/head satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).", "", True),
+        ("skill", "its subject, either the whole plan or the declared subset, on the same entry as the base/head and plan revision it was given for.", "its subject, either the whole plan or the declared subset, without recording the candidate it was given for.", False),
     ],
     ids=[
         "inverted-readiness", "removed-ready-preservation", "stale-publication", "queued-assessment",
@@ -255,10 +267,7 @@ def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
     assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
     source = assessment if document == "assessment" else skill
-    assert source.count(old) == 1, "mutation fixture must identify one actual controlling clause"
-    mutated = source.replace(old, new, 1)
-    if move:
-        mutated += "\n## Unrelated notes\n\n" + old + "\n"
+    mutated = _mutate_one_clause(source, old, new, move)
     with pytest.raises(AssertionError, match="must|prerequisites"):
         assessment_contract(mutated if document == "assessment" else assessment,
                             mutated if document == "skill" else skill)
@@ -282,9 +291,7 @@ def test_ledger_contract_rejects_an_unbound_or_narrowed_readiness_basis(
     old: str, new: str
 ) -> None:
     """A ledger verdict that drops the candidate, or lets a declared subset clear, fails."""
-    skill = SKILL.read_text()
-    assert skill.count(old) == 1, "misbinding fixture must anchor the actual ledger clause"
-    mutated = skill.replace(old, new, 1)
+    mutated = _mutate_one_clause(SKILL.read_text(), old, new, False)
     with pytest.raises(AssertionError, match="ledger section must state"):
         assessment_contract(ASSESSMENT.read_text(), mutated)
 
