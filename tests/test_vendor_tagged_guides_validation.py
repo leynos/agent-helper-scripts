@@ -149,3 +149,26 @@ def test_an_inaccessible_source_directory_is_refused(
         vendor.VendorError, match="cannot inspect the import paths"
     ):
         vendor.validate(config)
+
+
+def test_a_path_resolution_failure_is_refused(
+    vendor: types.ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An environmental error while resolving a path is a VendorError."""
+    config = make_config(vendor, tmp_path).config
+    original_resolve = Path.resolve
+
+    def failing_resolve(self: Path, *, strict: bool = False) -> Path:
+        """Raise an I/O error for the mapped source file only."""
+        if self.name == "users-guide.md":
+            raise OSError("stale file handle")
+        return original_resolve(self, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", failing_resolve)
+
+    with pytest.raises(
+        vendor.VendorError, match="cannot inspect the import paths"
+    ):
+        vendor.validate(config)

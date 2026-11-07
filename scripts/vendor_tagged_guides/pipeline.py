@@ -196,10 +196,10 @@ def vendor(
         If an argument is unusable, a source cannot be read or decoded, a
         source already carries the note, the formatter does not reach a fixed
         point, or an output cannot be written. Any failure after the first
-        write, including an interruption or an I/O error, restores the previous
-        output files before it propagates. A restore that itself fails is
-        reported with the original failure, and the remaining outputs are still
-        attempted.
+        write, including an interruption or an I/O error, attempts to restore
+        the previous output files before it propagates. Restoration is best
+        effort: a restore that itself fails is reported with the original
+        failure, and the remaining outputs are still attempted.
     """
     validate(config)
     converted = [
@@ -214,9 +214,10 @@ def vendor(
     try:
         _write_and_format(config, written, converted, format_files)
     except BaseException as error:
-        # Any failure, including an interruption or an I/O error, must leave
-        # the consumer's directory as it was found. Every output is attempted
-        # and every restore failure is reported with the original failure.
+        # Any failure, including an interruption or an I/O error, must attempt
+        # to leave the consumer's directory as it was found. Every output is
+        # attempted and every restore failure is reported with the original
+        # failure.
         failures = _restore(previous)
         if failures:
             fail(

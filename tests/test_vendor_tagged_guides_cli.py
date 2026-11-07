@@ -319,8 +319,9 @@ def test_the_command_line_reports_an_inaccessible_source_without_a_traceback(
         outer.chmod(0o755)
 
     assert result.returncode == 1, result.stdout + result.stderr
-    assert (
+    lines = [line for line in result.stderr.splitlines() if line.strip()]
+    assert len(lines) == 1, result.stderr
+    assert lines[0].startswith(
         "vendor_tagged_guides: error: cannot inspect the import paths"
-        in result.stderr
     ), result.stderr
     assert "Traceback" not in result.stderr, result.stderr

@@ -190,7 +190,7 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
 
 
 def test_a_later_mapping_without_a_heading_writes_nothing(
-    vendor: types.ModuleType, tmp_path: Path
+    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every source is converted before the first output is written."""
     built = make_config(
@@ -212,9 +212,22 @@ def test_a_later_mapping_without_a_heading_writes_nothing(
         path.name: path.read_bytes()
         for path in built.config.source_directory.iterdir()
     }
+    writes: list[Path] = []
+    original_write_text = Path.write_text
+
+    def recording_write_text(
+        self: Path, *args: object, **kwargs: object
+    ) -> int:
+        """Record every text write before delegating to the real one."""
+        writes.append(self)
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", recording_write_text)
 
     with pytest.raises(vendor.VendorError, match="level-one heading"):
         vendor.vendor(built.config)
+
+    assert writes == [], writes
 
     assert first.read_text(encoding="utf-8") == "previous\n"
     assert not second.exists()
