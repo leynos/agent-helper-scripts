@@ -84,6 +84,34 @@ merge remains blocked until the applicable assessment clears. See the
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.
 
+## ExecPlan authoring budgets and BDD suggestions
+
+The `execplans` skill and its template now require independent code,
+configuration and documentation change budgets, and suggest BDD features for
+observable acceptance behaviour. Refresh the skills with `install-skills` to
+pick up the revised guidance. Completed plans remain historical evidence and
+need no retrospective edits.
+
+- **Separate budgets.** A plan states separate limits for code, configuration
+  and documentation changes, records the comparison base, counting commands and
+  whether each limit measures net lines or churn, and applies explicit
+  mixed-file and generated-file rules. ExecPlan files themselves, including the
+  plan being added or updated, are excluded from every file and line count.
+- **Surveyed estimates.** Initial budgets must follow a survey of existing
+  code, comments and documentation, including the revision or decision history
+  of comparable past ExecPlans whose budgets were increased multiple times.
+  Historical increases inform the estimate; they do not authorize automatic
+  budget expansion during execution.
+- **Suggested BDD features.** Plans propose `Feature`/`Scenario` examples with
+  `Given`, `When` and `Then` statements, a repository-relative feature path,
+  and links to requirements, milestones and acceptance evidence. Where no BDD
+  runner exists, the scenarios stay labelled as proposals with existing tests
+  or manual checks named; a suggestion does not authorize a new framework or
+  dependency.
+
+See the [users' guide](users-guide.md#execplan-implementation) and the
+[`execplans` skill](../skills/execplans/SKILL.md) for the full guidance.
+
 ## Claude subagent models and MCP access
 
 The managed Claude definitions now match the VM's model and effort settings:
