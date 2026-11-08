@@ -108,6 +108,23 @@
         }
       }
     ],
+    "/commits/[0-9a-f]+$": {
+      "sha": "eeee5555",
+      "author": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "committer": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "commit": {
+        "message": "Introduce the refinement proof",
+        "author": {
+          "name": "experiment-owner"
+        }
+      }
+    },
     "graphql$": {
       "data": {
         "repository": {

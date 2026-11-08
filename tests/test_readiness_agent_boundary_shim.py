@@ -92,6 +92,40 @@ def test_explicit_read_method_still_serves_the_user_route(run: Path) -> None:
     assert done.stdout.strip()
 
 
+GRAPHQL_READ = (
+    'query{repository(owner:"leynos",name:"agent-helper-scripts")'
+    "{pullRequest(number:272){reviewThreads(first:100){nodes{isResolved}}}}}"
+)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        'mutation{addComment(input:{body:"x"}){clientMutationId}}',
+        'mutation{markPullRequestReadyForReview(input:{pullRequestId:"1"}){clientMutationId}}',
+    ],
+    ids=["add-comment", "mark-ready"],
+)
+def test_a_graphql_mutation_is_refused(run: Path, query: str) -> None:
+    """A GraphQL document that writes is not answered from the recorded reads.
+
+    `graphql` is a POST whenever the document carries fields, so the route name
+    cannot separate a query from a mutation. Exempting the whole route would
+    answer a mutation with the recorded review-thread state, which reports a
+    write the stand-in never made — the same defect as accepting a refused POST.
+    """
+    done = invoke(run, "api", "graphql", "-f", f"query={query}")
+    assert done.returncode == 2, done.stdout
+    assert "unsupported POST graphql" in done.stderr
+
+
+def test_a_graphql_read_query_is_still_answered(run: Path) -> None:
+    """The readiness run's review-thread query keeps working, so the test bites."""
+    done = invoke(run, "api", "graphql", "-f", f"query={GRAPHQL_READ}")
+    assert done.returncode == 0, done.stderr
+    assert "reviewThreads" in done.stdout
+
+
 @pytest.mark.parametrize(
     "flag",
     ["--raw-field=body=equals-form", "--field=body=equals-form"],
@@ -338,21 +372,43 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
     """The accepted comment survives every surface the skill reads after a POST.
 
     A reply is only evidence if the run that posted it, and a later readiness
-    check, can see it again: on its own route, in the discussion listing, and
-    after `pr ready` has changed the same state file.
+    check, can see it again: in the POST response, on its own route, in the
+    discussion listing, and on both read routes again after `pr ready` has
+    changed the same state file. Checking an ID alone would pass on a listing
+    that carries the right comment with the wrong text, which is the exact
+    defect the read-back exists to catch.
     """
     done = invoke(run, "api", COMMENT_ROUTE, "-f", "body=hello", token=POOL_TOKEN)
     assert done.returncode == 0, done.stderr
+    # The response is the created comment, so the body that was sent comes back
+    # on the call itself rather than only from a later read.
+    assert json.loads(done.stdout)["body"] == "hello", "the POST response lost the body"
     ident = posted(run)["id"]
     url = f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
     single = invoke(run, "api", url)
     assert single.returncode == 0, single.stderr
     assert json.loads(single.stdout)["body"] == "hello"
     listing = invoke(run, "api", COMMENT_ROUTE)
-    assert any(item["id"] == ident for item in json.loads(listing.stdout))
+    assert any(
+        item["id"] == ident and item["body"] == "hello"
+        for item in json.loads(listing.stdout)
+    )
     assert invoke(run, "pr", "ready", "272").returncode == 0
     assert posted(run)["body"] == "hello", "the transition dropped the comment"
     assert json.loads((run / "state.json").read_text())["isDraft"] is False
+    # The transition rewrites the same state file, so both read routes are
+    # exercised again: a fix that preserved the comment in the record but
+    # served an empty one afterwards would otherwise go unnoticed.
+    after_single = invoke(run, "api", url)
+    assert after_single.returncode == 0, after_single.stderr
+    assert json.loads(after_single.stdout)["body"] == "hello", (
+        "the single-comment route lost the body after the transition"
+    )
+    after_listing = invoke(run, "api", COMMENT_ROUTE)
+    assert any(
+        item["id"] == ident and item["body"] == "hello"
+        for item in json.loads(after_listing.stdout)
+    ), "the discussion listing lost the body after the transition"
 
 
 @pytest.fixture
@@ -615,7 +671,42 @@ def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
     assert "read the plan after the transition, not before it" in runner
 
 
-def test_the_runner_refuses_a_contradictory_permitted_scenario() -> None:
+def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:
+    """Reading the plan at any ref is not reading the revision in force.
+
+    `?ref=main` serves the base branch's copy of the plan, so a run that read
+    it and found a revision would be reconciling the verdict's echo against a
+    file from outside the candidate. The check must name the head. An earlier
+    version selected the line with `grep '...ref='` and then re-tested it for
+    `ref=`, which can never fail; this asserts the replacement distinguishes a
+    candidate read from one at the base.
+    """
+    runner = RUNNER.read_text()
+    assert "PROBE_PLAN" in runner
+    assert "did not read the plan at the head it is judging" in runner
+    assert "candidate_refs" in runner
+    # The head is what makes a read candidate-bound, so the probe has to name
+    # it rather than accept whatever ref the trace carries.
+    assert 'pr.get("headRefOid", "")' in runner
+
+
+def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
+    """The prompt must not leave the stand-in's identity as the variable.
+
+    An earlier prompt said nothing about `cs`, and the stand-in discloses that
+    it is simulated. Two runs of the same scenario then diverged: one accepted
+    the clean result and transitioned, the other read the disclosure as "the
+    local source is unverified" and stayed in draft. The disclosure is honest
+    and must stay, so the prompt says which source this environment means —
+    without saying what it answered, which is the variable under test.
+    """
+    runner = RUNNER.read_text()
+    assert "stand-in for the local CodeScene check" in runner
+    assert "Treat its answer as the local result for this" in runner
+    for answer in ("No issues found", "License check failed", "New issue"):
+        assert answer not in runner, (
+            "the prompt must not reveal which local result the run will get"
+        )
     """A scenario written to permit cannot carry a finding or unavailable mode.
 
     Recording that pairing would file, as evidence, a run whose facts

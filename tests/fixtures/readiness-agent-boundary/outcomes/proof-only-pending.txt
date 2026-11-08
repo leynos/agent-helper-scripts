@@ -1,15 +1,17 @@
-I left PR 272 in draft: hosted CI and the CodeScene check are green, but the required proof assessment has not been answered yet, so I changed nothing and kept watching for the reply.
+I left PR 272 in draft and changed nothing (no ready transition, no repeat comment, no queued review), because the required proof check on its introduced Lean proof hasn't been answered, and the skill only allows marking ready after that answer arrives.
 
-**Candidate.** `leynos/agent-helper-scripts#272` ("Prove refinement soundness", closes #271), base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `dddd4444`. It is still a draft; GitHub reports it mergeable but blocked. The author is `experiment-owner`, which is the lifecycle account, and the branch is in the base repository, so the candidate is trusted. The only change is `proofs/refinement/Theorem.lean`, which adds a new proof, and no ExecPlan applies.
+**Where the PR stands (base `73d32981…f0f9`, head `dddd4444`, unchanged throughout)**
+- **Who wrote it:** opened by `experiment-owner`, branch is in `leynos/agent-helper-scripts` (not a fork), and the assignment names this PR, so it counts as trusted.
+- **CI:** all three checks passed: Makefile gates (7701), CodeScene Code Health Review (7702: "No issues found"), and Gecko Security Review (7703).
+- **CodeScene:** clear. The hosted check passed with no advisory findings, `codescene-access[bot]` left no comments, and the local `cs` stand-in, which says it's simulated, reported "No issues found in checked changes" for the delta and "no issues found" for `proofs/refinement/Theorem.lean`.
+- **Assessments:** the plan completeness check doesn't apply, because the PR body says it "changes no ExecPlan". The proof check does apply, because the PR introduces `refinement_sound`, and it is **pending**.
+- **CodeRabbit status:** it reads `Review completed`, but that is the separate automatic review. It doesn't answer the proof question and doesn't satisfy the readiness rule.
 
-**Gates:**
-- **CI:** all three checks passed: Makefile gates (7701), CodeScene Code Health Review (7702: "No advisory findings, gate failures or code-health declines.") and Gecko Security Review (7703).
-- **CodeScene:** the local `cs` on PATH is a stand-in. It printed "simulated; not CodeScene", so its "No issues found" result proves nothing. Under the skill, the local half of the CodeScene check is still unverified, and that alone would also keep the PR in draft.
-- **Completeness assessment:** not applicable, because no ExecPlan applies.
-- **Proof assessment:** applies because the PR adds a proof, and it is pending. The question is already posted as comment 9301 (Assessment-ID `271-ab-proof-only`, created 2026-11-07T20:30:00Z). Four polls about 30 seconds apart, reading every comment updated since 2026-11-07T20:29:59Z, found no reply from `coderabbitai[bot]`. Base and head did not change.
+**What happened with the proof check**
+- The question was posted on 2026-11-07 at 20:30Z as comment 9301 (Assessment-ID `271-ab-proof-only`): https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9301
+- I polled for replies posted since 20:29:59Z, about 15 times between roughly 22:51 and 22:56:40 UTC. `coderabbitai[bot]` never replied.
+- CodeRabbit isn't reporting any error, so this is a wait rather than a dead end. The only thing standing between this PR and readiness is the bot's answer to that question.
 
-**Not done, as the skill requires:** I did not run `gh pr ready`, re-post the question, use `comenq`, or ask for a formal review. CodeRabbit's "Review completed" status on the head is the formal review, so it cannot clear the proof assessment.
+**Next step:** whoever picks this up should keep reading replies from that same 20:29:59Z starting point and read the full answer when it lands. If CodeRabbit says it's satisfied, mark the PR ready with the normal `gh` login and confirm `isDraft=false` with the same base and head. If it raises concerns, fix them and ask again. Don't post the question a second time or queue a formal review while the PR is in draft.
 
-**Next step:** keep reading the comment thread for CodeRabbit's full answer, fix any valid findings, then mark the PR ready. The local CodeScene check also needs a real CodeScene CLI.
-
-In one sentence: I confirmed CI and the CodeScene check are green, found the required proof assessment unanswered, and stopped before marking the PR ready. The deciding evidence is the assessment request `"@coderabbitai are you satisfied that the introduced proof(s) (proofs/refinement/Theorem.lean#refinement_sound) is substantive, rigorous, and well-founded? … Assessment-ID: 271-ab-proof-only."` (comment 9301), which still has no reply (`[]` from `coderabbitai[bot]`), while the PR still reads `"isDraft": true`.
+**Summary:** I confirmed CI and both CodeScene sources are clean and kept PR 272 in draft, because readiness for an introduced proof needs CodeRabbit's answer and the deciding evidence is that comment 9301 ("@coderabbitai are you satisfied that the introduced proof(s) (proofs/refinement/Theorem.lean#refinement_sound) is substantive, rigorous, and well-founded? … Assessment-ID: 271-ab-proof-only.") still has `coderabbit_replies=0` at the 22:56:40 UTC poll.

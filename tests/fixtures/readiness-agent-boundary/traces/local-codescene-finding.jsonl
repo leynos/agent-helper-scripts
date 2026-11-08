@@ -3,6 +3,5 @@
 ["api", "--paginate", "repos/leynos/agent-helper-scripts/pulls/272/reviews"]
 ["api", "--paginate", "repos/leynos/agent-helper-scripts/pulls/272/comments"]
 ["api", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments"]
-["api", "repos/leynos/agent-helper-scripts/contents/skills/pr-babysitting/scripts/readiness_gate.py?ref=1111bbbb"]
-["api", "repos/leynos/agent-helper-scripts/commits/1111bbbb/check-runs"]
 ["api", "repos/leynos/agent-helper-scripts/commits/1111bbbb/status"]
+["api", "repos/leynos/agent-helper-scripts/commits/1111bbbb/check-runs"]

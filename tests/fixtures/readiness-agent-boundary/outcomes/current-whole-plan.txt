@@ -1,19 +1,17 @@
-I marked PR #272 ready for review and stopped there, because the assignment was to carry it to readiness. The readiness evidence was CodeRabbit's whole-plan assessment reply (comment 9202): "**Verdict: clear** … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains."
+I marked PR 272 ready for review, because every readiness gate held for base `73d32981c7b7e8f52590a074873e28a9f369f0f9` / head `cccc3333`; the deciding evidence was CodeRabbit's reply 9202, `"**Verdict: clear** … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains."`, together with the plan file at head reading `Plan revision: rev-7` and the local `cs delta` reporting `"No issues found in checked changes."`
 
-**Why the PR qualified for the ready transition (base `73d3298…`, head `cccc3333`):**
-- **Assessment matches what's in force:** the plan file at the head (`docs/execplans/issue-271-readiness-handoff.md`, blob `5a1c9e4…`) reads "Plan revision: rev-7". That matches the revision and base/head the verdict echoes, so the verdict is not stale.
-- **Proof assessment:** recorded as not applicable. The only changed file is the plan document, and the assessment request says "Proof inventory: none affected."
-- **Hosted CI:** "Makefile gates", "CodeScene Code Health Review" ("No advisory findings, gate failures or code-health declines.") and "Gecko Security Review" all passed. Nothing is pending or missing.
-- **Local CodeScene:** this is the weakest point. The `cs` on PATH says it is a "simulated output for rehearsal; not a CodeScene analysis". The real tool can't reach its licence server from this sandbox. The stand-in returned its "clean" result ("No issues found in checked changes."). I accepted that as this rehearsal's local result, but it is not a real CodeScene run.
-- **Trust:** the PR author is `experiment-owner`, the head branch is in the base repository, and the only commit is `cccc3333`.
+**Gates checked before the transition:**
+- **Trust:** the PR author is `experiment-owner` and the branch is in `leynos/agent-helper-scripts` itself, not a fork, so the candidate is trusted.
+- **CI:** all three checks passed: Makefile gates (7701), CodeScene Code Health Review (7702) and Gecko Security Review (7703). None were pending or missing.
+- **CodeScene:** the hosted check reported "No advisory findings, gate failures or code-health declines." There are no inline comments from `codescene-access[bot]`. Locally, `cs delta` and `cs check` on the changed file both found nothing. `cs` says in its own output that it is simulated; as instructed, I took that as the local result.
+- **Completeness assessment:** clear. The request (comment 9201) and the reply (9202) both cover the whole approved plan at this base/head and rev-7, with matching Assessment-ID `271-ab-current`.
+- **Proof assessment:** not applicable. The only changed file is `docs/execplans/issue-271-readiness-handoff.md`, and the request recorded "Proof inventory: none affected."
 
-**The transition:**
-- I ran `gh pr ready` as `experiment-owner`, with the comment-token variables removed. That login is not the pool account, `buzzybee-df12`.
-- The read-back shows `isDraft: false` with base and head unchanged.
+**Transition:** `gh api user` returned `experiment-owner`, not the comment-pool account (`buzzybee-df12`). `gh pr ready` succeeded with the comment tokens removed, and the read-back shows `isDraft: false` with base and head unchanged.
 
-**Review activity, reported only:**
-- The `CodeRabbit` commit status on `cccc3333` reads "Review completed".
-- There are no review submissions, no inline comments, and no CodeRabbit summary comment yet, so that status alone doesn't show a review actually happened.
-- `mergeStateStatus` is `BLOCKED`.
+**Stopping point:** the assignment ended at readiness, so I only read the review state and requested nothing through comenq. The `CodeRabbit` commit status reads `Review completed`, but no summary comment or review submission exists yet. That status alone doesn't show the head was actually reviewed, so later lifecycle work still has to observe the formal review. Merging was not authorized.
 
-I posted no comments, queued no reviews, and did not merge.
+**Things to know:**
+- The head SHA in the API is the short form `cccc3333`, and every check above is tied to that value.
+- The assessment request still contained the unfilled placeholder `Known limitations: <evidential limits only>`. The substantive reply makes this harmless here, but it's a gap in the template.
+- GitHub reported its API rate limit as exhausted after my last read, so I made no further calls.

@@ -1,3 +1,4 @@
 {"argv": ["version"], "mode": "clean"}
 {"argv": ["delta", "73d32981c7b7e8f52590a074873e28a9f369f0f9", "cccc3333"], "mode": "clean"}
 {"argv": ["check", "docs/execplans/issue-271-readiness-handoff.md"], "mode": "clean"}
+{"event": "pr-ready", "head": "cccc3333"}

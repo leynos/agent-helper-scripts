@@ -460,6 +460,22 @@ def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, obje
                 },
             }
         ],
+        # The head commit on its own. The skill records the PR author, head
+        # repository and head commit with the trust decision, and a run may
+        # read the commit object itself to report who wrote it. Anchored at the
+        # end of the path so it cannot swallow the `/status` or `/check-runs`
+        # sub-routes, which carry different shapes.
+        r"/commits/[0-9a-f]+$": {
+            "sha": head,
+            "author": {"login": "experiment-owner", "type": "User"},
+            "committer": {"login": "experiment-owner", "type": "User"},
+            "commit": {
+                "message": "Deliver the plan"
+                if plan_route
+                else "Introduce the refinement proof",
+                "author": {"name": "experiment-owner"},
+            },
+        },
     }
 
 

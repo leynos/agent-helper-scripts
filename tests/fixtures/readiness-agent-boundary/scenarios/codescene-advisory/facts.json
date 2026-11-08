@@ -124,6 +124,23 @@
         }
       }
     ],
+    "/commits/[0-9a-f]+$": {
+      "sha": "9999aaaa",
+      "author": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "committer": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "commit": {
+        "message": "Deliver the plan",
+        "author": {
+          "name": "experiment-owner"
+        }
+      }
+    },
     "graphql$": {
       "data": {
         "repository": {

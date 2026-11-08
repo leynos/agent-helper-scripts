@@ -43,8 +43,8 @@ still has outstanding issues". That pairing is what distinguishes a gate bound
 to CodeScene's output from one reading the green badge: if the agent had
 treated the passing conclusion as clearance, this scenario would have marked
 the PR ready. The run cannot clear the finding either — the sandbox has no
-checkout and no `cs` — so it also shows the gate blocking rather than silently
-waiving an issue it could not fix.
+checkout, and its `cs` is a stand-in that reports the same finding — so it also
+shows the gate blocking rather than silently waiving an issue it could not fix.
 
 `subset-only` and `subset-clear` differ only in the verdict; both stay in
 draft. That pair isolates the subject check from the verdict, which a single
@@ -79,12 +79,22 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   cannot manufacture the clean result the rehearsal is checking for.
 - `cs-trace.jsonl` (per run, in the run directory) — every simulated `cs`
   invocation with the mode it answered from. A run that never invoked it cannot
-  have cleared the local half, whatever its outcome says.
+  have cleared the local half, whatever its outcome says. The stand-in appends a
+  `{"event": "pr-ready", "head": …}` line to this same file at the moment the
+  transition happens, so one ordered timeline holds both the local check and
+  the decision it informed; two files written by two processes could only show
+  that both occurred, not which came first.
 - `traces/<name>-cs.jsonl` — the committed copy of that run's simulated `cs`
   trace. It sits beside the `gh` trace because the two together are the
   recording: one shows what the agent was told about the PR, the other whether
   it consulted the local result before deciding. A run that transitions without
-  a non-empty trace of this kind did not clear the local half of the gate.
+  a non-empty trace of this kind, or without the boundary line the runner
+  requires before the decision, did not clear the local half of the gate.
+- `gh-answers.jsonl` (per run, in the run directory) — every `gh` invocation
+  with the exit status it was answered with. The argv trace records that a read
+  was attempted; this records that it succeeded, which is what separates a read
+  the agent could act on from one that failed and left it guessing. The runner
+  requires at least one successful `isDraft` read after the last `pr ready`.
 - `gh-shim.py` — the executable stand-in. It derives the run directory from its
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
   records `isDraft: false` in `state.json`, merging rather than replacing, so a
@@ -92,27 +102,30 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   survives it. A POST to the issue-comment route is accepted only with the
   fixture token: without it the stand-in answers `401 Bad credentials`, because
   accepting the request would record a success the real service would refuse.
-  An accepted POST returns the fixture comment's URL, records the submitted
-  body — in both the `-f body=…` and `--input -` forms — and serves it back on
-  its own route, so a read-back and the discussion listing both see what was
-  posted rather than a placeholder. A single-comment route serves any comment
-  the recorded listing carries, so a read-back finds a comment the run itself
-  did not post. The `contents` route serves the plan file with its blob SHA,
-  which is what lets a follow-up name the plan revision instead of stopping for
-  a value the fixture never supplied. The `pulls/N`, `pulls/N/files`,
-  `pulls/N/commits`, `pr list`, `pr diff` and `graphql` review-thread routes
-  answer the reads a readiness run makes when it checks whether the delivered
-  work matches the plan; without them a run reported those reads as 404 and
-  could not see the diff at all. The check's own `annotations` route serves the
-  entries its `annotations_count` advertises, and the `contents` route serves
-  the file a finding names, so a run investigating an advisory reads the code
-  rather than being told it is missing. `gh repo clone` is refused as
-  unreachable — `Could not resolve host: github.com` — because that is what the
-  dropped network really does; reporting it as an unsupported command would
-  misdescribe the environment. The `check-runs` route carries the hosted check
-  output, including CodeScene's own "no advisory findings" summary, which is
-  one of the two CodeScene sources the skill reads; the recordings show only
-  that half, for the reason under
+  `pr ready` also appends the transition marker to `cs-trace.jsonl`, because
+  the two traces are written by different processes and only a shared file can
+  order the local check against the decision. An accepted POST returns the
+  fixture comment's URL, records the submitted body — in both the `-f body=…`
+  and `--input -` forms — and serves it back on its own route, so a read-back
+  and the discussion listing both see what was posted rather than a
+  placeholder. A single-comment route serves any comment the recorded listing
+  carries, so a read-back finds a comment the run itself did not post. The
+  `contents` route serves the plan file with its blob SHA, which is what lets a
+  follow-up name the plan revision instead of stopping for a value the fixture
+  never supplied. The `pulls/N`, `pulls/N/files`, `pulls/N/commits`, `pr list`,
+  `pr diff` and `graphql` review-thread routes answer the reads a readiness run
+  makes when it checks whether the delivered work matches the plan; without
+  them a run reported those reads as 404 and could not see the diff at all. The
+  check's own `annotations` route serves the entries its `annotations_count`
+  advertises, and the `contents` route serves the file a finding names, so a
+  run investigating an advisory reads the code rather than being told it is
+  missing. `gh repo clone` is refused as unreachable —
+  `Could not resolve host: github.com` — because that is what the dropped
+  network really does; reporting it as an unsupported command would misdescribe
+  the environment. The `check-runs` route carries the hosted check output,
+  including CodeScene's own "no advisory findings" summary, which is one of the
+  two CodeScene sources the skill reads; the recordings show only that half,
+  for the reason under
   [what these recordings do not show](#what-these-recordings-do-not-show).
   `pr view --json statusCheckRollup` carries the same `output`, from the same
   helper, so a run that reads the rollup instead of the check-runs listing sees
@@ -248,13 +261,25 @@ The gate assertions are specific rather than aggregate:
 - The read-back is **ordered**. An initial `pr view` also carries `isDraft`, so
   a bare text search in the trace would pass even with the post-transition read
   removed. Only reads after the last `pr ready` count.
+- The read-back is **successful and true**, not merely attempted. `state.json`
+  is the value the stand-in served, so the runner fails a transition whose
+  served state still reads `isDraft: true`, and `gh-answers.jsonl` makes a
+  failed read-back distinguishable from one the agent could act on.
 - A permitting run must have invoked the simulated `cs` at all. Marking ready
   without consulting the local result is the waiver the rule forbids, and an
   outcome that merely mentions the tool was missing is not evidence that it was
   consulted.
-- `current-whole-plan` must read the plan file **before** the transition and
-  must name the head in that read, so it reconciles the verdict's echo against
-  the revision in force rather than accepting the echo on its own.
+- The local check must be **candidate-bound and take place before the
+  decision**. The runner requires a `cs delta` naming both the recorded base
+  and head, in the shared trace, before the `pr-ready` boundary line. A bare
+  `cs delta` reads a working tree this sandbox does not have, and a delta run
+  after the transition would clear a candidate that had already been judged.
+- `current-whole-plan` must read the plan file **before** the transition, at
+  the candidate head. An earlier version selected the read with
+  `grep '...ref='` and then re-tested that same line for `ref=`, which can
+  never fail; it now resolves the `ref=` value and requires it to name the head
+  commit or the PR's head branch. `?ref=main` serves the base branch's copy, so
+  reading it says nothing about the revision in force.
 - A scenario whose recorded local result is `finding` or `unavailable` may not
   be written as one that permits a transition; the two facts contradict each
   other, and the runner refuses the contradiction rather than recording it.
@@ -314,32 +339,46 @@ local result, which is the part the skill's rule is about:
 | `current-whole-plan`          | clean            | no findings      | yes           |
 | `local-codescene-finding`     | one new issue    | no findings      | no            |
 | `local-codescene-unavailable` | cannot evaluate  | no findings      | no            |
-| `codescene-advisory`          | clean            | **one finding**  | no            |
+| `codescene-advisory`          | one new issue    | **one finding**  | no            |
 
-The three local cases hold every hosted source constant and clean, so each
-run's decision can only come from the local result. `local-codescene-finding`
-is the case where the hosted badge says nothing is wrong and the delta
-disagrees; `local-codescene-unavailable` is the case the rule names directly —
-"I could not run the check" is not "the check found nothing" — and the run must
-treat an unevaluable source as unverified rather than clean.
-`codescene-advisory` covers the opposite direction: the local result is clean
-and the hosted output lists a finding, and the run still holds. Together they
-show the gate bound to both halves rather than to whichever one is green.
+The two `local-codescene-*` cases hold every hosted source constant and clean,
+so each run's decision can only come from the local result.
+`local-codescene-finding` is the case where the hosted badge says nothing is
+wrong and the delta disagrees; `local-codescene-unavailable` is the case the
+rule names directly — "I could not run the check" is not "the check found
+nothing" — and the run must treat an unevaluable source as unverified rather
+than clean. `codescene-advisory` is the opposite direction: every hosted check
+concludes `SUCCESS`, yet the CodeScene check's own output lists a finding
+against a file the PR touches, so the run must read the output rather than the
+badge. Its local delta reports the same finding, because the two sources
+describe one candidate and disagreeing them would test a contradiction the
+scenario is not about.
 
 The real local half is recorded outside this harness: a `cs delta` against the
 candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
-**Freshness of each recording.** All nine were recorded under the stand-in, the
-facts, the mount mask and the simulated `cs` as they now behave, and each run
-passed its own outcome assertion. Earlier revisions of these files were not so:
-the stand-in once ignored `--jq`, so a filtered call returned the unfiltered
-payload, it once answered a field-bearing `gh api` call as a read, so a POST
-recorded nothing, and the permitting recordings were made before any local
-CodeScene result existed, so they transitioned while their outcomes said `cs`
-was unavailable. That last state is what the rule now forbids, and those
-recordings were replaced rather than reworded.
+**Freshness of each recording.** All nine were re-recorded together under the
+stand-in, the facts, the mount mask and the simulated `cs` as they now behave,
+and each run passed its own outcome assertion. They were replaced when the
+runner gained the shared `pr-ready` boundary line, the successful read-back
+check, the candidate-bound plan read and the head-commit route, and when the
+assignment began naming the stand-in as the local source. The last change is
+why all nine, not only the two permitting ones, had to be redone: before it,
+the stand-in's own "not a CodeScene analysis" disclosure was an unmodelled
+third variable. Two runs of one scenario then diverged — one accepted the clean
+result and transitioned, the other read the disclosure as "the local source is
+unverified" and held — so the recordings were evidence about how each agent
+read the banner rather than about the rule. The assignment now names the
+stand-in as this environment's local source without revealing what it answered.
+Earlier revisions of these files were not so: the stand-in once ignored `--jq`,
+so a filtered call returned the unfiltered payload, it once answered a
+field-bearing `gh api` call as a read, so a POST recorded nothing, and the
+permitting recordings were made before any local CodeScene result existed, so
+they transitioned while their outcomes said `cs` was unavailable. That last
+state is what the rule now forbids, and those recordings were replaced rather
+than reworded.
 
 The facts were also incomplete in a way the runs themselves reported: the
 recorded PR carried no author or head-repository fields, so a run following the
@@ -366,13 +405,26 @@ and carries no credential.
 
 ## Refreshing
 
-Regenerate with `python3 -I make_scenarios.py` after editing a scenario, then
-rerun the affected scenarios into `RUN_DIR` and copy `gh-trace.jsonl` to
-`traces/`, the agent's own final message to `outcomes/`, and the body to
-`submitted/` when the run posted one. `cs-trace.jsonl` stays in the run
-directory: it records that the local check was consulted, which the runner
-already asserts, and it is not a GitHub surface. A scenario that posted no
-comment has no `submitted/` entry. Replace a trace, its outcome and its
-submitted body together: any one without the others, or the reverse, is not
-evidence of anything. Review a new recording before replacing an old one, and
-keep the previous recording's scope if it covered different evidence.
+Regenerate with `python3 -I make_scenarios.py` after editing a scenario. Then
+rerun the affected scenarios and copy four files per run:
+
+| Run directory             | Committed path           |
+| ------------------------- | ------------------------ |
+| `gh-trace.jsonl`          | `traces/<name>.jsonl`    |
+| `cs-trace.jsonl`          | `traces/<name>-cs.jsonl` |
+| the agent's final message | `outcomes/<name>.txt`    |
+| `submitted.md`            | `submitted/<name>.txt`   |
+
+The `cs` trace is committed because it is half the evidence, not a scratch log:
+it shows whether the local result was consulted before the decision, and the
+boundary line the stand-in writes into it is what makes that ordering checkable.
+`gh-answers.jsonl` is scratch: the runner asserts on it during the run, but
+its claim — that the read-back succeeded — is already recorded in the outcome
+it produced, and it duplicates the argv trace at twice the size.
+
+A scenario that posted no comment has no `submitted/` entry. Replace a trace,
+its `cs` trace, its outcome and its submitted body together: any one without
+the others, or the reverse, is not evidence of anything. Review a new recording
+before replacing an old one, and keep the previous recording's scope if it
+covered different evidence. A run is only a recording if it passed every
+assertion above; a run that aborted is a failed rehearsal and replaces nothing.

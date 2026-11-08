@@ -21,12 +21,28 @@ RUN = Path(__file__).resolve().parent
 SCENARIO = RUN / "facts.json"
 TRACE = RUN / "gh-trace.jsonl"
 STATE = RUN / "state.json"
+#: The simulated `cs` writes this file. The transition marker is appended here
+#: rather than to the `gh` trace so one ordered record holds both the local
+#: check and the transition: two files written by two processes cannot say
+#: which came first.
+CS_TRACE = RUN / "cs-trace.jsonl"
+#: One line per invocation with the status it was answered with. The argv trace
+#: records that a read was attempted; this records that it succeeded, which is
+#: what separates a read the agent could act on from one that failed and left
+#: it guessing.
+ANSWERS = RUN / "gh-answers.jsonl"
 
 
 def record(argv: list[str]) -> None:
     """Append one invocation to the trace before answering it."""
     with TRACE.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(argv) + "\n")
+
+
+def record_answer(argv: list[str], status: int) -> None:
+    """Append the status an invocation was answered with."""
+    with ANSWERS.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"argv": argv, "status": status}) + "\n")
 
 
 def fail(message: str, status: int = 1) -> int:
@@ -274,6 +290,15 @@ POST_COMMENT = re.compile(r"repos/[^/]+/[^/]+/issues/\d+/comments")
 READ_COMMENT = re.compile(r"repos/[^/]+/[^/]+/issues/comments/(\d+)")
 
 
+def head_ref(facts: dict) -> str:
+    """Return the head the PR is on, as the transition marker records it.
+
+    The boundary line names a head so the runner can tell a delta for the
+    candidate under test from one for any other revision.
+    """
+    return str(facts["pr"].get("headRefOid", ""))
+
+
 def login_for(facts: dict) -> str:
     """Return the account the request authenticates as.
 
@@ -396,6 +421,24 @@ def is_post_comment(argv: list[str], url: str) -> bool:
     )
 
 
+def is_graphql_read(argv: list[str]) -> bool:
+    """Return whether this `graphql` invocation is a read, not a mutation.
+
+    A GraphQL document is a POST whenever it carries a field, so the method
+    alone cannot separate a query from a mutation. The recorded readiness runs
+    ask one read query — the review-thread state — and nothing else. Exempting
+    the whole route would answer a `mutation{...}` with a recorded read and
+    report a write the stand-in never made, which is the same defect as
+    accepting a POST it refused.
+    """
+    for value in field_values(argv):
+        if re.search(r"\bmutation\b", value):
+            return False
+        if re.search(r"\bquery\b", value):
+            return True
+    return False
+
+
 def answer_api(facts: dict, argv: list[str]) -> int:
     """Answer one `gh api` invocation.
 
@@ -408,10 +451,9 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     method = request_method(argv)
     if method == "POST" and is_post_comment(argv, url):
         return handle_post(facts, argv)
-    # `graphql` is a POST but a read: a readiness run asks it for the review
-    # thread state, so answering it from the recorded routes is the read it
-    # is, not a mutation the stand-in failed to make.
-    if method != "GET" and url != "graphql":
+    # `graphql` is a POST whether the document reads or writes, so it is
+    # exempted only when its own text is a query.
+    if method != "GET" and not (url == "graphql" and is_graphql_read(argv)):
         return fail(f"gh: unsupported {method} {url}", 2)
     if url == "user":
         # The routing record holds only the login, so serve a user object with
@@ -441,6 +483,12 @@ def answer_pr(facts: dict, argv: list[str]) -> int:
         # posted comment is still evidence after the second transition.
         state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
         STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
+        # The same instant is recorded in the local-check trace, so the runner
+        # can tell a `cs delta` read before the decision from one run after it.
+        # Appending at the transition is what makes that ordering observable;
+        # two files on their own can only show that both happened.
+        with CS_TRACE.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"event": "pr-ready", "head": head_ref(facts)}) + "\n")
         return emit(facts["pr_ready_response"])
     if argv[:2] == ["pr", "checks"]:
         return emit(facts["pr_checks"], jq=jq_expression(argv))
@@ -473,9 +521,16 @@ def answer(argv: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    """Record the invocation, then answer it."""
+    """Record the invocation and its result, then answer it.
+
+    The status is recorded after the answer is produced, so a failed read is
+    distinguishable from one the agent could act on. The argv trace alone
+    cannot tell them apart: it records the attempt either way.
+    """
     record(argv)
-    return answer(argv)
+    status = answer(argv)
+    record_answer(argv, status)
+    return status
 
 
 if __name__ == "__main__":

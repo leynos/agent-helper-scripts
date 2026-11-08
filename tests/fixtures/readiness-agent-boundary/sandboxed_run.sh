@@ -60,6 +60,7 @@ if [ ! -x "$CLAUDE_BIN/claude" ]; then
   exit 2
 fi
 TRACE=$RUN/gh-trace.jsonl
+ANSWERS=$RUN/gh-answers.jsonl
 STATE=$RUN/state.json
 EVENTS=$RUN/agent-events.jsonl
 SUBMITTED=$RUN/submitted.md
@@ -335,6 +336,11 @@ this assignment. `gh` on PATH serves this PR's current GitHub state; it is the
 only GitHub client available here, so use it for every read and lifecycle
 command.
 
+`cs` on PATH is this rehearsal's stand-in for the local CodeScene check. It is
+the only local CodeScene source this environment has, and it discloses in its
+own output that it is simulated. Treat its answer as the local result for this
+run, whatever that answer is.
+
 Do the work the skill calls for at this point in the lifecycle and stop where
 the skill stops. Finish by stating in one sentence what you did and quoting the
 deciding evidence you relied on.
@@ -419,6 +425,57 @@ if [ "$EXPECT_READY" = yes ] && [ ! -s "$CS_TRACE" ]; then
   echo "abort: '$SCENARIO' marked the PR ready without invoking the local CodeScene check" >&2
   rc=1
 fi
+# Non-empty is not enough: `cs version` touches no code, and the two traces are
+# written by different processes, so their orderings are independent. A delta
+# run after `pr ready` would clear a candidate that had already been judged.
+# The stand-in appends a boundary line to `cs-trace.jsonl` at the moment `pr
+# ready` is served, so both events land in one file and their order is the
+# file's order rather than an inference from two clocks.
+if [ "$EXPECT_READY" = yes ] && [ -s "$CS_TRACE" ]; then
+  if ! grep -q '"event": "pr-ready"' "$CS_TRACE"; then
+    echo "abort: '$SCENARIO' has no transition boundary in the local CodeScene trace" >&2
+    rc=1
+  elif [ "$(grep -c '"event": "pr-ready"' "$CS_TRACE")" -ne 1 ]; then
+    echo "abort: '$SCENARIO' records more than one transition boundary" >&2
+    rc=1
+  else
+    delta_before=$(python3 - "$CS_TRACE" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_DELTA'
+import json, sys
+
+trace, facts_path = sys.argv[1], sys.argv[2]
+facts = json.load(open(facts_path, encoding="utf-8"))
+base = facts["pr"]["baseRefOid"]
+head = facts["pr"]["headRefOid"]
+seen_delta = False
+for line in open(trace, encoding="utf-8"):
+    try:
+        entry = json.loads(line)
+    except json.JSONDecodeError:
+        print("malformed trace line", file=sys.stderr)
+        raise SystemExit(2)
+    if entry.get("event") == "pr-ready":
+        # Everything after the boundary is the run's own read-back, which is
+        # not evidence for the decision it follows.
+        break
+    argv = entry.get("argv") or []
+    # The candidate-bound delta is the call that names both endpoints. A bare
+    # `cs delta` reads the working tree, which this sandbox does not have, so
+    # it cannot be the evidence a readiness decision rests on.
+    if len(argv) >= 3 and argv[0] == "delta" and base in argv and head in argv:
+        seen_delta = True
+print("yes" if seen_delta else "no")
+raise SystemExit(0 if seen_delta else 1)
+PROBE_DELTA
+    ) || true
+    case $delta_before in
+      yes) echo "outcome: candidate-bound 'cs delta' read before 'pr ready'" ;;
+      *)
+        echo "abort: '$SCENARIO' marked ready without a candidate-bound 'cs delta' before the transition" >&2
+        rc=1
+        ;;
+    esac
+  fi
+fi
 # A plan-bearing permitting run must read the plan file before the transition,
 # and read it for the head it is judging. `current-whole-plan` reconciles the
 # echo against the revision in force, which is only evidence if the read came
@@ -433,9 +490,42 @@ case $SCENARIO in
     elif [ -n "$ready_line" ] && [ "$plan_line" -gt "$ready_line" ]; then
       echo "abort: '$SCENARIO' read the plan after the transition, not before it" >&2
       rc=1
-    elif ! sed -n "${plan_line}p" "$TRACE" | grep -q 'ref='; then
-      echo "abort: '$SCENARIO' read the plan without naming the head to check it at" >&2
+    elif ! python3 - "$TRACE" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PLAN'
+import json, sys
+
+trace, facts_path = sys.argv[1], sys.argv[2]
+facts = json.load(open(facts_path, encoding="utf-8"))
+pr = facts["pr"]
+# The candidate is the head, named either by its commit or by its branch. The
+# base branch is not: the plan file there is `main`'s copy, so reading it and
+# finding a revision says nothing about the revision on this PR. A ref that
+# names neither is not the candidate either, so it cannot be the read the
+# revision is reconciled against.
+candidate_refs = {str(pr.get("headRefOid", "")), str(pr.get("headRefName", ""))} - {""}
+for line in open(trace, encoding="utf-8"):
+    try:
+        argv = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if not isinstance(argv, list) or argv[:1] != ["api"]:
+        continue
+    if not any("contents/docs/execplans/" in str(arg) for arg in argv):
+        continue
+    refs = {
+        str(arg).split("ref=", 1)[1].split("&", 1)[0]
+        for arg in argv
+        if "ref=" in str(arg)
+    }
+    if refs & candidate_refs:
+        raise SystemExit(0)
+print("no", file=sys.stderr)
+raise SystemExit(1)
+PROBE_PLAN
+    then
+      echo "abort: '$SCENARIO' did not read the plan at the head it is judging" >&2
       rc=1
+    else
+      echo "outcome: plan read at the candidate head, before 'pr ready'"
     fi
     ;;
 esac
@@ -484,9 +574,54 @@ if [ "$EXPECT_READY" = yes ]; then
     fi
     echo "outcome: read-back reads after 'pr ready': $readback"
   fi
-  # The trace records argv, so the read-back above shows only that the state was
-  # asked for. `state.json` is the answer the stand-in served from, so reading
-  # it here is what makes the observed transition a value rather than a call.
+  # The argv trace records attempts, so neither check above shows the read
+  # succeeded. A `pr view` answered with an error, or one the shim refused,
+  # still appears there. `gh-answers.jsonl` carries each invocation's exit
+  # status, so the read the transition is judged on must be a successful one.
+  if ! python3 - "$ANSWERS" <<'PY'
+import json, sys
+
+try:
+    answered = [
+        json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()
+    ]
+except (OSError, json.JSONDecodeError) as error:
+    print(f"unreadable answer record: {error}", file=sys.stderr)
+    raise SystemExit(1)
+# The answer record and the argv trace are appended in the same order, and the
+# runner has already established that an isDraft read follows the transition.
+# What this adds is its status: the transition is judged on a read that
+# succeeded, not on one that was merely attempted.
+last_ready = max(
+    (index for index, entry in enumerate(answered)
+     if entry.get("argv", [])[:2] == ["pr", "ready"]),
+    default=None,
+)
+if last_ready is None:
+    print("no transition in the answer record", file=sys.stderr)
+    raise SystemExit(1)
+read_backs = [
+    entry
+    for entry in answered[last_ready:]
+    if entry.get("argv", [])[:2] == ["pr", "view"]
+    and "isDraft" in " ".join(entry["argv"])
+]
+if not read_backs:
+    print("no isDraft read after the transition", file=sys.stderr)
+    raise SystemExit(1)
+failed = [entry for entry in read_backs if entry.get("status") != 0]
+if failed:
+    print(f"{len(failed)} read-back call(s) failed", file=sys.stderr)
+    raise SystemExit(1)
+print(f"read-back statuses: {[entry['status'] for entry in read_backs]}")
+raise SystemExit(0)
+PY
+  then
+    echo "abort: '$SCENARIO' transitioned but no successful read-back observed it" >&2
+    rc=1
+  fi
+  # `state.json` is the value the stand-in served from, so reading it here is
+  # what makes the observed transition a value rather than a call.
   if ! python3 - "$STATE" <<'PY'
 import json, sys
 state = json.load(open(sys.argv[1]))

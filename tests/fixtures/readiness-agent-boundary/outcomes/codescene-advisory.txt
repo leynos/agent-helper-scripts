@@ -1,21 +1,14 @@
-I left PR 272 as a draft and did not run `gh pr ready`, because its CodeScene issues are still open and I couldn't push a fix from here.
+I left PR #272 in draft and changed nothing on GitHub, because CodeScene still reports outstanding issues and the skill doesn't allow marking a PR ready until those are cleared.
 
-**Deciding evidence.** The hosted CodeScene check (check run 7702) passed, but it still lists two findings against head `9999aaaa`:
+**Ledger for this candidate** (base `73d32981…`, head `9999aaaa`):
+- **Who wrote it:** author `experiment-owner`, branch in `leynos/agent-helper-scripts` (not a fork), one commit, `9999aaaa`.
+- **CI:** all three check runs pass: `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703).
+- **CodeRabbit:** the commit status reads `Review completed`. There are no formal reviews and no inline threads yet.
+- **Plan assessment:** clear. CodeRabbit's verdict (comment 9602) covers this base/head, the whole approved plan and plan revision `rev-7`. No tests or other proofs were affected, so no proof assessment applies.
+- **CodeScene (not clear):**
+  - The hosted check passed, but its output is titled "Issues found" and lists two problems with `_assess_gate`: "Complex Method: … cyclomatic complexity of 44 (threshold 9)" and "Large Method: … has 87 lines, threshold = 70".
+  - `cs delta 73d32981… 9999aaaa` (the stand-in, which says it is simulated) separately reports "🚩 New issue: Large Method … `_assess_gate` has 87 lines, threshold = 70" in `skills/pr-babysitting/scripts/readiness_gate.py`. `cs check` on that file agrees.
 
-> "Complex Method: `_assess_gate` has a cyclomatic complexity of 44 (threshold 9). Large Method: `_assess_gate` has 87 lines, threshold = 70."
+The skill says a passing check that lists issues still has outstanding issues, so I didn't run `gh pr ready`. The fix is to refactor `_assess_gate` into smaller pieces, not suppress the warnings. There is no checkout of the PR branch here, so I couldn't make that repair. The next step belongs to whoever owns the implementation: refactor and push. Then the new head needs fresh CI, a re-run of both CodeScene sources and an updated plan assessment before the PR can be marked ready.
 
-The skill says a passing check that still lists findings has outstanding issues. These two block the ready step.
-
-The local CodeScene check can't settle it either. The `cs` on PATH is a stand-in that says so on every run: "cs-stand-in: simulated output for rehearsal; not a CodeScene analysis". Its `cs delta` output reports a Large Method finding and still exits 0. Real `cs` needs to reach its licence server, and this sandbox has no network access, so the local result is unchecked rather than clean.
-
-**What else is in place:**
-- **Trust:** The PR is by `experiment-owner`, and the branch is in `leynos/agent-helper-scripts` itself, not a fork. The stored `gh` login is also `experiment-owner`.
-- **CI:** "Makefile gates", CodeScene and "Gecko Security Review" all passed. The CodeRabbit commit status reads "Review completed".
-- **Assessments:** CodeRabbit gave a clear completeness verdict in comment 9602, covering the whole approved plan at rev-7. That revision matches the plan file at this head, and the base/head matches. The PR touches no proofs, so the proof assessment doesn't apply.
-- **Review comments:** No inline comments or reviews are open.
-
-**Blocker.** The fix is to split `_assess_gate` in `skills/pr-babysitting/scripts/readiness_gate.py` into smaller, coherent helpers. Suppressing the finding is a last resort. Nobody in this session can make that change: `gh repo clone` failed with "Could not resolve host: github.com", so I can't commit or push. I also couldn't hand the repair to another agent, because the helper repo's agent list (`agents/subagents.yml`) can't be fetched without network access.
-
-**Next action.** The PR owner, or a session with network access and a working `cs`, should refactor and push. Then re-run the hosted and real local CodeScene checks, ask CodeRabbit to re-confirm the completeness assessment for the new head, and only then mark the PR ready.
-
-In one sentence: I checked PR 272's current state, kept it in draft, and stopped at the ready step, relying on CodeScene check run 7702 still listing "Complex Method… cyclomatic complexity of 44 (threshold 9)" and "Large Method… 87 lines, threshold = 70", and on the local `cs` being "simulated output for rehearsal; not a CodeScene analysis".
+The deciding evidence was the hosted check output, "Issues found — Complex Method: `_assess_gate` has a cyclomatic complexity of 44 (threshold 9). Large Method: `_assess_gate` has 87 lines, threshold = 70.", and the local `cs delta` result, "🚩 New issue: Large Method … `_assess_gate` has 87 lines, threshold = 70".

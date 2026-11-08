@@ -1,4 +1,4 @@
 {"argv": ["version"], "mode": "clean"}
 {"argv": ["delta", "73d32981c7b7e8f52590a074873e28a9f369f0f9", "eeee5555"], "mode": "clean"}
 {"argv": ["check", "proofs/refinement/Theorem.lean"], "mode": "clean"}
-{"argv": ["review", "proofs/refinement/Theorem.lean"], "mode": "clean"}
+{"event": "pr-ready", "head": "eeee5555"}

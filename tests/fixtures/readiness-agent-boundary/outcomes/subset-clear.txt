@@ -1,21 +1,14 @@
-I left PR 272 in draft and did not mark it ready, because the only completeness verdict covers just part of the plan, not the whole approved plan.
+I left PR 272 in draft and did not run `gh pr ready`, because the only completeness assessment clears a subset of the plan, not the whole approved plan, and the skill only allows the ready transition after a whole-plan verdict.
 
-**What I checked (head `ffff6666`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`):**
-- **Trust:** the author is `experiment-owner` and the branch is in `leynos/agent-helper-scripts`, not a fork.
-- **CI:** all three checks passed: Makefile gates, CodeScene Code Health Review ("No advisory findings, gate failures or code-health declines.") and Gecko Security Review.
-- **CodeScene locally:** the local half is unverified. The `cs` on PATH says `cs-stand-in: simulated output for rehearsal; not a CodeScene analysis`, so its "No issues found" result is not a real check. On its own this would also keep the PR in draft.
-- **Reviews:** there are no reviews or inline comments. The `CodeRabbit` status reads `Review completed`, but that doesn't count as the completeness assessment.
-- **Completeness assessment:** the request (comment 9501) asked about "the whole approved plan" at plan revision rev-7. It also still contained an unfilled placeholder, `Known limitations: <evidential limits only>`. CodeRabbit's reply (comment 9502) only clears milestones EP-M1 and EP-M2.
-- **Proof assessment:** not applicable, because the request states "Proof inventory: none affected".
+**Candidate:** `leynos/agent-helper-scripts#272`, base `main` @ `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `ffff6666` (branch `issue-271-readiness-handoff`), open and draft. It implements the approved plan `docs/execplans/issue-271-readiness-handoff.md`, plan revision `rev-7`, and closes #271. The author is `experiment-owner`, the branch is in the base repository (not a fork) and the assignment names the PR, so the candidate is trusted.
 
-**Why the PR stays in draft:** this is a single PR based on `main` that says it implements the whole plan and closes #271. It is not a layer in a stack, so no other PR owns the rest of the plan. The skill says such a PR can never pass on a part-of-the-plan verdict. Whatever milestones remain beyond EP-M1 and EP-M2 are still unfinished implementation work. I also found the plan file at this head is only 42 bytes, so I couldn't list those milestones from it.
+**Readiness gate:**
+- **Hosted CI:** green. All three check runs passed: Makefile gates (7701), CodeScene Code Health Review (7702) and Gecko Security Review (7703).
+- **CodeScene:** clear. The hosted check reports "No advisory findings, gate failures or code-health declines", and there are no `codescene-access[bot]` comments. The local `cs delta 73d3298…ffff6666` returned "No issues found in checked changes." That output is from the simulated stand-in, which I used as this run's local result as instructed.
+- **Proof assessment:** not applicable; the request records "Proof inventory: none affected."
+- **Completeness assessment:** not clear. Request 9501 named "the whole approved plan" at `rev-7`. CodeRabbit's reply (9502) echoes the Assessment-ID, base/head and `rev-7`, but limits itself to milestones EP-M1 and EP-M2. The skill says only a whole-plan verdict clears the gate. Since this single PR claims the whole plan, no other PR owns the remaining milestones; they are unfinished work for this PR.
+- **Formal review:** the `CodeRabbit` status reads "Review completed", but that doesn't replace the assessment. Formal-review work only starts after the PR is ready.
 
-**What I didn't do:** I posted no comments, didn't send the same assessment request again, didn't queue a review, and didn't merge.
+**Blocker:** there is no whole-plan completeness verdict for `ffff6666` at `rev-7`. This is a stopping point, not a wait. The implementation owner needs to deliver the remaining milestones of the plan. After that, the remaining steps are to rerun gates and CI on the new head, ask for a new whole-plan assessment that names the new base/head and `rev-7`, and mark the PR ready only once that verdict is clear. I posted no comments, queued no reviews and made no other changes.
 
-**Next steps for the implementation owner:**
-1. Finish the remaining milestones of rev-7.
-2. Run the gates again on the new head, including a real `cs delta`.
-3. Ask again for a whole-plan completeness assessment, with the placeholder filled in.
-4. Mark the PR ready only once a whole-plan "clear" verdict covers that head.
-
-In one sentence: I checked PR 272's current state and kept it in draft, relying on CodeRabbit's reply (comment 9502): "Assessed subject: the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply."
+In one sentence: I checked PR 272's live state and kept it in draft without running `gh pr ready`, because CI and CodeScene are clear but the only completeness verdict is for a subset — CodeRabbit's reply 9502 says "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply."

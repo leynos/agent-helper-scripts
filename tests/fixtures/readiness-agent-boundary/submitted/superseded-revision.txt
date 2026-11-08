@@ -5,9 +5,11 @@
 Assessed subject: the whole approved plan.
 Published head: bbbb2222; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
 Plan revision: rev-7 (plan file blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head).
-Acceptance evidence: hosted checks on bbbb2222 — `Makefile gates` (check run 7701) success; `CodeScene Code Health Review` (7702) success, "No advisory findings, gate failures or code-health declines."; `Gecko Security Review` (7703) success.
-Known limitations: no local gates were run by this supervisor for this request; evidence above is hosted CI only. Proof inventory: none affected (proof assessment not applicable).
+Acceptance evidence: hosted checks on this head — Makefile gates: success; CodeScene Code Health Review: success, "No issues found"; Gecko Security Review: success. Local `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 bbbb2222` (simulated rehearsal stand-in): "No issues found in checked changes."
+Known limitations: the local CodeScene result comes from a simulated stand-in, not a licensed CodeScene engine; local Makefile gates were not re-run by the supervisor.
 Assessment-ID: 271-ab-rev7-bbbb2222.
+
+Follow-up to request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9101 and its reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9102: that verdict was recorded against plan revision rev-6, but rev-7 is the approved revision in force, so it does not clear this candidate. Please assess against rev-7.
 
 Please echo the Assessment-ID, assessed base/head, and plan revision in your
 substantive reply.
@@ -15,6 +17,4 @@ This is an assessment conversation, not a request to start a formal PR review.
 
 Identify remaining in-scope omissions or correctness defects and any access
 or inspection limitations. Assess the implementation, not just the plan text.
-
-Context: the earlier reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9102 (Assessment-ID `271-ab-superseded`) recorded its verdict against plan revision `rev-6`; `rev-7` is the approved revision in force, so this request renews the assessment for the same base/head against `rev-7`.
 
