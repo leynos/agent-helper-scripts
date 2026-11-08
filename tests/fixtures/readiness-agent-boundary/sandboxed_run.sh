@@ -12,12 +12,13 @@
 #     agent's own credential file) are replaced by empty directories or files,
 #     so a `gh` invocation that somehow escaped the mask is anonymous and an
 #     agent that tried to read the lifecycle token finds nothing;
-#   * GH_TOKEN, GITHUB_TOKEN and GH_CONFIG_DIR are cleared as well.
+#   * GH_TOKEN, GITHUB_TOKEN and GH_CONFIG_DIR are cleared as well;
+#   * the home directory is replaced by an empty directory, so the agent cannot
+#     read another checkout or credential store under `$HOME`;
+#   * a private network namespace admits DNS and one TCP port to the model API
+#     host, and drops everything else, so no HTTP client can reach GitHub.
 # The mount namespace is made private first, so none of this reaches the host.
-# Network access is deliberately not blocked: the model API is the one outbound
-# channel the agent needs, and the README records that limitation rather than
-# implying a stronger boundary than this provides. The stand-in records every
-# invocation to the trace before answering.
+# The stand-in records every invocation to the trace before answering.
 set -uo pipefail
 
 SCENARIO=${1:?scenario name}
@@ -47,6 +48,28 @@ EVENTS=$RUN/agent-events.jsonl
 # has rather than a value the sandbox could redefine.
 HOME_DIR=$HOME
 CREDENTIALS_FILE=$HOME/.claude/.credentials.json
+# The model API host is the only egress the sandbox admits. It has to be
+# resolved on the host, before the namespace drops the network, because the
+# allowlist is written in addresses.
+MODEL_HOST=$(python3 -c '
+import os
+import urllib.parse
+url = os.environ.get("ANTHROPIC_BASE_URL", "")
+print(urllib.parse.urlparse(url).hostname or "api.anthropic.com")
+')
+MODEL_ADDRS=$(getent ahostsv4 "$MODEL_HOST" | awk '{print $1}' | sort -u | tr '\n' ' ')
+if [ -z "$MODEL_ADDRS" ]; then
+  echo "sandboxed_run.sh: cannot resolve $MODEL_HOST; refusing to run" >&2
+  exit 2
+fi
+# The egress allowlist is the boundary that stops a second HTTP client, so a
+# host without pasta or nft cannot produce an isolated run at all.
+for tool in pasta nft unshare; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "sandboxed_run.sh: '$tool' is required for an isolated run" >&2
+    exit 2
+  fi
+done
 
 rm -rf "$RUN"
 mkdir -p "$RUN/work" "$RUN/scratch"
@@ -58,9 +81,47 @@ cp "$ROOT/scenarios/$SCENARIO/facts.json" "$RUN/facts.json"
 cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
 : > "$TRACE"
 
-# Empty stand-ins for the credential surfaces the sandbox replaces.
-mkdir -p "$RUN/empty-dir"
+# Empty stand-ins for the credential surfaces the sandbox replaces. `home` is
+# writable, because the CLI may create state; `empty-dir` is only read back.
+mkdir -p "$RUN/empty-dir" "$RUN/home"
 : > "$RUN/empty-file"
+
+cat > "$RUN/outer.sh" <<'OUTER'
+set -uo pipefail
+# This runs in the network namespace pasta created, where netfilter is ours to
+# manage. Install the egress allowlist, prove it took, then enter a mount
+# namespace for the masking.
+# Egress: drop everything except DNS and one TCP port to the model API. The
+# agent runs with Bash, so a filesystem mask alone cannot stop a second HTTP
+# client; this does. Fail closed if the rules cannot be installed, and prove
+# afterwards that a non-model host is unreachable.
+nft -f - <<NFTRULES || { echo "abort: cannot install egress rules" >&2; exit 1; }
+table inet readiness-sandbox
+delete table inet readiness-sandbox
+table inet readiness-sandbox {
+  chain out {
+    type filter hook output priority 0; policy drop;
+    oifname "lo" accept
+    udp dport 53 accept
+    tcp dport 53 accept
+    ip daddr { $MODEL_ADDRS } tcp dport 443 accept
+    ct state established,related accept
+  }
+}
+NFTRULES
+if ! nft list table inet readiness-sandbox >/dev/null 2>&1; then
+  echo "abort: egress ruleset is not present after install" >&2
+  exit 1
+fi
+# The control check: a non-model host must not connect. 1.1.1.1 is used
+# because it needs no DNS, so a DNS failure cannot be mistaken for a block.
+if timeout 8 bash -c 'exec 3<>/dev/tcp/1.1.1.1/443' 2>/dev/null; then
+  echo "abort: egress control reached 1.1.1.1; sandbox is not isolated" >&2
+  exit 1
+fi
+
+exec unshare -m -- /bin/bash "$RUN/inner.sh"
+OUTER
 
 cat > "$RUN/inner.sh" <<'INNER'
 set -uo pipefail
@@ -112,12 +173,11 @@ hide() {
 
 mask /usr/bin/gh "$RUN/gh"
 mask /bin/gh "$RUN/gh"
-mask /home/leynos/.cargo/bin/comenq "$RUN_NO_TOOL"
-# Credential surfaces: an escaped client finds no token, and an agent reading
-# the lifecycle credential file finds it empty.
-hide "$HOME_DIR/.config/gh"
-hide "$HOME_DIR/.local/share/github-tokens"
-hide "$CREDENTIALS_FILE"
+# The queue dispatcher may be absent on a host; mask it only when present, and
+# fail closed when it is present but unmaskable.
+if [ -e "$HOME_DIR/.cargo/bin/comenq" ]; then
+  mask "$HOME_DIR/.cargo/bin/comenq" "$RUN_NO_TOOL"
+fi
 
 cd "$RUN/work" || exit 1
 exec env \
@@ -157,18 +217,24 @@ PROMPT
 )
 export ASSIGNMENT
 
+# pasta owns the network namespace: it forwards the host interface into a new
+# one, where the inner script installs the egress allowlist. unshare then adds
+# the private mount namespace inside it. --runas keeps the inner exit status
+# meaningful by running as this user rather than dropping to `nobody`.
 RUN="$RUN" RUN_NO_TOOL="$RUN/no-tool" CLAUDE_BIN="$CLAUDE_BIN" \
   ASSIGNMENT="$ASSIGNMENT" EVENTS="$EVENTS" \
   HOME_DIR="$HOME_DIR" CREDENTIALS_FILE="$CREDENTIALS_FILE" \
-  unshare -rm -- /bin/bash "$RUN/inner.sh"
+  MODEL_ADDRS="$MODEL_ADDRS" \
+  pasta --config-net -t none -u none -- /bin/bash "$RUN/outer.sh"
 rc=$?
 echo "agent rc: $rc"
 echo "--- gh invocations ---"
 cat "$TRACE"
-# A mask failure aborts before the agent runs, so an empty trace alongside a
-# non-zero status is an isolation failure, not a clean rehearsal.
-if [ "$rc" -ne 0 ] && [ ! -s "$TRACE" ]; then
-  echo "sandboxed_run.sh: run aborted before any gh call; see stderr above" >&2
+# Propagate the agent's own status. A rehearsal that was killed by its budget,
+# timed out, or aborted on an isolation check is not a successful run, and an
+# automation reading this script's status must not mistake it for one.
+if [ "$rc" -ne 0 ]; then
+  echo "sandboxed_run.sh: run failed with status $rc; see above" >&2
   exit "$rc"
 fi
 exit 0

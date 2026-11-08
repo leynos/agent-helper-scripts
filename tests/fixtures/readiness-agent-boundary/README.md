@@ -66,39 +66,56 @@ and a `claude` CLI, which CI does not provide. It is a rehearsal tool, not a
 deterministic check. It finds `claude` on the caller's PATH, or takes
 `CLAUDE_BIN` naming the directory that holds it; the sandbox PATH is otherwise
 fixed to the stand-in, that directory, `/usr/bin` and `/bin`, so the agent
-inherits nothing else from the operator.
+inherits nothing else from the operator. It also needs `pasta`, `nft` and
+`unshare`, and refuses to run without them, because the egress allowlist is the
+boundary that stops a second HTTP client.
 
 ## Isolation
 
 An earlier unmasked run proved that clearing ambient credentials alone is not a
 boundary: the agent used the real client and posted a synthetic comment to the
-live PR. Every recording here comes from a masked run:
+live PR. Every recording here comes from a masked run in three layers.
 
-- `unshare -rm` gives a private user and mount namespace, made private with
-  `mount --make-rprivate /` first, so nothing reaches the host.
+**Network.** `pasta` gives the run a private network namespace and forwards the
+host interface into it. The first thing the run does there is install an
+`nftables` output policy of `drop`, admitting loopback, DNS, one TCP port to
+the model API host, and established flows. The address comes from
+`ANTHROPIC_BASE_URL` on the host before the namespace drops the network, and
+the run aborts if that host cannot be resolved. After installing the rules it
+proves them: a connection to `1.1.1.1:443` must fail, and the run aborts if it
+succeeds. This is the load-bearing boundary, because the agent runs with Bash
+and a filesystem mask alone cannot stop a second HTTP client. Verified against
+the live network: inside the sandbox `github.com`, `api.github.com` and port 22
+are all unreachable, while the model API and DNS work.
+
+**Mounts.** Inside the network namespace, `unshare -m` adds a private mount
+namespace, made private with `mount --make-rprivate /` first:
+
 - The stand-in is replace-bound over `/usr/bin/gh` and `/bin/gh`, so no
-  absolute path can reach the real client.
-- `comenq` is replaced by a stub that exits 127.
+  absolute path reaches the real client.
+- `comenq` is replaced by a stub that exits 127 when present.
 - The credential surfaces are emptied rather than only being unset:
   `~/.config/gh`, the `~/.local/share/github-tokens` pool and the agent's own
   `~/.claude/.credentials.json` are replace-bound with an empty directory or an
   empty file, so a client that escaped the mask finds no token and an agent
   that reads the lifecycle credential file finds it empty.
-- `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared as well, so an
-  unmasked client would still be anonymous.
 - Masking fails closed. A missing target, a shape mismatch (the token pool is
   one file, the client configuration a directory), a failed bind, or a mask
   that does not read back aborts the run before the agent starts.
-- The agent runs `--bare`, so operator instructions, hooks, MCP servers and
-  memory are absent, with `--permission-mode dontAsk` and
-  `--allowedTools Bash,Read,Glob,Grep`.
 
-Two limits are deliberate rather than oversights. The model API stays
-reachable, because the agent needs it; that is the one outbound channel these
-runs use. And the home directory is not hidden, so the agent can read this
-repository's files. A run that wants to inspect a *different* checkout under
-`$HOME` can still do that; the masking above covers credentials and the live
-GitHub client, not the filesystem.
+**Process.** `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared, and
+the agent runs `--bare`, so operator instructions, hooks, MCP servers and
+memory are absent, with `--permission-mode dontAsk` and
+`--allowedTools Bash,Read,Glob,Grep`. The runner propagates the agent's own
+exit status, so a run killed by its budget or by a timeout is a failure rather
+than a clean rehearsal.
+
+The limits are deliberate. The model API stays reachable, because the agent
+needs it. The home directory is still readable, so the agent can read this
+repository's files; the masking covers credentials, the live GitHub client and
+the network, not the filesystem. And the boundary is stronger against reaching
+GitHub than against a locally privileged process: the harness assumes a
+cooperative agent, not an adversarial one.
 
 ## Recorded artefacts contain no live mutations
 

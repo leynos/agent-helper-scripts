@@ -60,6 +60,7 @@ extend-ignore-re = [
     "`hand-written`",
     "`var\\.iamge_id` instead of `var\\.image_id`",
     "currentColor",
+    "the entire plan via the plan.s ExecPlan artifact`, but only one artifact,",
 ]
 
 [default.extend-words]

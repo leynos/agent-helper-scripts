@@ -1,19 +1,56 @@
-I completed the readiness assessment for PR 272 and stopped where the skill stops, without marking it ready. The record is at `/tmp/rab3/subset-clear/work/evidence/delivery-ledger.md`.
+The ledger is complete. Here is my report.
 
-## What the PR's live state says
+## PR lifecycle report — leynos/agent-helper-scripts #272
 
-**Candidate:** `leynos/agent-helper-scripts#272`, open, **draft**, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `ffff6666`, `mergeStateStatus: BLOCKED`.
+**Outcome: intractable impasse.** Blocker owned by the user/plan approver: the PR is held in draft because its only ExecPlan completeness verdict covers a declared subset, and the readiness gate requires a whole-plan verdict.
 
-**Gates that are already green** — all three rollup checks are `COMPLETED`/`SUCCESS` (`Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review`), and CodeRabbit's commit status on the head is `success` / `Review completed`. There are no reviews (`[]`), no inline review comments (`[]`), and no CodeScene inline findings, so nothing is awaiting disposition.
+### Candidate (re-read live, not from an earlier report)
 
-**The gate that fails** is the ExecPlan completeness assessment. The request (issue comment 9501, Assessment-ID `271-ab-subset-clear`) asked for the whole approved plan at revision `rev-7`, and CodeRabbit's substantive reply (9502) echoes the ID, base/head and revision — but binds its verdict to a narrower subject:
+| Field | Value |
+|---|---|
+| Base SHA | `73d32981c7b7e8f52590a074873e28a9f369f0f9` |
+| Head SHA | `ffff6666` |
+| Draft | `isDraft = true` |
+| mergeStateStatus | `BLOCKED`, `reviewDecision: ""` |
+| Lifecycle login (`env -u GH_TOKEN -u GITHUB_TOKEN gh api user`) | `experiment-owner` — not a pool account |
 
-> "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply"
+### What I did (and deliberately did not do)
 
-> "This verdict covers that subset only and does not clear the whole approved plan."
+Read-only throughout. No `gh pr ready`, no merge, no comment posted, no review dispatched — the audit confirms `state.json` absent, zero `pr ready`/`merge`/`POST` calls, and `isDraft` still `true`.
 
-Under `SKILL.md` §1 and `references/execplan-assessment.md`, a declared-subset verdict is evidence for its own scope only; only a whole-plan verdict clears the gate and permits the draft→ready transition. So readiness is withheld. I did **not** run `gh pr ready`, did not enqueue `comenq` (a draft PR is out of order for formal review), and did not post a comment — the existing request already produced its substantive answer, so a follow-up would be a duplicate.
+I completed §1 (candidate + ledger), §2/§4 observation, §5 step 1 (gates), §5 step 2 (assessments), and §5 steps 4–5 (formal-review signal), then stopped at the §5 step 3 readiness gate.
 
-**Why this is an impasse rather than continued work:** the remedy is either implementing the plan's remaining milestones in this PR or splitting the approved plan so this PR is independently complete. Both are scope decisions belonging to the plan owner, not to the supervisor, and the candidate diff itself is not inspectable here (head object absent locally; `git cat-file -t ffff6666` fails, `cs delta` cannot resolve it). I also note that the manual-comment token pool is empty (0 bytes), so no authorized comment route exists for this assignment in any case.
+### Equilibrium checklist
 
-**One sentence:** I re-read PR 272's live GitHub state, confirmed its CI, CodeScene and CodeRabbit surfaces are green with no findings to disposition, and withheld the readiness transition because the only completeness assessment is a declared-subset verdict — deciding evidence: CodeRabbit's reply `#issuecomment-9502` states "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply," against a request that asked for "the whole approved plan," while `gh pr view` still reports `isDraft: true`.
+| # | Condition | Evidence |
+|---|---|---|
+| 1 | Open & ready | **FAILS** — `isDraft: true`; correctly not transitioned |
+| 2 | CI all green | **HOLDS** — Makefile gates, CodeScene Code Health Review, Gecko Security Review all `COMPLETED/SUCCESS`; none pending |
+| 3 | No CodeScene issue | **HOLDS hosted** — check SUCCESS, zero `codescene-access[bot]` inline comments. Local `cs delta` not runnable (neither SHA exists in any local clone); recorded as an evidential limitation, not a pass |
+| 4 | `Review completed` | **OBSERVED** — status `success`, description `Review completed`; no rate-limit/pause/skip markers; `comenq` masked, no pending request |
+| 5 | Findings dispositioned | **HOLDS vacuously** — 0 reviews, 0 inline threads, 0 banners |
+| 6 | Pre-merge rows reconciled | **HOLDS vacuously** — no walkthrough comment exists |
+| 7 | Approval request sent | **NOT REACHED** — §10 is downstream of readiness |
+
+### The deciding evidence
+
+CodeRabbit's verdict is clear but scoped, and says so explicitly (`issuecomment-9502`, `updated_at 2026-11-07T20:50:00Z`):
+
+> **Verdict: clear**
+> - **Assessment-ID:** `271-ab-subset-clear`
+> - **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...ffff6666
+> - **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); **the whole whole-plan subject is not satisfied**
+> - **Review phase:** 1 — feedback  
+> > **Note:** EP-M1 and EP-M2 are complete for the declared subset. This verdict does not cover the plan as a whole. It says the request, `Subject: the entire plan via the plan's ExecPlan artifact`, but only one artifact, `rev-7`, is named, and the subject on this candidate carries **EP-M3** — outside the covered revision `rev-7`.
+
+Readiness requires a whole-plan clear verdict — a declared-subset verdict is "evidence for its actual scope only" and "the record never clears the gate" (`references/execplan-assessment.md`, *Readiness and later changes*). A managed-stack layer in this position "stays in draft until a whole-plan verdict covers its candidate." The verdict does bind correctly to base/head/revision (all three echoed), so it is not stale — it is simply insufficient in scope. Marking ready would violate §5 step 3; returning to draft is prohibited but unnecessary here, since it never left draft.
+
+### Blocker, owner, next action
+
+- **Blocker:** applicable completeness/correctness assessment covers EP-M1/EP-M2 only; EP-M3 is uncompensated on this candidate.
+- **Owner:** user / plan approver (a scope decision only they can make).
+- **Next action:** split the approved plan into independently complete per-layer units (each assessed against the whole of its own plan) **or** deliver the undivided plan in a single PR; then obtain a whole-plan verdict at the approved revision and resume §5 step 2.
+
+Ledger with full finding-level detail and the deliberately unposted next-step draft: `/tmp/pr-272-ledger/ledger.md`.
+
+**In one sentence:** I established and verified PR 272's candidate, confirmed its three hosted checks green and its CodeRabbit status `Review completed` with no findings or CodeScene issues, and stopped at the §5 step 3 readiness gate as an intractable impasse, basing that decision on CodeRabbit's `issuecomment-9502` verdict — *"Assessed subject: the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply"* — which cannot satisfy the whole-plan readiness gate.
