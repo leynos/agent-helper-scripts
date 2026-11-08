@@ -43,6 +43,11 @@ def emit(payload: object, *, slurp: bool = False, jq: str = "") -> int:
     call fails instead of quietly answering a different question.
     """
     if isinstance(payload, str):
+        # A human-readable route has no JSON to filter, and the real command
+        # does not accept one. Answering with the raw text would look like a
+        # filter that matched everything, so refuse instead.
+        if jq:
+            return fail(f"gh: --jq is not supported on this route: {jq}", 2)
         print(payload)
         return 0
     text = json.dumps([payload] if slurp else payload)
@@ -133,6 +138,11 @@ def flag_value(argv: list[str], name: str) -> str:
         if part.startswith(name + "="):
             return part.split("=", 1)[1]
     return ""
+
+
+def jq_expression(argv: list[str]) -> str:
+    """Return the filter `--jq` or `-q` asked for, or an empty string."""
+    return flag_value(argv, "--jq") or flag_value(argv, "-q")
 
 
 # Flags that send one field of a request body.
@@ -230,7 +240,7 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     STATE.write_text(json.dumps(state), encoding="utf-8")
     # The response is the created comment, so a `--jq .html_url` filter applies
     # to it exactly as it would against the real service.
-    return emit(posted, jq=flag_value(argv, "--jq") or flag_value(argv, "-q"))
+    return emit(posted, jq=jq_expression(argv))
 
 
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")
@@ -249,7 +259,7 @@ def with_posted(payload: object, url: str, posted: dict | None) -> object:
 
 def handle_read(facts: dict, argv: list[str], url: str) -> int:
     """Serve a posted comment, or answer a path from the recorded facts."""
-    jq = flag_value(argv, "--jq") or flag_value(argv, "-q")
+    jq = jq_expression(argv)
     if READ_COMMENT.fullmatch((url or "").lstrip("/")):
         posted = facts.get("posted")
         return emit(posted, jq=jq) if posted else fail("gh: Not Found (HTTP 404)")
@@ -293,7 +303,7 @@ def answer_api(facts: dict, argv: list[str]) -> int:
         # The routing record holds only the login, so serve a user object with
         # that field. A `--jq .login` filter then resolves through the same
         # path as every other payload instead of returning the raw string.
-        return emit({"login": login_for(facts)}, jq=flag_value(argv, "--jq") or flag_value(argv, "-q"))
+        return emit({"login": login_for(facts)}, jq=jq_expression(argv))
     if is_post_comment(argv, url):
         return handle_post(facts, argv)
     if request_method(argv) != "GET":
@@ -301,13 +311,14 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     return handle_read(facts, argv, url)
 
 
-def answer(argv: list[str]) -> int:
-    """Answer one invocation from the recorded facts."""
-    facts = read_facts()
-    if argv[:1] == ["api"]:
-        return answer_api(facts, argv)
+def answer_pr(facts: dict, argv: list[str]) -> int:
+    """Answer one `gh pr` invocation.
+
+    `pr view` and `pr checks` serve JSON, so a `--jq` filter is applied to them.
+    `pr ready` answers with a fixed response and takes no filter.
+    """
     if argv[:2] == ["pr", "view"]:
-        return emit(facts["pr"])
+        return emit(facts["pr"], jq=jq_expression(argv))
     if argv[:2] == ["pr", "ready"]:
         # Record the transition without dropping what the state already holds:
         # a run can post a follow-up and then mark the PR ready, and the
@@ -316,9 +327,24 @@ def answer(argv: list[str]) -> int:
         STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
         return emit(facts["pr_ready_response"])
     if argv[:2] == ["pr", "checks"]:
-        return emit(facts["pr_checks"])
+        return emit(facts["pr_checks"], jq=jq_expression(argv))
+    return fail(f"gh: unsupported invocation {argv}")
+
+
+def answer(argv: list[str]) -> int:
+    """Answer one invocation from the recorded facts."""
+    facts = read_facts()
+    if argv[:1] == ["api"]:
+        return answer_api(facts, argv)
+    if argv[:1] == ["pr"]:
+        return answer_pr(facts, argv)
     if argv[:2] == ["auth", "status"]:
-        return emit(f"Logged in to github.com as {facts['login']}")
+        # The real command prints a human-readable line rather than JSON, so a
+        # filter on it is refused by `emit` instead of silently ignored.
+        return emit(
+            f"Logged in to github.com as {facts['login']}",
+            jq=jq_expression(argv),
+        )
     return fail(f"gh: unsupported invocation {argv}")
 
 
