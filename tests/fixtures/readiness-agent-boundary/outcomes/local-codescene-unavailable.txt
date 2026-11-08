@@ -1,0 +1,14 @@
+I left PR 272 in draft and changed nothing, because the local CodeScene check couldn't run, so the CodeScene gate counts as unverified rather than clear and the skill won't let the PR be marked ready.
+
+**The blocker:** `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 2222cccc` exited with code 1 on both tries, printing: `License check failed, could not reach CodeScene servers (https://api.codescene.io/v2/tool-license/cli)`. A focused `cs check docs/execplans/issue-271-readiness-handoff.md` failed the same way. The `cs` on PATH also says it is "simulated output for rehearsal; not a CodeScene analysis", so no real local analysis exists. The skill says a hosted green result can't stand in for the missing local half.
+
+**Everything else is ready:**
+- **PR and trust:** it's open, it's a draft, the author is `experiment-owner`, and the branch is in the main repository, not a fork. Base is `73d3298…`, head is `2222cccc`, and the change is one ExecPlan file.
+- **Hosted checks:** "Makefile gates", "CodeScene Code Health Review" ("No issues found") and "Gecko Security Review" all passed. Nothing is pending or failing.
+- **Completeness assessment:** CodeRabbit's comment 9802 says "**Verdict: clear**" for the whole approved plan, at the same base/head and plan revision rev-7.
+- **Proof assessment:** doesn't apply ("Proof inventory: none affected").
+- **Reviews:** there are no inline comments or reviews yet. I didn't ask for a formal review because the PR is still a draft.
+
+**Next step:** whoever runs this environment needs to give `cs` working access to the CodeScene licence service (network access plus a real licence), then rerun `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 2222cccc`. If it comes back clean, the PR can be marked ready with `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272`, and then the formal CodeRabbit review can follow.
+
+In one sentence: I left PR 272 in draft and made no changes because the deciding evidence, `cs delta` failing with "License check failed, could not reach CodeScene servers", means the CodeScene gate is unverified and readiness has to wait for that tool.

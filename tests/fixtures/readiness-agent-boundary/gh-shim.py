@@ -187,26 +187,66 @@ def field_body(argv: list[str]) -> str:
     return ""
 
 
-def submitted_body(argv: list[str]) -> str:
-    """Return the comment body a POST was given, as `gh api` would send it."""
+class Refused(Exception):
+    """A request the real service would reject, rather than answer empty.
+
+    Returning an empty body instead would turn an unreadable or malformed
+    request into a successful POST carrying nothing, which is evidence for a
+    comment the client never sent.
+    """
+
+    def __init__(self, message: str, status: int = 1) -> None:
+        """Carry the client's message and exit status through to the caller."""
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def input_text(argv: list[str]) -> str | None:
+    """Return the raw `--input` payload, or None when the flag is absent.
+
+    A file that cannot be read is a failed request. Reporting it as an empty
+    body would let the run record a comment whose text was never supplied.
+    """
     source = flag_value(argv, "--input")
+    if not source:
+        return None
     if source == "-":
-        raw = sys.stdin.read()
-    elif source:
-        try:
-            raw = Path(source).read_text(encoding="utf-8")
-        except OSError:
-            return ""
-    else:
-        # `-f body=...` sends the field directly, with no JSON envelope, so the
-        # body is the value after the field name and not the whole expression.
-        return field_body(argv)
+        return sys.stdin.read()
+    try:
+        return Path(source).read_text(encoding="utf-8")
+    except OSError as error:
+        raise Refused(f"gh: failed to open {source}: {error.strerror}") from error
+
+
+def input_body(raw: str) -> str:
+    """Return the `body` of a JSON `--input` envelope, or refuse the request."""
     try:
         payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return ""
+    except json.JSONDecodeError as error:
+        raise Refused(f"gh: invalid JSON in --input: {error.msg}") from error
     body = payload.get("body") if isinstance(payload, dict) else None
-    return body if isinstance(body, str) else ""
+    if not isinstance(body, str) or not body:
+        raise Refused("gh: HTTP 422: body is required")
+    return body
+
+
+def submitted_body(argv: list[str]) -> str:
+    """Return the comment body a POST was given, as `gh api` would send it.
+
+    Every failure mode here is one the real service rejects, so the stand-in
+    refuses it before any state is written rather than recording an empty
+    comment. `gh api` exits non-zero for each of them.
+    """
+    raw = input_text(argv)
+    if raw is not None:
+        return input_body(raw)
+    # `-f body=...` sends the field directly, with no JSON envelope, so the
+    # body is the value after the field name and not the whole expression.
+    body = field_body(argv)
+    if not body:
+        raise Refused("gh: HTTP 422: body is required")
+    return body
 
 
 def posted_comment(facts: dict, body: str, login: str) -> dict:
@@ -257,7 +297,13 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     login = login_for(facts)
     if login != POOL_LOGIN:
         return fail("gh: HTTP 401: Bad credentials")
-    posted = posted_comment(facts, submitted_body(argv), login)
+    try:
+        body = submitted_body(argv)
+    except Refused as refused:
+        # The refusal happens before `state.json` is written, so a request the
+        # service would reject leaves the record exactly as it was.
+        return fail(refused.message, refused.status)
+    posted = posted_comment(facts, body, login)
     state = {"isDraft": facts["pr"].get("isDraft", True), "posted": posted}
     STATE.write_text(json.dumps(state), encoding="utf-8")
     # The response is the created comment, so a `--jq .html_url` filter applies

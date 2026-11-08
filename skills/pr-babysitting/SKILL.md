@@ -391,6 +391,15 @@ Outstanding means each of the following for the current candidate:
 A passing check with advisory findings still has outstanding issues. Record
 each finding and its disposition in the ledger.
 
+An unevaluable source is not a clear source. When `cs` is absent, fails, or
+cannot reach the licence service, the local delta is **unverified**, not clean:
+the gate stays open, the PR stays in draft, and the outcome names the missing
+tool as the deciding evidence. "I could not run the check" and "the check found
+nothing" are different facts, and only the second clears the rule. Record the
+unavailable source, what would have evaluated it, and that readiness waits on
+it. Do not substitute a hosted green badge for the missing local half, and do
+not describe the gate as cleared when one of its sources was never evaluated.
+
 Use `codescene-cli` and `codescene-health-rules` to inspect the actual
 diagnostic, affected paths, applicable rules, and the same base/head comparison
 as hosted CI. Run focused file checks and a complete relevant delta through the

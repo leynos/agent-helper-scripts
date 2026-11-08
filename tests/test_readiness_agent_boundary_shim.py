@@ -20,6 +20,7 @@ import pytest
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "readiness-agent-boundary"
 SHIM = FIXTURES / "gh-shim.py"
+CS_SHIM = FIXTURES / "cs-shim.py"
 SCENARIO = FIXTURES / "scenarios" / "current-whole-plan" / "facts.json"
 POOL_TOKEN = "fixture-pool-token"
 
@@ -275,3 +276,336 @@ def test_an_unfiltered_human_readable_route_still_answers(
     done = invoke(run, *argv)
     assert done.returncode == 0, done.stderr
     assert done.stdout.strip()
+
+
+COMMENT_ROUTE = "repos/leynos/agent-helper-scripts/issues/272/comments"
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (("--input", "/nonexistent/body.json"), "failed to open"),
+        (("--input", "-"), "invalid JSON"),
+        (("--input", "-"), "body is required"),
+        (("--method", "POST"), "body is required"),
+    ],
+    ids=["unreadable-file", "malformed-json", "empty-body", "missing-body"],
+)
+def test_a_post_that_cannot_carry_a_body_is_refused_and_changes_nothing(
+    run: Path, argv: tuple[str, ...], message: str
+) -> None:
+    """A request the service would reject must not be recorded as a success.
+
+    Turning unreadable input, malformed JSON or an empty body into `""` and then
+    writing `state.json` records a POST carrying nothing, which is evidence for
+    a comment the run never sent. The refusal must also leave the record alone,
+    so a later read cannot see a comment that was never created.
+    """
+    stdin = "" if "--input" in argv and argv[-1] == "-" else None
+    if message == "body is required" and "--input" in argv:
+        stdin = json.dumps({"not_body": "x"})
+    done = invoke(run, "api", COMMENT_ROUTE, *argv, token=POOL_TOKEN, stdin=stdin)
+    assert done.returncode != 0, done.stdout
+    assert message in done.stderr, done.stderr
+    assert not (run / "state.json").exists(), "a refused POST wrote state"
+
+
+def test_an_unauthorized_post_leaves_state_unchanged(run: Path) -> None:
+    """A POST without the fixture token fails before any comment is recorded."""
+    done = invoke(
+        run, "api", COMMENT_ROUTE, "-f", "body=unauthorized", token="wrong-token"
+    )
+    assert done.returncode != 0
+    assert "401" in done.stderr
+    assert not (run / "state.json").exists()
+
+
+def test_a_refused_post_does_not_displace_an_earlier_one(run: Path) -> None:
+    """A rejected follow-up must not erase the comment that was accepted.
+
+    `state.json` is the record of what the run posted. Writing an empty body
+    over it would lose the earlier comment and present the run as having posted
+    nothing, which misstates its own trace.
+    """
+    first = invoke(run, "api", COMMENT_ROUTE, "-f", "body=first", token=POOL_TOKEN)
+    assert first.returncode == 0, first.stderr
+    refused = invoke(run, "api", COMMENT_ROUTE, "-f", "body=", token=POOL_TOKEN)
+    assert refused.returncode != 0
+    assert posted(run)["body"] == "first"
+
+
+def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
+    """The accepted comment survives every surface the skill reads after a POST.
+
+    A reply is only evidence if the run that posted it, and a later readiness
+    check, can see it again: on its own route, in the discussion listing, and
+    after `pr ready` has changed the same state file.
+    """
+    done = invoke(run, "api", COMMENT_ROUTE, "-f", "body=hello", token=POOL_TOKEN)
+    assert done.returncode == 0, done.stderr
+    ident = posted(run)["id"]
+    url = f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
+    single = invoke(run, "api", url)
+    assert single.returncode == 0, single.stderr
+    assert json.loads(single.stdout)["body"] == "hello"
+    listing = invoke(run, "api", COMMENT_ROUTE)
+    assert any(item["id"] == ident for item in json.loads(listing.stdout))
+    assert invoke(run, "pr", "ready", "272").returncode == 0
+    assert posted(run)["body"] == "hello", "the transition dropped the comment"
+    assert json.loads((run / "state.json").read_text())["isDraft"] is False
+
+
+@pytest.fixture
+def cs_run(tmp_path: Path) -> Path:
+    """Place a runnable copy of the simulated `cs` beside a facts file."""
+    shim = tmp_path / "cs"
+    shutil.copy2(CS_SHIM, shim)
+    shim.chmod(0o755)
+    return tmp_path
+
+
+def write_mode(directory: Path, mode: str) -> None:
+    """Record the local CodeScene mode the run should answer with."""
+    (directory / "facts.json").write_text(
+        json.dumps({"cs_mode": mode}), encoding="utf-8"
+    )
+
+
+def test_the_simulated_cs_discloses_itself_on_every_answer(cs_run: Path) -> None:
+    """No answer can be mistaken for a real CodeScene analysis.
+
+    The stand-in fabricates its output, so a recording that quoted it without
+    the disclosure would be evidence for a result no service produced.
+    """
+    write_mode(cs_run, "clean")
+    done = invoke_cs(cs_run, "delta", "base", "HEAD")
+    assert "simulated output for rehearsal" in done.stderr
+    assert "not a CodeScene analysis" in done.stderr
+
+
+def invoke_cs(directory: Path, *argv: str) -> subprocess.CompletedProcess[str]:
+    """Run the simulated `cs` with one invocation."""
+    return subprocess.run(
+        [str(directory / "cs"), *argv], capture_output=True, text=True, check=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "needle", "status"),
+    [
+        ("clean", "No issues found in checked changes.", 0),
+        ("finding", "New issue: Large Method", 0),
+        ("unavailable", "License check failed", 1),
+    ],
+    ids=["clean", "finding", "unavailable"],
+)
+def test_the_simulated_cs_answers_each_mode_in_the_cli_shape(
+    cs_run: Path, mode: str, needle: str, status: int
+) -> None:
+    """Each mode answers as `cs delta` would, including its exit status.
+
+    The unavailable case is the one that matters most: the real binary exits
+    non-zero when it cannot reach its licence service, and a run that read only
+    stdout would take a failed check for a clean one.
+    """
+    write_mode(cs_run, mode)
+    done = invoke_cs(cs_run, "delta", "base", "HEAD")
+    assert done.returncode == status
+    assert needle in done.stdout
+
+
+@pytest.mark.parametrize(
+    "setup", [None, "not json", json.dumps({"cs_mode": "invented"})],
+    ids=["no-facts", "malformed", "unknown-mode"],
+)
+def test_the_simulated_cs_fails_closed_without_a_recorded_mode(
+    cs_run: Path, setup: str | None
+) -> None:
+    """A missing or unrecognized mode reports unavailable, never clean.
+
+    Defaulting to `clean` would let a broken fixture manufacture the clearance
+    the rehearsal exists to check, which is the failure mode the rule names.
+    """
+    if setup is not None:
+        (cs_run / "facts.json").write_text(setup, encoding="utf-8")
+    done = invoke_cs(cs_run, "delta", "base", "HEAD")
+    assert done.returncode == 1
+    assert "License check failed" in done.stdout
+
+
+def test_the_simulated_cs_records_each_invocation(cs_run: Path) -> None:
+    """The trace is how a recording shows the local gate was consulted at all."""
+    write_mode(cs_run, "clean")
+    invoke_cs(cs_run, "delta", "base", "HEAD")
+    entries = [
+        json.loads(line)
+        for line in (cs_run / "cs-trace.jsonl").read_text().splitlines()
+    ]
+    assert entries == [{"argv": ["delta", "base", "HEAD"], "mode": "clean"}]
+
+
+RUNNER = FIXTURES / "sandboxed_run.sh"
+
+FLAGGED = "skills/pr-babysitting/scripts/readiness_gate.py"
+FINDING_SCENARIO = FIXTURES / "scenarios" / "local-codescene-finding" / "facts.json"
+
+
+def served_files(facts: dict) -> dict[str, str]:
+    """Return every file body the recorded API surface serves, by path.
+
+    The routes are recorded as patterns, so the served path is the reliable key:
+    matching the pattern text would tie the test to one spelling of a route.
+    """
+    served: dict[str, str] = {}
+    for value in facts["api"].values():
+        if isinstance(value, dict) and "content" in value and "path" in value:
+            served[str(value["path"])] = str(value["content"])
+    return served
+
+
+def test_the_recorded_local_finding_is_true_of_the_recorded_file() -> None:
+    """The simulated `cs` may not report what the recorded file contradicts.
+
+    A local finding is evidence only if it describes the code this candidate
+    serves. Claiming a Large Method for a function the fixture shows at a third
+    of the stated size produces a run that holds because the evidence does not
+    cohere, not because the rule fired — the scenario would pass while proving
+    nothing.
+    """
+    facts = json.loads(FINDING_SCENARIO.read_text(encoding="utf-8"))
+    finding = facts["cs_finding"]
+    assert finding, "the finding scenario records no local finding"
+    served = served_files(facts)
+    assert FLAGGED in served, "the finding names a file the surface does not serve"
+    lines = served[FLAGGED].splitlines()
+    start = next(
+        index
+        for index, line in enumerate(lines, 1)
+        if line.startswith("def _assess_gate")
+    )
+    # The real CLI reports a function's body, excluding its signature. Captured
+    # from `cs delta` on this stub: a function at line 10 of a 97-line file is
+    # reported as 87 lines, and the scenario must quote that same count.
+    reported = len(lines) - start
+    assert f"at line {start}" in finding, finding
+    assert f"has {reported} lines" in finding, finding
+    assert "threshold = 70" in finding, "the threshold must be CodeScene's own"
+
+
+def test_the_local_finding_names_a_file_the_candidate_changes() -> None:
+    """A finding about code outside the diff is evidence about another PR.
+
+    The run would be reasoning about a file this candidate never touched, so
+    the hold it produces would not be about this change.
+    """
+    facts = json.loads(FINDING_SCENARIO.read_text(encoding="utf-8"))
+    changed = facts["pr_diff"].split()
+    assert FLAGGED in changed, f"{FLAGGED} is not in the recorded diff: {changed}"
+
+
+CODESCENE_ADVISORY = FIXTURES / "scenarios" / "codescene-advisory" / "facts.json"
+
+
+def test_the_two_sources_describe_the_same_finding() -> None:
+    """The hosted check and the local delta must not disagree about one file.
+
+    A scenario that records a hosted warning beside a locally clean result
+    manufactures a contradiction the skill does not describe. The run then
+    holds on the mismatch rather than on the rule, and the recording stops
+    showing whether the rule fires.
+    """
+    facts = json.loads(CODESCENE_ADVISORY.read_text(encoding="utf-8"))
+    assert facts["cs_mode"] == "finding", "a hosted finding needs a local one"
+    local = facts["cs_finding"]
+    annotations = facts["api"]["/check-runs/\\d+/annotations(?:[?#]|$)"]
+    hosted = " ".join(str(entry["message"]) for entry in annotations)
+    # Both sources quote the real CLI's metrics for the served stub, so a
+    # drift in either number shows up here rather than in a re-record.
+    for number in ("87 lines", "threshold = 70"):
+        assert number in local, local
+        assert number in hosted, hosted
+
+
+def test_the_hosted_summary_agrees_with_the_hosted_annotations() -> None:
+    """One analysis has one set of numbers, on every route that serves it.
+
+    The check's summary and its annotations are two readings of a single
+    CodeScene run. A handwritten summary drifted from the annotations, and the
+    run then stopped to reconcile a mismatch that was a fixture defect rather
+    than a fact about the candidate.
+    """
+    facts = json.loads(CODESCENE_ADVISORY.read_text(encoding="utf-8"))
+    scene = next(
+        check
+        for check in facts["pr"]["statusCheckRollup"]
+        if "CodeScene" in str(check["name"])
+    )
+    summary = str(scene["output"]["summary"])
+    annotations = facts["api"]["/check-runs/\\d+/annotations(?:[?#]|$)"]
+    for entry in annotations:
+        assert str(entry["message"]) in summary, (
+            f"the summary omits or contradicts an annotation: {entry['message']}"
+        )
+    assert "complexity of 12" not in summary, "the summary carries a stale metric"
+
+
+def test_every_recorded_scenario_declares_a_local_codescene_mode() -> None:
+    """A run cannot answer the local gate from facts that never name a mode.
+
+    The stand-in fails closed to `unavailable`, so a scenario that forgot the
+    key would record a hold for a reason it does not describe.
+    """
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        assert facts.get("cs_mode") in {"clean", "finding", "unavailable"}, (
+            f"{facts_path.parent.name} declares no usable local CodeScene mode"
+        )
+
+
+def test_the_runner_checks_the_read_back_after_the_transition() -> None:
+    """The read-back assertion must be ordered, or it proves nothing.
+
+    An initial `pr view` also carries `isDraft`, so a bare search of the whole
+    trace passes even when the post-transition read is removed. The runner has
+    to examine only what follows the last `pr ready`.
+    """
+    runner = RUNNER.read_text()
+    assert "grep -n '\"pr\", \"ready\"'" in runner, (
+        "the read-back must locate the transition rather than search the trace"
+    )
+    assert 'tail -n "+$((after + 1))"' in runner, (
+        "the read-back must be searched only after the transition"
+    )
+
+
+def test_the_runner_requires_the_local_codescene_result_before_readiness() -> None:
+    """A permitting run that never invoked `cs` has waived the local gate.
+
+    The rule says an unevaluable source is not a clear one, so the runner has to
+    fail a run that marked ready without consulting the local result at all.
+    """
+    runner = RUNNER.read_text()
+    assert '[ "$EXPECT_READY" = yes ] && [ ! -s "$CS_TRACE" ]' in runner
+    assert "marked the PR ready without invoking the local CodeScene check" in runner
+
+
+def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
+    """The revision is reconciled against the plan file, so the read comes first.
+
+    Accepting the verdict's own echo would clear a revision the reviewer never
+    saw, which is the superseded-revision defect the rule exists to prevent.
+    """
+    runner = RUNNER.read_text()
+    assert "contents/docs/execplans/.*ref=" in runner
+    assert "read the plan after the transition, not before it" in runner
+
+
+def test_the_runner_refuses_a_contradictory_permitted_scenario() -> None:
+    """A scenario written to permit cannot carry a finding or unavailable mode.
+
+    Recording that pairing would file, as evidence, a run whose facts
+    contradict the decision the runner is checking for.
+    """
+    runner = RUNNER.read_text()
+    for mode in ("unavailable", "finding"):
+        assert f'"$CS_MODE" = {mode}' in runner

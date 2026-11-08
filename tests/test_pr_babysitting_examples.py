@@ -626,3 +626,93 @@ def test_merge_checklist_accepts_an_approval_that_covers_the_head() -> None:
         "Neither path may be rate-limited, paused, or skipped",
     ):
         assert requirement in merge, f"merge checklist must state: {requirement}"
+
+
+CODESCENE_HEADING = (
+    "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+)
+
+# The clauses that make an unevaluable source block readiness. Each is asserted
+# separately so a mutation control can name the one it weakens.
+UNEVALUABLE_GUARDS = (
+    "An unevaluable source is not a clear source",
+    "the local delta is **unverified**, not clean",
+    "the gate stays open",
+    "the PR stays in draft",
+    "the outcome names the missing tool as the deciding evidence",
+    '"I could not run the check" and "the check found nothing" are different facts',
+    "only the second clears the rule",
+    "Do not substitute a hosted green badge for the missing local half",
+)
+
+
+def wrapped(phrase: str) -> re.Pattern[str]:
+    """Return a pattern matching `phrase` across arbitrary line wrapping.
+
+    The skill is hard-wrapped, so a clause can straddle a line break. Matching
+    on `\\s+` between words asserts the rule itself rather than the current wrap
+    width, and the pattern is used to edit the document too, so a mutation does
+    not depend on where the sentence happens to break.
+    """
+    return re.compile(r"\s+".join(re.escape(word) for word in phrase.split()))
+
+
+def unevaluable_contract(skill: str) -> list[str]:
+    """Return the missing clauses of the unevaluable-source rule."""
+    codescene = section(skill, CODESCENE_HEADING)
+    return [guard for guard in UNEVALUABLE_GUARDS if not wrapped(guard).search(codescene)]
+
+
+def test_codescene_section_treats_an_unevaluable_source_as_uncleared() -> None:
+    """A source that could not be evaluated is not a source that came back clean.
+
+    This is the defect #271 exists for in the local half: a workflow that
+    records "cs was unavailable" and then marks ready has waived a gate it never
+    checked, while reading as though the gate were satisfied.
+    """
+    missing = unevaluable_contract(SKILL.read_text())
+    assert not missing, f"CodeScene section must state: {missing}"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "weakening"),
+    [
+        (
+            "An unevaluable source is not a clear source",
+            "An unavailable source counts as clear",
+        ),
+        (
+            "the gate stays open",
+            "the gate may be recorded as satisfied",
+        ),
+        (
+            '"I could not run the check" and "the check found nothing" are different facts',
+            '"I could not run the check" is the same as "the check found nothing"',
+        ),
+        (
+            "Do not substitute a hosted green badge for the missing local half",
+            "A hosted green badge is enough for the missing local half",
+        ),
+    ],
+    ids=["scope-flip", "no-hold", "equivalence-flip", "badge-substitution"],
+)
+def test_codescene_unevaluable_contract_rejects_weakened_wording(
+    mutation: str, weakening: str
+) -> None:
+    """Each guard is load-bearing: weakening it must break the contract.
+
+    A contract test that passes on weakened prose is not enforcing anything, so
+    each mutation swaps one guard for wording that would permit the waiver, and
+    the contract must then report that guard missing. Without this, a guard
+    could be reworded to its opposite and the suite would stay green.
+    """
+    skill = SKILL.read_text()
+    pattern = wrapped(mutation)
+    assert pattern.search(skill), "the guard this control mutates has moved"
+    # The guard is replaced in place, so the document keeps its headings and
+    # the control exercises the same contract the real file is read by.
+    mutated = pattern.sub(lambda _: weakening, skill, count=1)
+    assert mutated != skill
+    assert mutation in unevaluable_contract(mutated), (
+        "the contract accepted wording that permits waiving an unevaluable source"
+    )

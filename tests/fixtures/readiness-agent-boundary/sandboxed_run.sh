@@ -104,6 +104,13 @@ cp "$ROOT/gh-shim.py" "$RUN/gh"
 sed -i "s#^RUN = .*#RUN = Path(\"$RUN\")#" "$RUN/gh"
 chmod +x "$RUN/gh"
 cp "$ROOT/scenarios/$SCENARIO/facts.json" "$RUN/facts.json"
+# The local CodeScene half is a simulated `cs`: the real binary checks its
+# licence against api.codescene.io on every invocation, and this sandbox drops
+# that egress. The stand-in writes its own trace and discloses itself on every
+# answer, so no recording can be mistaken for a real analysis.
+cp "$ROOT/cs-shim.py" "$RUN/cs"
+sed -i "s#^RUN = .*#RUN = Path(\"$RUN\")#" "$RUN/cs"
+chmod +x "$RUN/cs"
 cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
 # The host home is masked wholesale below, so the CLI cannot be run from
 # wherever the operator installed it. Copy it into the run directory first: the
@@ -347,6 +354,12 @@ rc=$?
 echo "agent rc: $rc"
 echo "--- gh invocations ---"
 cat "$TRACE"
+# The simulated local CodeScene result is its own evidence surface: a run that
+# never invoked `cs` cannot have cleared the local half, whatever its outcome
+# says. The mode is printed with each call so a reader sees what it was asked.
+CS_TRACE=$RUN/cs-trace.jsonl
+echo "--- cs invocations (simulated) ---"
+if [ -f "$CS_TRACE" ]; then cat "$CS_TRACE"; else echo "(none)"; fi
 # The submitted bodies are evidence in their own right: the trace shows that a
 # POST happened, but only the body shows what it asked. Print the body, and
 # fail the run when a POST recorded something the stand-in would have refused,
@@ -384,6 +397,57 @@ EXPECT_READY=no
 case $SCENARIO in
   current-whole-plan | proof-only-cleared) EXPECT_READY=yes ;;
 esac
+# Read the local CodeScene mode this run was given. A scenario whose local
+# evidence is a finding or unavailable must not transition, whatever its other
+# evidence says: that is the rule section 4 states, and asserting it here is
+# what stops an outcome from waiving a source it never evaluated.
+CS_MODE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("cs_mode",""))' "$RUN/facts.json")
+echo "outcome: local CodeScene mode=$CS_MODE"
+if [ "$EXPECT_READY" = yes ] && [ "$CS_MODE" = unavailable ]; then
+  echo "abort: '$SCENARIO' is written to permit a transition but its local CodeScene result is unavailable" >&2
+  rc=1
+fi
+if [ "$EXPECT_READY" = yes ] && [ "$CS_MODE" = finding ]; then
+  echo "abort: '$SCENARIO' is written to permit a transition but its local CodeScene result lists a finding" >&2
+  rc=1
+fi
+# A permitting run must have asked for the local result at all. Marking ready
+# without reading it is the waiver the rule forbids, and an outcome that merely
+# says the tool was missing is not evidence that it was consulted.
+if [ "$EXPECT_READY" = yes ] && [ ! -s "$CS_TRACE" ]; then
+  echo "abort: '$SCENARIO' marked the PR ready without invoking the local CodeScene check" >&2
+  rc=1
+fi
+# A plan-bearing permitting run must read the plan file before the transition,
+# and read it for the head it is judging. `current-whole-plan` reconciles the
+# echo against the revision in force, which is only evidence if the read came
+# first; accepting the verdict's own echo would clear a superseded revision.
+case $SCENARIO in
+  current-whole-plan)
+    plan_line=$(grep -n 'contents/docs/execplans/.*ref=' "$TRACE" | head -1 | cut -d: -f1)
+    ready_line=$(grep -n '"pr", "ready"' "$TRACE" | head -1 | cut -d: -f1)
+    if [ -z "$plan_line" ]; then
+      echo "abort: '$SCENARIO' marked ready without reading the plan file" >&2
+      rc=1
+    elif [ -n "$ready_line" ] && [ "$plan_line" -gt "$ready_line" ]; then
+      echo "abort: '$SCENARIO' read the plan after the transition, not before it" >&2
+      rc=1
+    elif ! sed -n "${plan_line}p" "$TRACE" | grep -q 'ref='; then
+      echo "abort: '$SCENARIO' read the plan without naming the head to check it at" >&2
+      rc=1
+    fi
+    ;;
+esac
+# A refusing run whose whole purpose is the local gate must have read it too,
+# or its hold could be for an unrelated reason.
+case $SCENARIO in
+  local-codescene-*)
+    if [ ! -s "$CS_TRACE" ]; then
+      echo "abort: '$SCENARIO' never invoked the local CodeScene check it exists to exercise" >&2
+      rc=1
+    fi
+    ;;
+esac
 # `codescene-advisory` is the only scenario whose CodeScene check passes while
 # its own output lists a finding. The choice is asserted rather than assumed: a
 # run that marks it ready shows the gate reading the badge instead of the
@@ -402,12 +466,23 @@ if [ "$EXPECT_READY" = no ] && [ "$ready_calls" -ne 0 ]; then
   rc=1
 fi
 # A permitting run must read the transition back, so its own evidence is the
-# observed state rather than the command's exit status. The field is usually
-# one item of a `--json` list, so the match is on the name rather than on a
-# quoted whole argument.
-if [ "$EXPECT_READY" = yes ] && ! grep -q 'isDraft' "$TRACE"; then
-  echo "abort: '$SCENARIO' did not read the draft state back after the transition" >&2
-  rc=1
+# observed state rather than the command's exit status. The check is ordered:
+# an initial `pr view` also carries `isDraft`, so a bare search would pass even
+# if the read-back were removed. Everything after the last `pr ready` is
+# examined, and a read of the draft state there is the transition observed.
+if [ "$EXPECT_READY" = yes ]; then
+  after=$(grep -n '"pr", "ready"' "$TRACE" | tail -1 | cut -d: -f1)
+  if [ -z "$after" ]; then
+    echo "abort: '$SCENARIO' has no 'pr ready' to read back" >&2
+    rc=1
+  else
+    readback=$(tail -n "+$((after + 1))" "$TRACE" | grep -c 'isDraft' || true)
+    if [ "$readback" -eq 0 ]; then
+      echo "abort: '$SCENARIO' did not read isDraft back after the transition" >&2
+      rc=1
+    fi
+    echo "outcome: read-back reads after 'pr ready': $readback"
+  fi
 fi
 echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
 

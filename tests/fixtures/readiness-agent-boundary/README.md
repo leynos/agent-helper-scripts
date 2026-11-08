@@ -15,21 +15,23 @@ proof of a live scenario.
 
 Every scenario serves the same green checks, the same base and the same
 trusted, in-repository candidate; the only variable is the assessment evidence,
-or — for `codescene-advisory` — the hosted check's own output. `base` is
+the hosted check's own output, or the recorded local CodeScene result. `base` is
 `73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
 draft in each case. The two `proof-only-*` scenarios differ from the rest in
 one more respect that is part of their premise: their PR body says no ExecPlan
 applies and their diff is the proof they introduce.
 
-| Scenario              | Head       | Completeness evidence                                                        | Proof evidence                        | `gh pr ready` |
-| --------------------- | ---------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------- |
-| `subset-only`         | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                  | no            |
-| `subset-clear`        | `ffff6666` | **clear**; subject is still the declared subset                              | none                                  | no            |
-| `superseded-revision` | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                  | no            |
-| `current-whole-plan`  | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                         | yes           |
-| `codescene-advisory`  | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
-| `proof-only-pending`  | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered           | no            |
-| `proof-only-cleared`  | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound` | yes           |
+| Scenario                      | Head       | Completeness evidence                                                        | Proof evidence                        | `gh pr ready` |
+| ----------------------------- | ---------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------- |
+| `subset-only`                 | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                  | no            |
+| `subset-clear`                | `ffff6666` | **clear**; subject is still the declared subset                              | none                                  | no            |
+| `superseded-revision`         | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                  | no            |
+| `current-whole-plan`          | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                         | yes           |
+| `codescene-advisory`          | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
+| `local-codescene-finding`     | `1111bbbb` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
+| `local-codescene-unavailable` | `2222cccc` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
+| `proof-only-pending`          | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered           | no            |
+| `proof-only-cleared`          | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound` | yes           |
 
 `codescene-advisory` isolates the CodeScene gate from every other reason to
 hold: the whole approved plan has cleared at the revision in force, and all
@@ -69,6 +71,20 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   shows that a POST happened; this shows what it asked for. Like the outcomes
   it is `.txt`, so the Markdown gates cannot reflow a verbatim recording, and
   it is committed only from a run whose authorization proof passed.
+- `cs-shim.py` — the **simulated** `cs`. It answers `delta` and `check` from
+  the scenario's recorded `cs_mode` (`clean`, `finding` or `unavailable`),
+  reproduces the real CLI's exit status for each — including the non-zero exit
+  when the licence check fails — and discloses itself on every answer. A
+  missing or unrecognized mode answers `unavailable`, so a broken fixture
+  cannot manufacture the clean result the rehearsal is checking for.
+- `cs-trace.jsonl` (per run, in the run directory) — every simulated `cs`
+  invocation with the mode it answered from. A run that never invoked it cannot
+  have cleared the local half, whatever its outcome says.
+- `traces/<name>-cs.jsonl` — the committed copy of that run's simulated `cs`
+  trace. It sits beside the `gh` trace because the two together are the
+  recording: one shows what the agent was told about the PR, the other whether
+  it consulted the local result before deciding. A run that transitions without
+  a non-empty trace of this kind did not clear the local half of the gate.
 - `gh-shim.py` — the executable stand-in. It derives the run directory from its
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
   records `isDraft: false` in `state.json`, merging rather than replacing, so a
@@ -227,6 +243,22 @@ state back; a scenario expected to stay in draft must issue none. A scenario
 that decides otherwise fails the run instead of being filed as a recording, so
 these files cannot drift from the rule they are meant to demonstrate.
 
+The gate assertions are specific rather than aggregate:
+
+- The read-back is **ordered**. An initial `pr view` also carries `isDraft`, so
+  a bare text search in the trace would pass even with the post-transition read
+  removed. Only reads after the last `pr ready` count.
+- A permitting run must have invoked the simulated `cs` at all. Marking ready
+  without consulting the local result is the waiver the rule forbids, and an
+  outcome that merely mentions the tool was missing is not evidence that it was
+  consulted.
+- `current-whole-plan` must read the plan file **before** the transition and
+  must name the head in that read, so it reconciles the verdict's echo against
+  the revision in force rather than accepting the echo on its own.
+- A scenario whose recorded local result is `finding` or `unavailable` may not
+  be written as one that permits a transition; the two facts contradict each
+  other, and the runner refuses the contradiction rather than recording it.
+
 The stand-in's own authorization is proved the same way. Before the agent
 starts, the runner posts a comment twice against a copy of the stand-in: with
 no token, which must fail, and with the fixture token, which must succeed. An
@@ -264,39 +296,50 @@ proof verdict is the only applicable assessment. `superseded-revision` reads
 `contents/docs/execplans` while naming the stale revision in a follow-up, which
 is a different use of the route from the confirmation above.
 
-**CodeScene.** The sandbox has no checkout of the PR's code and no `cs` CLI, so
-no run executes `cs delta`. The hosted `check-runs` output is the only
-CodeScene source any recording reads, and the skill treats a local delta, the
-`codescene-access[bot]` comments and that output as separate outstanding-issue
-sources. A green hosted check therefore does not by itself clear the CodeScene
-gate, and these recordings do not show the local half being cleared.
+**CodeScene, local half.** The local result is a **simulated** `cs`
+(`cs-shim.py`), not CodeScene. The real binary performs a licence check against
+`api.codescene.io` on every invocation, and this sandbox drops all egress
+except the model API, so genuine local analysis cannot run inside it. The
+stand-in prints
+`cs-stand-in: simulated output for rehearsal; not a CodeScene analysis` on
+every answer, and records each call and the mode it answered from to
+`cs-mode`-carrying `cs-trace.jsonl`. No recording here is evidence that a real
+`cs delta` was executed, and none should be quoted as a CodeScene result.
 
-This is a bound of the harness, not a state a recording could be made to show
-under it: admitting a checkout and a `cs` binary would mean admitting network
-egress to the CodeScene service and a host tool outside the fixed sandbox
-`PATH`, and a stand-in that fabricated a delta result would record an answer no
-service produced. The positive recordings are still valid as rehearsals of the
-assessment gate, which is what they were recorded for, and the outcome text of
-each states which CodeScene sources it did read. A run under the real skill in
-a real worktree is the only place the local half can be recorded, and that is a
-live run, not one of these files.
+What the stand-in *does* establish is what the agent does with each possible
+local result, which is the part the skill's rule is about:
 
-What the recordings do establish is that the gate binds to CodeScene rather
-than to the badge. `codescene-advisory` gives the agent an unqualified clear
-assessment, three `SUCCESS` checks, and a CodeScene output that lists an
-outstanding finding against a changed file: the run stays in draft and names
-that finding as its deciding evidence. The gate is therefore responsive to the
-hosted result, and a run that cannot obtain the local half blocks rather than
-waiving what it could not check. What remains unshown is the other half — a
-clean local `cs delta` being required and obtained before a transition.
+| Scenario                      | Local `cs delta` | Hosted CodeScene | `gh pr ready` |
+| ----------------------------- | ---------------- | ---------------- | ------------- |
+| `current-whole-plan`          | clean            | no findings      | yes           |
+| `local-codescene-finding`     | one new issue    | no findings      | no            |
+| `local-codescene-unavailable` | cannot evaluate  | no findings      | no            |
+| `codescene-advisory`          | clean            | **one finding**  | no            |
 
-**Freshness of each recording.** All seven were recorded under the stand-in,
-the facts and the mount mask as they now behave, and each run passed its own
-outcome assertion. Earlier revisions of these files were not so: the stand-in
-once ignored `--jq`, so a filtered call returned the unfiltered payload, and it
-once answered a field-bearing `gh api` call as a read, so a POST recorded
-nothing. Several recordings were made against those versions and replayed only
-against later ones.
+The three local cases hold every hosted source constant and clean, so each
+run's decision can only come from the local result. `local-codescene-finding`
+is the case where the hosted badge says nothing is wrong and the delta
+disagrees; `local-codescene-unavailable` is the case the rule names directly —
+"I could not run the check" is not "the check found nothing" — and the run must
+treat an unevaluable source as unverified rather than clean.
+`codescene-advisory` covers the opposite direction: the local result is clean
+and the hosted output lists a finding, and the run still holds. Together they
+show the gate bound to both halves rather than to whichever one is green.
+
+The real local half is recorded outside this harness: a `cs delta` against the
+candidate in a real worktree, reported in the PR's validation evidence. A live
+run is the only place the genuine result exists, and a stand-in that fabricated
+one would be recording an answer no service produced.
+
+**Freshness of each recording.** All nine were recorded under the stand-in, the
+facts, the mount mask and the simulated `cs` as they now behave, and each run
+passed its own outcome assertion. Earlier revisions of these files were not so:
+the stand-in once ignored `--jq`, so a filtered call returned the unfiltered
+payload, it once answered a field-bearing `gh api` call as a read, so a POST
+recorded nothing, and the permitting recordings were made before any local
+CodeScene result existed, so they transitioned while their outcomes said `cs`
+was unavailable. That last state is what the rule now forbids, and those
+recordings were replaced rather than reworded.
 
 The facts were also incomplete in a way the runs themselves reported: the
 recorded PR carried no author or head-repository fields, so a run following the
@@ -315,18 +358,21 @@ completeness assessment instead of deciding the proof one.
 
 The traces show reads, `pr ready` in the two permitting scenarios, and one POST
 in `superseded-revision`, all against the stand-in. No trace contains a merge
-or a review request. Nothing here was captured from a live PR, and no
-credential appears in any file: the only token any run could reach is the
-fixture token, which real GitHub rejects. The one posted body names the plan
-revision and the base/head it was posted for, and carries no credential.
+or a review request. Nothing here was captured from a live PR, no real
+CodeScene command was run, and no credential appears in any file: the only
+token any run could reach is the fixture token, which real GitHub rejects. The
+one posted body names the plan revision and the base/head it was posted for,
+and carries no credential.
 
 ## Refreshing
 
 Regenerate with `python3 -I make_scenarios.py` after editing a scenario, then
 rerun the affected scenarios into `RUN_DIR` and copy `gh-trace.jsonl` to
-`traces/`, `submitted.md` to `submitted/` and the agent's own final message to
-`outcomes/`. A scenario that posted no comment has no `submitted/` entry.
-Replace a trace, its outcome and its submitted body together: any one without
-the others, or the reverse, is not evidence of anything. Review a new recording
-before replacing an old one, and keep the previous recording's scope if it
-covered different evidence.
+`traces/`, the agent's own final message to `outcomes/`, and the body to
+`submitted/` when the run posted one. `cs-trace.jsonl` stays in the run
+directory: it records that the local check was consulted, which the runner
+already asserts, and it is not a GitHub surface. A scenario that posted no
+comment has no `submitted/` entry. Replace a trace, its outcome and its
+submitted body together: any one without the others, or the reverse, is not
+evidence of anything. Review a new recording before replacing an old one, and
+keep the previous recording's scope if it covered different evidence.

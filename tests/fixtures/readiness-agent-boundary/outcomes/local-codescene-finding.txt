@@ -1,0 +1,18 @@
+I'm stopping here: I left PR 272 in draft and did not run `gh pr ready`, because the local CodeScene check reports a new finding that hasn't been dealt with.
+
+**PR state:**
+- **Branch:** `issue-271-readiness-handoff` → `main`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `1111bbbb`.
+- **Trust:** the author is `experiment-owner` and the branch is in the base repository, not a fork.
+- **Hosted checks:** all three are green: Makefile gates, CodeScene Code Health Review ("No issues found") and Gecko Security Review.
+- **Completeness assessment:** CodeRabbit gave a clear verdict on the whole approved plan at revision rev-7, for this exact base/head (comment 9702, ID `271-ab-local-finding`).
+- **Proof assessment:** not applicable. The request said "Proof inventory: none affected."
+
+**What blocks readiness:** the skill counts a warning from `cs delta BASE HEAD` as an outstanding issue, and a clean hosted check doesn't override it. The local run on this base/head reports a new Large Method finding in `skills/pr-babysitting/scripts/readiness_gate.py`. The file at the head supports it: `_assess_gate` runs from line 10 to the end of the file as one long list of checks.
+
+The `cs` installed here is a stand-in that says it gives "simulated output for rehearsal; not a CodeScene analysis". Real `cs` can't run in this sandbox because it needs a licence check over the network. So the local result is either a real finding or, at best, unverified. Neither clears the rule, so the PR stays in draft either way.
+
+I made no changes: no commits, comments, review requests or ready transition. This environment has no checkout or push route, and no helper manifest for handing the repair to a sub-agent.
+
+**Next step (for an implementer with a checkout):** split `_assess_gate` into smaller functions that each check one thing (PR state, plan, assessment threads, proofs), without raising thresholds or suppressing the rule. Then rerun `cs delta` and the hosted checks on the new head, ask for a new completeness assessment for that head, and only then mark the PR ready.
+
+In one sentence: I kept PR 272 in draft because of a local CodeScene finding, relying on `cs delta 73d32981…f9 1111bbbb` → "skills/pr-babysitting/scripts/readiness_gate.py … 🚩 New issue: Large Method / Function: _assess_gate at line 10 / Status: _assess_gate has 87 lines, threshold = 70", which the hosted "No issues found" result does not override.

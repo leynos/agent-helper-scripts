@@ -1,17 +1,16 @@
-I left PR 272 in draft and posted a new completeness assessment request against the plan revision now in force (`rev-7`), because the only existing "clear" verdict covers the older `rev-6` and doesn't count for this PR. CodeRabbit hadn't answered after about 4 minutes of polling, so the assessment is still pending.
+I left PR 272 in draft and posted a follow-up asking CodeRabbit to assess completeness against plan revision rev-7, because the only "clear" verdict on file was given for rev-6, an older revision that no longer counts. Under the skill, that verdict can't open the draft-to-ready gate, so I didn't run `gh pr ready`.
 
-**Why it isn't ready:**
-- **Verdict on file (comment 9102):** it says "**Plan revision:** rev-6 … This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."
-- **Plan file at the head (`bbbb2222`):** it reads "Plan revision: rev-7" (blob `5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15`).
+The deciding evidence is CodeRabbit's reply (comment 9102) to the earlier request (comment 9101, which named rev-7): *"**Plan revision:** rev-6 … This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."* The skill says a verdict "recorded against a revision that has since been superseded … does not clear the gate, even when the base/head is unchanged."
 
-The skill says a verdict against a superseded revision doesn't carry over, even when the base and head are unchanged. So the completeness gate is open and I did not run `gh pr ready`.
+**Current state** (base `73d32981…`, head `bbbb2222`, branch in the base repo, author `experiment-owner`, so trusted):
+- **CI:** all three checks pass: `Makefile gates`, `CodeScene Code Health Review` (no findings) and `Gecko Security Review`.
+- **CodeScene locally:** `cs delta` and `cs check` both report no issues. The installed `cs` is a stand-in that labels its own output "simulated; not CodeScene", so the local check only rehearses the real one.
+- **No review findings:** there are no reviews or inline comments, including none from `codescene-access[bot]`.
+- **Proof assessment:** not applicable, because no proofs are affected.
 
-**Everything else needed for readiness passes on base `73d32981…` / head `bbbb2222`:**
-- **Checks:** `Makefile gates` (7701), `CodeScene Code Health Review` (7702: "No advisory findings, gate failures or code-health declines.") and `Gecko Security Review` (7703) all succeeded.
-- **Review comments:** there are no inline comments and no reviews.
-- **Trust:** the author is `experiment-owner`, which is the account `gh` is logged in as, and the head branch is in the base repository, not a fork.
-- **Proof assessment:** not applicable, since no proofs are affected.
+**What I did:**
+- **Follow-up request:** posted as comment 9901 through the shipped comment helper, from a pool account (`fixture-commenter`), not the lifecycle account. It names rev-7 and the plan file's blob `5a1c9e4d…` at this head, links 9101 and 9102, and uses the new Assessment-ID `271-ab-rev7-followup-1`.
+- **Reply check:** reading the comment back returned `created_at: null`, so I couldn't take a reply cursor from its timestamp. Instead I re-read the whole discussion six times over about three minutes. There was no new or edited reply from `coderabbitai[bot]`, and the base and head didn't change.
+- **Ledger:** saved at `/tmp/rab-sr2/superseded-revision/state/ledger.md`.
 
-**The new request:** it's at https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901 (Assessment-ID `271-ab-rev7-bbbb2222`), posted through the skill's comment helper as pool account `fixture-commenter`, not the lifecycle account. I polled the issue comments 8 times, 30 seconds apart, and CodeRabbit added or edited nothing. The PR is still `isDraft: true` on the same base and head. I did not queue a formal review or use `comenq`.
-
-**Next step:** wait for CodeRabbit's reply to 9901. If it gives a clear whole-plan verdict that echoes `rev-7` and `73d32981…bbbb2222`, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` and confirm `isDraft=false`. If it names gaps, fix them first. Nothing will watch the PR after this session ends. The request body and the comment baseline are saved in `/tmp/pr272-ledger/`.
+**Where this stands:** the completeness assessment is still pending; this is a wait, not a blocker. I didn't use `comenq` (it isn't installed here), and it isn't needed yet because formal review only starts once the PR is ready. The next step is to read CodeRabbit's reply to 9901. If it gives a clear rev-7 verdict for this base and head, mark the PR ready as `experiment-owner` and move on to formal review.

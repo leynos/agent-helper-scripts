@@ -44,38 +44,108 @@ FLAGGED_PATH = "skills/pr-babysitting/scripts/readiness_gate.py"
 # The shape the finding describes: one function holding several independent
 # checks, which is why its complexity is over the threshold. It is enough for a
 # run to see what the finding is about; it is not a working implementation.
+#
+# It is deliberately longer than the real Large Method threshold, so the local
+# finding the simulated `cs` reports is true of the code this fixture serves.
+# A finding whose stated size the served file contradicts is one a careful run
+# discounts, and the run would then hold for a reason the scenario is not
+# testing.
 FLAGGED_TEXT = '''"""Read the readiness gate's assessments."""
 
 COMPLETENESS = "completeness"
 PROOF = "proof"
+KINDS = (COMPLETENESS, PROOF)
+VERDICTS = ("clear", "not clear")
+BOT = "coderabbitai[bot]"
 
 
 def _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:
-    """Return whether every applicable assessment clears for this candidate."""
+    """Return whether every applicable assessment clears for this candidate.
+
+    The checks are written out one after another rather than split into
+    helpers, which is the shape the recorded local finding describes. This is a
+    fixture, not a working gate: it exists to be read, and the size the finding
+    reports is computed from this text.
+    """
     if not state:
         return False
     if state.get("isDraft") is True:
         return False
-    if plan.get("revision") != state.get("revision"):
+    if state.get("state") != "OPEN":
+        return False
+    if state.get("merged") is True:
+        return False
+    if not state.get("headRefOid"):
+        return False
+    if not state.get("baseRefOid"):
         return False
     if plan.get("approved") is not True:
         return False
+    if not plan.get("revision"):
+        return False
+    if not plan.get("subject"):
+        return False
+    if plan.get("revision") != state.get("revision"):
+        return False
+    if plan.get("head") != state.get("headRefOid"):
+        return False
+    if plan.get("base") != state.get("baseRefOid"):
+        return False
     for thread in threads:
         if thread.get("isOutdated"):
-            continue
+            return False
         if not thread.get("isResolved"):
             return False
-        if thread.get("assessment") == PROOF:
+        kind = thread.get("assessment")
+        if kind not in KINDS:
+            return False
+        if thread.get("verdict") not in VERDICTS:
+            return False
+        if thread.get("author") != BOT:
+            return False
+        if not thread.get("replies"):
+            return False
+        if any(reply.get("dismissed") for reply in thread.get("replies", [])):
+            return False
+        if kind == PROOF:
             if not thread.get("cleared"):
                 return False
-        elif thread.get("assessment") == COMPLETENESS:
+            if not thread.get("scrutinized"):
+                return False
+            if thread.get("waived"):
+                return False
+        if kind == COMPLETENESS:
             if thread.get("subject") != plan.get("subject"):
                 return False
-        elif thread.get("verdict") != "clear":
-            return False
+            if thread.get("revision") != plan.get("revision"):
+                return False
+            if thread.get("head") != state.get("headRefOid"):
+                return False
+            if thread.get("base") != state.get("baseRefOid"):
+                return False
+            if thread.get("scope") != plan.get("scope"):
+                return False
     for proof in proofs:
-        if proof.get("changed") and not proof.get("scrutinized"):
+        if not proof.get("changed"):
+            continue
+        if not proof.get("scrutinized"):
             return False
+        if not str(proof.get("path", "")).endswith(".lean"):
+            return False
+        if not proof.get("statement"):
+            return False
+        if proof.get("sorry"):
+            return False
+        if proof.get("axioms") not in ({"propext"}, set()):
+            return False
+        if proof.get("reviewed") is not True:
+            return False
+    if not threads:
+        return False
+    if not proofs and plan.get("proves"):
+        return False
+    if len(threads) > 200:
+        return False
     return True
 '''
 PLAN_TEXT = """# Readiness handoff
@@ -197,6 +267,11 @@ def annotations() -> list[dict[str, object]]:
     The check's output advertises a count, so a run that asks for the entries
     itself is making the read the count implies. Answering 404 there would
     report the annotation as unreadable rather than as the finding it is.
+
+    The metrics are CodeScene's own, measured on this stub with the real CLI:
+    `cs check` reports `Complex Method (cc = 44)` and `Large Method (LoC = 87
+    lines)`. A hosted finding that quoted different numbers from the local one
+    would make the two sources disagree about the same file.
     """
     start, end = flagged_span()
     return [
@@ -206,9 +281,61 @@ def annotations() -> list[dict[str, object]]:
             "end_line": end,
             "annotation_level": "warning",
             "title": "Complex Method",
-            "message": "`_assess_gate` has a cyclomatic complexity of 12 (threshold 9).",
-        }
+            "message": "`_assess_gate` has a cyclomatic complexity of 44 (threshold 9).",
+        },
+        {
+            "path": FLAGGED_PATH,
+            "start_line": start,
+            "end_line": end,
+            "annotation_level": "warning",
+            "title": "Large Method",
+            "message": (
+                f"`_assess_gate` has {local_loc()} lines,"
+                f" threshold = {LOC_THRESHOLD}."
+            ),
+        },
     ]
+
+
+# CodeScene's own Large Method threshold, quoted from `cs delta` on a stub like
+# this one. The finding must be true of the served text: a report the recorded
+# file contradicts is one a careful run rightly discounts, and the run would
+# then hold for a reason the scenario is not testing.
+LOC_THRESHOLD = 70
+
+
+def local_loc() -> int:
+    """Return the flagged function's line count as CodeScene reports it.
+
+    Measured on the real CLI for a function of this shape: the count excludes
+    the signature line, so a function whose body ends on line `end` and starts
+    on line `start` is reported as `end - start` lines. Deriving it from the
+    served text keeps the simulated report and the recorded file in agreement.
+    """
+    start, end = flagged_span()
+    return end - start
+
+
+def local_finding() -> str:
+    """Return the local delta finding, describing the file the fixture serves.
+
+    The shape is the real `cs delta` block, captured from the CLI on this very
+    stub, so a run reads the same wording it would see locally.
+    """
+    start, _ = flagged_span()
+    return "\n".join(
+        [
+            "─" * 52,
+            "",
+            FLAGGED_PATH,
+            "Code Health: (8.69)",
+            "",
+            "  🚩 New issue: Large Method",
+            f"     Function: _assess_gate at line {start}",
+            f"     Status: _assess_gate has {local_loc()} lines, threshold = {LOC_THRESHOLD}",
+            "",
+        ]
+    )
 
 
 def check_set(advisories: list[str] | None = None) -> list[dict[str, object]]:
@@ -307,14 +434,8 @@ def pull_files(head: str, paths: list[str]) -> list[dict[str, object]]:
     ]
 
 
-def api_map(case: Case) -> dict[str, object]:
-    """Return every recorded API route for one scenario."""
-    head = case.head
-    checks = check_set(case.advisories)
-    paths = changed_paths(case)
-    plan_route = case.plan or bool(
-        [path for path in paths if path.startswith("docs/execplans/")]
-    )
+def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, object]:
+    """Return the routes describing the PR itself and its delivered change."""
     return {
         # The PR itself and its file list, which a readiness run reads to judge
         # whether the delivered work matches the plan. The bare `pulls/N` route
@@ -327,10 +448,6 @@ def api_map(case: Case) -> dict[str, object]:
             "changed_files": 1,
         },
         r"/pulls/\d+/files(?:[?#]|$)": pull_files(head, paths),
-        # The changed files themselves. A run that reads a file it is judging is
-        # asking about this candidate's own change, so the route serves the same
-        # content the finding or the plan describes.
-        r"/contents/proofs/[^?#]+(?:[?#]|$)": proof_contents(),
         # The PR's commits, which a readiness run counts to see whether a
         # reviewed head is still the tip. One commit carrying the head.
         r"/pulls/\d+/commits(?:[?#]|$)": [
@@ -343,6 +460,12 @@ def api_map(case: Case) -> dict[str, object]:
                 },
             }
         ],
+    }
+
+
+def review_routes(case: Case, checks: list[dict[str, object]]) -> dict[str, object]:
+    """Return the routes carrying the assessment and review state."""
+    return {
         # The review-thread state. A readiness run asks `graphql` for it, and
         # every recorded review is already resolved with no outstanding
         # thread, so an empty connection is the honest answer.
@@ -374,6 +497,16 @@ def api_map(case: Case) -> dict[str, object]:
         r"/check-runs/\d+/annotations(?:[?#]|$)": (
             annotations() if case.advisories else []
         ),
+    }
+
+
+def content_routes(plan_route: bool) -> dict[str, object]:
+    """Return the routes serving the files a run reads to judge the change."""
+    return {
+        # The changed files themselves. A run that reads a file it is judging is
+        # asking about this candidate's own change, so the route serves the same
+        # content the finding or the plan describes.
+        r"/contents/proofs/[^?#]+(?:[?#]|$)": proof_contents(),
         # The flagged file itself, so a run can see the code the finding names.
         # It is part of this PR's change, and a 404 would report its content as
         # unavailable rather than as read.
@@ -395,6 +528,12 @@ def api_map(case: Case) -> dict[str, object]:
             if plan_route
             else {}
         ),
+    }
+
+
+def issue_route(plan_route: bool) -> dict[str, object]:
+    """Return the originating issue, which carries the accepted scope."""
+    return {
         # The originating issue and its discussion, which a readiness run reads
         # to recover the accepted scope. The issue is this PR's own topic.
         r"/issues/\d+$": {
@@ -411,6 +550,26 @@ def api_map(case: Case) -> dict[str, object]:
                 else "There is no ExecPlan; this PR is the proof work."
             ),
         },
+    }
+
+
+def api_map(case: Case) -> dict[str, object]:
+    """Return every recorded API route for one scenario.
+
+    The routes are grouped by what they describe — the PR and its change, the
+    review and assessment state, the files being judged, the originating issue
+    — so each group stays readable and one group's edit cannot reflow another.
+    """
+    checks = check_set(case.advisories)
+    paths = changed_paths(case)
+    plan_route = case.plan or any(
+        path.startswith("docs/execplans/") for path in paths
+    )
+    return {
+        **pull_routes(case.head, paths, plan_route),
+        **review_routes(case, checks),
+        **content_routes(plan_route),
+        **issue_route(plan_route),
     }
 
 
@@ -435,6 +594,12 @@ class Case:
     # assessment instead of deciding the proof one. Every other case is plan
     # work, so the body names the plan.
     plan: bool = True
+    # The local CodeScene result the simulated `cs` reports: `clean` when the
+    # delta introduces nothing, `finding` when it lists a new issue, and
+    # `unavailable` when the tool cannot evaluate. A case that does not set it
+    # takes `clean`, so every permitting scenario must state its local evidence
+    # rather than inherit silence.
+    cs_mode: str = "clean"
 
 
 def changed_paths(case: Case) -> list[str]:
@@ -522,6 +687,16 @@ def scenario(case: Case) -> None:
         "pr_diff": "".join(f"{path}\n" for path in paths),
         "api": api_map(case),
         "coords": {"repository": REPO, "pull_request": PR},
+        # The local CodeScene result the simulated `cs` answers this run with.
+        # It lives beside the GitHub facts because it is one more recorded
+        # input the agent reads, and the runner writes it into the sandbox.
+        "cs_mode": case.cs_mode,
+        # The finding text accompanies the mode, so the size the local result
+        # reports is derived from the same file the `contents` route serves. A
+        # finding written twice could disagree with the code it describes, and
+        # a careful run would then discount it for a reason the scenario is not
+        # testing.
+        "cs_finding": local_finding() if case.cs_mode == "finding" else "",
     }
     directory = OUT / case.name
     directory.mkdir(parents=True, exist_ok=True)
@@ -627,6 +802,86 @@ scenario(Case(
             "2026-11-07T20:25:00Z",
         ),
     ],
+    # The positive case must supply both CodeScene halves: a hosted check with
+    # no findings and a local delta that reports none. Its whole purpose is to
+    # show that a fully-evidenced candidate does transition, so a missing local
+    # result would make it demonstrate the opposite of what it claims.
+    cs_mode="clean",
+))
+
+scenario(Case(
+    name="local-codescene-finding",
+    head="1111bbbb",
+    draft=True,
+    comments=[
+        comment(
+            9701,
+            "wafflecat-df12",
+            request("271-ab-local-finding", "rev-7", "1111bbbb"),
+            "2026-11-07T21:10:00Z",
+        ),
+        comment(
+            9702,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-local-finding",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "1111bbbb",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-07T21:15:00Z",
+        ),
+    ],
+    # Hosted CodeScene is clean and every check passes; only the local delta
+    # reports an issue. That isolates the local half, which no hosted source
+    # can stand in for. The flagged file is in the change, because a local
+    # finding about code this PR does not touch is not evidence about this
+    # candidate: a run would rightly discount it and hold for the wrong reason.
+    paths=[PLAN_PATH, FLAGGED_PATH],
+    cs_mode="finding",
+))
+
+scenario(Case(
+    name="local-codescene-unavailable",
+    head="2222cccc",
+    draft=True,
+    comments=[
+        comment(
+            9801,
+            "wafflecat-df12",
+            request("271-ab-local-unavailable", "rev-7", "2222cccc"),
+            "2026-11-07T21:20:00Z",
+        ),
+        comment(
+            9802,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-local-unavailable",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "2222cccc",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-07T21:25:00Z",
+        ),
+    ],
+    # Every other source is green and the assessment clears; the tool simply
+    # cannot evaluate. The run must treat that as unverified rather than clean,
+    # because "I could not check" is not "nothing was found".
+    cs_mode="unavailable",
 ))
 
 scenario(Case(
@@ -698,15 +953,22 @@ scenario(Case(
     # gate reads the check's output or only its conclusion. Nothing else is
     # outstanding: the assessment is a clear whole-plan verdict on the revision
     # in force and every other check is green.
-    advisories=[
-        "Complex Method: `_assess_gate` has a cyclomatic complexity of 12"
-        " (threshold 9).",
-    ],
+    # Derived from the same annotation entries the check exposes on its own
+    # route. The summary and the annotations describe one analysis of one file,
+    # so a handwritten summary drifted from them (it kept complexity 12 after
+    # the stub changed to the CLI's measured 44) and the run rightly stopped on
+    # the mismatch instead of on the rule.
+    advisories=[f"{entry['title']}: {entry['message']}" for entry in annotations()],
     # The flagged function has to be in the change for the finding to be about
     # this candidate at all. A finding that names code the PR does not touch is
     # incoherent evidence, and a run reading it would be reasoning about a
     # different PR from the one the fixture describes.
     paths=[PLAN_PATH, FLAGGED_PATH],
+    # The local delta reports the same finding the hosted check does. Two
+    # sources that are supposed to describe one candidate must agree; setting
+    # this to `clean` while the check lists a warning would manufacture a
+    # contradiction that is not part of what this scenario tests.
+    cs_mode="finding",
 ))
 
 scenario(Case(
