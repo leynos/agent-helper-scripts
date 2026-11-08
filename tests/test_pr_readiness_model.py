@@ -14,6 +14,7 @@ cannot be dropped from the model or from the prose alone.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 import re
 from pathlib import Path
@@ -481,16 +482,17 @@ def test_readiness_model_names_the_completeness_and_proof_kinds() -> None:
     assert (COMPLETENESS, PROOF) == ("completeness", "proof")
 
 
-def _subject_accepting_declared_subset(subject):  # noqa: ANN001
+def _subject_accepting_declared_subset(
+    subject: Verdict,
+) -> readiness_module.Readiness | None:
     """Let the recorded subset clear, but keep rejecting unknown subjects."""
     if subject.verdict == NOT_APPLICABLE or subject.subject in SUBJECTS:
         return None
     return _real_subject(subject)
 
 
-def _subject_accepting_any_subject(subject):  # noqa: ANN001
+def _subject_accepting_any_subject(_subject: Verdict) -> None:
     """Drop the subject rule entirely, as a widened gate would."""
-    return None
 
 
 DEFECTIVE_RULES = (
@@ -635,8 +637,8 @@ _real_subject = readiness_module._subject
 )
 def test_a_defective_readiness_rule_is_detected_by_its_case(
     rule: str,
-    defect,
-    state,
+    defect: Callable[[pytest.MonkeyPatch], None],
+    state: tuple[Candidate, Verdict, Verdict],
     reason: str,
 ) -> None:
     """Each mutation control proves its case discriminates, not just passes."""

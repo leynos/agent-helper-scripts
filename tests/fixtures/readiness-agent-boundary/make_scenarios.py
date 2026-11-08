@@ -79,7 +79,7 @@ def request(
     return "\n".join(lines)
 
 
-def reply(assessment_id: str, revision: str | None, verdict: str) -> str:
+def reply(assessment_id: str, revision: str | None, verdict: dict[str, str]) -> str:
     """Return a substantive assessment reply as CodeRabbit posts it."""
     lines = [
         f"**Verdict: {verdict['label']}**",

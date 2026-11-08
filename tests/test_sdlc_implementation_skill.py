@@ -9,6 +9,7 @@ import re
 import pytest
 
 from assessment_mutation_cases import (
+    HANDOFF_DEFERS,
     HANDOFF_PACKET_EXCEPTION,
     HANDOFF_SUBSET_EVIDENCE,
 )
@@ -64,10 +65,6 @@ COMPLETENESS_PACKET_PREFIX = "ExecPlan completeness/correctness assessment:"
 WHOLE_PLAN_SUBJECT = "completeness assessment must name the whole approved plan as its subject"
 HANDOFF_LINK = "handoff must link pr-babysitting's readiness clearing rule"
 SETUP_LINK = "draft creation must link the readiness clearing rule"
-HANDOFF_DEFERS = (
-    "handoff must defer the stack's clearing conditions to pr-babysitting"
-    " instead of restating them"
-)
 HANDOFF_DEFERRAL = "read them there rather than expecting a second copy here"
 #: Clearing conditions that only pr-babysitting may state. The handoff names
 #: the subset *subject*, which is not a clearing condition.
@@ -158,8 +155,11 @@ def _assert_handoff_binds_whole_plan(implementation: str, setup: str) -> None:
     assert READINESS_ANCHOR in handoff, (
         "handoff must link pr-babysitting's readiness clearing rule"
     )
+    # Compare case-insensitively: a restated condition may begin a sentence,
+    # and a case-sensitive match would let that copy through unnoticed.
+    folded = handoff.casefold()
     restated = [
-        phrase for phrase in HANDOFF_CLEARING_CONDITIONS if phrase in handoff
+        phrase for phrase in HANDOFF_CLEARING_CONDITIONS if phrase in folded
     ]
     assert not restated, f"{HANDOFF_DEFERS}: {restated}"
     creator = section(setup, "Resolve the candidate")
@@ -259,7 +259,7 @@ PACKET_MUTATIONS = (
     pytest.param(
         Clause(
             "read them there rather than expecting a second copy here.",
-            "Read them there rather than expecting a second copy here. That"
+            "read them there rather than expecting a second copy here. That"
             " record never clears the gate, and the whole-plan verdict is"
             " still required.",
             HANDOFF_DEFERS,
@@ -269,7 +269,7 @@ PACKET_MUTATIONS = (
     pytest.param(
         Clause(
             "read them there rather than expecting a second copy here.",
-            "Read them there rather than expecting a second copy here. The"
+            "read them there rather than expecting a second copy here. The"
             " stack does not count as delivered until the layer carrying the"
             " remainder obtains one.",
             HANDOFF_DEFERS,
@@ -294,11 +294,13 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
     [
         (
             "read its conditions there rather than expecting a second copy here.",
-            "It requires a clear whole-plan completeness verdict.",
+            "read its conditions there rather than expecting a second copy here."
+            " It requires a clear whole-plan completeness verdict.",
         ),
         (
             "read its conditions there rather than expecting a second copy here.",
-            "It also requires green CI and CodeScene findings.",
+            "read its conditions there rather than expecting a second copy here."
+            " It also requires green CI and CodeScene findings.",
         ),
         (
             "read its conditions there rather than expecting a second copy here.",

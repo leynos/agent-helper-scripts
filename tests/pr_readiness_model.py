@@ -256,6 +256,12 @@ def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readin
     return None
 
 
+#: The two verdicts that leave an assessment unsettled, keyed to the reason
+#: suffix each produces. Both block readiness in the same way, so they share
+#: one decision path rather than repeating the shape.
+_UNSETTLED = {PENDING: "pending", NOT_CLEAR: "not-clear"}
+
+
 def _disposition(
     verdict: Verdict, kind: str, candidate: Candidate
 ) -> Readiness | None:
@@ -278,13 +284,11 @@ def _disposition(
     if verdict.verdict not in VERDICTS:
         return _decision("assessment-unrecognized-verdict")
     if verdict.verdict == NOT_APPLICABLE:
-        if not verdict.justification.strip():
-            return _decision("not-applicable-undefended")
-        return None
-    if verdict.verdict == PENDING:
-        return _decision(f"{kind}-pending")
-    if verdict.verdict == NOT_CLEAR:
-        return _decision(f"{kind}-not-clear")
+        if verdict.justification.strip():
+            return None
+        return _decision("not-applicable-undefended")
+    if (suffix := _UNSETTLED.get(verdict.verdict)) is not None:
+        return _decision(f"{kind}-{suffix}")
     if (verdict.base, verdict.head) != (candidate.base, candidate.head):
         return _decision(f"{kind}-candidate-mismatch")
     return None

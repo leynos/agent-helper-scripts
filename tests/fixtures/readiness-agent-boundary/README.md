@@ -62,8 +62,9 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
   with its blob SHA, which is what lets a follow-up name the plan revision
   instead of stopping for a value the fixture never supplied. The `check-runs`
   route carries the hosted check output, including CodeScene's own "no advisory
-  findings" summary, so the CodeScene gate can be cleared from the same surface
-  a real agent reads.
+  findings" summary, which is one of the two CodeScene sources the skill reads;
+  the recordings below show only that half, for the reason under
+  [what these recordings do not show](#what-these-recordings-do-not-show).
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
@@ -185,6 +186,36 @@ repository's files; the masking covers credentials, the live GitHub client and
 the network, not the filesystem. And the boundary is stronger against reaching
 GitHub than against a locally privileged process: the harness assumes a
 cooperative agent, not an adversarial one.
+
+## What these recordings do not show
+
+Each recording is evidence for what its trace and outcome contain, and no more.
+Two limits apply to every run here.
+
+**Revision confirmation.** `current-whole-plan` and `proof-only-cleared` mark
+the PR ready on a reply that echoes `rev-7`, but neither run reads the plan
+file at its head. They show that the verdict named the approved revision, and
+that the agent treated that echo as binding; they do not show that `rev-7` was
+still the revision in force when the transition happened. `superseded-revision`
+is the only recording that reads `contents/docs/execplans`, and it does so to
+name the revision in a follow-up, not to confirm one before readiness.
+
+**CodeScene.** The sandbox has no checkout of the PR's code and no `cs` CLI, so
+no run executes `cs delta`. The hosted `check-runs` output is the only
+CodeScene source any recording reads, and the skill treats a local delta, the
+`codescene-access[bot]` comments and that output as separate outstanding-issue
+sources. A green hosted check therefore does not by itself clear the CodeScene
+gate, and these recordings do not show the local half being cleared.
+
+**The stand-in has since been tightened.** These traces were recorded while
+`gh-shim.py` ignored `--jq`, so a filtered call returned the unfiltered
+payload: a status filter yielded the whole status object, and `--jq length` on
+an empty listing yielded `[]` rather than `0`. It now applies the filter,
+derives the HTTP method as `gh api` does, and refuses an unsupported method.
+The recorded decisions therefore rest on payloads that contained the same facts
+a real `gh` would have shown, but the traces are not a faithful simulation of
+its filtered output, and a re-run under the tightened stand-in is a fresh
+recording.
 
 ## Recorded artefacts contain no live mutations
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,16 +35,57 @@ def fail(message: str, status: int = 1) -> int:
     return status
 
 
-def emit(payload: object, *, slurp: bool = False) -> int:
-    """Print a recorded payload, wrapped in a list when `--slurp` was given."""
+def emit(payload: object, *, slurp: bool = False, jq: str = "") -> int:
+    """Print a recorded payload, wrapped in a list when `--slurp` was given.
+
+    A `--jq` or `-q` expression is applied with the real `jq`, so the agent sees
+    what `gh` would print rather than the unfiltered payload. Without `jq` the
+    call fails instead of quietly answering a different question.
+    """
     if isinstance(payload, str):
         print(payload)
         return 0
-    print(json.dumps([payload] if slurp else payload))
-    return 0
+    text = json.dumps([payload] if slurp else payload)
+    if not jq:
+        print(text)
+        return 0
+    return apply_jq(text, jq)
 
 
-VALUE_FLAGS = {"--hostname", "--method", "-X", "-f", "-F", "-H", "--jq", "-q"}
+def apply_jq(text: str, expression: str) -> int:
+    """Run ``jq`` over ``text`` and forward its output and status."""
+    try:
+        done = subprocess.run(
+            ["jq", "-r", expression],
+            input=text,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return fail("gh: jq is required to apply --jq; install jq", 127)
+    sys.stdout.write(done.stdout)
+    sys.stderr.write(done.stderr)
+    return done.returncode
+
+
+# Flags whose following operand is a value rather than the endpoint.
+VALUE_FLAGS = {
+    "--hostname",
+    "--method",
+    "-X",
+    "-f",
+    "-F",
+    "--field",
+    "--raw-field",
+    "-H",
+    "--header",
+    "--input",
+    "--template",
+    "-t",
+    "--jq",
+    "-q",
+}
 
 # The fixture tokens the runner binds over the host's comment-token pool. They
 # authenticate only here: the real GitHub sees them as invalid, so a token that
@@ -93,6 +135,26 @@ def flag_value(argv: list[str], name: str) -> str:
     return ""
 
 
+# Flags that send one field of a request body.
+FIELD_FLAGS = ("-f", "-F", "--field", "--raw-field")
+
+
+def field_body(argv: list[str]) -> str:
+    """Return the `body=` field of a request, or an empty string.
+
+    Every field is scanned, not just the first: a request that sends another
+    field before `body=` still carries its comment, and recording it as empty
+    would lose the very text the recording is evidence for.
+    """
+    for index, part in enumerate(argv):
+        if part not in FIELD_FLAGS or index + 1 >= len(argv):
+            continue
+        value = argv[index + 1]
+        if value.startswith("body="):
+            return value.removeprefix("body=")
+    return ""
+
+
 def submitted_body(argv: list[str]) -> str:
     """Return the comment body a POST was given, as `gh api` would send it."""
     source = flag_value(argv, "--input")
@@ -106,8 +168,7 @@ def submitted_body(argv: list[str]) -> str:
     else:
         # `-f body=...` sends the field directly, with no JSON envelope, so the
         # body is the value after the field name and not the whole expression.
-        field = flag_value(argv, "-f") or flag_value(argv, "--raw-field")
-        return field.removeprefix("body=")
+        return field_body(argv)
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -167,7 +228,9 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     posted = posted_comment(facts, submitted_body(argv), login)
     state = {"isDraft": facts["pr"].get("isDraft", True), "posted": posted}
     STATE.write_text(json.dumps(state), encoding="utf-8")
-    return emit(posted["html_url"])
+    # The response is the created comment, so a `--jq .html_url` filter applies
+    # to it exactly as it would against the real service.
+    return emit(posted, jq=flag_value(argv, "--jq") or flag_value(argv, "-q"))
 
 
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")
@@ -184,30 +247,58 @@ def with_posted(payload: object, url: str, posted: dict | None) -> object:
     return [*payload, posted] if COMMENT_LISTING.search(url) else payload
 
 
-def handle_read(facts: dict, url: str, *, slurp: bool) -> int:
+def handle_read(facts: dict, argv: list[str], url: str) -> int:
     """Serve a posted comment, or answer a path from the recorded facts."""
-    if READ_COMMENT.fullmatch(url or ""):
+    jq = flag_value(argv, "--jq") or flag_value(argv, "-q")
+    if READ_COMMENT.fullmatch((url or "").lstrip("/")):
         posted = facts.get("posted")
-        return emit(posted) if posted else fail("gh: Not Found (HTTP 404)")
+        return emit(posted, jq=jq) if posted else fail("gh: Not Found (HTTP 404)")
     for pattern, payload in facts["api"].items():
-        if re.search(pattern, url):
-            return emit(with_posted(payload, url, facts.get("posted")), slurp=slurp)
+        if re.search(pattern, url.lstrip("/")):
+            return emit(
+                with_posted(payload, url, facts.get("posted")),
+                slurp="--slurp" in argv,
+                jq=jq,
+            )
     return fail("gh: Not Found (HTTP 404)")
+
+
+def request_method(argv: list[str]) -> str:
+    """Return the method `gh api` would send for this invocation.
+
+    `gh api` sends POST whenever a field or `--input` is present and defaults to
+    GET otherwise, so a field-bearing call without an explicit `--method` is a
+    mutation. Reading it as a GET would answer a write with a listing and
+    record nothing.
+    """
+    explicit = flag_value(argv, "--method") or flag_value(argv, "-X")
+    if explicit:
+        return explicit.upper()
+    mutation = any(flag in argv for flag in FIELD_FLAGS) or "--input" in argv
+    return "POST" if mutation else "GET"
 
 
 def is_post_comment(argv: list[str], url: str) -> bool:
     """Return whether this invocation posts a comment to the PR."""
-    return "POST" in argv and POST_COMMENT.fullmatch(url or "") is not None
+    return (
+        request_method(argv) == "POST"
+        and POST_COMMENT.fullmatch((url or "").lstrip("/")) is not None
+    )
 
 
 def answer_api(facts: dict, argv: list[str]) -> int:
     """Answer one `gh api` invocation."""
     url = api_url(argv)
     if url == "user":
-        return emit(login_for(facts))
+        # The routing record holds only the login, so serve a user object with
+        # that field. A `--jq .login` filter then resolves through the same
+        # path as every other payload instead of returning the raw string.
+        return emit({"login": login_for(facts)}, jq=flag_value(argv, "--jq") or flag_value(argv, "-q"))
     if is_post_comment(argv, url):
         return handle_post(facts, argv)
-    return handle_read(facts, url, slurp="--slurp" in argv)
+    if request_method(argv) != "GET":
+        return fail(f"gh: unsupported {request_method(argv)} {url}", 2)
+    return handle_read(facts, argv, url)
 
 
 def answer(argv: list[str]) -> int:

@@ -24,11 +24,27 @@
 set -uo pipefail
 
 SCENARIO=${1:?scenario name}
+# The run directory is deleted outright below, so the name is checked before
+# anything is removed. A separator or a dot name would put the deletion above
+# the scenario level, where the unrecorded runs of every other scenario live.
+case $SCENARIO in
+  */* | . | ..)
+    echo "sandboxed_run.sh: invalid scenario name: $SCENARIO" >&2
+    exit 2
+    ;;
+esac
 # The fixture directory is this script's own directory: the stand-in is
 # `gh-shim.py`, the recorded facts live under `scenarios/`, and the run
 # directory is scratch beside them.
 ROOT=$(cd -- "$(dirname -- "$0")" && pwd)
-RUN=${RUN_DIR:-/tmp/readiness-agent-boundary}/$SCENARIO
+if [ ! -f "$ROOT/scenarios/$SCENARIO/facts.json" ]; then
+  echo "sandboxed_run.sh: unknown scenario '$SCENARIO'; expected $ROOT/scenarios/$SCENARIO/facts.json" >&2
+  exit 2
+fi
+# Resolve the run directory before deleting it. A relative `RUN_DIR` would
+# otherwise be re-interpreted against whatever directory a later step runs in,
+# so the stand-in rewrite and the `cd "$RUN/work"` would name different paths.
+RUN=$(realpath -m -- "${RUN_DIR:-/tmp/readiness-agent-boundary}/$SCENARIO")
 # SKILL_SRC names the candidate's `skills` directory, matching the README. The
 # skill under test is the `pr-babysitting` directory inside it.
 SKILLS_DIR=${SKILL_SRC:?set SKILL_SRC to the candidate skills directory}
