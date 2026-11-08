@@ -31,6 +31,10 @@ draft in each case.
 draft. That pair isolates the subject check from the verdict, which a single
 `not clear` subset case cannot do. `superseded-revision` isolates the revision
 check: the verdict is clear and the whole plan, and only the revision is stale.
+It is also the one scenario that exercises the manual-comment route: the agent
+posts a follow-up asking for a `rev-7` verdict, reads it back, and waits for an
+answer that the facts never supply. The scenario therefore shows both halves of
+the stale-revision rule — the follow-up path works, and readiness still waits.
 
 ## Layout
 
@@ -43,7 +47,11 @@ check: the verdict is clear and the whole plan, and only the revision is stale.
 - `gh-shim.py` — the executable stand-in. It derives the run directory from its
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
   writes `state.json` with `isDraft: false`, so a later `pr view` can show the
-  transition.
+  transition. A POST to the issue-comment route returns the fixture comment's
+  URL and records it, so a read-back and the discussion listing both see it. The
+  `contents` route serves the plan file with its blob SHA, which is what lets
+  a follow-up name the plan revision instead of stopping for a value the
+  fixture never supplied.
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
@@ -105,18 +113,26 @@ namespace, made private with `mount --make-rprivate /` first:
 - The stand-in is replace-bound over `/usr/bin/gh` and `/bin/gh`, so no
   absolute path reaches the real client.
 - `comenq` is replaced by a stub that exits 127 when present.
-- The credential surfaces are emptied rather than only being unset:
-  `~/.config/gh`, the `~/.local/share/github-tokens` pool and the agent's own
+- The client configuration and the agent's own credential file are emptied
+  rather than only being unset: `~/.config/gh` and
   `~/.claude/.credentials.json` are replace-bound with an empty directory or an
   empty file, so a client that escaped the mask finds no token and an agent
   that reads the lifecycle credential file finds it empty.
+- The comment-token pool is replaced rather than emptied. The runner binds a
+  fixture pool holding one token, `fixture-pool-token`, over
+  `~/.local/share/github-tokens`. The stand-in alone honours that token, which
+  authenticates as `fixture-commenter`; real GitHub would reject it, so nothing
+  is lost if it escapes. This keeps the manual-comment route exercisable inside
+  the sandbox while the host's real pool stays unreachable.
 - Masking fails closed. A missing target, a shape mismatch (the token pool is
   one file, the client configuration a directory), a failed bind, or a mask
   that does not read back aborts the run before the agent starts.
-- The credential masks are re-proved after they are applied: `hosts.yml` must
-  be absent, and the token pool and credential file must be empty. A directory
-  mask removes the paths beneath it, while a file mask leaves the path present
-  but empty, so each shape is checked for what it should show.
+- The masks are re-proved after they are applied: `hosts.yml` must be absent,
+  the credential file must be empty, and the token pool must hold exactly one
+  line reading `fixture-pool-token`. A directory mask removes the paths beneath
+  it, while a file mask leaves the path present but empty, so each shape is
+  checked for what it should show; a real token in the pool would change the
+  line count or the content and fail the check.
 
 **Process.** The environment is replaced rather than filtered: `env -i` passes
 only `PATH`, `HOME`, an empty `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR`,
@@ -146,9 +162,11 @@ cooperative agent, not an adversarial one.
 
 ## Recorded artefacts contain no live mutations
 
-The traces show reads and, in the two permitting scenarios, `pr ready` against
-the stand-in. No trace contains a POST, a merge, a review request or a comment.
-Nothing here was captured from a live PR, and no credential appears in any file.
+The traces show reads, `pr ready` in the two permitting scenarios, and one POST
+in `superseded-revision`, all against the stand-in. No trace contains a merge
+or a review request. Nothing here was captured from a live PR, and no
+credential appears in any file: the only token any run could reach is the
+fixture token, which real GitHub rejects.
 
 ## Refreshing
 

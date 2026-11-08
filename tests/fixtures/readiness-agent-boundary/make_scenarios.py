@@ -29,6 +29,15 @@ GREEN = [
 ]
 
 WHOLE_PLAN = "the whole approved plan"
+# The approved plan the assessments are judged against. Its blob SHA is served
+# from the contents API so a follow-up request can name the revision in force
+# instead of stopping for a value the fixture never supplied.
+PLAN_PATH = "docs/execplans/issue-271-readiness-handoff.md"
+PLAN_BLOB = "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15"
+PLAN_TEXT = """# Readiness handoff
+
+Plan revision: rev-7
+"""
 DECLARED_SUBSET = (
     "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved"
     " plan is not cleared by this reply"
@@ -126,6 +135,18 @@ def scenario(
             },
             r"/pulls/\d+/reviews$": [],
             r"/pulls/\d+/comments$": [],
+            r"/contents/docs/execplans(?:[?#]|$)": {
+                "name": PLAN_PATH.rsplit("/", 1)[-1],
+                "path": PLAN_PATH,
+                "sha": PLAN_BLOB,
+                "size": len(PLAN_TEXT),
+                # Served as plain text rather than the API's base64 envelope:
+                # the fixture records which plan was assessed, and an encoder
+                # would put an unreadable blob in a reviewed file for no gain.
+                "encoding": "utf-8",
+                "content": PLAN_TEXT,
+                "type": "file",
+            },
         },
         "coords": {"repository": REPO, "pull_request": PR},
     }

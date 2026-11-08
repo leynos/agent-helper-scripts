@@ -95,6 +95,11 @@ cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
 # writable, because the CLI may create state; `empty-dir` is only read back.
 mkdir -p "$RUN/empty-dir" "$RUN/home"
 : > "$RUN/empty-file"
+# The comment-token pool is replaced rather than abolished, so the manual-comment
+# route stays exercisable inside the sandbox. The token is a fixture the stand-in
+# alone honours: as far as real GitHub is concerned it is invalid, so nothing is
+# lost if it escapes, and the host's real pool is never reachable.
+printf '%s\n' 'fixture-pool-token' > "$RUN/pool"
 
 cat > "$RUN/outer.sh" <<'OUTER'
 set -uo pipefail
@@ -213,12 +218,13 @@ fi
 # Every credential surface the run can reach. These are emptied rather than
 # unset, so a client that escaped the `gh` mask still finds no token, and an
 # agent that reads the lifecycle credential file finds it empty.
-for surface in \
-  "$HOME_DIR/.config/gh" \
-  "$HOME_DIR/.local/share/github-tokens" \
-  "$CREDENTIALS_FILE"; do
+for surface in "$HOME_DIR/.config/gh" "$CREDENTIALS_FILE"; do
   hide "$surface"
 done
+# The comment-token pool is replaced by the fixture pool, not emptied: the
+# manual-comment route stays exercisable, and the token it selects only works
+# against the stand-in.
+mask "$HOME_DIR/.local/share/github-tokens" "$RUN/pool"
 # Prove the credential stores are gone before the agent starts. A directory
 # mask removes the paths beneath it, while a file mask leaves the path present
 # but empty, so each shape is checked for what it should show: absence for the
@@ -234,12 +240,23 @@ done
 for surface in \
   "$HOME_DIR/.local/share/github-tokens" \
   "$CREDENTIALS_FILE"; do
-  if [ -s "$surface" ]; then
-    echo "abort: $surface is still non-empty; credentials are not isolated" >&2
+  if [ ! -f "$surface" ]; then
+    echo "abort: $surface is not present for read-back" >&2
     exit 1
   fi
 done
-echo "isolation: credential stores are masked"
+# The pool must hold exactly the fixture token. Any real token would make this
+# differ, so the check fails closed on a host pool that reached the sandbox.
+if [ "$(wc -l < "$HOME_DIR/.local/share/github-tokens")" -ne 1 ] ||
+  [ "$(cat "$HOME_DIR/.local/share/github-tokens")" != "fixture-pool-token" ]; then
+  echo "abort: the comment-token pool is not the fixture pool" >&2
+  exit 1
+fi
+if [ -s "$CREDENTIALS_FILE" ]; then
+  echo "abort: the agent credential file is still non-empty" >&2
+  exit 1
+fi
+echo "isolation: credential stores are masked and the pool is the fixture"
 
 cd "$RUN/work" || exit 1
 # The environment is cleared rather than filtered: only what this run needs is

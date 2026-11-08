@@ -1,16 +1,15 @@
-I left PR 272 in draft and changed nothing, because the readiness gate fails: CodeRabbit's whole-plan completeness verdict for this head is **not clear**.
+I left PR 272 in draft and changed nothing, because the readiness gate isn't met: CodeRabbit's whole-plan completeness verdict for this exact candidate is **not clear**.
 
-**Current state:**
-- **Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`, `isDraft: true`, merge state `BLOCKED`.
-- **CI:** all three checks (Makefile gates, CodeScene Code Health Review, Gecko Security Review) passed. The CodeScene check-run details returned 404, so I couldn't confirm it has no advisory findings. There are no inline comments, reviews or review threads.
-- **Completeness assessment** (the ExecPlan check that must clear before ready): the request (comment 9001) correctly names "the whole approved plan" at plan revision rev-7. CodeRabbit's reply (comment 9002) echoes the same ID (`271-ab-subset`), base/head and revision, but limits itself to a declared subset and rejects the rest.
-- **Proof assessment:** not applicable; the request says "Proof inventory: none affected."
-- **Formal review:** the `CodeRabbit` status says "Review completed". The skill doesn't treat that as an assessment, so it changes nothing here.
+**Current state**
+- **Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`, still draft. GitHub reports the merge state as `BLOCKED`.
+- **CI:** all three checks have finished and passed: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`. The `CodeRabbit` commit status reads "Review completed".
+- **Reviews:** there are no review submissions and no inline comments.
+- **Completeness assessment:** this is an ExecPlan implementation, so the PR needs a clear whole-plan verdict before it can be marked ready. Comment 9001 asked for one, with `Assessed subject: the whole approved plan`, `Plan revision: rev-7` and `Assessment-ID: 271-ab-subset`. CodeRabbit's reply (comment 9002) matches that Assessment-ID, base/head and plan revision, and says no.
+- **Proof assessment:** not applicable, because the request records "Proof inventory: none affected".
 
-**Why I stopped:** the skill says a lower stack layer that implements only its own milestones "stays in draft until a clear whole-plan verdict covers its candidate", and there is "no subset or plateau waiver". So I didn't run `gh pr ready`, queue a review or post a comment. Posting the same question again would only get the same answer. This is a blocker, not equilibrium.
+The skill says a verdict on only part of the plan never clears the gate, and that unimplemented milestones are in-scope work, not a known limitation. Marking the PR ready would bypass that gate, so I didn't run `gh pr ready`. I also didn't request a formal review or post any comments, since both come only after readiness.
 
-- **Blocker:** plan milestones EP-M3 to EP-M6 are not implemented. That is unfinished in-scope work, not a known limitation.
-- **Owner:** the implementation owner, plus whoever approved the plan. This workspace has no checkout of the repository, so I couldn't do the work myself.
-- **Next action:** either implement EP-M3 to EP-M6 in this candidate, or split the approved plan into units that are each complete per layer. Then, with gates green on the new head, post a new whole-plan completeness request and mark the PR ready only once that reply comes back clear.
+**Blocker and next step**
+Milestones EP-M3 to EP-M6 aren't implemented. That's work for the implementation owner on this PR; I have no repository checkout and no way to delegate it from here. Once those milestones are pushed, the new head needs its CI and CodeScene checks to pass again. Then a new whole-plan completeness request against rev-7 has to come back clear before the PR can be marked ready.
 
-I kept the PR in draft and stopped because the completeness verdict at this head is not clear, on this evidence from CodeRabbit's comment 9002: "**Verdict: not clear** … **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."
+In one sentence: I read the PR's live state through `gh` and left it in draft without marking it ready, because CodeRabbit's reply to the whole-plan assessment says: "**Verdict: not clear** … **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."

@@ -1,14 +1,13 @@
-I marked PR 272 ready for review as `experiment-owner` and stopped there, because the assignment ended at readiness. I did not request any review, post any comments or merge.
+I marked PR 272 ready for review using the normal `gh` login (`experiment-owner`, not a comment-pool account), and it read back as no longer draft with base and head unchanged. The deciding evidence was CodeRabbit's proof-assessment reply (comment 9402) for that exact base and head: "**Verdict: clear** … Assessment-ID: `271-ab-proof-only` … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555 … The refinement proof is substantive and non-vacuous."
 
-Deciding evidence:
-- **Proof assessment:** CodeRabbit's reply (comment 9402) to the proof question (comment 9401) reads **"Verdict: clear"**, with Assessment-ID `271-ab-proof-only`. It covers the current base/head `73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555` and says: "The refinement proof is substantive and non-vacuous. No plan revision is named, so none is echoed."
-- **Completeness assessment:** not applicable. This is a proof-only assignment with no ExecPlan, so the proof verdict was the only one readiness needed.
-- **CI and CodeScene:** all three checks are `COMPLETED SUCCESS`: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`. `codescene-access[bot]` left no inline comments or reviews.
-- **Identity:** with the token variables removed, `gh api user` returned `experiment-owner`. That is not a comment-pool account; the pool file is empty, and the assessment question was posted as `pandalump`.
-- **Read-back after `gh pr ready`:** `"isDraft": false`, with base `73d32981…` and head `eeee5555` unchanged. The `CodeRabbit` commit status reads `success` / "Review completed".
+**What I checked before marking it ready:**
+- **CI:** all three checks passed on head `eeee5555` (Makefile gates, CodeScene Code Health Review, Gecko Security Review), and none were pending.
+- **CodeScene:** the hosted check passed and CodeScene left no inline comments. The `gh` here returns 404 for check-run details, so I couldn't read the check's advisory findings. There's no local checkout, so I didn't run `cs delta` either.
+- **Assessments:**
+  - The proof assessment is clear. It was asked about `proofs/refinement/Theorem.lean#refinement_sound` and answered for the same base and head.
+  - The ExecPlan completeness assessment doesn't apply. The proof request says "no ExecPlan applies", so there was no plan revision to match.
+- **Trust:** the assignment names this PR. I ran no code from the PR itself, only `gh` commands.
 
-Gaps I couldn't close with the `gh` available here:
-- **CodeScene detail:** the check-runs endpoint returned 404, so I couldn't read the CodeScene check's summary for advisory findings. I also didn't run `cs delta` locally.
-- **Author and fork status:** the API didn't return the PR author or whether the branch comes from a fork. This didn't matter because I ran nothing from the branch locally.
-- **Formal review:** the status says "Review completed", but there are no review submissions and no CodeRabbit summary comment yet. That still needs checking before this PR can be called settled or merged.
-- **Merge state:** `mergeStateStatus` is still `BLOCKED`.
+**After marking it ready:** the PR shows `isDraft=false`, base `73d32981…` and head `eeee5555` are the same as before, and merge state is `BLOCKED`. The CodeRabbit status for the head reads "Review completed". There are no reviews, inline comments or review-request queue entries yet.
+
+**Where I stopped:** the assignment was to get the PR to readiness, so I stopped after confirming the change. I didn't request a review, post comments, merge, or start review reconciliation and the approval request. Those are the next steps toward a merge.

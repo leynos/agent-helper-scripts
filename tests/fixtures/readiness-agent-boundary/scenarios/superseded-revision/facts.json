@@ -64,7 +64,16 @@
       ]
     },
     "/pulls/\\d+/reviews$": [],
-    "/pulls/\\d+/comments$": []
+    "/pulls/\\d+/comments$": [],
+    "/contents/docs/execplans(?:[?#]|$)": {
+      "name": "issue-271-readiness-handoff.md",
+      "path": "docs/execplans/issue-271-readiness-handoff.md",
+      "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+      "size": 42,
+      "encoding": "utf-8",
+      "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+      "type": "file"
+    }
   },
   "coords": {
     "repository": "leynos/agent-helper-scripts",

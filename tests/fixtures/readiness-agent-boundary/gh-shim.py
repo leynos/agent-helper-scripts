@@ -11,6 +11,7 @@ facts before an answer is produced; the answer itself comes from
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -44,6 +45,12 @@ def emit(payload: object, *, slurp: bool = False) -> int:
 
 VALUE_FLAGS = {"--hostname", "--method", "-X", "-f", "-F", "-H", "--jq", "-q"}
 
+# The fixture tokens the runner binds over the host's comment-token pool. They
+# authenticate only here: the real GitHub sees them as invalid, so a token that
+# escaped the sandbox would still be useless.
+POOL_TOKEN = "fixture-pool-token"
+POOL_LOGIN = "fixture-commenter"
+
 
 def api_url(argv: list[str]) -> str:
     """Return the first operand that is neither a flag nor a flag's value."""
@@ -65,8 +72,29 @@ def read_facts() -> dict:
     """Return this run's facts, with any post-transition state applied."""
     facts = json.loads(SCENARIO.read_text(encoding="utf-8"))
     if STATE.exists():
-        facts["pr"] = {**facts["pr"], **json.loads(STATE.read_text(encoding="utf-8"))}
+        state = json.loads(STATE.read_text(encoding="utf-8"))
+        # `isDraft` belongs to the PR; anything else the state holds, such as a
+        # posted comment, stays a top-level fact so a later read can find it.
+        facts["pr"] = {
+            **facts["pr"],
+            **{key: value for key, value in state.items() if key in facts["pr"]},
+        }
+        facts.update({key: value for key, value in state.items() if key not in facts["pr"]})
     return facts
+
+
+def posted_comment(facts: dict) -> dict:
+    """Return a new comment body shaped like the API's response to a POST."""
+    post = facts.get("posted_comment", {})
+    return {
+        "id": post.get("id", 9901),
+        "html_url": post.get(
+            "html_url",
+            "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901",
+        ),
+        "user": {"login": POOL_LOGIN, "type": "User"},
+        "body": "<posted by the recorded stand-in>",
+    }
 
 
 def answer(argv: list[str]) -> int:
@@ -82,10 +110,32 @@ def answer(argv: list[str]) -> int:
         return emit(facts["pr_checks"])
     if argv[:1] == ["api"]:
         url = api_url(argv)
+        # A POST with the fixture token stands in for the manual-comment route.
+        # The token is honoured only here, so the follow-up is exercisable
+        # without any real credential being reachable.
         if url == "user":
-            return emit(facts["login"])
+            return emit(POOL_LOGIN if os.environ.get("GH_TOKEN") == POOL_TOKEN else facts["login"])
+        if "POST" in argv and re.fullmatch(r"repos/[^/]+/[^/]+/issues/\d+/comments", url or ""):
+            posted = posted_comment(facts)
+            # The posted comment is served back on its own route, so the
+            # read-back after a post is a separate, independently observable
+            # fact rather than an assumption about what the POST did.
+            STATE.write_text(json.dumps({"isDraft": facts["pr"].get("isDraft", True),
+                                         "posted": posted}), encoding="utf-8")
+            return emit(posted["html_url"])
+        if re.fullmatch(r"repos/[^/]+/[^/]+/issues/comments/\d+", url or ""):
+            posted = read_facts().get("posted")
+            if posted:
+                return emit(posted)
+            return fail("gh: Not Found (HTTP 404)")
         for pattern, payload in facts["api"].items():
             if re.search(pattern, url):
+                # A posted comment is part of the discussion from then on, so
+                # listing the comments reflects it without changing the facts.
+                if re.search(r"/issues/\d+/comments", url) and isinstance(payload, list):
+                    posted = facts.get("posted")
+                    if posted:
+                        payload = [*payload, posted]
                 return emit(payload, slurp=slurp)
         return fail(f"gh: Not Found (HTTP 404)")
     if argv[:2] == ["auth", "status"]:

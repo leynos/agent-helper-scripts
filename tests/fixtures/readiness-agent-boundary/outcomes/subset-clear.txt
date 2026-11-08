@@ -1,18 +1,17 @@
-I left PR 272 in draft and did not run `gh pr ready`, because the readiness gate isn't met: the only completeness verdict clears part of the plan, and the skill requires a clear verdict on the whole approved plan before a PR can be marked ready.
+I left PR 272 in draft and changed nothing (no ready transition, comment, review request or push), because the only completeness verdict covers just part of the ExecPlan and the readiness gate needs a clear verdict on the whole plan.
 
-The deciding evidence is CodeRabbit's reply to the assessment request (comment 9502, for base/head `73d32981c7b7e8f52590a074873e28a9f369f0f9...ffff6666`, plan revision rev-7): *"Assessed subject: the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … This verdict covers that subset only and does not clear the whole approved plan."* The skill says such a verdict "is evidence for its actual scope only" and "the record never clears the gate", so I logged it as evidence for EP-M1 and EP-M2 only.
+**Current state** (read via `gh`):
+- **Commits:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `ffff6666`.
+- **Draft status:** `isDraft: true`, merge state `BLOCKED`.
+- **CI:** all three checks passed: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`.
+- **CodeRabbit:** the commit status reads `Review completed`. There are no reviews and no inline comments.
 
-**Current state of the PR:**
-- **CI:** all three checks pass (Makefile gates, CodeScene Code Health Review, Gecko Security Review).
-- **CodeRabbit status:** reads "Review completed". The PR has no inline or review comments.
-- **Not checked:** this `gh` doesn't support reading the CodeScene check-run details or listing other PRs in a stack, so I couldn't check advisory CodeScene findings or the stack layout. I also didn't run local `cs` checks.
-- **Proof assessment:** the request says "Proof inventory: none affected", so it doesn't apply.
-- **Problems with the original request (comment 9501):** it still has the unfilled placeholder `<evidential limits only>`, and its Assessment-ID refers to 271, not 272.
+**Gaps I couldn't close:**
+- I couldn't confirm CodeScene is fully clear. The check-runs endpoint returned 404, and the `cs` tool and its companion skills aren't available here. A passing check can still carry advisory findings.
+- The assessment request (comment 9501) left the placeholder `<evidential limits only>` unfilled and named no plan file.
 
-**Why the PR is stuck:** the plan milestones beyond EP-M1 and EP-M2 are unfinished in-scope work, not a limitation the skill lets me waive. Asking CodeRabbit again wouldn't change that, so I posted nothing.
+**Why I stopped:** The skill says only a clear whole-plan completeness verdict on the approved plan revision unlocks readiness; a verdict on a declared subset is evidence for that subset only. CodeRabbit gave a substantive answer, so asking again on the same head would just repeat the question with no new evidence. Running `gh pr ready` would break the gate.
 
-**What's needed, and from whom:**
-- **Implementation owner:** finish the remaining milestones in this PR, then post a new whole-plan completeness request for the new head.
-- **Plan owner:** or, if this PR is meant to be one layer of a stack, split the plan so each layer has its own complete plan to be assessed against.
+**What's blocking it:** The plan's other milestones aren't implemented or assessed. That is implementation work for the plan's owner, or a decision for you: either finish the remaining milestones in this PR, or split the plan into separately complete parts. After that, request a new whole-plan assessment on the new head and mark the PR ready only if that comes back clear.
 
-Once a clear whole-plan verdict covers the current head, the next step is the ready transition.
+**Summary:** I checked the PR's live state and kept it in draft because CodeRabbit's verdict (comment 9502) reads "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply" and "This verdict covers that subset only and does not clear the whole approved plan."
