@@ -1,0 +1,208 @@
+{
+  "login": "experiment-owner",
+  "pr_checks": "Makefile gates\tCOMPLETED\tSUCCESS\nCodeScene Code Health Review\tCOMPLETED\tSUCCESS\nGecko Security Review\tCOMPLETED\tSUCCESS\n",
+  "pr": {
+    "number": 272,
+    "url": "https://github.com/leynos/agent-helper-scripts/pull/272",
+    "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9",
+    "headRefOid": "9999aaaa",
+    "isDraft": true,
+    "mergeStateStatus": "BLOCKED",
+    "reviewDecision": "",
+    "statusCheckRollup": [
+      {
+        "name": "Makefile gates",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      },
+      {
+        "name": "CodeScene Code Health Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "advisories": [
+          "Complex Method: `_assess_gate` has a cyclomatic complexity of 12 (threshold 9)."
+        ]
+      },
+      {
+        "name": "Gecko Security Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      }
+    ]
+  },
+  "pr_ready_response": "Pull request leynos/agent-helper-scripts#272 is marked as ready for review",
+  "pr_diff": "docs/execplans/issue-271-readiness-handoff.md\nskills/pr-babysitting/scripts/readiness_gate.py\n",
+  "api": {
+    "/pulls/\\d+$": {
+      "number": 272,
+      "base": {
+        "sha": "73d32981c7b7e8f52590a074873e28a9f369f0f9"
+      },
+      "head": {
+        "sha": "9999aaaa"
+      },
+      "draft": true,
+      "changed_files": 1
+    },
+    "/pulls/\\d+/files(?:[?#]|$)": [
+      {
+        "filename": "docs/execplans/issue-271-readiness-handoff.md",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "9999aaaa"
+      },
+      {
+        "filename": "skills/pr-babysitting/scripts/readiness_gate.py",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "9999aaaa"
+      }
+    ],
+    "/pulls/\\d+/commits(?:[?#]|$)": [
+      {
+        "sha": "9999aaaa",
+        "commit": {
+          "message": "Deliver the plan"
+        }
+      }
+    ],
+    "graphql$": {
+      "data": {
+        "repository": {
+          "pullRequest": {
+            "reviewThreads": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    "/issues/\\d+/comments": [
+      {
+        "id": 9601,
+        "user": {
+          "login": "wafflecat-df12",
+          "type": "User"
+        },
+        "created_at": "2026-11-07T20:55:00Z",
+        "updated_at": "2026-11-07T20:55:00Z",
+        "body": "@coderabbitai please assess the implementation in this PR for\ncompleteness and correctness against the execplan:\n\nRepository: leynos/agent-helper-scripts\nPull request: 272\nAssessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...9999aaaa\nAssessed subject: the whole approved plan.\nPlan revision: rev-7.\nKnown limitations: <evidential limits only>.\nProof inventory: none affected.\nAssessment-ID: 271-ab-codescene.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9601"
+      },
+      {
+        "id": 9602,
+        "user": {
+          "login": "coderabbitai[bot]",
+          "type": "Bot"
+        },
+        "created_at": "2026-11-07T21:00:00Z",
+        "updated_at": "2026-11-07T21:00:00Z",
+        "body": "**Verdict: clear**\n\n- **Assessment-ID:** `271-ab-codescene`\n- **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...9999aaaa\n- **Assessed subject:** the whole approved plan\n- **Plan revision:** rev-7\n\nThe whole approved plan is implemented at this head. No in-scope rework remains.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9602"
+      }
+    ],
+    "/commits/[0-9a-f]+/status$": {
+      "state": "success",
+      "statuses": [
+        {
+          "context": "CodeRabbit",
+          "state": "success",
+          "description": "Review completed"
+        }
+      ]
+    },
+    "/pulls/\\d+/reviews$": [],
+    "/pulls/\\d+/comments$": [],
+    "/commits/[0-9a-f]+/check-runs(?:[?#]|$)": {
+      "total_count": 3,
+      "check_runs": [
+        {
+          "id": 7701,
+          "name": "Makefile gates",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7702,
+          "name": "CodeScene Code Health Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "Issues found",
+            "summary": "Complex Method: `_assess_gate` has a cyclomatic complexity of 12 (threshold 9).",
+            "annotations_count": 1
+          }
+        },
+        {
+          "id": 7703,
+          "name": "Gecko Security Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        }
+      ]
+    },
+    "/check-runs/\\d+/annotations(?:[?#]|$)": [
+      {
+        "path": "skills/pr-babysitting/scripts/readiness_gate.py",
+        "start_line": 7,
+        "end_line": 33,
+        "annotation_level": "warning",
+        "title": "Complex Method",
+        "message": "`_assess_gate` has a cyclomatic complexity of 12 (threshold 9)."
+      }
+    ],
+    "/contents/skills/[^?#]+(?:[?#]|$)": {
+      "name": "readiness_gate.py",
+      "path": "skills/pr-babysitting/scripts/readiness_gate.py",
+      "sha": "b41d0c8e5f2a7d9c3e6b1048fa2c7d5e9b3a6f02",
+      "size": 1105,
+      "encoding": "utf-8",
+      "content": "\"\"\"Read the readiness gate's assessments.\"\"\"\n\nCOMPLETENESS = \"completeness\"\nPROOF = \"proof\"\n\n\ndef _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:\n    \"\"\"Return whether every applicable assessment clears for this candidate.\"\"\"\n    if not state:\n        return False\n    if state.get(\"isDraft\") is True:\n        return False\n    if plan.get(\"revision\") != state.get(\"revision\"):\n        return False\n    if plan.get(\"approved\") is not True:\n        return False\n    for thread in threads:\n        if thread.get(\"isOutdated\"):\n            continue\n        if not thread.get(\"isResolved\"):\n            return False\n        if thread.get(\"assessment\") == PROOF:\n            if not thread.get(\"cleared\"):\n                return False\n        elif thread.get(\"assessment\") == COMPLETENESS:\n            if thread.get(\"subject\") != plan.get(\"subject\"):\n                return False\n        elif thread.get(\"verdict\") != \"clear\":\n            return False\n    for proof in proofs:\n        if proof.get(\"changed\") and not proof.get(\"scrutinized\"):\n            return False\n    return True\n",
+      "type": "file"
+    },
+    "/contents/docs/execplans/[^/?#]+(?:[?#]|$)": {
+      "name": "issue-271-readiness-handoff.md",
+      "path": "docs/execplans/issue-271-readiness-handoff.md",
+      "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+      "size": 42,
+      "encoding": "utf-8",
+      "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+      "type": "file"
+    },
+    "/contents/docs/execplans(?:[?#]|$)": [
+      {
+        "name": "issue-271-readiness-handoff.md",
+        "path": "docs/execplans/issue-271-readiness-handoff.md",
+        "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+        "size": 42,
+        "encoding": "utf-8",
+        "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+        "type": "file"
+      }
+    ],
+    "/issues/\\d+$": {
+      "number": 271,
+      "title": "Bind the draft-to-ready gate to the implementation handoff",
+      "state": "open",
+      "body": "The approved plan is `docs/execplans/issue-271-readiness-handoff.md`."
+    }
+  },
+  "coords": {
+    "repository": "leynos/agent-helper-scripts",
+    "pull_request": 272
+  }
+}

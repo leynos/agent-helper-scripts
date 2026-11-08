@@ -18,7 +18,8 @@
       {
         "name": "CodeScene Code Health Review",
         "status": "COMPLETED",
-        "conclusion": "SUCCESS"
+        "conclusion": "SUCCESS",
+        "advisories": []
       },
       {
         "name": "Gecko Security Review",
@@ -144,7 +145,17 @@
         }
       ]
     },
-    "/contents/docs/execplans(?:[?#]|$)": {
+    "/check-runs/\\d+/annotations(?:[?#]|$)": [],
+    "/contents/skills/[^?#]+(?:[?#]|$)": {
+      "name": "readiness_gate.py",
+      "path": "skills/pr-babysitting/scripts/readiness_gate.py",
+      "sha": "b41d0c8e5f2a7d9c3e6b1048fa2c7d5e9b3a6f02",
+      "size": 1105,
+      "encoding": "utf-8",
+      "content": "\"\"\"Read the readiness gate's assessments.\"\"\"\n\nCOMPLETENESS = \"completeness\"\nPROOF = \"proof\"\n\n\ndef _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:\n    \"\"\"Return whether every applicable assessment clears for this candidate.\"\"\"\n    if not state:\n        return False\n    if state.get(\"isDraft\") is True:\n        return False\n    if plan.get(\"revision\") != state.get(\"revision\"):\n        return False\n    if plan.get(\"approved\") is not True:\n        return False\n    for thread in threads:\n        if thread.get(\"isOutdated\"):\n            continue\n        if not thread.get(\"isResolved\"):\n            return False\n        if thread.get(\"assessment\") == PROOF:\n            if not thread.get(\"cleared\"):\n                return False\n        elif thread.get(\"assessment\") == COMPLETENESS:\n            if thread.get(\"subject\") != plan.get(\"subject\"):\n                return False\n        elif thread.get(\"verdict\") != \"clear\":\n            return False\n    for proof in proofs:\n        if proof.get(\"changed\") and not proof.get(\"scrutinized\"):\n            return False\n    return True\n",
+      "type": "file"
+    },
+    "/contents/docs/execplans/[^/?#]+(?:[?#]|$)": {
       "name": "issue-271-readiness-handoff.md",
       "path": "docs/execplans/issue-271-readiness-handoff.md",
       "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
@@ -152,6 +163,23 @@
       "encoding": "utf-8",
       "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
       "type": "file"
+    },
+    "/contents/docs/execplans(?:[?#]|$)": [
+      {
+        "name": "issue-271-readiness-handoff.md",
+        "path": "docs/execplans/issue-271-readiness-handoff.md",
+        "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+        "size": 42,
+        "encoding": "utf-8",
+        "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+        "type": "file"
+      }
+    ],
+    "/issues/\\d+$": {
+      "number": 271,
+      "title": "Bind the draft-to-ready gate to the implementation handoff",
+      "state": "open",
+      "body": "The approved plan is `docs/execplans/issue-271-readiness-handoff.md`."
     }
   },
   "coords": {

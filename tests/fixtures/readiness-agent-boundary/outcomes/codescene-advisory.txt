@@ -1,0 +1,12 @@
+I stopped before marking PR 272 ready: CodeScene still reports a finding, and I had no way to fix it here. I made no changes to the PR or the repository.
+
+**Where the PR stands** (base `73d32981…`, head `9999aaaa`, still draft):
+- **CI:** all three checks passed (`Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review`).
+- **Completeness assessment:** CodeRabbit replied in comment 9602 with "**Verdict: clear**" for the whole approved plan, plan revision rev-7, at this exact base/head. No proofs were affected, so no proof assessment applies.
+- **CodeScene:** check run 7702 passed but is titled "Issues found", with the summary "Complex Method: `_assess_gate` has a cyclomatic complexity of 12 (threshold 9)." The function is in `skills/pr-babysitting/scripts/readiness_gate.py`.
+
+**Why I stopped:** the skill counts a passing CodeScene check with advisory findings as an outstanding issue. It also requires every CodeScene issue to be cleared before running `gh pr ready`. The fix is to refactor `_assess_gate`, and suppressing the finding is only a last resort. I couldn't do that here: there is no checkout of the repository, cloning failed ("Could not resolve host: github.com"), and the CodeScene `cs` CLI isn't installed. So I treated this as a blocker rather than something to wait out, and the PR stays in draft.
+
+**Next step:** the PR author needs to refactor `_assess_gate` in an environment with the source, `cs` and network access. That means simplifying its branching to get the complexity under 9, without raising the threshold or suppressing the rule. Then check it with `cs delta 73d32981… <new head>`, push, and confirm the hosted CodeScene check comes back clean. Because the plan revision stays the same, the clear verdict binds only to `9999aaaa`, so the completeness assessment must be renewed for the new head. After that the PR can be marked ready and the formal CodeRabbit review followed.
+
+In one sentence: I confirmed CI is green and the assessment is clear, then left the PR in draft because of a CodeScene finding I had no means to fix, relying on check run 7702: "Issues found — Complex Method: `_assess_gate` has a cyclomatic complexity of 12 (threshold 9)."

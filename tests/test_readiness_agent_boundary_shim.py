@@ -196,6 +196,51 @@ def test_a_recorded_comment_is_served_on_its_own_route(run: Path) -> None:
     assert json.loads(done.stdout)["id"] == ident
 
 
+def test_a_passing_codescene_check_can_still_carry_findings(tmp_path: Path) -> None:
+    """The CodeScene scenario's check passes while listing an outstanding issue.
+
+    That pairing is the whole point of the scenario: the skill treats a passing
+    check with advisory findings as still outstanding, so the recording only
+    tests the rule while the conclusion stays `SUCCESS` and the output carries
+    the finding. A fixture that failed the check instead would let a run block
+    on the badge, which is the reasoning the rule exists to prevent.
+    """
+    shim = tmp_path / "gh"
+    shutil.copy2(SHIM, shim)
+    shutil.copy2(
+        FIXTURES / "scenarios" / "codescene-advisory" / "facts.json",
+        tmp_path / "facts.json",
+    )
+    shim.chmod(0o755)
+    done = invoke(tmp_path, "api", "repos/leynos/agent-helper-scripts/commits/9999aaaa/check-runs")
+    assert done.returncode == 0, done.stderr
+    checks = {run["name"]: run for run in json.loads(done.stdout)["check_runs"]}
+    scene = checks["CodeScene Code Health Review"]
+    assert scene["conclusion"] == "SUCCESS", "the badge must not be what blocks the run"
+    assert scene["output"]["annotations_count"] > 0
+    assert "Complex Method" in scene["output"]["summary"]
+    # The finding must name code this candidate changes, or it is evidence about
+    # a different PR and the run would be reasoning about the wrong thing.
+    changed = json.loads(
+        invoke(tmp_path, "api", "repos/leynos/agent-helper-scripts/pulls/272/files").stdout
+    )
+    paths = {entry["filename"] for entry in changed}
+    assert "skills/pr-babysitting/scripts/readiness_gate.py" in paths
+
+
+def test_a_clone_fails_for_the_reason_the_sandbox_supplies(run: Path) -> None:
+    """A clone is refused as unreachable, not as a command `gh` lacks.
+
+    The sandbox has no route to GitHub, so a clone cannot succeed; reporting it
+    as an unsupported invocation would say the client has no such command,
+    which is a different and misleading fact about the environment.
+    """
+    done = invoke(run, "repo", "clone", "leynos/agent-helper-scripts")
+    assert done.returncode != 0
+    assert "Could not resolve host" in done.stderr
+    assert "unsupported invocation" not in done.stderr
+
+
 @pytest.mark.parametrize(
     "argv",
     [

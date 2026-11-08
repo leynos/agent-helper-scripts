@@ -24,8 +24,22 @@ draft in each case.
 | `subset-clear`        | `ffff6666` | **clear**; subject is still the declared subset                              | none                                  | no            |
 | `superseded-revision` | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                  | no            |
 | `current-whole-plan`  | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                         | yes           |
+| `codescene-advisory`  | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
 | `proof-only-pending`  | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered           | no            |
 | `proof-only-cleared`  | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound` | yes           |
+
+`codescene-advisory` isolates the CodeScene gate from every other reason to
+hold: the whole approved plan has cleared at the revision in force, and all
+three checks conclude `SUCCESS`. Its CodeScene check is nevertheless titled
+"Issues found" and its output lists one advisory — a complexity finding against
+a file the PR changes, so the finding is about this candidate. The run stays in
+draft, which is the skill's rule that "a passing check with advisory findings
+still has outstanding issues". That pairing is what distinguishes a gate bound
+to CodeScene's output from one reading the green badge: if the agent had
+treated the passing conclusion as clearance, this scenario would have marked
+the PR ready. The run cannot clear the finding either — the sandbox has no
+checkout and no `cs` — so it also shows the gate blocking rather than silently
+waiving an issue it could not fix.
 
 `subset-only` and `subset-clear` differ only in the verdict; both stay in
 draft. That pair isolates the subject check from the verdict, which a single
@@ -70,9 +84,15 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
   `pulls/N/commits`, `pr list`, `pr diff` and `graphql` review-thread routes
   answer the reads a readiness run makes when it checks whether the delivered
   work matches the plan; without them a run reported those reads as 404 and
-  could not see the diff at all. The `check-runs` route carries the hosted
-  check output, including CodeScene's own "no advisory findings" summary, which
-  is one of the two CodeScene sources the skill reads; the recordings show only
+  could not see the diff at all. The check's own `annotations` route serves the
+  entries its `annotations_count` advertises, and the `contents` route serves
+  the file a finding names, so a run investigating an advisory reads the code
+  rather than being told it is missing. `gh repo clone` is refused as
+  unreachable — `Could not resolve host: github.com` — because that is what the
+  dropped network really does; reporting it as an unsupported command would
+  misdescribe the environment. The `check-runs` route carries the hosted check
+  output, including CodeScene's own "no advisory findings" summary, which is
+  one of the two CodeScene sources the skill reads; the recordings show only
   that half, for the reason under
   [what these recordings do not show](#what-these-recordings-do-not-show).
 - `make_scenarios.py` — regenerates every `facts.json`.
@@ -181,6 +201,13 @@ masking helper without calling it, so those surfaces were reachable; the proof
 checks above exist so that the same omission fails the run instead of silently
 weakening it.
 
+The runner also asserts the outcome each scenario exists to pin, because a
+trace shows what the agent read and only the decision shows what it concluded.
+A scenario expected to transition must issue `gh pr ready` and read the draft
+state back; a scenario expected to stay in draft must issue none. A scenario
+that decides otherwise fails the run instead of being filed as a recording, so
+these files cannot drift from the rule they are meant to demonstrate.
+
 The stand-in's own authorization is proved the same way. Before the agent
 starts, the runner posts a comment twice against a copy of the stand-in: with
 no token, which must fail, and with the fixture token, which must succeed. An
@@ -202,13 +229,19 @@ cooperative agent, not an adversarial one.
 Each recording is evidence for what its trace and outcome contain, and no more.
 Two limits apply to every run here.
 
-**Revision confirmation.** `current-whole-plan` and `proof-only-cleared` mark
-the PR ready on a reply that echoes `rev-7`, but neither run reads the plan
-file at its head. They show that the verdict named the approved revision, and
-that the agent treated that echo as binding; they do not show that `rev-7` was
-still the revision in force when the transition happened. `superseded-revision`
-is the only recording that reads `contents/docs/execplans`, and it does so to
-name the revision in a follow-up, not to confirm one before readiness.
+**Revision confirmation.** `current-whole-plan` marks the PR ready only after
+reading the plan file at the head it is judging, and the trace shows that read:
+`contents/docs/execplans/issue-271-readiness-handoff.md?ref=cccc3333` returns a
+file whose body says `Plan revision: rev-7`, which is the revision the verdict
+echoes. The recording therefore shows the echo reconciled against the revision
+in force, not accepted on its own. Its content is served as plain text rather
+than in the API's base64 envelope, so a run that decoded `content` itself would
+see a different shape; the fixture chooses the readable one so a reviewed file
+carries the plan text. `proof-only-cleared` needs no revision read: its request
+states that no ExecPlan applies, so there is no revision to confirm and the
+proof verdict is the only applicable assessment. `superseded-revision` reads
+`contents/docs/execplans` while naming the stale revision in a follow-up, which
+is a different use of the route from the confirmation above.
 
 **CodeScene.** The sandbox has no checkout of the PR's code and no `cs` CLI, so
 no run executes `cs delta`. The hosted `check-runs` output is the only
@@ -217,16 +250,39 @@ CodeScene source any recording reads, and the skill treats a local delta, the
 sources. A green hosted check therefore does not by itself clear the CodeScene
 gate, and these recordings do not show the local half being cleared.
 
-**The stand-in has since been tightened.** These traces were recorded while
-`gh-shim.py` ignored `--jq`, so a filtered call returned the unfiltered
-payload: a status filter yielded the whole status object, and `--jq length` on
-an empty listing yielded `[]` rather than `0`. It now applies the filter on
-every JSON route, refuses one on a human-readable route instead of returning
-the text, derives the HTTP method as `gh api` does — including the
-`--flag=value` spellings — and resolves that method before any read route. The
-recorded decisions therefore rest on payloads that contained the same facts a
-real `gh` would have shown, but the traces are not a faithful simulation of its
-filtered output, and a re-run under the tightened stand-in is a fresh recording.
+This is a bound of the harness, not a state a recording could be made to show
+under it: admitting a checkout and a `cs` binary would mean admitting network
+egress to the CodeScene service and a host tool outside the fixed sandbox
+`PATH`, and a stand-in that fabricated a delta result would record an answer no
+service produced. The positive recordings are still valid as rehearsals of the
+assessment gate, which is what they were recorded for, and the outcome text of
+each states which CodeScene sources it did read. A run under the real skill in
+a real worktree is the only place the local half can be recorded, and that is a
+live run, not one of these files.
+
+What the recordings do establish is that the gate binds to CodeScene rather
+than to the badge. `codescene-advisory` gives the agent an unqualified clear
+assessment, three `SUCCESS` checks, and a CodeScene output that lists an
+outstanding finding against a changed file: the run stays in draft and names
+that finding as its deciding evidence. The gate is therefore responsive to the
+hosted result, and a run that cannot obtain the local half blocks rather than
+waiving what it could not check. What remains unshown is the other half — a
+clean local `cs delta` being required and obtained before a transition.
+
+**Freshness of each recording.** `current-whole-plan` and `subset-clear` were
+recorded under the stand-in as it now behaves. The other four were recorded
+earlier, while `gh-shim.py` ignored `--jq`, so a filtered call returned the
+unfiltered payload: a status filter yielded the whole status object, and
+`--jq length` on an empty listing yielded `[]` rather than `0`. The stand-in
+now applies the filter on every JSON route, refuses one on a human-readable
+route instead of returning the text, derives the HTTP method as `gh api` does —
+including the `--flag=value` spellings — and resolves that method before any
+read route. All six traces replay against it with no unanswered call, so every
+command those four runs issued still has an answer, but replaying recorded argv
+is not the same as re-running the agent: it shows the surface is complete, not
+that the agent would decide the same way under it. Replace those four
+recordings with fresh runs before treating them as evidence about the current
+stand-in.
 
 ## Recorded artefacts contain no live mutations
 

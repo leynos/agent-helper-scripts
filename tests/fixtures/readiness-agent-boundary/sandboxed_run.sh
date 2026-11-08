@@ -407,6 +407,41 @@ with open(sys.argv[2], "w", encoding="utf-8") as handle:
 print(f"--- submitted body: {sys.argv[2]} ---")
 PROBE_BODY
 fi
+# Assert the outcome the scenario exists to pin. A trace shows what the agent
+# read; only this shows what it decided. Each expectation is the readiness
+# transition the scenario is built to permit or refuse, and a run that decides
+# otherwise fails here rather than being filed as a fresh recording.
+EXPECT_READY=no
+case $SCENARIO in
+  current-whole-plan | proof-only-cleared) EXPECT_READY=yes ;;
+esac
+# `codescene-advisory` is the only scenario whose CodeScene check passes while
+# its own output lists a finding. The choice is asserted rather than assumed: a
+# run that marks it ready shows the gate reading the badge instead of the
+# output, and fails here.
+if [ "$SCENARIO" = codescene-advisory ] && ! grep -q 'check-runs' "$TRACE"; then
+  echo "abort: '$SCENARIO' did not read the hosted check output at all" >&2
+  rc=1
+fi
+ready_calls=$(grep -c '"pr", "ready"' "$TRACE" 2>/dev/null || true)
+if [ "$EXPECT_READY" = yes ] && [ "$ready_calls" -eq 0 ]; then
+  echo "abort: '$SCENARIO' should mark the PR ready, but no 'pr ready' was issued" >&2
+  rc=1
+fi
+if [ "$EXPECT_READY" = no ] && [ "$ready_calls" -ne 0 ]; then
+  echo "abort: '$SCENARIO' should stay in draft, but 'pr ready' was issued" >&2
+  rc=1
+fi
+# A permitting run must read the transition back, so its own evidence is the
+# observed state rather than the command's exit status. The field is usually
+# one item of a `--json` list, so the match is on the name rather than on a
+# quoted whole argument.
+if [ "$EXPECT_READY" = yes ] && ! grep -q 'isDraft' "$TRACE"; then
+  echo "abort: '$SCENARIO' did not read the draft state back after the transition" >&2
+  rc=1
+fi
+echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
+
 # Propagate the agent's own status. A rehearsal that was killed by its budget,
 # timed out, or aborted on an isolation check is not a successful run, and an
 # automation reading this script's status must not mistake it for one.

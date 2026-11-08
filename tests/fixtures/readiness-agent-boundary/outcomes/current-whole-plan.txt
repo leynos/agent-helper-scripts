@@ -1,14 +1,20 @@
-I marked PR 272 ready for review after confirming its CI, CodeScene and plan-assessment gates, but it has not reached equilibrium (the skill's end state when merging isn't authorized). The formal CodeRabbit review stage, which comes next, isn't finished. I relied on CodeRabbit's reply 9202: "**Verdict: clear** … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains", together with all three checks reading `SUCCESS` and CodeScene reporting "No advisory findings, gate failures or code-health declines."
+I marked PR 272 ready for review as `experiment-owner`, the normal stored `gh` login. That is not the comment-pool account (`fixture-commenter`). The read-back shows `"isDraft": false`, with the base still `73d32981c7b7e8f52590a074873e28a9f369f0f9` and the head still `cccc3333`.
 
-**Why it was safe to mark ready (base `73d32981…`, head `cccc3333`):**
-- **CI:** all three current checks passed: "Makefile gates", "CodeScene Code Health Review" and "Gecko Security Review". None were pending or missing.
-- **CodeScene:** the hosted check reports no findings, and the bot left no inline comments. I couldn't run the local `cs delta` check because the `cs` tool isn't installed here and there's no checkout, so the clearance rests on the hosted result only.
-- **Completeness assessment:** reply 9202 echoes the request's ID (`271-ab-current`), the exact base/head, the whole approved plan and rev-7. Nothing I could see shows rev-7 has been replaced, but I couldn't read the plan file to confirm that independently. The proof assessment doesn't apply: the request states "Proof inventory: none affected."
-- **Identity:** `gh pr ready` ran under the normal stored login `experiment-owner`, not one of the shared commenter tokens. The read-back shows `isDraft: false` with base and head unchanged.
+The assignment was to bring the PR to readiness, so I stopped after confirming the change. I did not request a formal review, post any comments, or merge.
 
-**Where things stand now:**
-- The `CodeRabbit` commit status on `cccc3333` reads "Review completed".
-- However, CodeRabbit has posted no summary comment and no review submissions. The status alone therefore doesn't show that this head was actually reviewed.
-- The next step is to keep watching that status and look for the summary comment. If they stay inconsistent, the cause needs diagnosing rather than queuing a fresh review. After that come finding dispositions and the final approval request.
+**Why it was ready:**
+- **CI:** all three checks passed on `cccc3333`: Makefile gates, CodeScene Code Health Review and Gecko Security Review.
+- **CodeScene:** its check reported "No advisory findings, gate failures or code-health declines." There were no CodeScene inline comments and no review threads.
+- **Plan assessment:** CodeRabbit's reply (comment 9202) reads "**Verdict: clear** … Assessment-ID `271-ab-current` … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains."
+  - That revision is the one in force: the plan file `docs/execplans/issue-271-readiness-handoff.md` at the head says `Plan revision: rev-7`.
+- **Proof assessment:** not applicable. The request said "Proof inventory: none affected", and the PR changes only that one plan file.
 
-I posted no comments, queued no reviews and merged nothing. The last command's output also contained a notice saying the GitHub API rate limit was exceeded and asking me to sleep. My calls had all succeeded, so I didn't act on it; it's worth checking before more polling.
+**State after the change:**
+- The `CodeRabbit` status on the head reads `Review completed`.
+- I found no CodeRabbit summary comment and no review submissions.
+- GitHub still reports the merge state as `BLOCKED`, and the review decision is empty.
+- Getting the PR to merge-ready (review reconciliation and the final approval request) is the next step and was not part of this assignment.
+
+I didn't run any local checks, so the PR author and head repository weren't needed for a trust decision. The API didn't return either one, so neither is confirmed.
+
+Deciding evidence: comment 9202, "**Verdict: clear** … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains.", together with the post-change read-back `"isDraft": false`.

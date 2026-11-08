@@ -408,6 +408,14 @@ def answer(argv: list[str]) -> int:
         return answer_api(facts, argv)
     if argv[:1] == ["pr"]:
         return answer_pr(facts, argv)
+    if argv[:2] == ["repo", "clone"]:
+        # A clone reaches GitHub over the network, which this sandbox drops, so
+        # it fails here for the reason it would really fail rather than being
+        # reported as a command the client does not have.
+        return fail(
+            "fatal: unable to access 'https://github.com/': "
+            "Could not resolve host: github.com"
+        )
     if argv[:2] == ["auth", "status"]:
         # The real command prints a human-readable line rather than JSON, so a
         # filter on it is refused by `emit` instead of silently ignored.
