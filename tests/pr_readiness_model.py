@@ -110,6 +110,10 @@ REASON_CITATIONS = {
         "Both applicable assessments must clear for the accepted candidate"
         " before its draft-to-ready transition."
     ),
+    "completeness-declared-not-applicable": (
+        "with a justified `not applicable` for an assessment that does not"
+        " apply"
+    ),
     "completeness-not-clear": (
         "A response that says the implementation is substantially complete but"
         " names remaining in-scope defects has not cleared the gate."
@@ -136,6 +140,10 @@ REASON_CITATIONS = {
         " verdict is evidence for its actual scope only"
     ),
     "proof-pending": (
+        "When the proof assessment applies, readiness also requires its clear"
+        " verdict for the same base/head;"
+    ),
+    "proof-declared-not-applicable": (
         "When the proof assessment applies, readiness also requires its clear"
         " verdict for the same base/head;"
     ),
@@ -263,9 +271,14 @@ _UNSETTLED = {PENDING: "pending", NOT_CLEAR: "not-clear"}
 
 
 def _disposition(
-    verdict: Verdict, kind: str, candidate: Candidate
+    verdict: Verdict, kind: str, candidate: Candidate, applies: bool
 ) -> Readiness | None:
     """Return the decision that blocks readiness for an unsettled assessment.
+
+    Applicability is decided by the assignment, never by the reply. A reply
+    that declares an applicable assessment ``not applicable`` would otherwise
+    skip the candidate, revision and subject checks and open the gate with no
+    substantive answer at all, which is the defect the rule exists to prevent.
 
     Parameters
     ----------
@@ -275,6 +288,9 @@ def _disposition(
         ``completeness`` or ``proof``, selecting the reason codes.
     candidate : Candidate
         The accepted candidate the verdict must cover.
+    applies : bool
+        Whether the assignment requires this assessment. Only an inapplicable
+        assessment may be recorded as ``not applicable``.
 
     Returns
     -------
@@ -284,6 +300,8 @@ def _disposition(
     if verdict.verdict not in VERDICTS:
         return _decision("assessment-unrecognized-verdict")
     if verdict.verdict == NOT_APPLICABLE:
+        if applies:
+            return _decision(f"{kind}-declared-not-applicable")
         if verdict.justification.strip():
             return None
         return _decision("not-applicable-undefended")
@@ -294,25 +312,30 @@ def _disposition(
     return None
 
 
-def _subject(subject: Verdict) -> Readiness | None:
+def _subject(subject: Verdict, applies: bool) -> Readiness | None:
     """Reject a subject that is not the whole approved plan.
 
     The ledger records either the whole plan or a declared subset, and only the
     whole plan clears: a subset verdict is evidence for its actual scope, so a
     managed-stack layer records one without being able to leave draft on it.
-    An unrecognized subject is not a documented record at all.
+    An unrecognized subject is not a documented record at all. The whole-plan
+    requirement applies only to the completeness assessment; a proof
+    assessment's subject is its named proofs, which ``_disposition`` has
+    already required to be handed to the gate.
 
     Parameters
     ----------
     subject : Verdict
         The completeness verdict, whose subject bounds what it assessed.
+    applies : bool
+        Whether the completeness assessment applies to this assignment.
 
     Returns
     -------
     Readiness or None
         A draft-preserving decision, or None when the subject is the whole plan.
     """
-    if subject.verdict == NOT_APPLICABLE:
+    if not applies or subject.verdict == NOT_APPLICABLE:
         return None
     if subject.subject == WHOLE_PLAN:
         return None
@@ -325,6 +348,9 @@ def readiness(
     candidate: Candidate,
     completeness: Verdict,
     proof: Verdict,
+    *,
+    completeness_applies: bool = True,
+    proof_applies: bool = False,
 ) -> Readiness:
     """Decide whether the accepted candidate may leave draft.
 
@@ -334,6 +360,12 @@ def readiness(
     ``not applicable`` has no reply to bind, so it is skipped rather than
     subjected to the candidate and revision checks.
 
+    Applicability comes from the assignment, not from the verdicts. The
+    defaults are the ordinary ExecPlan implementation assignment: completeness
+    applies and no proof does. A caller that hands the model a proof assessment
+    must say so with ``proof_applies``, because otherwise a reply declaring
+    itself ``not applicable`` would clear a gate the assignment requires.
+
     Parameters
     ----------
     candidate : Candidate
@@ -342,6 +374,11 @@ def readiness(
         The completeness assessment's verdict, subject, and candidate.
     proof : Verdict
         The proof assessment's verdict, or a justified ``not applicable``.
+    completeness_applies : bool
+        Whether the assignment requires a completeness assessment.
+    proof_applies : bool
+        Whether the assignment requires a proof assessment. A proof-only
+        assignment sets this, since it has no ExecPlan to assess instead.
 
     Returns
     -------
@@ -353,8 +390,11 @@ def readiness(
     blocked = delivery_gate(candidate)
     if blocked is not None:
         return blocked
-    for kind, verdict in ((COMPLETENESS, completeness), (PROOF, proof)):
-        blocked = _disposition(verdict, kind, candidate)
+    for kind, verdict, applies in (
+        (COMPLETENESS, completeness, completeness_applies),
+        (PROOF, proof, proof_applies),
+    ):
+        blocked = _disposition(verdict, kind, candidate, applies)
         if blocked is not None:
             return blocked
         if verdict.verdict == NOT_APPLICABLE:
@@ -362,7 +402,7 @@ def readiness(
         blocked = _revision_bound(verdict, candidate, kind)
         if blocked is not None:
             return blocked
-    blocked = _subject(completeness)
+    blocked = _subject(completeness, completeness_applies)
     if blocked is not None:
         return blocked
     return _cleared()

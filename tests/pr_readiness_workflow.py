@@ -316,7 +316,16 @@ def assess_and_maybe_mark_ready(
         _assess(discussion, pull, selection)
         for selection in assignment.selections()
     )
-    decision = readiness(pull.candidate(), completeness, proof)
+    decision = readiness(
+        pull.candidate(),
+        completeness,
+        proof,
+        # The assignment decides applicability; handing the model the replies
+        # alone would let one that declares itself `not applicable` skip the
+        # checks the same assignment requires.
+        completeness_applies=assignment.completeness_applies,
+        proof_applies=assignment.proof_applies,
+    )
     if decision.ready and pull.is_draft:
         pull.mark_ready()
     return decision

@@ -731,6 +731,11 @@ share, and each takes and returns plain strings without touching the filesystem:
   `move_out_of_fence(markdown, heading, clause)` relocates it from a section's
   fence to the section's own prose, which only a request-local contract notices.
 
+- `normalize(markdown)` collapses every whitespace run to one space, so a
+  contract compares prose without depending on where the lines wrap. Use it
+  where the assertion is about wording; use `raw_section` where the wrapping
+  itself is the subject.
+
 `tests/assessment_mutation_cases.py` keeps the mutation table as data, and
 `tests/pr_readiness_model.py` restates the documented draft-to-ready gate as an
 executable specification over candidate-bound verdicts.
@@ -738,6 +743,16 @@ executable specification over candidate-bound verdicts.
 sentence the shipped documents still state, so the model cannot outlive the
 prose it encodes, and it pairs every rule with a mutation control that drops or
 widens it and must reverse the decision.
+
+`tests/test_pr_readiness_properties.py` states the same gate as an invariant
+over generated states: readiness opens exactly when every documented condition
+holds, and one broken condition is reported as that condition. States are built
+from one that satisfies every rule and then broken by name rather than sampled
+uniformly, because a randomly drawn verdict almost never survives the six
+checks that precede the subject check — the earlier version of this suite let a
+mutant that accepted a stale plan revision pass every example. Its
+`test_the_generator_breaks_what_it_claims` guard fails if a named break stops
+breaking anything, so the generator cannot quietly decay into testing nothing.
 
 `tests/pr_readiness_workflow.py` wraps that model in the sequence the skills
 describe: it establishes the delivery gates, posts the applicable assessment
@@ -749,6 +764,42 @@ the transition instead of performing it, so
 a current verdict and stays in draft for a subset-only or superseded one, with
 the proof assessment applying, with no ExecPlan in force, and on a no-ExecPlan
 proof-only assignment.
+
+### Agent-boundary rehearsal
+
+`tests/fixtures/readiness-agent-boundary/` holds the recordings of headless
+agent runs against the shipped `pr-babysitting` text, and `sandboxed_run.sh`
+reproduces one. Both are described in
+[that directory's README](../tests/fixtures/readiness-agent-boundary/README.md),
+which is the normative account of the scenarios, the stand-ins and the
+isolation boundary; read it before changing a recording.
+
+The runner is a rehearsal, not a gate. It needs a `claude` CLI, a model API
+credential, `pasta`, `nft` and `unshare`, none of which CI provides, so it is
+not part of `make ci` and a missing run is not a failing check. It runs the
+agent in a private network namespace whose output policy drops everything but
+loopback, DNS to this host's own resolvers, one port to the model API host and
+established flows; it masks the host home and `/usr/bin/gh` in a private mount
+namespace; and it executes the agent under `env -i` with an allowlist, so the
+agent starts from a clean environment rather than the operator's. Those three
+layers are the reason the recordings mean anything: an earlier unmasked run
+used the real client and posted to the live PR.
+
+`gh-shim.py` and `cs-shim.py` stand in for the two clients. Both derive the run
+directory from their own `__file__`, record every argv before answering, and
+answer only from the scenario's recorded facts. The `cs` stand-in discloses
+itself on every answer and fails closed to `unavailable`, so a broken fixture
+cannot manufacture the clean local result a permitting run is checking for.
+`tests/test_readiness_agent_boundary_shim.py` asserts the fixtures stay
+coherent: that a recorded finding describes the file the same fixture serves,
+that the hosted check and the local delta do not disagree about one file, and
+that a permitting run read the plan and consulted `cs` before transitioning.
+
+A recording is only evidence for what it exercised. The sandbox has no checkout
+and the real `cs` cannot run there — it needs a licence service the network
+policy denies — so the CodeScene half is rehearsed against the stand-in, and
+each trace says which mode answered. Do not cite a recording as proof of a live
+GitHub or live CodeScene run.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment

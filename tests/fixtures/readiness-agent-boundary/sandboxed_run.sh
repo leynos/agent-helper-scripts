@@ -60,6 +60,7 @@ if [ ! -x "$CLAUDE_BIN/claude" ]; then
   exit 2
 fi
 TRACE=$RUN/gh-trace.jsonl
+STATE=$RUN/state.json
 EVENTS=$RUN/agent-events.jsonl
 SUBMITTED=$RUN/submitted.md
 # Absolute home paths, so the inner script masks the same files this operator
@@ -482,6 +483,18 @@ if [ "$EXPECT_READY" = yes ]; then
       rc=1
     fi
     echo "outcome: read-back reads after 'pr ready': $readback"
+  fi
+  # The trace records argv, so the read-back above shows only that the state was
+  # asked for. `state.json` is the answer the stand-in served from, so reading
+  # it here is what makes the observed transition a value rather than a call.
+  if ! python3 - "$STATE" <<'PY'
+import json, sys
+state = json.load(open(sys.argv[1]))
+sys.exit(0 if state.get("isDraft") is False else 1)
+PY
+  then
+    echo "abort: '$SCENARIO' transitioned but the served state still reads draft" >&2
+    rc=1
   fi
 fi
 echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"

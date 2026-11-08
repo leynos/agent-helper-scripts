@@ -298,6 +298,8 @@ def test_a_proof_only_assignment_needs_no_plan_revision() -> None:
                      bounds=bound(revision=None, echoed=None),
                      justification="No ExecPlan governs this change."),
         proof(verdict=CLEAR, bounds=bound(revision=None, echoed=None)),
+        completeness_applies=False,
+        proof_applies=True,
     )
     assert decision.ready, decision.reason
 
@@ -321,8 +323,62 @@ def test_an_unaffected_completeness_needs_no_subject_or_revision() -> None:
                      subject=DECLARED_SUBSET,
                      justification="This PR only authors the plan."),
         proof(verdict=NOT_APPLICABLE, bounds=bound(revision=None, echoed=None)),
+        completeness_applies=False,
     )
     assert decision.ready, decision.reason
+
+
+@pytest.mark.parametrize(
+    ("state", "reason"),
+    [
+        (
+            dict(
+                completeness=NOT_APPLICABLE,
+                justification="I will not assess this.",
+                proof_applies=False,
+            ),
+            "completeness-declared-not-applicable",
+        ),
+        (
+            dict(
+                completeness=None,
+                justification="No proofs are affected.",
+                proof_applies=True,
+            ),
+            "proof-declared-not-applicable",
+        ),
+    ],
+    ids=["applicable-completeness", "applicable-proof"],
+)
+@pytest.mark.parametrize("justified", [True, False], ids=["justified", "bare"])
+def test_an_applicable_assessment_cannot_excuse_itself(
+    state: dict, reason: str, justified: bool
+) -> None:
+    """A reply may not declare an applicable assessment not applicable.
+
+    Applicability is a property of the assignment, not of the reply. Accepting
+    a self-declared `not applicable` would skip the candidate, revision and
+    subject checks, so a PR could open its gate with no substantive answer at
+    all. The justification must not matter: a defended excuse is still an
+    excuse, which is why this holds with and without one.
+    """
+    justification = state["justification"] if justified else ""
+    applies = {"proof_applies": state["proof_applies"]}
+    completeness_verdict = (
+        completeness(verdict=state["completeness"], justification=justification)
+        if state["completeness"]
+        else completeness()
+    )
+    proof_verdict = (
+        proof()
+        if state["completeness"]
+        else proof(verdict=NOT_APPLICABLE, justification=justification)
+    )
+    decision = readiness(
+        candidate(), completeness_verdict, proof_verdict, **applies
+    )
+    assert not decision.ready, "an applicable assessment excused itself"
+    assert decision.reason == reason
 
 
 @pytest.mark.parametrize(
@@ -395,6 +451,11 @@ REASON_STATES = {
     "completeness-pending": (
         candidate(), completeness(verdict=PENDING), proof()
     ),
+    "completeness-declared-not-applicable": (
+        candidate(),
+        completeness(verdict=NOT_APPLICABLE, justification="I will not assess this."),
+        proof(),
+    ),
     "completeness-not-clear": (
         candidate(), completeness(verdict=NOT_CLEAR), proof()
     ),
@@ -415,7 +476,14 @@ REASON_STATES = {
         candidate(), completeness(subject=DECLARED_SUBSET), proof()
     ),
     "proof-pending": (
-        candidate(), completeness(), proof(verdict=PENDING, justification="")
+        candidate(), completeness(), proof(verdict=PENDING, justification=""),
+        {"proof_applies": True},
+    ),
+    "proof-declared-not-applicable": (
+        candidate(),
+        completeness(),
+        proof(verdict=NOT_APPLICABLE, justification="No proofs are affected."),
+        {"proof_applies": True},
     ),
     "proof-not-clear": (
         candidate(), completeness(), proof(verdict=NOT_CLEAR, justification="")
@@ -434,9 +502,22 @@ REASON_STATES = {
 }
 
 
+def _decide(state: tuple) -> readiness_module.Readiness:
+    """Decide one ``REASON_STATES`` entry, applying any applicability flags.
+
+    An entry is ``(candidate, completeness, proof)``, or the same with a final
+    mapping of keyword arguments. Only the assignments that require a proof
+    assessment pass the mapping, so most entries stay plain three-tuples.
+    """
+    pull, completeness_verdict, proof_verdict, *rest = state
+    return readiness(
+        pull, completeness_verdict, proof_verdict, **(rest[0] if rest else {})
+    )
+
+
 def test_the_model_produces_exactly_the_reasons_it_cites() -> None:
     """Every cited reason is reachable, and no other reason is returned."""
-    produced = {reason: readiness(*state).reason for reason, state in REASON_STATES.items()}
+    produced = {reason: _decide(state).reason for reason, state in REASON_STATES.items()}
     wrong = {reason: got for reason, got in produced.items() if got != reason}
     assert not wrong, f"states produced a different reason: {wrong}"
     assert set(produced) == set(REASON_CITATIONS), (
@@ -460,7 +541,7 @@ def test_dropping_any_single_citation_is_detected(reason: str) -> None:
         monkeypatch.setattr(readiness_module, "REASON_CITATIONS", reduced)
         monkeypatch.setattr(readiness_module, "REASONS", frozenset(reduced))
         with pytest.raises(AssertionError):
-            readiness(*real_state)
+            _decide(real_state)
 
 
 def test_the_readiness_section_states_the_transition_under_assessment() -> None:
@@ -483,15 +564,15 @@ def test_readiness_model_names_the_completeness_and_proof_kinds() -> None:
 
 
 def _subject_accepting_declared_subset(
-    subject: Verdict,
+    subject: Verdict, applies: bool
 ) -> readiness_module.Readiness | None:
     """Let the recorded subset clear, but keep rejecting unknown subjects."""
     if subject.verdict == NOT_APPLICABLE or subject.subject in SUBJECTS:
         return None
-    return _real_subject(subject)
+    return _real_subject(subject, applies)
 
 
-def _subject_accepting_any_subject(_subject: Verdict) -> None:
+def _subject_accepting_any_subject(_subject: Verdict, applies: bool) -> None:
     """Drop the subject rule entirely, as a widened gate would."""
 
 
@@ -529,8 +610,10 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
             "_disposition",
-            lambda verdict, kind, cand: (
-                None if kind == PROOF else _real_disposition(verdict, kind, cand)
+            lambda verdict, kind, cand, applies: (
+                None
+                if kind == PROOF
+                else _real_disposition(verdict, kind, cand, applies)
             ),
         ),
         (candidate(), completeness(), proof(verdict=PENDING, justification="")),
@@ -542,10 +625,10 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
             "_disposition",
-            lambda verdict, kind, cand: (
+            lambda verdict, kind, cand, applies: (
                 None
                 if verdict.verdict == NOT_CLEAR
-                else _real_disposition(verdict, kind, cand)
+                else _real_disposition(verdict, kind, cand, applies)
             ),
         ),
         (candidate(), completeness(verdict=NOT_CLEAR), proof()),
@@ -615,15 +698,37 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
             "_disposition",
-            lambda verdict, kind, cand: (
+            lambda verdict, kind, cand, applies: (
                 None
-                if verdict.verdict == NOT_APPLICABLE and not verdict.justification.strip()
-                else _real_disposition(verdict, kind, cand)
+                if verdict.verdict == NOT_APPLICABLE
+                and not verdict.justification.strip()
+                else _real_disposition(verdict, kind, cand, applies)
             ),
         ),
         (candidate(), completeness(), proof(verdict=NOT_APPLICABLE, justification="  ")),
         "not-applicable-undefended",
         id="undefended-not-applicable-accepted",
+    ),
+    pytest.param(
+        "applicability",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module,
+            "_disposition",
+            # Ignores `applies`, the way a model that trusted the reply would:
+            # any defended `not applicable` settles the assessment.
+            lambda verdict, kind, cand, applies: (
+                None
+                if verdict.verdict == NOT_APPLICABLE and verdict.justification.strip()
+                else _real_disposition(verdict, kind, cand, applies)
+            ),
+        ),
+        (
+            candidate(),
+            completeness(verdict=NOT_APPLICABLE, justification="I will not assess this."),
+            proof(),
+        ),
+        "completeness-declared-not-applicable",
+        id="applicable-assessment-excused-itself",
     ),
 )
 _real_disposition = readiness_module._disposition
@@ -642,13 +747,13 @@ def test_a_defective_readiness_rule_is_detected_by_its_case(
     reason: str,
 ) -> None:
     """Each mutation control proves its case discriminates, not just passes."""
-    real = readiness(*state)
+    real = _decide(state)
     assert not real.ready and real.reason == reason, (
         f"{rule} control's case must fail on the real model"
     )
     with pytest.MonkeyPatch.context() as monkeypatch:
         defect(monkeypatch)
-        mutated = readiness(*state)
+        mutated = _decide(state)
     assert mutated.ready, (
         f"case {reason!r} does not detect a dropped {rule} rule"
     )

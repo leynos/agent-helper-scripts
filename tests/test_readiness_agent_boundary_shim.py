@@ -578,6 +578,21 @@ def test_the_runner_checks_the_read_back_after_the_transition() -> None:
     )
 
 
+def test_the_runner_requires_the_served_state_to_read_ready() -> None:
+    """Ordering is not the whole claim: the answer must be ready, not a draft.
+
+    The trace records argv, so the read-back above shows the state was asked
+    for. A run whose post-transition read returned `"isDraft": true` would
+    satisfy it while showing the opposite of the transition claimed. The stand-in
+    serves from `state.json`, so the runner checks the value it served.
+    """
+    runner = RUNNER.read_text()
+    assert 'state.get("isDraft") is False' in runner, (
+        "the read-back must check the served value, not only that it was read"
+    )
+    assert "the served state still reads draft" in runner
+
+
 def test_the_runner_requires_the_local_codescene_result_before_readiness() -> None:
     """A permitting run that never invoked `cs` has waived the local gate.
 
