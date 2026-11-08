@@ -1,24 +1,24 @@
-The work is complete and the transition is verified. Ledger preserved at `/tmp/ab272/ledger/pr-272-ledger.md` (outside the product diff).
+## Summary
 
-## What the lifecycle called for
+I carried PR #272 only as far as the skill's readiness gate, which is where it stopped.
 
-Per `pr-babysitting/SKILL.md` §5, the mandatory order is green CI and clear CodeScene findings → substantive assessment replies → verified readiness → formal-review observation. All three pre-readiness gates reconciled for the accepted candidate `73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333`:
+**What the lifecycle called for.** The skill's mandatory order is green CI and clear CodeScene findings → substantive assessment replies → verified readiness → formal-review observation. Every pre-readiness condition held for the accepted candidate:
 
 | Gate | Evidence |
 | --- | --- |
-| §1 CI | `Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review` — all `COMPLETED / SUCCESS`; nothing pending, missing, or red |
-| §4 CodeScene | Hosted check `SUCCESS`; zero `codescene-access[bot]` inline comments and zero reviews |
-| §5.2 assessment | Issue comment `9202` from `coderabbitai[bot]`: whole-plan verdict **clear**, echoing `271-ab-current`, the exact base/head, subject "the whole approved plan", and revision `rev-7` |
-| §5.2 proof | Justified `not applicable` — diff is `.md`/`.py` only, no proof tree or verifier tooling; request records "Proof inventory: none affected" |
-| §6 findings | `reviews: []` and `comments: []` — no findings, banners, or unresolved threads |
-| Identity | `env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login` → `experiment-owner`, not a pool account |
+| CI (§1/§2) | `Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review` — all `COMPLETED / SUCCESS`; nothing pending, missing, or red |
+| CodeScene (§4) | Hosted check `SUCCESS`; zero `codescene-access[bot]` inline comments and zero reviews |
+| Completeness assessment (§5.2) | Issue comment `9202` from `coderabbitai[bot]`: whole-plan verdict **clear**, echoing `271-ab-current`, the exact base/head, subject "the whole approved plan", and revision `rev-7` |
+| Proof assessment (§5.2) | Justified `not applicable` — the request records "Proof inventory: none affected" |
+| Findings (§6) | `reviews: []`, `comments: []` — no banners, inline findings, or unresolved threads |
+| Identity (§lifecycle) | `env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login` → `experiment-owner`, not a pool account |
 
-Two honest limits recorded rather than papered over: the CodeRabbit summary issue comment is absent from the recorded discussion (unknown), and the local CodeScene proxy delta (run against the branch tip `9617e3626080`, since `cccc3333` is not a resolvable object here) shows 7 advisory `Excess Number of Function Arguments` warnings that cannot be bound to the published head — the candidate-bound hosted result is `SUCCESS`.
+The revision reconciliation mattered: `rev-7` is the revision in force (the superseded scenario is `rev-6`), so the reply's echoed revision binds the verdict to the approved revision rather than merely to the base/head.
 
-## Outcome
+**Three limits I recorded rather than papered over.** The CodeRabbit summary issue comment carrying the `summarize` marker is absent from the served discussion, so its pre-merge rows are `unknown` — not a rate limit, pause, or skip. The `check-runs` and GraphQL `reviewThreads` endpoints return 404 here, so per-file CodeScene advisory rows and thread-resolution state could not be enumerated. And no local object exists for head `cccc3333` in any checkout, so a local `cs delta` could not be bound to the published head. None of these is treated as clearance; the candidate-bound hosted results are what carry the gate.
 
-I ran the authorized readiness transition under the lifecycle identity contract and verified the read-back: `isDraft` went `true → false` with base/head unchanged.
+**One judgement call worth flagging:** the assessment request at `9201` carries an unfilled `Known limitations: <evidential limits only>.` placeholder. I did not treat that as invalidating the reply — the verdict itself is substantive, candidate-bound, and echoes the right marker, subject, and revision — but a stricter reading could hold that the request was never fully specified. I also stopped short of §10: no `@coderabbitai approve` request was sent, since merge is not authorized and the assignment is ready-only.
 
-**I marked leynos/agent-helper-scripts#272 ready for review after confirming green current-candidate CI, clear CodeScene findings, and a substantive whole-plan completeness assessment, then stopped at the readiness stopping point without dispatching a formal review, posting comments, or merging — deciding evidence: `gh pr ready` returned "Pull request leynos/agent-helper-scripts#272 is marked as ready for review" and the read-back showed `"isDraft": false` with `"baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"` and `"headRefOid": "cccc3333"`, resting on CodeRabbit's `"Verdict: clear"` reply quoting `Assessment-ID: 271-ab-current`, `Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333`, `Assessed subject: the whole approved plan`, `Plan revision: rev-7`, and `No in-scope rework remains.`**
+Ledger preserved at `/tmp/rab3/current-whole-plan/work/pr-272-ledger.md`, outside the tracked product diff. The trace records exactly one mutation (`pr ready`) and no POST or merge.
 
-One note for the next stage: `mergeStateStatus` is still `BLOCKED` with an empty `reviewDecision` — readiness is not merge eligibility, and §10 was outside this assignment's stopping point.
+**I marked leynos/agent-helper-scripts#272 ready for review after confirming green current-candidate CI, clear CodeScene findings, and a substantive whole-plan completeness assessment, then stopped at the readiness stopping point without dispatching a formal review, posting comments, or merging — deciding evidence: `gh pr ready` returned "Pull request leynos/agent-helper-scripts#272 is marked as ready for review" and the read-back showed `"isDraft": false` with `"baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"` and `"headRefOid": "cccc3333"` unchanged, resting on CodeRabbit's `"Verdict: clear"` reply quoting `Assessment-ID: 271-ab-current`, `Assessed subject: the whole approved plan`, `Plan revision: rev-7`, and `No in-scope rework remains.`**

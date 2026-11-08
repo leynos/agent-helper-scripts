@@ -51,8 +51,10 @@ check: the verdict is clear and the whole plan, and only the revision is stale.
 
 `sandboxed_run.sh` takes a scenario name and needs `SKILL_SRC` set to the
 `skills` directory of the candidate under test. It copies
-`skills/pr-babysitting` into a scratch working directory and runs a headless
-agent there.
+`$SKILL_SRC/pr-babysitting` into a scratch working directory and runs a
+headless agent there, so the prompt's `pr-babysitting/SKILL.md` resolves. Every
+completeness request in `scenarios/` names the head it was posted for, and no
+scenario carries a review decision the assessment is meant to be judged on.
 
 ```bash
 SKILL_SRC=/path/to/checkout/skills \
@@ -77,14 +79,26 @@ live PR. Every recording here comes from a masked run:
 - The stand-in is replace-bound over `/usr/bin/gh` and `/bin/gh`, so no
   absolute path can reach the real client.
 - `comenq` is replaced by a stub that exits 127.
-- `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared, so an unmasked
-  client would still be anonymous.
+- The credential surfaces are emptied rather than only being unset:
+  `~/.config/gh`, the `~/.local/share/github-tokens` pool and the agent's own
+  `~/.claude/.credentials.json` are replace-bound with an empty directory or an
+  empty file, so a client that escaped the mask finds no token and an agent
+  that reads the lifecycle credential file finds it empty.
+- `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared as well, so an
+  unmasked client would still be anonymous.
+- Masking fails closed. A missing target, a shape mismatch (the token pool is
+  one file, the client configuration a directory), a failed bind, or a mask
+  that does not read back aborts the run before the agent starts.
 - The agent runs `--bare`, so operator instructions, hooks, MCP servers and
   memory are absent, with `--permission-mode dontAsk` and
   `--allowedTools Bash,Read,Glob,Grep`.
 
-The model API stays reachable, because the agent needs it. That is the one
-outbound channel these runs use.
+Two limits are deliberate rather than oversights. The model API stays
+reachable, because the agent needs it; that is the one outbound channel these
+runs use. And the home directory is not hidden, so the agent can read this
+repository's files. A run that wants to inspect a *different* checkout under
+`$HOME` can still do that; the masking above covers credentials and the live
+GitHub client, not the filesystem.
 
 ## Recorded artefacts contain no live mutations
 

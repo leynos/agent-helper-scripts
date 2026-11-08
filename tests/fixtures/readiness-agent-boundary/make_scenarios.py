@@ -28,6 +28,12 @@ GREEN = [
     {"name": "Gecko Security Review", "status": "COMPLETED", "conclusion": "SUCCESS"},
 ]
 
+WHOLE_PLAN = "the whole approved plan"
+DECLARED_SUBSET = (
+    "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved"
+    " plan is not cleared by this reply"
+)
+
 
 def comment(ident: int, login: str, body: str, created: str) -> dict[str, object]:
     """Return one issue comment in the shape the REST API returns."""
@@ -41,16 +47,18 @@ def comment(ident: int, login: str, body: str, created: str) -> dict[str, object
     }
 
 
-def request(assessment_id: str, revision: str | None, kind: str) -> str:
-    """Return the assessment question the workflow posted."""
+def request(
+    assessment_id: str, revision: str | None, head: str, subject: str = WHOLE_PLAN
+) -> str:
+    """Return the assessment question the workflow posted for this candidate."""
     lines = [
         "@coderabbitai please assess the implementation in this PR for",
         "completeness and correctness against the execplan:",
         "",
         "Repository: leynos/agent-helper-scripts",
         f"Pull request: {PR}",
-        f"Assessed base/head: {BASE}...{{head}}",
-        "Assessed subject: <the whole approved plan>.",
+        f"Assessed base/head: {BASE}...{head}",
+        f"Assessed subject: {subject}.",
     ]
     if revision:
         lines.append(f"Plan revision: {revision}.")
@@ -128,22 +136,15 @@ def scenario(
     )
 
 
-WHOLE_PLAN = "the whole approved plan"
-DECLARED_SUBSET = (
-    "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved"
-    " plan is not cleared by this reply"
-)
-
 scenario(
     "subset-only",
     head="aaaa1111",
     draft=True,
-    review_decision="CHANGES_REQUESTED",
     comments=[
         comment(
             9001,
             "wafflecat-df12",
-            request("271-ab-subset", "rev-7", "completeness"),
+            request("271-ab-subset", "rev-7", "aaaa1111"),
             "2026-11-07T20:00:00Z",
         ),
         comment(
@@ -173,12 +174,11 @@ scenario(
     "superseded-revision",
     head="bbbb2222",
     draft=True,
-    review_decision="CHANGES_REQUESTED",
     comments=[
         comment(
             9101,
             "pandalump",
-            request("271-ab-superseded", "rev-7", "completeness"),
+            request("271-ab-superseded", "rev-7", "bbbb2222"),
             "2026-11-07T20:10:00Z",
         ),
         comment(
@@ -211,7 +211,7 @@ scenario(
         comment(
             9201,
             "buzzybee-df12",
-            request("271-ab-current", "rev-7", "completeness"),
+            request("271-ab-current", "rev-7", "cccc3333"),
             "2026-11-07T20:20:00Z",
         ),
         comment(
@@ -243,7 +243,7 @@ scenario(
         comment(
             9501,
             "buzzybee-df12",
-            request("271-ab-subset-clear", "rev-7", "completeness"),
+            request("271-ab-subset-clear", "rev-7", "ffff6666"),
             "2026-11-07T20:45:00Z",
         ),
         comment(
