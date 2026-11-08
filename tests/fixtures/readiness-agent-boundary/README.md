@@ -48,10 +48,13 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
   writes `state.json` with `isDraft: false`, so a later `pr view` can show the
   transition. A POST to the issue-comment route returns the fixture comment's
-  URL and records it, so a read-back and the discussion listing both see it. The
-  `contents` route serves the plan file with its blob SHA, which is what lets
-  a follow-up name the plan revision instead of stopping for a value the
-  fixture never supplied.
+  URL, records the submitted body, and serves it back on its own route, so a
+  read-back and the discussion listing both see what was posted rather than a
+  placeholder. The `contents` route serves the plan file with its blob SHA,
+  which is what lets a follow-up name the plan revision instead of stopping for
+  a value the fixture never supplied. The `check-runs` route carries the hosted
+  check output, including CodeScene's own "no advisory findings" summary, so
+  the CodeScene gate can be cleared from the same surface a real agent reads.
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
@@ -137,11 +140,16 @@ namespace, made private with `mount --make-rprivate /` first:
 **Process.** The environment is replaced rather than filtered: `env -i` passes
 only `PATH`, `HOME`, an empty `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR`,
 the two model API variables, `GIT_TERMINAL_PROMPT`, `TMPDIR` and `TERM`. No
-ambient token, config override or path reaches the agent. It runs `--bare`, so
-operator instructions, hooks, MCP servers and memory are absent, with
-`--permission-mode dontAsk` and `--allowedTools Bash,Read,Glob,Grep`. The
-runner propagates the agent's own exit status, so a run killed by its budget or
-by a timeout is a failure rather than a clean rehearsal.
+ambient token, config override or path reaches the agent. `HOME` is the run's
+own directory, not the operator's, so nothing under the host home is reachable
+by a relative path; the absolute credential paths above stay masked, so neither
+route reaches a real token. A `.claude` directory is created there so the CLI
+has somewhere to write, and the run aborts if the isolated home resolves to the
+host home or has no such directory. It runs `--bare`, so operator instructions,
+hooks, MCP servers and memory are absent, with `--permission-mode dontAsk` and
+`--allowedTools Bash,Read,Glob,Grep`. The runner propagates the agent's own
+exit status, so a run killed by its budget or by a timeout is a failure rather
+than a clean rehearsal.
 
 These layers are proved, not assumed. A diagnostic stand-in for the CLI once
 recorded the agent's view from inside the sandbox: the credential file, token

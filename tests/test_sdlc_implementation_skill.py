@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
@@ -211,67 +212,80 @@ def test_handoff_binds_the_whole_plan_to_the_readiness_rule(
     _assert_handoff_binds_whole_plan(implementation_text, setup_text)
 
 
-@pytest.mark.parametrize(
-    ("old", "new", "expected"),
-    [
-        (
-            "against the whole approved plan, not the declared PR scope;",
-            "",
-            WHOLE_PLAN_SUBJECT,
-        ),
-        (
-            "against the whole approved plan",
-            "against the declared PR scope",
-            WHOLE_PLAN_SUBJECT,
-        ),
-        (
+@dataclass(frozen=True)
+class Clause:
+    """One clause mutation and the contract message it must provoke."""
+
+    old: str
+    new: str
+    expected: str
+
+
+#: Mutations of the handoff's completeness packet, in contract order.
+PACKET_MUTATIONS = (
+    pytest.param(
+        Clause("against the whole approved plan, not the declared PR scope;", "",
+               WHOLE_PLAN_SUBJECT),
+        id="removed-qualifier",
+    ),
+    pytest.param(
+        Clause("against the whole approved plan", "against the declared PR scope",
+               WHOLE_PLAN_SUBJECT),
+        id="narrowed-to-declared-scope",
+    ),
+    pytest.param(
+        Clause(
             "execplan-assessment readiness rule; evidence or pending.",
             "execplan-assessment readiness rule; evidence or pending, except a"
             " managed-stack layer clearing on its declared-subset verdict.",
             HANDOFF_PACKET_EXCEPTION,
         ),
-        (
+        id="reintroduced-subset-exception",
+    ),
+    pytest.param(
+        Clause(
             "A managed-stack layer records its declared-subset verdict as"
             " evidence for its actual scope only",
             "A managed-stack layer may clear on its declared-subset verdict",
             HANDOFF_SUBSET_EVIDENCE,
         ),
-        (
-            "read them there rather than expecting a second copy here.",
-            "",
-            HANDOFF_DEFERS,
-        ),
-        (
+        id="subset-evidence-widened",
+    ),
+    pytest.param(
+        Clause("read them there rather than expecting a second copy here.", "",
+               HANDOFF_DEFERS),
+        id="deferral-dropped",
+    ),
+    pytest.param(
+        Clause(
             "read them there rather than expecting a second copy here.",
             "Read them there rather than expecting a second copy here. That"
             " record never clears the gate, and the whole-plan verdict is"
             " still required.",
             HANDOFF_DEFERS,
         ),
-        (
+        id="restates-subset-clearing",
+    ),
+    pytest.param(
+        Clause(
             "read them there rather than expecting a second copy here.",
             "Read them there rather than expecting a second copy here. The"
             " stack does not count as delivered until the layer carrying the"
             " remainder obtains one.",
             HANDOFF_DEFERS,
         ),
-    ],
-    ids=[
-        "removed-qualifier",
-        "narrowed-to-declared-scope",
-        "reintroduced-subset-exception",
-        "subset-evidence-widened",
-        "deferral-dropped",
-        "restates-subset-clearing",
-        "restates-stack-delivery",
-    ],
+        id="restates-stack-delivery",
+    ),
 )
+
+
+@pytest.mark.parametrize("mutation", PACKET_MUTATIONS)
 def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
-    implementation_text: str, setup_text: str, old: str, new: str, expected: str
+    implementation_text: str, setup_text: str, mutation: Clause
 ) -> None:
     """Deleting, narrowing, or inventing an exception fails the handoff contract."""
-    mutated = mutate_one_clause(implementation_text, old, new)
-    with pytest.raises(AssertionError, match=re.escape(expected)):
+    mutated = mutate_one_clause(implementation_text, mutation.old, mutation.new)
+    with pytest.raises(AssertionError, match=re.escape(mutation.expected)):
         _assert_handoff_binds_whole_plan(mutated, setup_text)
 
 
@@ -302,28 +316,40 @@ def test_handoff_rejects_a_setup_gate_that_restates_or_drops_the_rule(
         _assert_handoff_binds_whole_plan(implementation_text, mutated)
 
 
-@pytest.mark.parametrize(
-    ("document", "anchor", "expected"),
-    [
-        ("implementation", READINESS_ANCHOR, HANDOFF_LINK),
-        ("setup", SETUP_READINESS_ANCHOR, SETUP_LINK),
-    ],
-    ids=["moved-readiness-link", "moved-draft-creation-cross-reference"],
+@dataclass(frozen=True)
+class LinkSite:
+    """A readiness cross-reference and the contract message it must provoke."""
+
+    document: str
+    anchor: str
+    expected: str
+
+
+#: The two documents that cross-reference the readiness clearing rule.
+LINK_SITES = (
+    pytest.param(
+        LinkSite("implementation", READINESS_ANCHOR, HANDOFF_LINK),
+        id="moved-readiness-link",
+    ),
+    pytest.param(
+        LinkSite("setup", SETUP_READINESS_ANCHOR, SETUP_LINK),
+        id="moved-draft-creation-cross-reference",
+    ),
 )
+
+
+@pytest.mark.parametrize("site", LINK_SITES)
 def test_handoff_rejects_a_readiness_link_moved_out_of_its_section(
-    implementation_text: str,
-    setup_text: str,
-    document: str,
-    anchor: str,
-    expected: str,
+    implementation_text: str, setup_text: str, site: LinkSite
 ) -> None:
     """A readiness cross-reference pasted outside its section cannot satisfy the contract."""
-    source = implementation_text if document == "implementation" else setup_text
-    mutated = mutate_one_clause(source, anchor, "", move=True)
-    with pytest.raises(AssertionError, match=re.escape(expected)):
+    documents = {"implementation": implementation_text, "setup": setup_text}
+    documents[site.document] = mutate_one_clause(
+        documents[site.document], site.anchor, "", move=True
+    )
+    with pytest.raises(AssertionError, match=re.escape(site.expected)):
         _assert_handoff_binds_whole_plan(
-            mutated if document == "implementation" else implementation_text,
-            mutated if document == "setup" else setup_text,
+            documents["implementation"], documents["setup"]
         )
 
 

@@ -14,6 +14,7 @@ cannot be dropped from the model or from the prose alone.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 import re
 from pathlib import Path
 
@@ -45,6 +46,41 @@ HEAD = "head0000"
 REVISION = "rev-2026-11-01"
 
 
+@dataclass(frozen=True)
+class _Bounds:
+    """The candidate and revisions a verdict is bound to."""
+
+    base: str = BASE
+    head: str = HEAD
+    revision: str | None = REVISION
+    echoed: str | None = REVISION
+
+
+#: The default bindings, kept as one value so a case overrides a field by name
+#: rather than repeating every unchanged one.
+BOUND = _Bounds()
+
+#: The proof verdict's default justification and subject.
+PROOF_SUBJECT = "named proofs"
+NO_PROOF = "No proof is affected by this change."
+
+
+def bound(**changes: object) -> _Bounds:
+    """Return the default bindings with the named fields replaced.
+
+    Parameters
+    ----------
+    **changes : object
+        Fields to rebind, such as a superseded head or plan revision.
+
+    Returns
+    -------
+    _Bounds
+        The bindings a verdict in this case should carry.
+    """
+    return replace(BOUND, **changes)  # type: ignore[arg-type]
+
+
 def candidate(
     *,
     revision: str | None = REVISION,
@@ -62,36 +98,44 @@ def candidate(
     )
 
 
+def _verdict(
+    bounds: _Bounds, *, verdict: str, subject: str, justification: str
+) -> Verdict:
+    """Return one assessment verdict bound to ``bounds``."""
+    return Verdict(
+        verdict=verdict,
+        base=bounds.base,
+        head=bounds.head,
+        plan_revision=bounds.revision,
+        echoed_revision=bounds.echoed,
+        subject=subject,
+        justification=justification,
+    )
+
+
 def completeness(
     *,
+    bounds: _Bounds = BOUND,
     verdict: str = CLEAR,
     subject: str = WHOLE_PLAN,
-    revision: str | None = REVISION,
-    echoed: str | None = REVISION,
-    head: str = HEAD,
-    base: str = BASE,
     justification: str = "",
 ) -> Verdict:
     """Return a completeness verdict, whole-plan and exact by default."""
-    return Verdict(verdict=verdict, base=base, head=head,
-                   plan_revision=revision, echoed_revision=echoed,
-                   subject=subject,
-                   justification=justification)
+    return _verdict(
+        bounds, verdict=verdict, subject=subject, justification=justification
+    )
 
 
 def proof(
     *,
+    bounds: _Bounds = BOUND,
     verdict: str = NOT_APPLICABLE,
-    revision: str | None = REVISION,
-    echoed: str | None = REVISION,
-    head: str = HEAD,
-    base: str = BASE,
-    justification: str = "No proof is affected by this change.",
+    justification: str = NO_PROOF,
 ) -> Verdict:
     """Return a proof verdict; the default is a justified not-applicable."""
-    return Verdict(verdict=verdict, base=base, head=head,
-                   plan_revision=revision, echoed_revision=echoed,
-                   subject="named proofs", justification=justification)
+    return _verdict(
+        bounds, verdict=verdict, subject=PROOF_SUBJECT, justification=justification
+    )
 
 
 def test_a_valid_current_assessment_allows_readiness() -> None:
@@ -141,7 +185,7 @@ def test_a_verdict_on_another_candidate_keeps_the_pr_in_draft(
 ) -> None:
     """A verdict must cover the accepted base/head, not one it replaced."""
     decision = readiness(
-        candidate(), completeness(base=base, head=head), proof()
+        candidate(), completeness(bounds=bound(base=base, head=head)), proof()
     )
     assert not decision.ready
     assert decision.reason == reason
@@ -189,7 +233,7 @@ def test_an_unbound_plan_revision_keeps_the_pr_in_draft(
 ) -> None:
     """A verdict recorded against another revision does not clear the gate."""
     decision = readiness(
-        candidate(), completeness(revision=revision, echoed=echoed), proof()
+        candidate(), completeness(bounds=bound(revision=revision, echoed=echoed)), proof()
     )
     assert not decision.ready
     assert decision.reason == reason
@@ -200,7 +244,7 @@ def test_a_proof_verdict_on_a_superseded_revision_keeps_the_pr_in_draft() -> Non
     decision = readiness(
         candidate(),
         completeness(),
-        proof(verdict=CLEAR, revision="rev-previous", echoed="rev-previous"),
+        proof(verdict=CLEAR, bounds=bound(revision="rev-previous", echoed="rev-previous")),
     )
     assert not decision.ready
     assert decision.reason == "proof-superseded-revision"
@@ -230,7 +274,7 @@ def test_a_proof_verdict_must_echo_its_revision_under_an_execplan() -> None:
     decision = readiness(
         candidate(),
         completeness(),
-        proof(verdict=CLEAR, revision=REVISION, echoed=None),
+        proof(verdict=CLEAR, bounds=bound(echoed=None)),
     )
     assert not decision.ready
     assert decision.reason == "proof-revision-unbound"
@@ -249,9 +293,10 @@ def test_a_proof_only_assignment_needs_no_plan_revision() -> None:
     """Without an ExecPlan the base/head is the whole candidate."""
     decision = readiness(
         candidate(revision=None),
-        completeness(verdict=NOT_APPLICABLE, revision=None, echoed=None,
+        completeness(verdict=NOT_APPLICABLE,
+                     bounds=bound(revision=None, echoed=None),
                      justification="No ExecPlan governs this change."),
-        proof(verdict=CLEAR, revision=None, echoed=None),
+        proof(verdict=CLEAR, bounds=bound(revision=None, echoed=None)),
     )
     assert decision.ready, decision.reason
 
@@ -261,7 +306,7 @@ def test_an_unaffected_proof_under_an_execplan_needs_no_reply() -> None:
     decision = readiness(
         candidate(),
         completeness(),
-        proof(verdict=NOT_APPLICABLE, revision=None, echoed=None),
+        proof(verdict=NOT_APPLICABLE, bounds=bound(revision=None, echoed=None)),
     )
     assert decision.ready, decision.reason
 
@@ -270,11 +315,11 @@ def test_an_unaffected_completeness_needs_no_subject_or_revision() -> None:
     """A not-applicable completeness is skipped, not checked against a subject."""
     decision = readiness(
         candidate(revision=None),
-        completeness(verdict=NOT_APPLICABLE, revision=None, echoed=None,
+        completeness(verdict=NOT_APPLICABLE,
+                     bounds=bound(revision=None, echoed=None),
                      subject=DECLARED_SUBSET,
                      justification="This PR only authors the plan."),
-        proof(verdict=NOT_APPLICABLE, revision=None, echoed=None,
-              justification="No proof is affected by this change."),
+        proof(verdict=NOT_APPLICABLE, bounds=bound(revision=None, echoed=None)),
     )
     assert decision.ready, decision.reason
 
@@ -353,14 +398,14 @@ REASON_STATES = {
         candidate(), completeness(verdict=NOT_CLEAR), proof()
     ),
     "completeness-candidate-mismatch": (
-        candidate(), completeness(head="superseded-head"), proof()
+        candidate(), completeness(bounds=bound(head="superseded-head")), proof()
     ),
     "completeness-superseded-revision": (
-        candidate(), completeness(revision="rev-previous", echoed="rev-previous"),
+        candidate(), completeness(bounds=bound(revision="rev-previous", echoed="rev-previous")),
         proof(),
     ),
     "completeness-revision-unbound": (
-        candidate(), completeness(echoed=None), proof()
+        candidate(), completeness(bounds=bound(echoed=None)), proof()
     ),
     "completeness-subject-unrecognized": (
         candidate(), completeness(subject="declared-scope"), proof()
@@ -375,14 +420,14 @@ REASON_STATES = {
         candidate(), completeness(), proof(verdict=NOT_CLEAR, justification="")
     ),
     "proof-candidate-mismatch": (
-        candidate(), completeness(), proof(verdict=CLEAR, head="superseded-head")
+        candidate(), completeness(), proof(verdict=CLEAR, bounds=bound(head="superseded-head"))
     ),
     "proof-superseded-revision": (
         candidate(), completeness(),
-        proof(verdict=CLEAR, revision="rev-previous", echoed="rev-previous"),
+        proof(verdict=CLEAR, bounds=bound(revision="rev-previous", echoed="rev-previous")),
     ),
     "proof-revision-unbound": (
-        candidate(), completeness(), proof(verdict=CLEAR, echoed=None)
+        candidate(), completeness(), proof(verdict=CLEAR, bounds=bound(echoed=None))
     ),
     "ready": (candidate(), completeness(), proof()),
 }
@@ -472,7 +517,7 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module, "_revision_bound", lambda verdict, cand, reason: None
         ),
-        (candidate(), completeness(revision="rev-previous", echoed="rev-previous"),
+        (candidate(), completeness(bounds=bound(revision="rev-previous", echoed="rev-previous")),
          proof()),
         "completeness-superseded-revision",
         id="revision-binding-dropped",
@@ -550,7 +595,7 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module, "_revision_bound", lambda verdict, cand, kind: None
         ),
-        (candidate(), completeness(), proof(verdict=CLEAR, echoed=None)),
+        (candidate(), completeness(), proof(verdict=CLEAR, bounds=bound(echoed=None))),
         "proof-revision-unbound",
         id="proof-revision-binding-dropped",
     ),
@@ -559,7 +604,7 @@ DEFECTIVE_RULES = (
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module, "_revision_bound", lambda verdict, cand, kind: None
         ),
-        (candidate(), completeness(echoed=None), proof()),
+        (candidate(), completeness(bounds=bound(echoed=None)), proof()),
         "completeness-revision-unbound",
         id="completeness-echo-binding-dropped",
     ),

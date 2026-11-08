@@ -206,14 +206,85 @@ def _not_applicable(reason: str, pull: PullRequest) -> Verdict:
     )
 
 
+@dataclass(frozen=True)
+class Selection:
+    """One assessment's role in an assignment.
+
+    ``applies`` false carries the ``reason`` recorded as its justified
+    not-applicable verdict, so an inapplicable assessment is still an explicit
+    ledger entry rather than an absence.
+    """
+
+    kind: str
+    assessment_id: str
+    applies: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class Assignment:
+    """Which assessments an assignment makes applicable, and their markers."""
+
+    completeness_id: str = "271-boundary-completeness"
+    proof_id: str = "271-boundary-proof"
+    proof_applies: bool = False
+    completeness_applies: bool = True
+
+    def selections(self) -> tuple[Selection, Selection]:
+        """Return the completeness and proof selections this assignment makes."""
+        return (
+            Selection(
+                COMPLETENESS,
+                self.completeness_id,
+                self.completeness_applies,
+                "No ExecPlan governs this change.",
+            ),
+            Selection(
+                PROOF,
+                self.proof_id,
+                self.proof_applies,
+                "No proof is affected by this change.",
+            ),
+        )
+
+
+#: The ordinary ExecPlan implementation assignment.
+IMPLEMENTATION = Assignment()
+
+#: A proof-only assignment with no ExecPlan in force.
+PROOF_ONLY = Assignment(proof_applies=True, completeness_applies=False)
+
+
+def _assess(
+    discussion: Discussion, pull: PullRequest, selection: Selection
+) -> Verdict:
+    """Post and read one applicable assessment, or record it not applicable.
+
+    Parameters
+    ----------
+    discussion : Discussion
+        The assessment thread the question is posted to and read from.
+    pull : PullRequest
+        The candidate double supplying the revision in force.
+    selection : Selection
+        The assessment, its request marker, and whether it applies.
+
+    Returns
+    -------
+    Verdict
+        The observed verdict, or a justified not-applicable verdict.
+    """
+    if not selection.applies:
+        return _not_applicable(selection.reason, pull)
+    revision = pull.approved_plan_revision
+    posted = discussion.post(selection.kind, selection.assessment_id, revision)
+    return _verdict(selection.kind, discussion.observe(posted), revision)
+
+
 def assess_and_maybe_mark_ready(
     pull: PullRequest,
     discussion: Discussion,
-    *,
-    completeness_id: str = "271-boundary-completeness",
-    proof_id: str = "271-boundary-proof",
-    proof_applies: bool = False,
-    completeness_applies: bool = True,
+    assignment: Assignment = IMPLEMENTATION,
 ) -> Readiness:
     """Run the documented sequence for one candidate and return its decision.
 
@@ -230,14 +301,8 @@ def assess_and_maybe_mark_ready(
         The candidate double, including its delivery-gate state.
     discussion : Discussion
         The assessment thread the questions are posted to and read from.
-    completeness_id : str, optional
-        Request marker for the completeness question.
-    proof_id : str, optional
-        Request marker for the proof question.
-    proof_applies : bool, optional
-        Whether the proof assessment applies to this candidate.
-    completeness_applies : bool, optional
-        Whether an ExecPlan makes the completeness assessment applicable.
+    assignment : Assignment, optional
+        Which assessments apply and the markers they are posted under.
 
     Returns
     -------
@@ -247,17 +312,10 @@ def assess_and_maybe_mark_ready(
     blocked = delivery_gate(pull.candidate())
     if blocked is not None:
         return blocked
-    revision = pull.approved_plan_revision
-    if completeness_applies:
-        posted = discussion.post(COMPLETENESS, completeness_id, revision)
-        completeness = _verdict(COMPLETENESS, discussion.observe(posted), revision)
-    else:
-        completeness = _not_applicable("No ExecPlan governs this change.", pull)
-    if proof_applies:
-        posted = discussion.post(PROOF, proof_id, revision)
-        proof = _verdict(PROOF, discussion.observe(posted), revision)
-    else:
-        proof = _not_applicable("No proof is affected by this change.", pull)
+    completeness, proof = (
+        _assess(discussion, pull, selection)
+        for selection in assignment.selections()
+    )
     decision = readiness(pull.candidate(), completeness, proof)
     if decision.ready and pull.is_draft:
         pull.mark_ready()
@@ -266,6 +324,9 @@ def assess_and_maybe_mark_ready(
 
 __all__ = (
     "CODERABBIT",
+    "IMPLEMENTATION",
+    "PROOF_ONLY",
+    "Assignment",
     "Discussion",
     "PullRequest",
     "Reply",

@@ -42,6 +42,7 @@ ignore = [
   # the word itself.
   'the entire plan via the plan.s ExecPlan artifact`, but only one artifact,',
   'Merge wasn.t authorised; `mergeStateStatus` is `BLOCKED`.',
+  'Merging is not authorised\.',
   '\bcolor:',
   # GitHub's pull_request_target activity type. It is an identifier the
   # automerge workflow matches on, so it cannot take the British spelling;

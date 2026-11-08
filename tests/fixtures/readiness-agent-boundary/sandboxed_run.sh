@@ -93,13 +93,16 @@ cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
 
 # Empty stand-ins for the credential surfaces the sandbox replaces. `home` is
 # writable, because the CLI may create state; `empty-dir` is only read back.
-mkdir -p "$RUN/empty-dir" "$RUN/home"
+mkdir -p "$RUN/empty-dir" "$RUN/home/.claude"
 : > "$RUN/empty-file"
 # The comment-token pool is replaced rather than abolished, so the manual-comment
 # route stays exercisable inside the sandbox. The token is a fixture the stand-in
 # alone honours: as far as real GitHub is concerned it is invalid, so nothing is
-# lost if it escapes, and the host's real pool is never reachable.
+# lost if it escapes, and the host's real pool is never reachable. The helper
+# reads the pool under `$HOME`, so the isolated home gets the same fixture.
 printf '%s\n' 'fixture-pool-token' > "$RUN/pool"
+mkdir -p "$RUN/home/.local/share"
+printf '%s\n' 'fixture-pool-token' > "$RUN/home/.local/share/github-tokens"
 
 cat > "$RUN/outer.sh" <<'OUTER'
 set -uo pipefail
@@ -245,25 +248,42 @@ for surface in \
     exit 1
   fi
 done
-# The pool must hold exactly the fixture token. Any real token would make this
-# differ, so the check fails closed on a host pool that reached the sandbox.
-if [ "$(wc -l < "$HOME_DIR/.local/share/github-tokens")" -ne 1 ] ||
-  [ "$(cat "$HOME_DIR/.local/share/github-tokens")" != "fixture-pool-token" ]; then
-  echo "abort: the comment-token pool is not the fixture pool" >&2
-  exit 1
-fi
+# Both pools must hold exactly the fixture token. Any real token would make
+# this differ, so the check fails closed on a host pool that reached the
+# sandbox, whether through the masked absolute path or the isolated home.
+for pool in \
+  "$HOME_DIR/.local/share/github-tokens" \
+  "$RUN/home/.local/share/github-tokens"; do
+  if [ "$(wc -l < "$pool")" -ne 1 ] ||
+    [ "$(cat "$pool")" != "fixture-pool-token" ]; then
+    echo "abort: the comment-token pool at $pool is not the fixture pool" >&2
+    exit 1
+  fi
+done
 if [ -s "$CREDENTIALS_FILE" ]; then
   echo "abort: the agent credential file is still non-empty" >&2
   exit 1
 fi
-echo "isolation: credential stores are masked and the pool is the fixture"
+# The agent's HOME is the run's own directory, so nothing under the host home
+# is reachable by a relative path. The masks above still cover the absolute
+# host paths, so neither route reaches a real credential. These check the
+# isolated home the run is about to hand over, not the ambient one.
+if [ "$RUN/home" = "$HOME_DIR" ] || [ "$RUN/home" = / ]; then
+  echo "abort: the isolated home resolves to the host home" >&2
+  exit 1
+fi
+if [ ! -d "$RUN/home/.claude" ]; then
+  echo "abort: the isolated home has no .claude directory" >&2
+  exit 1
+fi
+echo "isolation: credential stores are masked, the pool is the fixture, and HOME is isolated"
 
 cd "$RUN/work" || exit 1
 # The environment is cleared rather than filtered: only what this run needs is
 # passed, so no ambient token, config override or path reaches the agent.
 exec env -i \
   PATH="$RUN:$CLAUDE_BIN:/usr/bin:/bin" \
-  HOME="$HOME_DIR" \
+  HOME="$RUN/home" \
   GH_TOKEN= GITHUB_TOKEN= GH_CONFIG_DIR="$RUN/gh-config" \
   ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
   ANTHROPIC_AUTH_TOKEN="$ANTHROPIC_AUTH_TOKEN" \

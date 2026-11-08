@@ -1,16 +1,22 @@
-I marked PR #272 ready for review as the stored lifecycle account (`experiment-owner`), and I stopped there because the assignment asked for readiness and the skill stops after a verified ready transition. The deciding evidence was CodeRabbit's reply 9202 to request 9201: "**Verdict: clear** … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains." The plan file at head (`docs/execplans/issue-271-readiness-handoff.md`) reads "Plan revision: rev-7", so that verdict covers the plan currently in force.
+I marked PR 272 ready for review: CI and CodeScene were green, and CodeRabbit gave a current whole-plan completeness verdict of "clear" for the same base/head and plan revision. The PR is not finished, though. It's ready but not at equilibrium, and the formal review stage that comes next hasn't produced anything I can act on.
 
-**Why it qualified for readiness on base `73d32981…` / head `cccc3333`:**
-- **CI:** all three checks passed: Makefile gates, CodeScene Code Health Review and Gecko Security Review.
-- **CodeScene:** the hosted check passed and the bot left no inline comments. `gh` returned 404 for the check-run details, and I didn't run the local `cs delta` because there is no checkout here and `gh` is the only GitHub client. That local check is still outstanding.
-- **Proof assessment:** doesn't apply. The request recorded "Proof inventory: none affected".
-- **Identity:** with the token variables unset, `gh api user` returned `experiment-owner`. That is a different account from the comment-pool login that posted the request (`buzzybee-df12`).
-- **Result:** `gh pr ready` reported "Pull request leynos/agent-helper-scripts#272 is marked as ready for review". The read-back showed `"isDraft": false` with base and head unchanged.
+**Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `cccc3333`, ready since my change (`isDraft=false`).
 
-**Review activity after readiness (I sent nothing further):**
-- The `CodeRabbit` status for `cccc3333` reads "Review completed".
-- CodeRabbit has posted no summary comment and no review on the PR.
-- `comenq` is not available in this environment.
-- GitHub still shows the merge as `BLOCKED`.
+**Why it was ready (all for this head):**
+- **CI:** all three checks passed: `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703).
+- **CodeScene:** the hosted check reported "No advisory findings, gate failures or code-health declines", and CodeScene left no inline comments. The `cs` CLI isn't installed here, so I couldn't reproduce this locally; that check is still open.
+- **Completeness assessment:** clear. CodeRabbit's reply (comment 9202) repeats the request's ID, base/head, subject and plan revision. I had no other source for the plan revision currently in force, so I took `rev-7` as current.
+- **Proof assessment:** not applicable; the request says "Proof inventory: none affected."
+- **Account used:** `gh pr ready` ran as the normal login `experiment-owner` with the token variables removed. The comment-token pool authenticates as `fixture-commenter`, so the two are separate.
 
-Before any merge, whoever picks this up next needs to find out why there is no review to match that "Review completed" status. After that come the findings, the approval request and the local CodeScene check. The full record is in `/tmp/readiness-agent-boundary/current-whole-plan/ledger-pr272.md`.
+**Formal review (not finished):** the `CodeRabbit` status for `cccc3333` says "Review completed". But there is no CodeRabbit summary comment, no review and no inline comment, before or after the change. A status alone doesn't show the head was actually inspected. There's no rate limit, so I didn't queue a review, and the `comenq` tool isn't installed here anyway.
+
+**Small flaws in the original request:** it reuses the ID `271-ab-current`, which looks like it came from PR 271. It also leaves the template placeholder `<evidential limits only>` unfilled. Neither changes the clear verdict.
+
+**Next:** keep watching for CodeRabbit's summary comment and review of `cccc3333`, or find out why they're missing. Then give every finding a response and send the final approval request. Merging is not authorised.
+
+The deciding evidence was CodeRabbit's comment 9202:
+
+> "**Verdict: clear** … **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … **Assessed subject:** the whole approved plan … **Plan revision:** rev-7 … The whole approved plan is implemented at this head. No in-scope rework remains."
+
+The read-back after the change was `"baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9", "headRefOid": "cccc3333", "isDraft": false`.

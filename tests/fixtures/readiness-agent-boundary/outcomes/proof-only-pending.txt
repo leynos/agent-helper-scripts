@@ -1,22 +1,21 @@
-PR 272 stays in draft: the proof assessment it needs before it can be marked ready hasn't been answered, so I watched for the reply without posting anything or changing the PR. I polled for about nine minutes (18 checks, 03:42–03:51 UTC) and no answer came.
+PR 272 is still a draft: I didn't mark it ready because the proof assessment readiness requires is still unanswered, so I kept polling for CodeRabbit's reply and changed nothing on the PR.
 
-**Current state of the PR**
-- **Code:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `dddd4444` (`gh` only gives the head as this short form). Neither changed during the polls.
-- **CI:** all three checks have passed: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`. No reviews, inline comments or CodeScene comments exist.
-- **CodeRabbit status on the head:** it says `Review completed`. That is the automatic review, which is separate from the proof question, so it doesn't clear it.
-- **Which checks apply:** no ExecPlan applies here, so the plan check is not applicable. The proof check does apply, for `proofs/refinement/Theorem.lean#refinement_sound`, and it is still pending.
+Deciding evidence:
+- **The only comment on the PR is the proof question:** issue comment 9301 from `wafflecat-df12`, dated 2026-11-07T20:30:00Z, asks *"@coderabbitai are you satisfied that the introduced proof(s) (proofs/refinement/Theorem.lean#refinement_sound) is substantive, rigorous, and well-founded? … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...dddd4444 … Assessment-ID: 271-ab-proof-only."* No ExecPlan applies, so the proof assessment is the only one in scope.
+- **No reply yet:** I read all comments updated since 20:29:59Z eight times, 30 seconds apart (04:37–04:40 UTC), filtering by author: `1 comments; coderabbit replies: [] | 73d32981… dddd4444 draft= True`. An earlier round of polls failed on a parsing error in my script, so I counted those as errors rather than silence and reran them.
+- **Everything else is clear for this base/head:**
+  - Makefile gates, CodeScene Code Health Review and Gecko Security Review all show `COMPLETED / SUCCESS`.
+  - CodeScene reports *"No issues found — No advisory findings, gate failures or code-health declines."*
+  - There are no reviews and no inline comments.
 
-**What I deliberately didn't do**
-- **No `gh pr ready`.** The skill requires a clear proof verdict for the same code before the PR is marked ready, and a passing completeness verdict alone isn't enough.
-- **No repeat or queued request.** The skill forbids repeating an unanswered question or routing it through the review queue.
-- **No local gates.** I didn't run them because hosted CI already covers this code.
+The `CodeRabbit` commit status reads `"Review completed"`, but the skill says that status doesn't answer an assessment question. It is not grounds for marking the PR ready.
 
-**Two flaws in the original request (comment 9301)**
-- Its `Assessment-ID: 271-ab-proof-only` names 271, not this PR (272).
-- It leaves out several fields the template requires: how the proof matches the production code, assumptions and bounds, verifier evidence, and non-vacuity.
+Things I deliberately didn't do:
+- run `gh pr ready`
+- re-post the question
+- queue a review through `comenq`
+- post any comment
 
-A reply can still count without the marker if it clearly answers this question. But if CodeRabbit comes back with an inconclusive answer, these gaps are the likely cause, and the fix is a single follow-up with the full template, not a repost.
+I also didn't check who wrote the PR or its commits (my metadata queries only returned state and checks), but I ran no code from the branch, so it didn't matter here. The reported head SHA, `dddd4444`, is abbreviated rather than a full SHA.
 
-**To resume:** watch issue comments updated since `2026-11-07T20:29:59Z` for a reply from `coderabbitai[bot]` that answers comment 9301. Once a substantive, clear reply covers this base and head, run `gh pr ready` under your normal `gh` login and confirm `isDraft=false`. Nothing is watching the PR now that I've stopped.
-
-In one sentence: I kept PR 272 in draft and watched without result for CodeRabbit's answer to the pending proof assessment, because the only bot-relevant comment is the unanswered request — `"@coderabbitai are you satisfied that the introduced proof(s) (proofs/refinement/Theorem.lean#refinement_sound) is substantive, rigorous, and well-founded? … Assessment-ID: 271-ab-proof-only."` (comment 9301, from `wafflecat-df12`, 2026-11-07T20:30:00Z) — and the final read returned `[{"id":9301,"login":"wafflecat-df12",…}]`, with no `coderabbitai[bot]` reply, while `"isDraft":true`.
+The PR's state is **assessment-pending**. The next step is to resume polling from comment 9301's timestamp and read CodeRabbit's full reply when it arrives. If the reply is clear, confirm the base/head hasn't changed, then mark the PR ready under the normal `gh` login with comment tokens removed. If it raises concerns, fix them first. Nothing is watching the PR now that I've stopped.

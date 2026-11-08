@@ -13,6 +13,8 @@ with the proof assessment applying and with no ExecPlan in force.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
+
 import pytest
 from pr_readiness_model import (
     CLEAR,
@@ -23,6 +25,8 @@ from pr_readiness_model import (
 )
 from pr_readiness_workflow import (
     CODERABBIT,
+    PROOF_ONLY,
+    Assignment,
     Discussion,
     PullRequest,
     Reply,
@@ -34,6 +38,14 @@ HEAD = "head0000"
 REVISION = "rev-2026-11-01"
 COMPLETENESS_ID = "271-boundary-completeness"
 PROOF_ID = "271-boundary-proof"
+
+#: The ordinary assignment with the proof assessment also applicable.
+with_proof = Assignment(proof_applies=True)
+
+#: Neither assessment applies: a plan-authoring-only change.
+NOTHING_APPLIES = Assignment(
+    completeness_applies=False, proof_applies=False
+)
 
 
 def pull(
@@ -59,40 +71,62 @@ def discussion() -> Discussion:
     return Discussion(base=BASE, head=HEAD)
 
 
-def reply(
-    assessment_id: str,
-    *,
-    verdict: str = CLEAR,
-    revision: str | None = REVISION,
-    echoed: str | None = REVISION,
-    subject: str = WHOLE_PLAN,
-    head: str = HEAD,
-    base: str = BASE,
-    justification: str = "",
-    author: str = CODERABBIT,
-) -> Reply:
-    """Return a substantive assessment reply for one request marker."""
+@dataclass(frozen=True)
+class _Reply:
+    """The fields a reply is composed from, with the ordinary case as default."""
+
+    verdict: str = CLEAR
+    revision: str | None = REVISION
+    echoed: str | None = REVISION
+    subject: str = WHOLE_PLAN
+    head: str = HEAD
+    base: str = BASE
+    justification: str = ""
+    author: str = CODERABBIT
+
+
+#: The default reply content: clear, whole-plan, and candidate-bound.
+DEFAULT_REPLY = _Reply()
+
+
+def reply_with(assessment_id: str, **changes: object) -> Reply:
+    """Return a substantive reply to ``assessment_id`` with named fields changed.
+
+    Parameters
+    ----------
+    assessment_id : str
+        The request marker the reply must echo.
+    **changes : object
+        Fields of ``_Reply`` to replace, such as a stale revision or an
+        unrelated author.
+
+    Returns
+    -------
+    Reply
+        The reply the discussion double will observe.
+    """
+    fields = replace(DEFAULT_REPLY, **changes)  # type: ignore[arg-type]
     return Reply(
         assessment_id=assessment_id,
-        author=author,
-        base=base,
-        head=head,
-        verdict=verdict,
-        plan_revision=revision,
-        echoed_revision=echoed,
-        subject=subject,
-        justification=justification,
+        author=fields.author,
+        base=fields.base,
+        head=fields.head,
+        verdict=fields.verdict,
+        plan_revision=fields.revision,
+        echoed_revision=fields.echoed,
+        subject=fields.subject,
+        justification=fields.justification,
     )
 
 
 def test_a_current_verdict_marks_the_draft_ready() -> None:
     """Both applicable assessments clear for this candidate and revision."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert decision.ready, decision.reason
     assert not candidate.is_draft
@@ -111,12 +145,12 @@ def test_a_subset_only_verdict_keeps_the_draft_in_place(
 ) -> None:
     """A declared-subset verdict is evidence for its scope, not readiness."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, subject=DECLARED_SUBSET))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID, subject=DECLARED_SUBSET))
+    thread.responses.append(reply_with(PROOF_ID))
     revision = REVISION if candidate_state == "with-revision" else None
     candidate = pull(revision=revision)
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == "completeness-declared-subset-does-not-clear"
@@ -128,12 +162,12 @@ def test_a_superseded_revision_keeps_the_draft_in_place() -> None:
     """A verdict for an older revision does not transfer to the new one."""
     thread = discussion()
     thread.responses.append(
-        reply(COMPLETENESS_ID, revision="rev-previous", echoed="rev-previous")
+        reply_with(COMPLETENESS_ID, revision="rev-previous", echoed="rev-previous")
     )
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == "completeness-superseded-revision"
@@ -144,11 +178,11 @@ def test_a_superseded_revision_keeps_the_draft_in_place() -> None:
 def test_a_reply_that_omits_the_revision_keeps_the_draft_in_place() -> None:
     """Echoing only the base/head does not establish what was inspected."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, echoed=None))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID, echoed=None))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == "completeness-revision-unbound"
@@ -158,10 +192,10 @@ def test_a_reply_that_omits_the_revision_keeps_the_draft_in_place() -> None:
 def test_a_pending_proof_keeps_the_draft_in_place() -> None:
     """A clear completeness reply alone is not the gate."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == "proof-pending"
@@ -183,7 +217,7 @@ def test_an_unanswered_completeness_request_keeps_the_draft_in_place() -> None:
 def test_a_reply_from_another_author_is_not_a_verdict() -> None:
     """Only the assessment bot's reply is correlated with a request."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, author="someone-else"))
+    thread.responses.append(reply_with(COMPLETENESS_ID, author="someone-else"))
     candidate = pull()
 
     decision = assess_and_maybe_mark_ready(candidate, thread)
@@ -196,10 +230,10 @@ def test_a_reply_from_another_author_is_not_a_verdict() -> None:
 def test_an_unaffected_proof_under_the_execplan_still_reaches_ready() -> None:
     """A justified not-applicable proof needs no reply and no revision echo."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=False)
+    decision = assess_and_maybe_mark_ready(candidate, thread)
 
     assert decision.ready, decision.reason
     assert candidate.ready_transitions == [HEAD]
@@ -209,11 +243,11 @@ def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
     """With no ExecPlan the base/head is the whole candidate."""
     thread = discussion()
     thread.responses.append(
-        reply(COMPLETENESS_ID, revision=None, echoed=None)
+        reply_with(COMPLETENESS_ID, revision=None, echoed=None)
     )
     candidate = pull(revision=None)
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=False)
+    decision = assess_and_maybe_mark_ready(candidate, thread)
 
     assert decision.ready, decision.reason
     assert candidate.ready_transitions == [HEAD]
@@ -222,11 +256,11 @@ def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
 def test_a_red_ci_candidate_never_leaves_draft() -> None:
     """Readiness does not precede the delivery gates."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull(ci_green=False)
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == "ci-not-green"
@@ -248,7 +282,7 @@ def test_a_blocked_delivery_gate_asks_no_assessment_question(
     thread = discussion()
     candidate = pull(ci_green=ci_green, codescene_clear=codescene_clear)
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == reason
@@ -259,11 +293,11 @@ def test_a_blocked_delivery_gate_asks_no_assessment_question(
 def test_a_no_execplan_proof_only_assignment_clears_without_revisions() -> None:
     """A proof-only change with no ExecPlan needs no completeness or echo."""
     thread = discussion()
-    thread.responses.append(reply(PROOF_ID, revision=None, echoed=None))
+    thread.responses.append(reply_with(PROOF_ID, revision=None, echoed=None))
     candidate = pull(revision=None)
 
     decision = assess_and_maybe_mark_ready(
-        candidate, thread, completeness_applies=False, proof_applies=True
+        candidate, thread, assignment=PROOF_ONLY
     )
 
     assert decision.ready, decision.reason
@@ -277,7 +311,7 @@ def test_a_no_execplan_proof_only_assignment_waits_for_its_reply() -> None:
     candidate = pull(revision=None)
 
     decision = assess_and_maybe_mark_ready(
-        candidate, thread, completeness_applies=False, proof_applies=True
+        candidate, thread, assignment=PROOF_ONLY
     )
 
     assert not decision.ready
@@ -288,11 +322,11 @@ def test_a_no_execplan_proof_only_assignment_waits_for_its_reply() -> None:
 def test_the_sequence_never_returns_an_already_ready_pr_to_draft() -> None:
     """Readiness is a one-way transition, as the lifecycle contract requires."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, verdict=NOT_CLEAR))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID, verdict=NOT_CLEAR))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull(draft=False)
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert not candidate.is_draft, "a blocked gate must not redraft a ready PR"
@@ -305,7 +339,7 @@ def test_the_questions_posted_carry_the_revision_in_force() -> None:
     thread = discussion()
     candidate = pull()
 
-    assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert [request["kind"] for request in thread.requests] == [
         "completeness",
@@ -324,11 +358,11 @@ def test_an_unsettled_proof_verdict_blocks_the_transition(
 ) -> None:
     """The proof assessment is not optional when it applies."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
-    thread.responses.append(reply(PROOF_ID, verdict=verdict))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID, verdict=verdict))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready
     assert decision.reason == reason
@@ -341,7 +375,7 @@ def test_a_justified_not_applicable_completeness_allows_readiness() -> None:
     candidate = pull(revision=None)
 
     decision = assess_and_maybe_mark_ready(
-        candidate, thread, proof_applies=False, completeness_applies=False
+        candidate, thread, assignment=NOTHING_APPLIES
     )
 
     assert decision.ready, decision.reason
@@ -351,10 +385,10 @@ def test_a_justified_not_applicable_completeness_allows_readiness() -> None:
 def test_the_doubles_record_but_never_perform_the_transition() -> None:
     """The ready list is the only side effect, and it names the tested head."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID))
     candidate = pull()
 
-    assess_and_maybe_mark_ready(candidate, thread, proof_applies=False)
+    assess_and_maybe_mark_ready(candidate, thread)
 
     assert candidate.ready_transitions == [HEAD]
     assert not candidate.is_draft
@@ -363,11 +397,11 @@ def test_the_doubles_record_but_never_perform_the_transition() -> None:
 def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> None:
     """The workflow passes the reply's subject rather than assuming one."""
     thread = discussion()
-    thread.responses.append(reply(COMPLETENESS_ID, subject="declared-scope"))
-    thread.responses.append(reply(PROOF_ID))
+    thread.responses.append(reply_with(COMPLETENESS_ID, subject="declared-scope"))
+    thread.responses.append(reply_with(PROOF_ID))
     candidate = pull()
 
-    decision = assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert decision.reason == "completeness-subject-unrecognized"
 
@@ -377,7 +411,7 @@ def test_both_requests_are_posted_before_the_decision() -> None:
     thread = discussion()
     candidate = pull()
 
-    assess_and_maybe_mark_ready(candidate, thread, proof_applies=True)
+    assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert len(thread.requests) == 2
     assert candidate.is_draft

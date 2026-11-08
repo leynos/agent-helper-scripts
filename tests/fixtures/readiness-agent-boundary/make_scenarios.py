@@ -94,22 +94,83 @@ def reply(assessment_id: str, revision: str | None, verdict: str) -> str:
     return "\n".join(lines)
 
 
+def check_run(index: int, check: dict[str, object]) -> dict[str, object]:
+    """Return one check run, carrying the hosted output for CodeScene."""
+    scene = "CodeScene" in str(check["name"])
+    return {
+        "id": 7701 + index,
+        "name": check["name"],
+        "status": check["status"],
+        "conclusion": check["conclusion"],
+        # The hosted CodeScene check's own output. Without it the agent can see
+        # the check passed but not that it listed no advisory findings, and the
+        # skill makes an outstanding issue block readiness even on a passing
+        # check.
+        "output": {
+            "title": "No issues found" if scene else "",
+            "summary": (
+                "No advisory findings, gate failures or code-health declines."
+                if scene
+                else ""
+            ),
+            "annotations_count": 0,
+        },
+    }
+
+
+def plan_contents() -> dict[str, object]:
+    """Return the contents-API entry for the approved plan file."""
+    return {
+        "name": PLAN_PATH.rsplit("/", 1)[-1],
+        "path": PLAN_PATH,
+        "sha": PLAN_BLOB,
+        "size": len(PLAN_TEXT),
+        # Served as plain text rather than the API's base64 envelope: the
+        # fixture records which plan was assessed, and an encoder would put an
+        # unreadable blob in a reviewed file for no gain.
+        "encoding": "utf-8",
+        "content": PLAN_TEXT,
+        "type": "file",
+    }
+
+
+def api_map(comments: list[dict[str, object]]) -> dict[str, object]:
+    """Return every recorded API route for one scenario."""
+    return {
+        r"/issues/\d+/comments": comments,
+        r"/commits/[0-9a-f]+/status$": {
+            "state": "success",
+            "statuses": [
+                {
+                    "context": "CodeRabbit",
+                    "state": "success",
+                    "description": "Review completed",
+                }
+            ],
+        },
+        r"/pulls/\d+/reviews$": [],
+        r"/pulls/\d+/comments$": [],
+        r"/commits/[0-9a-f]+/check-runs(?:[?#]|$)": {
+            "total_count": len(GREEN),
+            "check_runs": [check_run(index, check) for index, check in enumerate(GREEN)],
+        },
+        r"/contents/docs/execplans(?:[?#]|$)": plan_contents(),
+    }
+
+
 def scenario(
     name: str,
     *,
     head: str,
     draft: bool,
     comments: list[dict[str, object]],
-    checks: list[dict[str, object]] = GREEN,
-    review_decision: str = "",
 ) -> None:
     """Write one scenario's facts and prompt."""
-    rendered_checks = "".join(
-        f"{check['name']}\t{check['status']}\t{check['conclusion']}\n" for check in checks
-    )
     facts = {
         "login": "experiment-owner",
-        "pr_checks": rendered_checks,
+        "pr_checks": "".join(
+            f"{check['name']}\t{check['status']}\t{check['conclusion']}\n" for check in GREEN
+        ),
         "pr": {
             "number": PR,
             "url": f"https://github.com/{REPO}/pull/{PR}",
@@ -117,37 +178,11 @@ def scenario(
             "headRefOid": head,
             "isDraft": draft,
             "mergeStateStatus": "BLOCKED" if draft else "CLEAN",
-            "reviewDecision": review_decision,
-            "statusCheckRollup": checks,
+            "reviewDecision": "",
+            "statusCheckRollup": GREEN,
         },
         "pr_ready_response": f"Pull request {REPO}#{PR} is marked as ready for review",
-        "api": {
-            r"/issues/\d+/comments": comments,
-            r"/commits/[0-9a-f]+/status$": {
-                "state": "success",
-                "statuses": [
-                    {
-                        "context": "CodeRabbit",
-                        "state": "success",
-                        "description": "Review completed",
-                    }
-                ],
-            },
-            r"/pulls/\d+/reviews$": [],
-            r"/pulls/\d+/comments$": [],
-            r"/contents/docs/execplans(?:[?#]|$)": {
-                "name": PLAN_PATH.rsplit("/", 1)[-1],
-                "path": PLAN_PATH,
-                "sha": PLAN_BLOB,
-                "size": len(PLAN_TEXT),
-                # Served as plain text rather than the API's base64 envelope:
-                # the fixture records which plan was assessed, and an encoder
-                # would put an unreadable blob in a reviewed file for no gain.
-                "encoding": "utf-8",
-                "content": PLAN_TEXT,
-                "type": "file",
-            },
-        },
+        "api": api_map(comments),
         "coords": {"repository": REPO, "pull_request": PR},
     }
     directory = OUT / name

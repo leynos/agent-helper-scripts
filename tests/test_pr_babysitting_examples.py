@@ -25,6 +25,7 @@ from assessment_mutation_cases import (
     PROOF_HEADING,
     PROOF_REQUEST_FIELDS,
     REQUEST_FENCE_MUTATIONS,
+    Mutation,
 )
 from skill_contract_support import (
     fenced_request,
@@ -269,19 +270,18 @@ def test_assessment_guards_control_the_real_workflow_sections() -> None:
 
 
 @pytest.mark.parametrize(
-    ("document", "old", "new", "move", "expected"),
-    ASSESSMENT_MUTATIONS,
+    "mutation", ASSESSMENT_MUTATIONS, ids=lambda mutation: mutation.ident
 )
 def test_assessment_contract_rejects_missing_inverted_or_misplaced_guards(
-    document: str, old: str, new: str, move: bool, expected: str  # noqa: FBT001 - supplied positionally by pytest parametrize
+    mutation: Mutation,
 ) -> None:
     """Negative controls prove guards cannot be waived or pasted into an unrelated section."""
-    assessment, skill = ASSESSMENT.read_text(), SKILL.read_text()
-    source = assessment if document == "assessment" else skill
-    mutated = mutate_one_clause(source, old, new, move=move)
-    with pytest.raises(AssertionError, match=re.escape(expected)):
-        assessment_contract(mutated if document == "assessment" else assessment,
-                            mutated if document == "skill" else skill)
+    documents = {"assessment": ASSESSMENT.read_text(), "skill": SKILL.read_text()}
+    documents[mutation.document] = mutate_one_clause(
+        documents[mutation.document], mutation.old, mutation.new, move=mutation.move
+    )
+    with pytest.raises(AssertionError, match=re.escape(mutation.expected)):
+        assessment_contract(documents["assessment"], documents["skill"])
 
 
 @pytest.mark.parametrize(

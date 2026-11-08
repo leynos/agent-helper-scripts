@@ -65,6 +65,44 @@
     },
     "/pulls/\\d+/reviews$": [],
     "/pulls/\\d+/comments$": [],
+    "/commits/[0-9a-f]+/check-runs(?:[?#]|$)": {
+      "total_count": 3,
+      "check_runs": [
+        {
+          "id": 7701,
+          "name": "Makefile gates",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7702,
+          "name": "CodeScene Code Health Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "No issues found",
+            "summary": "No advisory findings, gate failures or code-health declines.",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7703,
+          "name": "Gecko Security Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        }
+      ]
+    },
     "/contents/docs/execplans(?:[?#]|$)": {
       "name": "issue-271-readiness-handoff.md",
       "path": "docs/execplans/issue-271-readiness-handoff.md",
