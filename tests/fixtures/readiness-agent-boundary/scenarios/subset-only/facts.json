@@ -4,27 +4,75 @@
   "pr": {
     "number": 272,
     "url": "https://github.com/leynos/agent-helper-scripts/pull/272",
+    "title": "Bind the draft-to-ready gate to the implementation handoff",
+    "body": "Implements the approved plan `docs/execplans/issue-271-readiness-handoff.md`. Closes #271.",
+    "state": "OPEN",
+    "author": {
+      "login": "experiment-owner",
+      "type": "User"
+    },
+    "baseRefName": "main",
     "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9",
+    "headRefName": "issue-271-readiness-handoff",
     "headRefOid": "aaaa1111",
+    "headRepository": {
+      "name": "agent-helper-scripts",
+      "nameWithOwner": "leynos/agent-helper-scripts"
+    },
+    "headRepositoryOwner": {
+      "login": "leynos"
+    },
+    "isCrossRepository": false,
     "isDraft": true,
+    "mergeable": "MERGEABLE",
     "mergeStateStatus": "BLOCKED",
     "reviewDecision": "",
     "statusCheckRollup": [
       {
         "name": "Makefile gates",
         "status": "COMPLETED",
-        "conclusion": "SUCCESS"
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
       },
       {
         "name": "CodeScene Code Health Review",
         "status": "COMPLETED",
         "conclusion": "SUCCESS",
-        "advisories": []
+        "output": {
+          "title": "No issues found",
+          "summary": "No advisory findings, gate failures or code-health declines.",
+          "annotations_count": 0
+        }
       },
       {
         "name": "Gecko Security Review",
         "status": "COMPLETED",
-        "conclusion": "SUCCESS"
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
+      }
+    ],
+    "files": [
+      {
+        "filename": "docs/execplans/issue-271-readiness-handoff.md",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "aaaa1111"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "aaaa1111",
+        "messageHeadline": "Deliver the plan"
       }
     ]
   },
@@ -52,6 +100,15 @@
         "sha": "aaaa1111"
       }
     ],
+    "/contents/proofs/[^?#]+(?:[?#]|$)": {
+      "name": "Theorem.lean",
+      "path": "proofs/refinement/Theorem.lean",
+      "sha": "c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761",
+      "size": 118,
+      "encoding": "utf-8",
+      "content": "theorem refinement_sound :\n  forall (s : State), refine s = s \u2192 sound s := by\n  intro s h\n  exact sound_of_refine s h\n",
+      "type": "file"
+    },
     "/pulls/\\d+/commits(?:[?#]|$)": [
       {
         "sha": "aaaa1111",

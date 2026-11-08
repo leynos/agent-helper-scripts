@@ -4,14 +4,13 @@
 # Isolation is layered so the agent cannot reach real GitHub or a real
 # credential, and every layer fails closed:
 #   * a private mount namespace replace-binds the recorded stand-in over every
-#     real `gh` binary and over the queue dispatcher, so no absolute path can
-#     reach them;
+#     real `gh` binary, so no absolute path can reach one;
 #   * a missing mask target, or a mask that does not read back, aborts before
 #     the agent starts rather than running it against the real client;
-#   * the credential stores (`~/.config/gh`, the comment-token pool and the
-#     agent's own credential file) are replaced by empty directories or files,
-#     so a `gh` invocation that somehow escaped the mask is anonymous and an
-#     agent that tried to read the lifecycle token finds nothing;
+#   * the whole host home is replaced by an empty directory, so no file under
+#     it is reachable by absolute path — not the client configuration, the
+#     comment-token pool or the agent's credential file, and not anything else
+#     a credential could be stored in; the CLI is copied out before the mask;
 #   * GH_TOKEN, GITHUB_TOKEN and GH_CONFIG_DIR are cleared, and the environment
 #     is replaced with an explicit allowlist, so no ambient token, config
 #     override or path reaches the agent;
@@ -99,25 +98,30 @@ for tool in pasta nft unshare; do
 done
 
 rm -rf "$RUN"
-mkdir -p "$RUN/work" "$RUN/scratch"
+mkdir -p "$RUN/work" "$RUN/scratch" "$RUN/claude-bin"
 
 cp "$ROOT/gh-shim.py" "$RUN/gh"
 sed -i "s#^RUN = .*#RUN = Path(\"$RUN\")#" "$RUN/gh"
 chmod +x "$RUN/gh"
 cp "$ROOT/scenarios/$SCENARIO/facts.json" "$RUN/facts.json"
 cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
+# The host home is masked wholesale below, so the CLI cannot be run from
+# wherever the operator installed it. Copy it into the run directory first: the
+# binary is self-contained and needs only the system libraries, which stay
+# outside the masked home.
+cp "$(readlink -f "$CLAUDE_BIN/claude")" "$RUN/claude-bin/claude"
+chmod +x "$RUN/claude-bin/claude"
 : > "$TRACE"
 
 # Empty stand-ins for the credential surfaces the sandbox replaces. `home` is
 # writable, because the CLI may create state; `empty-dir` is only read back.
 mkdir -p "$RUN/empty-dir" "$RUN/home/.claude"
-: > "$RUN/empty-file"
 # The comment-token pool is replaced rather than abolished, so the manual-comment
 # route stays exercisable inside the sandbox. The token is a fixture the stand-in
 # alone honours: as far as real GitHub is concerned it is invalid, so nothing is
-# lost if it escapes, and the host's real pool is never reachable. The helper
-# reads the pool under `$HOME`, so the isolated home gets the same fixture.
-printf '%s\n' 'fixture-pool-token' > "$RUN/pool"
+# lost if it escapes, and the host's real pool is never reachable because the
+# whole host home is masked. The helper reads the pool under `$HOME`, so the
+# isolated home gets the same fixture.
 mkdir -p "$RUN/home/.local/share"
 printf '%s\n' 'fixture-pool-token' > "$RUN/home/.local/share/github-tokens"
 
@@ -212,73 +216,42 @@ mask() {
   fi
 }
 
-# hide TARGET: replace TARGET with an empty surface of the same shape. The
-# credential pool is one regular file holding one token per line, while the
-# client configuration is a directory, so the mask follows the target's shape.
-hide() {
-  local target=$1
-  if [ ! -e "$target" ]; then
-    return 0
-  fi
-  if [ -d "$target" ]; then
-    mask "$target" "$RUN/empty-dir"
-  else
-    mask "$target" "$RUN/empty-file"
-  fi
-}
-
 mask /usr/bin/gh "$RUN/gh"
 mask /bin/gh "$RUN/gh"
-# The queue dispatcher may be absent on a host; mask it only when present, and
-# fail closed when it is present but unmaskable.
-if [ -e "$HOME_DIR/.cargo/bin/comenq" ]; then
-  mask "$HOME_DIR/.cargo/bin/comenq" "$RUN_NO_TOOL"
-fi
 
-# Every credential surface the run can reach. These are emptied rather than
-# unset, so a client that escaped the `gh` mask still finds no token, and an
-# agent that reads the lifecycle credential file finds it empty.
-for surface in "$HOME_DIR/.config/gh" "$CREDENTIALS_FILE"; do
-  hide "$surface"
-done
-# The comment-token pool is replaced by the fixture pool, not emptied: the
-# manual-comment route stays exercisable, and the token it selects only works
-# against the stand-in.
-mask "$HOME_DIR/.local/share/github-tokens" "$RUN/pool"
-# Prove the credential stores are gone before the agent starts. A directory
-# mask removes the paths beneath it, while a file mask leaves the path present
-# but empty, so each shape is checked for what it should show: absence for the
-# configuration file inside a masked directory, and emptiness for the files
-# masked in place.
+# The whole host home is replaced, not a list of credential files inside it.
+# Masking named paths left every other file under the operator's home readable
+# by absolute path, and a credential can live at a path this runner never
+# thought to name; the agent has no legitimate reason to read any of it. The
+# isolated home at `$RUN/home` is what the run is given as `HOME`, and the CLI
+# was copied out of the host home first so it still runs.
+mask "$HOME_DIR" "$RUN/empty-dir"
+# Prove the host home is gone and the isolated home survives it. A directory
+# mask removes everything beneath the path, so any entry left under the host
+# home means the mask did not take, and the read-back below fails closed on it.
+if [ -n "$(ls -A "$HOME_DIR")" ]; then
+  echo "abort: the host home still lists entries; it is not isolated" >&2
+  exit 1
+fi
 for surface in \
-  "$HOME_DIR/.config/gh/hosts.yml"; do
+  "$HOME_DIR/.config/gh/hosts.yml" \
+  "$HOME_DIR/.local/share/github-tokens" \
+  "$CREDENTIALS_FILE"; do
   if [ -e "$surface" ]; then
     echo "abort: $surface is still readable; credentials are not isolated" >&2
     exit 1
   fi
 done
-for surface in \
-  "$HOME_DIR/.local/share/github-tokens" \
-  "$CREDENTIALS_FILE"; do
-  if [ ! -f "$surface" ]; then
-    echo "abort: $surface is not present for read-back" >&2
-    exit 1
-  fi
-done
-# Both pools must hold exactly the fixture token. Any real token would make
-# this differ, so the check fails closed on a host pool that reached the
-# sandbox, whether through the masked absolute path or the isolated home.
-for pool in \
-  "$HOME_DIR/.local/share/github-tokens" \
-  "$RUN/home/.local/share/github-tokens"; do
-  if [ "$(wc -l < "$pool")" -ne 1 ] ||
-    [ "$(cat "$pool")" != "fixture-pool-token" ]; then
-    echo "abort: the comment-token pool at $pool is not the fixture pool" >&2
-    exit 1
-  fi
-done
-if [ -s "$CREDENTIALS_FILE" ]; then
-  echo "abort: the agent credential file is still non-empty" >&2
+# The isolated home still holds the fixture pool, so the manual-comment route
+# stays exercisable. Any real token would change the line count or the content
+# and fail here.
+if [ "$(wc -l < "$RUN/home/.local/share/github-tokens")" -ne 1 ] ||
+  [ "$(cat "$RUN/home/.local/share/github-tokens")" != "fixture-pool-token" ]; then
+  echo "abort: the fixture comment-token pool is not intact" >&2
+  exit 1
+fi
+if [ ! -x "$RUN/claude-bin/claude" ]; then
+  echo "abort: the staged agent CLI is missing or not executable" >&2
   exit 1
 fi
 # The agent's HOME is the run's own directory, so nothing under the host home
@@ -326,7 +299,7 @@ cd "$RUN/work" || exit 1
 # The environment is cleared rather than filtered: only what this run needs is
 # passed, so no ambient token, config override or path reaches the agent.
 exec env -i \
-  PATH="$RUN:$CLAUDE_BIN:/usr/bin:/bin" \
+  PATH="$RUN:$RUN/claude-bin:/usr/bin:/bin" \
   HOME="$RUN/home" \
   GH_TOKEN= GITHUB_TOKEN= GH_CONFIG_DIR="$RUN/gh-config" \
   ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
@@ -343,10 +316,6 @@ exec env -i \
     --max-budget-usd 8 \
     > "$EVENTS" 2> "$RUN/agent-stderr.txt"
 INNER
-
-printf '#!/bin/sh\necho "comenq: not available in this environment" >&2\nexit 127\n' \
-  > "$RUN/no-tool"
-chmod +x "$RUN/no-tool"
 
 ASSIGNMENT=$(cat <<'PROMPT'
 You are the PR lifecycle supervisor for leynos/agent-helper-scripts pull
@@ -369,7 +338,7 @@ export ASSIGNMENT
 # one, where the inner script installs the egress allowlist. unshare then adds
 # the private mount namespace inside it. --runas keeps the inner exit status
 # meaningful by running as this user rather than dropping to `nobody`.
-RUN="$RUN" RUN_NO_TOOL="$RUN/no-tool" CLAUDE_BIN="$CLAUDE_BIN" \
+RUN="$RUN" CLAUDE_BIN="$CLAUDE_BIN" \
   ASSIGNMENT="$ASSIGNMENT" EVENTS="$EVENTS" \
   HOME_DIR="$HOME_DIR" CREDENTIALS_FILE="$CREDENTIALS_FILE" \
   MODEL_ADDRS="$MODEL_ADDRS" DNS_ADDRS="$DNS_ADDRS" \

@@ -35,6 +35,9 @@ WHOLE_PLAN = "the whole approved plan"
 # instead of stopping for a value the fixture never supplied.
 PLAN_PATH = "docs/execplans/issue-271-readiness-handoff.md"
 PLAN_BLOB = "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15"
+# The proof the two `proof-only-*` scenarios introduce. It is the subject of
+# their proof assessment, and the only changed file in those runs.
+PROOF_PATH = "proofs/refinement/Theorem.lean"
 # The file an advisory finding names, and the code it names within it. A
 # finding about this candidate has to be about a change this candidate makes.
 FLAGGED_PATH = "skills/pr-babysitting/scripts/readiness_gate.py"
@@ -135,31 +138,42 @@ def reply(assessment_id: str, revision: str | None, verdict: dict[str, str]) -> 
     return "\n".join(lines)
 
 
-def check_run(index: int, check: dict[str, object]) -> dict[str, object]:
-    """Return one check run, carrying the hosted output for CodeScene."""
+def hosted_output(check: dict[str, object]) -> dict[str, object]:
+    """Return the hosted output a check carries, in `check-runs` shape.
+
+    One helper serves both routes the agent can read a check through — the
+    `check-runs` listing and `gh pr view --json statusCheckRollup` — so the two
+    cannot say different things about the same check.
+
+    Without the output the agent can see that CodeScene passed but not whether
+    it listed advisory findings, and the skill makes an outstanding issue block
+    readiness even on a passing check. A scenario can therefore carry findings
+    here while the conclusion stays `SUCCESS`, which is the case the skill says
+    a green check does not clear.
+    """
     scene = "CodeScene" in str(check["name"])
     advisories = [str(item) for item in check.get("advisories", [])]
+    return {
+        "title": "Issues found" if advisories else "No issues found" if scene else "",
+        "summary": (
+            "\n".join(advisories)
+            if advisories
+            else "No advisory findings, gate failures or code-health declines."
+            if scene
+            else ""
+        ),
+        "annotations_count": len(advisories),
+    }
+
+
+def check_run(index: int, check: dict[str, object]) -> dict[str, object]:
+    """Return one check run, carrying the hosted output for CodeScene."""
     return {
         "id": 7701 + index,
         "name": check["name"],
         "status": check["status"],
         "conclusion": check["conclusion"],
-        # The hosted CodeScene check's own output. Without it the agent can see
-        # the check passed but not that it listed no advisory findings, and the
-        # skill makes an outstanding issue block readiness even on a passing
-        # check. A scenario can carry findings here while the conclusion stays
-        # SUCCESS, which is the case the skill says a green check does not clear.
-        "output": {
-            "title": "Issues found" if advisories else "No issues found" if scene else "",
-            "summary": (
-                "\n".join(advisories)
-                if advisories
-                else "No advisory findings, gate failures or code-health declines."
-                if scene
-                else ""
-            ),
-            "annotations_count": len(advisories),
-        },
+        "output": hosted_output(check),
     }
 
 
@@ -227,6 +241,33 @@ def plan_contents() -> dict[str, object]:
     }
 
 
+def proof_contents() -> dict[str, object]:
+    """Return the contents-API entry for the proof a proof-only PR introduces.
+
+    The proof-only scenarios assess a named proof, and a run that reads the
+    file it is judging is asking about the candidate's own change. Answering
+    404 there would report the subject of the assessment as unreadable.
+    """
+    text = "\n".join(
+        [
+            "theorem refinement_sound :",
+            "  forall (s : State), refine s = s → sound s := by",
+            "  intro s h",
+            "  exact sound_of_refine s h",
+            "",
+        ]
+    )
+    return {
+        "name": PROOF_PATH.rsplit("/", 1)[-1],
+        "path": PROOF_PATH,
+        "sha": "c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761",
+        "size": len(text),
+        "encoding": "utf-8",
+        "content": text,
+        "type": "file",
+    }
+
+
 def flagged_contents() -> dict[str, object]:
     """Return the contents-API entry for the file the advisory names.
 
@@ -270,7 +311,10 @@ def api_map(case: Case) -> dict[str, object]:
     """Return every recorded API route for one scenario."""
     head = case.head
     checks = check_set(case.advisories)
-    paths = case.paths
+    paths = changed_paths(case)
+    plan_route = case.plan or bool(
+        [path for path in paths if path.startswith("docs/execplans/")]
+    )
     return {
         # The PR itself and its file list, which a readiness run reads to judge
         # whether the delivered work matches the plan. The bare `pulls/N` route
@@ -283,10 +327,21 @@ def api_map(case: Case) -> dict[str, object]:
             "changed_files": 1,
         },
         r"/pulls/\d+/files(?:[?#]|$)": pull_files(head, paths),
+        # The changed files themselves. A run that reads a file it is judging is
+        # asking about this candidate's own change, so the route serves the same
+        # content the finding or the plan describes.
+        r"/contents/proofs/[^?#]+(?:[?#]|$)": proof_contents(),
         # The PR's commits, which a readiness run counts to see whether a
         # reviewed head is still the tip. One commit carrying the head.
         r"/pulls/\d+/commits(?:[?#]|$)": [
-            {"sha": head, "commit": {"message": "Deliver the plan"}}
+            {
+                "sha": head,
+                "commit": {
+                    "message": "Deliver the plan"
+                    if plan_route
+                    else "Introduce the refinement proof"
+                },
+            }
         ],
         # The review-thread state. A readiness run asks `graphql` for it, and
         # every recorded review is already resolved with no outstanding
@@ -327,18 +382,34 @@ def api_map(case: Case) -> dict[str, object]:
         # revision is still the one in force. The path below `execplans/` is
         # the plan, and `?ref=` carries the head being checked; anchoring on
         # the directory alone left the file unreadable, so a run could not
-        # confirm a revision before readiness.
-        r"/contents/docs/execplans/[^/?#]+(?:[?#]|$)": plan_contents(),
-        # The same directory without a file name, for a run that lists the
-        # plans rather than reading one.
-        r"/contents/docs/execplans(?:[?#]|$)": [plan_contents()],
+        # confirm a revision before readiness. A proof-only scenario has no
+        # plan, so the route is absent there and answers 404, rather than
+        # serving a plan its premise says does not apply.
+        **(
+            {
+                r"/contents/docs/execplans/[^/?#]+(?:[?#]|$)": plan_contents(),
+                # The same directory without a file name, for a run that lists
+                # the plans rather than reading one.
+                r"/contents/docs/execplans(?:[?#]|$)": [plan_contents()],
+            }
+            if plan_route
+            else {}
+        ),
         # The originating issue and its discussion, which a readiness run reads
         # to recover the accepted scope. The issue is this PR's own topic.
         r"/issues/\d+$": {
             "number": PR - 1,
-            "title": "Bind the draft-to-ready gate to the implementation handoff",
+            "title": (
+                "Bind the draft-to-ready gate to the implementation handoff"
+                if plan_route
+                else "Prove refinement soundness"
+            ),
             "state": "open",
-            "body": "The approved plan is `docs/execplans/issue-271-readiness-handoff.md`.",
+            "body": (
+                f"The approved plan is `{PLAN_PATH}`."
+                if plan_route
+                else "There is no ExecPlan; this PR is the proof work."
+            ),
         },
     }
 
@@ -357,12 +428,40 @@ class Case:
     draft: bool
     comments: list[dict[str, object]]
     advisories: list[str] = field(default_factory=list)
-    paths: list[str] = field(default_factory=lambda: [PLAN_PATH])
+    paths: list[str] | None = None
+    # The two `proof-only-*` scenarios exist to show that a proof assessment is
+    # judged without an ExecPlan. A PR body naming an approved plan would
+    # contradict their premise and make the run ask for a completeness
+    # assessment instead of deciding the proof one. Every other case is plan
+    # work, so the body names the plan.
+    plan: bool = True
+
+
+def changed_paths(case: Case) -> list[str]:
+    """Return the files this scenario's PR changes.
+
+    A case that names none takes the files its premise implies: plan work
+    changes the plan, and proof work changes the proof it introduces. Both the
+    file list and the diff read from here, so the two cannot disagree about
+    what the candidate touches.
+    """
+    if case.paths is not None:
+        return case.paths
+    return [PLAN_PATH] if case.plan else [PROOF_PATH]
 
 
 def scenario(case: Case) -> None:
     """Write one scenario's facts."""
     checks = check_set(case.advisories)
+    paths = changed_paths(case)
+    body = (
+        f"Implements the approved plan `{PLAN_PATH}`. Closes #271."
+        if case.plan
+        else (
+            "Introduces one Lean refinement proof and changes no ExecPlan."
+            " Closes #271."
+        )
+    )
     facts = {
         "login": "experiment-owner",
         "pr_checks": "".join(
@@ -372,16 +471,55 @@ def scenario(case: Case) -> None:
         "pr": {
             "number": PR,
             "url": f"https://github.com/{REPO}/pull/{PR}",
+            "title": (
+                "Bind the draft-to-ready gate to the implementation handoff"
+                if case.plan
+                else "Prove refinement soundness"
+            ),
+            "body": body,
+            "state": "OPEN",
+            "author": {"login": "experiment-owner", "type": "User"},
+            "baseRefName": "main",
             "baseRefOid": BASE,
+            "headRefName": "issue-271-readiness-handoff",
             "headRefOid": case.head,
+            "headRepository": {
+                "name": REPO.split("/")[1],
+                "nameWithOwner": REPO,
+            },
+            "headRepositoryOwner": {"login": REPO.split("/")[0]},
+            # The candidate-trust check reads whether the head lives in the base
+            # repository. A recorded PR that omitted it made every run report
+            # itself unable to decide trust, which is not the variable any
+            # scenario is testing.
+            "isCrossRepository": False,
             "isDraft": case.draft,
+            "mergeable": "MERGEABLE",
             "mergeStateStatus": "BLOCKED" if case.draft else "CLEAN",
             "reviewDecision": "",
-            "statusCheckRollup": checks,
+            # The rollup is the shape `gh pr view --json statusCheckRollup`
+            # returns: a check run carries its own hosted output, not the
+            # generator's `advisories` field. Both routes go through the same
+            # helper, so a run reading either source sees the same finding.
+            "statusCheckRollup": [
+                {
+                    "name": check["name"],
+                    "status": check["status"],
+                    "conclusion": check["conclusion"],
+                    "output": hosted_output(check),
+                }
+                for check in checks
+            ],
+            # `--json files` on the same object; a run reads them to see whether
+            # the delivery matches the plan.
+            "files": pull_files(case.head, paths),
+            "commits": [
+                {"sha": case.head, "messageHeadline": "Deliver the plan"}
+            ],
         },
         "pr_ready_response": f"Pull request {REPO}#{PR} is marked as ready for review",
         # `gh pr diff --name-only` output, one changed path per line.
-        "pr_diff": "".join(f"{path}\n" for path in case.paths),
+        "pr_diff": "".join(f"{path}\n" for path in paths),
         "api": api_map(case),
         "coords": {"repository": REPO, "pull_request": PR},
     }
@@ -595,6 +733,8 @@ scenario(Case(
             "2026-11-07T20:30:00Z",
         )
     ],
+    # No ExecPlan applies to this PR, so its body must not describe one.
+    plan=False,
 ))
 
 scenario(Case(
@@ -638,6 +778,8 @@ scenario(Case(
             "2026-11-07T20:40:00Z",
         ),
     ],
+    # No ExecPlan applies to this PR, so its body must not describe one.
+    plan=False,
 ))
 
 print("wrote", sorted(path.name for path in OUT.iterdir()))

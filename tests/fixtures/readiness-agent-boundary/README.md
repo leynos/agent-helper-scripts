@@ -13,10 +13,13 @@ proof of a live scenario.
 
 ## What each scenario pins
 
-Every scenario serves the same green checks and the same base; the only
-variable is the assessment evidence. `base` is
+Every scenario serves the same green checks, the same base and the same
+trusted, in-repository candidate; the only variable is the assessment evidence,
+or — for `codescene-advisory` — the hosted check's own output. `base` is
 `73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
-draft in each case.
+draft in each case. The two `proof-only-*` scenarios differ from the rest in
+one more respect that is part of their premise: their PR body says no ExecPlan
+applies and their diff is the proof they introduce.
 
 | Scenario              | Head       | Completeness evidence                                                        | Proof evidence                        | `gh pr ready` |
 | --------------------- | ---------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------- |
@@ -45,14 +48,14 @@ waiving an issue it could not fix.
 draft. That pair isolates the subject check from the verdict, which a single
 `not clear` subset case cannot do: `subset-clear` is a clear verdict on the
 current revision whose only defect is the subject, and it stays in draft anyway.
-`subset-clear` was re-recorded under the completed stand-in, so its outcome
-reads the hosted CodeScene check output, the PR's diff and its file list rather
-than reporting them missing. `superseded-revision` isolates the revision check:
-the verdict is clear and the whole plan, and only the revision is stale. It is
-also the one scenario that exercises the manual-comment route: the agent posts
-a follow-up asking for a `rev-7` verdict, reads it back, and waits for an
-answer that the facts never supply. The scenario therefore shows both halves of
-the stale-revision rule — the follow-up path works, and readiness still waits.
+`subset-clear` reads the hosted CodeScene check output, the PR's diff and its
+file list rather than reporting them missing, so its hold is the subject and
+nothing else. `superseded-revision` isolates the revision check: the verdict is
+clear and the whole plan, and only the revision is stale. It is also the one
+scenario that exercises the manual-comment route: the agent posts a follow-up
+asking for a `rev-7` verdict, reads it back, and waits for an answer that the
+facts never supply. The scenario therefore shows both halves of the
+stale-revision rule — the follow-up path works, and readiness still waits.
 
 ## Layout
 
@@ -95,6 +98,14 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
   one of the two CodeScene sources the skill reads; the recordings show only
   that half, for the reason under
   [what these recordings do not show](#what-these-recordings-do-not-show).
+  `pr view --json statusCheckRollup` carries the same `output`, from the same
+  helper, so a run that reads the rollup instead of the check-runs listing sees
+  the same finding. The PR object itself carries the author, head repository,
+  base and head refs and file list, because the skill's candidate-trust check
+  reads them before it trusts any candidate-defined command, and a fixture
+  without them made every run report that it could not decide. A `contents`
+  route serves the proof the `proof-only-*` scenarios introduce, so a run
+  assessing it reads the subject rather than a 404.
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
@@ -115,11 +126,12 @@ SKILL_SRC=/path/to/checkout/skills \
 The runner is not part of any Makefile gate: it needs a model API credential
 and a `claude` CLI, which CI does not provide. It is a rehearsal tool, not a
 deterministic check. It finds `claude` on the caller's PATH, or takes
-`CLAUDE_BIN` naming the directory that holds it; the sandbox PATH is otherwise
-fixed to the stand-in, that directory, `/usr/bin` and `/bin`, so the agent
-inherits nothing else from the operator. It also needs `pasta`, `nft` and
-`unshare`, and refuses to run without them, because the egress allowlist is the
-boundary that stops a second HTTP client.
+`CLAUDE_BIN` naming the directory that holds it. The binary is then copied into
+the run directory, because the host home it is normally installed under is
+masked; the sandbox PATH holds the stand-in, that copy, `/usr/bin` and `/bin`,
+so the agent inherits nothing else from the operator. It also needs `pasta`,
+`nft` and `unshare`, and refuses to run without them, because the egress
+allowlist is the boundary that stops a second HTTP client.
 
 ## Isolation
 
@@ -155,38 +167,42 @@ namespace, made private with `mount --make-rprivate /` first:
 
 - The stand-in is replace-bound over `/usr/bin/gh` and `/bin/gh`, so no
   absolute path reaches the real client.
-- `comenq` is replaced by a stub that exits 127 when present.
-- The client configuration and the agent's own credential file are emptied
-  rather than only being unset: `~/.config/gh` and
-  `~/.claude/.credentials.json` are replace-bound with an empty directory or an
-  empty file, so a client that escaped the mask finds no token and an agent
-  that reads the lifecycle credential file finds it empty.
-- The comment-token pool is replaced rather than emptied. The runner binds a
-  fixture pool holding one token, `fixture-pool-token`, over
-  `~/.local/share/github-tokens`. The stand-in alone honours that token, which
-  authenticates as `fixture-commenter`; real GitHub would reject it, so nothing
-  is lost if it escapes. This keeps the manual-comment route exercisable inside
-  the sandbox while the host's real pool stays unreachable.
-- Masking fails closed. A missing target, a shape mismatch (the token pool is
-  one file, the client configuration a directory), a failed bind, or a mask
-  that does not read back aborts the run before the agent starts.
-- The masks are re-proved after they are applied: `hosts.yml` must be absent,
-  the credential file must be empty, and the token pool must hold exactly one
-  line reading `fixture-pool-token`. A directory mask removes the paths beneath
-  it, while a file mask leaves the path present but empty, so each shape is
-  checked for what it should show; a real token in the pool would change the
-  line count or the content and fail the check.
+- `comenq` lives under the operator's home, so the home mask below makes it
+  unreachable; no separate stub is needed.
+- The whole host home is replace-bound with an empty directory, not a list of
+  named credential files inside it. Masking only `~/.config/gh`,
+  `~/.claude/.credentials.json` and the token pool left every other file under
+  the operator's home readable by absolute path, and a credential can live at a
+  path the runner never thought to name. The agent has no legitimate reason to
+  read any of it, so the whole directory goes. The `claude` binary is copied
+  out of the host home into the run directory before the mask is applied, since
+  the CLI itself is installed under `~/.bun` on this host.
+- The comment-token pool is present but not real. The runner writes a fixture
+  pool holding one token, `fixture-pool-token`, into the isolated home the run
+  is given as `HOME`, at `~/.local/share/github-tokens` there. The stand-in
+  alone honours that token, which authenticates as `fixture-commenter`; real
+  GitHub would reject it, so nothing is lost if it escapes. This keeps the
+  manual-comment route exercisable inside the sandbox while the host's real
+  pool is unreachable behind the home mask.
+- Masking fails closed. A missing target, a shape mismatch, a failed bind, or a
+  mask that does not read back aborts the run before the agent starts.
+- The masks are re-proved after they are applied: the host home must list no
+  entries at all, `hosts.yml`, the token pool and the credential file must all
+  be absent beneath it, the isolated home's token pool must hold exactly one
+  line reading `fixture-pool-token`, and the staged CLI must be executable. A
+  directory mask removes the paths beneath it, so any entry left under the host
+  home means the mask did not take.
 
 **Process.** The environment is replaced rather than filtered: `env -i` passes
 only `PATH`, `HOME`, an empty `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR`,
 the two model API variables, `GIT_TERMINAL_PROMPT`, `TMPDIR` and `TERM`. No
 ambient token, config override or path reaches the agent. `HOME` is the run's
-own directory, not the operator's, so nothing under the host home is reachable
-by a relative path; the absolute credential paths above stay masked, so neither
-route reaches a real token. A `.claude` directory is created there so the CLI
-has somewhere to write, and the run aborts if the isolated home resolves to the
-host home or has no such directory. It runs `--bare`, so operator instructions,
-hooks, MCP servers and memory are absent, with `--permission-mode dontAsk` and
+own directory, not the operator's, and the operator's home is masked outright,
+so the host home is reachable by neither a relative nor an absolute path. A
+`.claude` directory is created there so the CLI has somewhere to write, and the
+run aborts if the isolated home resolves to the host home or has no such
+directory. It runs `--bare`, so operator instructions, hooks, MCP servers and
+memory are absent, with `--permission-mode dontAsk` and
 `--allowedTools Bash,Read,Glob,Grep`. The runner propagates the agent's own
 exit status, so a run killed by its budget or by a timeout is a failure rather
 than a clean rehearsal.
@@ -196,7 +212,10 @@ recorded the agent's view from inside the sandbox: the credential file, token
 pool and `hosts.yml` were empty or absent, `GH_TOKEN` and `GITHUB_TOKEN` were
 unset, `/usr/bin/gh` and `/bin/gh` both held the stand-in, and `github.com`,
 `api.github.com`, `140.82.121.4:22` and `1.1.1.1:443` were all blocked while
-the model API was reachable. An earlier revision of this runner defined its
+the model API was reachable. Under the whole-home mask those surfaces are
+absent rather than empty, and the runner's read-backs establish that before the
+agent starts on every run rather than in one diagnostic: listing the host home
+must yield nothing at all. An earlier revision of this runner defined its
 masking helper without calling it, so those surfaces were reachable; the proof
 checks above exist so that the same omission fails the run instead of silently
 weakening it.
@@ -218,11 +237,13 @@ and fails if its author is not the pool account, so the trace's evidence is the
 request itself and not only the fact that one was made.
 
 The limits are deliberate. The model API stays reachable, because the agent
-needs it. The home directory is still readable, so the agent can read this
-repository's files; the masking covers credentials, the live GitHub client and
-the network, not the filesystem. And the boundary is stronger against reaching
-GitHub than against a locally privileged process: the harness assumes a
-cooperative agent, not an adversarial one.
+needs it. The host home is masked, so the operator's files — including this
+repository's working tree, which lives beneath it — are out of reach; the run
+gets a copy of the skill in its own working directory instead. The rest of the
+system stays readable, because removing it would also remove the runtime the
+agent needs. And the boundary is stronger against reaching GitHub than against
+a locally privileged process: the harness assumes a cooperative agent, not an
+adversarial one.
 
 ## What these recordings do not show
 
@@ -269,20 +290,26 @@ hosted result, and a run that cannot obtain the local half blocks rather than
 waiving what it could not check. What remains unshown is the other half — a
 clean local `cs delta` being required and obtained before a transition.
 
-**Freshness of each recording.** `current-whole-plan` and `subset-clear` were
-recorded under the stand-in as it now behaves. The other four were recorded
-earlier, while `gh-shim.py` ignored `--jq`, so a filtered call returned the
-unfiltered payload: a status filter yielded the whole status object, and
-`--jq length` on an empty listing yielded `[]` rather than `0`. The stand-in
-now applies the filter on every JSON route, refuses one on a human-readable
-route instead of returning the text, derives the HTTP method as `gh api` does —
-including the `--flag=value` spellings — and resolves that method before any
-read route. All six traces replay against it with no unanswered call, so every
-command those four runs issued still has an answer, but replaying recorded argv
-is not the same as re-running the agent: it shows the surface is complete, not
-that the agent would decide the same way under it. Replace those four
-recordings with fresh runs before treating them as evidence about the current
-stand-in.
+**Freshness of each recording.** All seven were recorded under the stand-in,
+the facts and the mount mask as they now behave, and each run passed its own
+outcome assertion. Earlier revisions of these files were not so: the stand-in
+once ignored `--jq`, so a filtered call returned the unfiltered payload, and it
+once answered a field-bearing `gh api` call as a read, so a POST recorded
+nothing. Several recordings were made against those versions and replayed only
+against later ones.
+
+The facts were also incomplete in a way the runs themselves reported: the
+recorded PR carried no author or head-repository fields, so a run following the
+skill's candidate-trust check could not reach a decision and said so. That is a
+gap in the fixture, not a fact about the candidate, and it meant no earlier
+recording isolated the variable it was made to test. The PR object now carries
+the fields `gh pr view --json` returns, and `statusCheckRollup` carries each
+check's own `output` rather than the generator's internal `advisories` field,
+so the two routes a run can read a check through cannot disagree. The two
+`proof-only-*` scenarios also record a PR whose body says no ExecPlan applies
+and whose diff is the proof it introduces; the earlier shared body claimed an
+approved plan, which contradicted their premise and made the run ask for a
+completeness assessment instead of deciding the proof one.
 
 ## Recorded artefacts contain no live mutations
 
