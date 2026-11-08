@@ -40,6 +40,9 @@ VERIFICATION_PLAN_SECTION_RE = re.compile(
 )
 
 REQUIRED_SKILL_CONCEPTS = {
+    "suggested BDD features": (
+        "Suggest BDD features that clarify observable acceptance behaviour."
+    ),
     "invariants": "states each invariant",
     "lemmas or intermediate contracts": "states each lemma or intermediate contract",
     "non-trivial axioms": "lists every non-trivial axiom",
@@ -58,6 +61,9 @@ REQUIRED_SKILL_CONCEPTS = {
     ),
 }
 REQUIRED_TEMPLATE_CONCEPTS = {
+    "suggested BDD features": (
+        "Suggest BDD features that clarify observable acceptance behaviour."
+    ),
     "invariants": "every invariant",
     "lemmas or intermediate contracts": "every lemma or intermediate contract",
     "non-trivial axioms": "non-trivial axioms",
@@ -82,8 +88,10 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     (
         "skill",
         "ExecPlan files are excluded from size limits",
-        "Exclude ExecPlan files themselves from source lines of code (SLoC) "
-        "and change size constraints or tolerances",
+        (
+            "Exclude ExecPlan files themselves from source lines of code (SLoC) "
+            "and change size constraints or tolerances"
+        ),
     ),
     (
         "skill",
@@ -92,13 +100,16 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     ),
     (
         "skill",
-        "code and other documentation count toward line limits",
-        "code and other documentation changes",
+        "each change belongs to one category",
+        "Assign each counted change to one category only",
     ),
     (
         "skill",
         "the worked size-limit example",
-        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+        (
+            "1,000-line ExecPlan plus 900 net lines of code, 200 of configuration, "
+            "and 300 of documentation"
+        ),
     ),
     (
         "skill",
@@ -107,9 +118,29 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     ),
     (
         "template",
-        "the tolerance excludes the plan from both counts",
-        "non-ExecPlan files or `<M>` net lines of code and other documentation, "
-        "stop and escalate. Exclude this ExecPlan file from both counts",
+        "the tolerance excludes added and updated plans from every count",
+        (
+            "Exclude ExecPlan files from every size count, including this file "
+            "when added or updated"
+        ),
+    ),
+    (
+        "template",
+        "a separate code budget",
+        "Code: if changes exceed `<C>` net lines of code",
+    ),
+    (
+        "template",
+        "a separate configuration budget",
+        "Configuration: if changes exceed `<G>` net lines of configuration",
+    ),
+    (
+        "template",
+        "a separate documentation budget excluding ExecPlans",
+        (
+            "Documentation: if changes exceed `<D>` net lines of documentation "
+            "excluding ExecPlan files"
+        ),
     ),
     (
         "user guide",
@@ -119,7 +150,256 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     (
         "user guide",
         "the guide carries the worked size-limit example",
-        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+        (
+            "1,000-line ExecPlan plus 900 net lines of code, 200 of configuration, "
+            "and 300 of documentation"
+        ),
+    ),
+    (
+        "skill",
+        "the comparison base, counting commands, and line metric",
+        (
+            "State the comparison base, category paths or classification rules, "
+            "counting commands, and whether each limit measures net lines "
+            "(additions minus deletions) or churn (additions plus deletions)"
+        ),
+    ),
+    (
+        "skill",
+        "mixed-file classification by purpose",
+        (
+            "For mixed files, classify changed hunks by purpose or document a "
+            "consistent whole-file rule"
+        ),
+    ),
+    (
+        "skill",
+        "embedded executable logic counts as code",
+        (
+            "Code embedded in a workflow or configuration file counts as code "
+            "under hunk-based accounting"
+        ),
+    ),
+    (
+        "skill",
+        "generated-file exclusions are explicit",
+        "Record any generated-file exclusions explicitly",
+    ),
+    (
+        "template",
+        "the comparison base and counting commands",
+        (
+            "State the comparison base and exact counting commands, including path "
+            "exclusions"
+        ),
+    ),
+    (
+        "template",
+        "the line metric is net lines or churn",
+        (
+            "State whether each measures net lines (additions minus deletions) or "
+            "churn (additions plus deletions)"
+        ),
+    ),
+    (
+        "template",
+        "mixed-file classification by purpose",
+        (
+            "For mixed files, classify changed hunks by purpose or state a "
+            "consistent whole-file rule"
+        ),
+    ),
+    (
+        "template",
+        "embedded executable logic counts as code",
+        "Under hunk-based accounting, embedded executable logic counts as code",
+    ),
+    (
+        "template",
+        "generated-file exclusions are listed",
+        "List category paths and any generated-file exclusions",
+    ),
+    (
+        "user guide",
+        "the comparison base, counting commands, and line metric",
+        (
+            "State the comparison base, counting commands, and whether each budget "
+            "measures net lines or churn"
+        ),
+    ),
+    (
+        "user guide",
+        "mixed-file and generated-file rules",
+        "explicit rules for mixed files and generated-file exclusions",
+    ),
+    *(
+        (document_name, concept, required_text)
+        for document_name in ("skill", "template", "user guide")
+        for concept, required_text in (
+            (
+                "evidence before budget setting",
+                (
+                    "Set budgets only after surveying existing code, comments, "
+                    "and documentation"
+                ),
+            ),
+            (
+                "distinct category limits",
+                (
+                    "Define separate limits for code, configuration, and "
+                    "documentation changes"
+                ),
+            ),
+            (
+                "historical budget evidence",
+                "revision or decision history",
+            ),
+            (
+                "repeated historical increases",
+                "multiple times",
+            ),
+            (
+                "independent enforcement without cross-category offsets",
+                (
+                    "Enforce each category independently. Spare capacity or deletions "
+                    "in one category must not offset another category exceeding its limit"
+                ),
+            ),
+        )
+    ),
+)
+
+
+BDD_REQUIREMENTS = (
+    (
+        "skill",
+        "proposed feature path and traceability links",
+        (
+            "Include suggested feature text, its proposed repository-relative path, "
+            "and links to requirements and milestones"
+        ),
+    ),
+    (
+        "skill",
+        "main outcome and failure or boundary coverage",
+        "Cover the main user outcome and material failure or boundary cases",
+    ),
+    (
+        "skill",
+        "no-runner handling",
+        (
+            "label these as proposed acceptance scenarios and identify how existing "
+            "tests or manual checks would exercise them"
+        ),
+    ),
+    (
+        "skill",
+        "no new framework or dependency",
+        "a suggestion does not authorize adding a framework or dependency",
+    ),
+    (
+        "template",
+        "proposed feature path and traceability links",
+        (
+            "Name a proposed feature file path and link each scenario to "
+            "requirements, milestones, and acceptance evidence"
+        ),
+    ),
+    (
+        "template",
+        "main outcome and failure or boundary coverage",
+        "Include the main user outcome and material failure or boundary cases",
+    ),
+    (
+        "template",
+        "no-runner handling",
+        (
+            "If the repository has no BDD runner, state how existing tests or "
+            "manual checks exercise these scenarios"
+        ),
+    ),
+    (
+        "template",
+        "no new framework or dependency",
+        "adding a framework or dependency requires separate authorization",
+    ),
+    (
+        "template",
+        "proposed labelling until adoption",
+        "Label suggestions as proposed until adopted",
+    ),
+    (
+        "user guide",
+        "proposed feature paths and traceability links",
+        (
+            "proposed feature paths and concrete `Feature`/`Scenario` examples "
+            "using `Given`, `When`, and `Then`, linked to requirements and "
+            "milestones"
+        ),
+    ),
+    (
+        "user guide",
+        "no-runner handling",
+        (
+            "Where no BDD runner exists, label these as proposed acceptance "
+            "scenarios and explain how existing tests or manual checks cover them"
+        ),
+    ),
+    (
+        "user guide",
+        "no new framework or dependency",
+        ("suggesting features does not authorize adding a new framework or dependency"),
+    ),
+)
+
+
+PLAN_STRUCTURE_REQUIREMENTS = (
+    (
+        "skill",
+        "the approval gate forbids inferring approval from silence",
+        (
+            "Do not interpret silence as approval. Do not begin implementation until "
+            "the user explicitly confirms the plan or requests revisions"
+        ),
+    ),
+    (
+        "template",
+        "implementation waits for explicit approval or standing authorization",
+        (
+            "Implementation begins only after the user approves the plan, unless "
+            "existing standing instructions already authorize execution"
+        ),
+    ),
+    (
+        "template",
+        "generated-test oracles are independent of the code under test",
+        (
+            "Where generated tests are used, define an oracle independent of the "
+            "code being tested"
+        ),
+    ),
+    (
+        "template",
+        "generated-test seeds and regression files are recorded",
+        "Record seeds and regression-file handling",
+    ),
+    (
+        "template",
+        "milestones are numbered and outcome named",
+        "Organize work by numbered, outcome-named milestones",
+    ),
+    (
+        "template",
+        "milestone identifiers stay consistent across sections",
+        (
+            "keep the same identifiers in `Progress`, `Conformance basis`, commands, "
+            "and acceptance evidence"
+        ),
+    ),
+    (
+        "template",
+        "feasibility probes answer a named uncertainty",
+        "Use a probe only to resolve a named uncertainty",
     ),
 )
 
@@ -182,10 +462,9 @@ def _validate_verification_planning_contract(skill: str, template: str) -> None:
     )
 
     for field in REQUIRED_OBLIGATION_FIELDS:
-        assert re.search(rf"^- {re.escape(field)}:", verification_section, re.MULTILINE), (
-            "the template verification plan must include required field "
-            f"`{field}`"
-        )
+        assert re.search(
+            rf"^- {re.escape(field)}:", verification_section, re.MULTILINE
+        ), f"the template verification plan must include required field `{field}`"
 
     assert NEGATIVE_CONTROL_REQUIREMENT in _normalize(verification_section), (
         "the template verification plan must require a negative control, seeded "
@@ -210,10 +489,37 @@ def _validate_size_accounting_contract(
         )
 
 
+def _validate_bdd_contract(skill: str, template: str, user_guide: str) -> None:
+    """Keep suggested-BDD guidance consistent across ExecPlan documents."""
+    documents = {
+        "skill": _normalize(skill),
+        "template": _normalize(template),
+        "user guide": _normalize(user_guide),
+    }
+    for document_name, concept, required_text in BDD_REQUIREMENTS:
+        assert required_text in documents[document_name], (
+            f"the {document_name} must retain {concept}: `{required_text}`"
+        )
+
+
+def _validate_plan_structure_contract(skill: str, template: str) -> None:
+    """Keep the approval, generated-test and milestone rules in place."""
+    documents = {
+        "skill": _normalize(skill),
+        "template": _normalize(template),
+    }
+    for document_name, concept, required_text in PLAN_STRUCTURE_REQUIREMENTS:
+        assert required_text in documents[document_name], (
+            f"the {document_name} must retain {concept}: `{required_text}`"
+        )
+
+
 def _remove_obligation_field(template: str, field: str) -> str:
     """Return an in-memory template mutation with one required field removed."""
     pattern = rf"^- {re.escape(field)}:.*\n(?:  .*\n)*"
-    mutated_template, replacements = re.subn(pattern, "", template, count=1, flags=re.MULTILINE)
+    mutated_template, replacements = re.subn(
+        pattern, "", template, count=1, flags=re.MULTILINE
+    )
     assert replacements == 1, f"test fixture must contain the `{field}` field"
     return mutated_template
 
@@ -311,3 +617,75 @@ def test_size_accounting_contract_rejects_missing_requirement(
         _validate_size_accounting_contract(
             documents["skill"], documents["template"], documents["user guide"]
         )
+
+
+def test_execplan_bdd_guidance_contract() -> None:
+    """The skill, template, and guide agree on suggested BDD features."""
+    _validate_bdd_contract(
+        _read(SKILL_PATH), _read(TEMPLATE_PATH), _read(USER_GUIDE_PATH)
+    )
+
+
+@pytest.mark.parametrize(
+    ("document_name", "concept", "required_text"),
+    BDD_REQUIREMENTS,
+    ids=[f"{requirement[0]}-{requirement[1]}" for requirement in BDD_REQUIREMENTS],
+)
+def test_bdd_contract_rejects_missing_requirement(
+    document_name: str, concept: str, required_text: str
+) -> None:
+    """Removing any material BDD rule must fail its contract."""
+    documents = {
+        "skill": _normalize(_read(SKILL_PATH)),
+        "template": _normalize(_read(TEMPLATE_PATH)),
+        "user guide": _normalize(_read(USER_GUIDE_PATH)),
+    }
+    document = documents[document_name]
+    mutated_document = document.replace(required_text, "", 1)
+    assert mutated_document != document, (
+        f"the {document_name} fixture must contain {concept}"
+    )
+    documents[document_name] = mutated_document
+
+    with pytest.raises(
+        AssertionError,
+        match=re.escape(f"the {document_name} must retain {concept}"),
+    ):
+        _validate_bdd_contract(
+            documents["skill"], documents["template"], documents["user guide"]
+        )
+
+
+def test_execplan_plan_structure_contract() -> None:
+    """The skill and template retain the approval and milestone contract."""
+    _validate_plan_structure_contract(_read(SKILL_PATH), _read(TEMPLATE_PATH))
+
+
+@pytest.mark.parametrize(
+    ("document_name", "concept", "required_text"),
+    PLAN_STRUCTURE_REQUIREMENTS,
+    ids=[
+        f"{requirement[0]}-{requirement[1]}"
+        for requirement in PLAN_STRUCTURE_REQUIREMENTS
+    ],
+)
+def test_plan_structure_contract_rejects_missing_requirement(
+    document_name: str, concept: str, required_text: str
+) -> None:
+    """Removing any approval, generated-test or milestone rule must fail."""
+    documents = {
+        "skill": _normalize(_read(SKILL_PATH)),
+        "template": _normalize(_read(TEMPLATE_PATH)),
+    }
+    document = documents[document_name]
+    mutated_document = document.replace(required_text, "", 1)
+    assert mutated_document != document, (
+        f"the {document_name} fixture must contain {concept}"
+    )
+    documents[document_name] = mutated_document
+
+    with pytest.raises(
+        AssertionError,
+        match=re.escape(f"the {document_name} must retain {concept}"),
+    ):
+        _validate_plan_structure_contract(documents["skill"], documents["template"])
