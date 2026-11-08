@@ -231,7 +231,7 @@ def posted_comment(facts: dict, body: str, login: str) -> dict:
 
 
 POST_COMMENT = re.compile(r"repos/[^/]+/[^/]+/issues/\d+/comments")
-READ_COMMENT = re.compile(r"repos/[^/]+/[^/]+/issues/comments/\d+")
+READ_COMMENT = re.compile(r"repos/[^/]+/[^/]+/issues/comments/(\d+)")
 
 
 def login_for(facts: dict) -> str:
@@ -279,14 +279,44 @@ def with_posted(payload: object, url: str, posted: dict | None) -> object:
     return [*payload, posted] if COMMENT_LISTING.search(url) else payload
 
 
+def comments_in(payload: object) -> list[dict]:
+    """Return the comment objects a recorded route carries, ignoring the rest.
+
+    A route holds either a single object or a list, and the list may carry
+    non-comment entries. Flattening both shapes here keeps the lookup below
+    free of type tests.
+    """
+    items = payload if isinstance(payload, list) else [payload]
+    return [
+        item for item in items if isinstance(item, dict) and "id" in item
+    ]
+
+
+def recorded_comment(facts: dict, url: str) -> dict | None:
+    """Return the issue comment a single-comment route names, if recorded.
+
+    A posted comment is served ahead of the listing it was added to. A
+    comment that exists only in the recorded listing is still a real comment
+    the agent asked for, so it is served from there rather than reported
+    missing.
+    """
+    ident = int(READ_COMMENT.fullmatch(url).group(1))
+    routes = [facts.get("posted"), *facts["api"].values()]
+    for item in (entry for route in routes for entry in comments_in(route)):
+        if item["id"] == ident:
+            return item
+    return None
+
+
 def handle_read(facts: dict, argv: list[str], url: str) -> int:
     """Serve a posted comment, or answer a path from the recorded facts."""
     jq = jq_expression(argv)
-    if READ_COMMENT.fullmatch((url or "").lstrip("/")):
-        posted = facts.get("posted")
-        return emit(posted, jq=jq) if posted else fail("gh: Not Found (HTTP 404)")
+    path = (url or "").lstrip("/")
+    if READ_COMMENT.fullmatch(path):
+        found = recorded_comment(facts, path)
+        return emit(found, jq=jq) if found else fail("gh: Not Found (HTTP 404)")
     for pattern, payload in facts["api"].items():
-        if re.search(pattern, url.lstrip("/")):
+        if re.search(pattern, path):
             return emit(
                 with_posted(payload, url, facts.get("posted")),
                 slurp="--slurp" in argv,
@@ -332,7 +362,10 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     method = request_method(argv)
     if method == "POST" and is_post_comment(argv, url):
         return handle_post(facts, argv)
-    if method != "GET":
+    # `graphql` is a POST but a read: a readiness run asks it for the review
+    # thread state, so answering it from the recorded routes is the read it
+    # is, not a mutation the stand-in failed to make.
+    if method != "GET" and url != "graphql":
         return fail(f"gh: unsupported {method} {url}", 2)
     if url == "user":
         # The routing record holds only the login, so serve a user object with
@@ -348,8 +381,14 @@ def answer_pr(facts: dict, argv: list[str]) -> int:
     `pr view` and `pr checks` serve JSON, so a `--jq` filter is applied to them.
     `pr ready` answers with a fixed response and takes no filter.
     """
+    # A listing of one PR is the same PR. Serving it as a single object would
+    # break every filter written for a list, so it stays a list.
     if argv[:2] == ["pr", "view"]:
         return emit(facts["pr"], jq=jq_expression(argv))
+    if argv[:2] == ["pr", "list"]:
+        return emit([facts["pr"]], jq=jq_expression(argv))
+    if argv[:2] == ["pr", "diff"]:
+        return emit(facts["pr_diff"])
     if argv[:2] == ["pr", "ready"]:
         # Record the transition without dropping what the state already holds:
         # a run can post a follow-up and then mark the PR ready, and the

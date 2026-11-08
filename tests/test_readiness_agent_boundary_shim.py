@@ -137,6 +137,66 @@ def test_pr_view_applies_a_filter(run: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("argv", "shape"),
+    [
+        (("pr", "view", "272"), dict),
+        (("pr", "list", "--repo", "leynos/agent-helper-scripts"), list),
+    ],
+    ids=["view-is-an-object", "list-is-a-list"],
+)
+def test_pr_listing_keeps_the_shape_its_filters_expect(
+    run: Path, argv: tuple[str, ...], shape: type
+) -> None:
+    """A listing answers a list and a view an object, as the real client does.
+
+    `pr list --jq '.[]'` fails on an object, so serving the one recorded PR as
+    a bare object would silently break every list-shaped filter.
+    """
+    done = invoke(run, *argv)
+    assert done.returncode == 0, done.stderr
+    assert isinstance(json.loads(done.stdout), shape)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("api", "repos/leynos/agent-helper-scripts/pulls/272"),
+        ("api", "repos/leynos/agent-helper-scripts/pulls/272/files"),
+        ("api", "repos/leynos/agent-helper-scripts/pulls/272/commits"),
+        ("pr", "diff", "272", "--name-only"),
+        # `graphql` is a POST, but a readiness run reads review-thread state
+        # through it, so it must answer rather than be refused as a mutation.
+        ("api", "graphql", "-f", "query={viewer{login}}"),
+    ],
+    ids=["pull", "files", "commits", "diff", "graphql-read"],
+)
+def test_a_readiness_read_is_answered(run: Path, argv: tuple[str, ...]) -> None:
+    """Each read a readiness run makes answers from the recorded surface.
+
+    A 404 here is a hole in the recording rather than a fact about the
+    candidate, and it hides the diff and file list the decision rests on.
+    """
+    done = invoke(run, *argv)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip()
+
+
+def test_a_recorded_comment_is_served_on_its_own_route(run: Path) -> None:
+    """A comment that exists only in the listing is still a comment.
+
+    Reporting it missing would make the assessment reply look absent, which is
+    the opposite of what the recorded listing shows.
+    """
+    listing = invoke(run, "api", "repos/leynos/agent-helper-scripts/issues/272/comments")
+    ident = json.loads(listing.stdout)[0]["id"]
+    done = invoke(
+        run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
+    )
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["id"] == ident
+
+
+@pytest.mark.parametrize(
     "argv",
     [
         ("pr", "checks", "272", "--jq", "length"),

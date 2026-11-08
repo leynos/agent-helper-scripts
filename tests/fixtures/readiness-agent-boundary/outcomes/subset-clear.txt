@@ -1,19 +1,17 @@
-I did not mark PR 272 ready, and I made no changes to GitHub: it stays in draft because the only completeness assessment we have clears part of the ExecPlan, not the whole plan, and the skill only allows the ready step after a whole-plan clear.
+I left PR 272 in draft and changed nothing: the only completeness verdict on the PR covers part of the plan, and the skill only allows marking a PR ready once the whole approved plan has a clear verdict.
 
-**Current state of the PR (live reads)**
-- **Commits:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `ffff6666`. The PR is in draft and merging is blocked.
-- **CI:** all three checks passed: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`.
-- **CodeScene:** the check reports "No advisory findings, gate failures or code-health declines." There are no inline CodeScene comments.
-- **Reviews:** CodeRabbit's status for the head reads `Review completed`. There are no review submissions or inline threads.
-- **Proof assessment:** not applicable, because the request said "Proof inventory: none affected."
-- **Completeness assessment:** this is the blocker. Comment 9501 asked about "the whole approved plan" at plan revision `rev-7` (Assessment-ID `271-ab-subset-clear`). CodeRabbit's reply (comment 9502) echoes the same ID, commits and revision, but says it assessed only part of the plan.
+**Live state** (read with `gh`):
+- **CI and CodeScene:** the base is `73d3298…`, the head is `ffff6666`, and the PR is a draft. All three checks passed: Makefile gates, Gecko Security Review, and CodeScene Code Health Review, which reported "No advisory findings, gate failures or code-health declines."
+- **Assessment request:** comment 9501 asked for an assessment of "the whole approved plan", plan revision rev-7.
+- **CodeRabbit's reply** (comment 9502) said **"Verdict: clear"** but limited its subject: *"the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply"*.
+- **Proof assessment:** doesn't apply. The request says "Proof inventory: none affected", and the PR changes one file, `docs/execplans/issue-271-readiness-handoff.md`.
 
-**Why this blocks readiness**
-The CI, CodeScene and review gates are all satisfied for this head. The skill says only a clear verdict on the whole plan, for the current revision, unlocks the ready step; a partial verdict counts only as evidence for the part it covers. It also says a single PR that claims the whole plan but delivers only part never qualifies. Asking CodeRabbit again wouldn't help, since its answer was explicit.
+**Why I stopped:** the skill says a subset verdict "is evidence for its actual scope only" and "never clears the gate". A PR that delivers only part of its plan stays in draft until a whole-plan verdict covers it. So I did not run `gh pr ready` or request a formal review, and I posted no comments. Asking again would be a duplicate, because CodeRabbit has already said the rest of the plan isn't cleared.
 
-**What's needed next**
-I have no checkout, plan file or stack details here, so the next step is yours or the implementation owner's. Either:
-- implement the remaining milestones in this PR and ask for a fresh whole-plan assessment against the current plan revision, or
-- if PR 272 is meant to be one layer of a stack, split the plan into self-contained parts per layer before approval. Without that split, this layer can never pass the ready step.
+**Blocker:** the plan milestones after EP-M1 and EP-M2 have no clear verdict, and the skill treats them as unfinished implementation work. This needs the plan's implementation owner or you to choose one of two paths:
+- **Finish the plan in this PR:** implement the remaining rev-7 milestones on this PR. Then I can post one follow-up asking for a whole-plan assessment of the new head.
+- **Split the plan:** if this PR is meant to be one layer of a stack, split the approved plan so each PR is assessed against a plan of its own.
 
-In one sentence: I confirmed CI, CodeScene and CodeRabbit are all clear but left PR 272 in draft and changed nothing, because CodeRabbit's verdict (comment 9502) says "**Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply", and the skill says "only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only."
+I recorded the subset verdict as evidence for EP-M1 and EP-M2 only.
+
+In one sentence: I checked the live PR, found CI and CodeScene clear, and kept it in draft because the only verdict, comment 9502, covers "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply."

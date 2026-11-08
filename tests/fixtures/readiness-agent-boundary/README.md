@@ -29,10 +29,14 @@ draft in each case.
 
 `subset-only` and `subset-clear` differ only in the verdict; both stay in
 draft. That pair isolates the subject check from the verdict, which a single
-`not clear` subset case cannot do. `superseded-revision` isolates the revision
-check: the verdict is clear and the whole plan, and only the revision is stale.
-It is also the one scenario that exercises the manual-comment route: the agent
-posts a follow-up asking for a `rev-7` verdict, reads it back, and waits for an
+`not clear` subset case cannot do: `subset-clear` is a clear verdict on the
+current revision whose only defect is the subject, and it stays in draft anyway.
+`subset-clear` was re-recorded under the completed stand-in, so its outcome
+reads the hosted CodeScene check output, the PR's diff and its file list rather
+than reporting them missing. `superseded-revision` isolates the revision check:
+the verdict is clear and the whole plan, and only the revision is stale. It is
+also the one scenario that exercises the manual-comment route: the agent posts
+a follow-up asking for a `rev-7` verdict, reads it back, and waits for an
 answer that the facts never supply. The scenario therefore shows both halves of
 the stale-revision rule — the follow-up path works, and readiness still waits.
 
@@ -58,12 +62,18 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
   An accepted POST returns the fixture comment's URL, records the submitted
   body — in both the `-f body=…` and `--input -` forms — and serves it back on
   its own route, so a read-back and the discussion listing both see what was
-  posted rather than a placeholder. The `contents` route serves the plan file
-  with its blob SHA, which is what lets a follow-up name the plan revision
-  instead of stopping for a value the fixture never supplied. The `check-runs`
-  route carries the hosted check output, including CodeScene's own "no advisory
-  findings" summary, which is one of the two CodeScene sources the skill reads;
-  the recordings below show only that half, for the reason under
+  posted rather than a placeholder. A single-comment route serves any comment
+  the recorded listing carries, so a read-back finds a comment the run itself
+  did not post. The `contents` route serves the plan file with its blob SHA,
+  which is what lets a follow-up name the plan revision instead of stopping for
+  a value the fixture never supplied. The `pulls/N`, `pulls/N/files`,
+  `pulls/N/commits`, `pr list`, `pr diff` and `graphql` review-thread routes
+  answer the reads a readiness run makes when it checks whether the delivered
+  work matches the plan; without them a run reported those reads as 404 and
+  could not see the diff at all. The `check-runs` route carries the hosted
+  check output, including CodeScene's own "no advisory findings" summary, which
+  is one of the two CodeScene sources the skill reads; the recordings show only
+  that half, for the reason under
   [what these recordings do not show](#what-these-recordings-do-not-show).
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.

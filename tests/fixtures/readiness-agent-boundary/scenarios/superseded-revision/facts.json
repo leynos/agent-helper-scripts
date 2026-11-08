@@ -28,7 +28,48 @@
     ]
   },
   "pr_ready_response": "Pull request leynos/agent-helper-scripts#272 is marked as ready for review",
+  "pr_diff": "docs/execplans/issue-271-readiness-handoff.md\n",
   "api": {
+    "/pulls/\\d+$": {
+      "number": 272,
+      "base": {
+        "sha": "73d32981c7b7e8f52590a074873e28a9f369f0f9"
+      },
+      "head": {
+        "sha": "bbbb2222"
+      },
+      "draft": true,
+      "changed_files": 1
+    },
+    "/pulls/\\d+/files(?:[?#]|$)": [
+      {
+        "filename": "docs/execplans/issue-271-readiness-handoff.md",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "bbbb2222"
+      }
+    ],
+    "/pulls/\\d+/commits(?:[?#]|$)": [
+      {
+        "sha": "bbbb2222",
+        "commit": {
+          "message": "Deliver the plan"
+        }
+      }
+    ],
+    "graphql$": {
+      "data": {
+        "repository": {
+          "pullRequest": {
+            "reviewThreads": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
     "/issues/\\d+/comments": [
       {
         "id": 9101,

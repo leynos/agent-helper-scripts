@@ -134,9 +134,52 @@ def plan_contents() -> dict[str, object]:
     }
 
 
-def api_map(comments: list[dict[str, object]]) -> dict[str, object]:
+def pull_files(head: str) -> list[dict[str, object]]:
+    """Return the PR's changed files, as the files route lists them.
+
+    A readiness run reads the diff to judge whether the delivered work matches
+    the plan, and a 404 there is a gap in the recording rather than evidence
+    about the candidate.
+    """
+    return [
+        {
+            "filename": PLAN_PATH,
+            "status": "modified",
+            "additions": 12,
+            "deletions": 0,
+            "changes": 12,
+            "sha": head,
+        }
+    ]
+
+
+def api_map(
+    comments: list[dict[str, object]], head: str
+) -> dict[str, object]:
     """Return every recorded API route for one scenario."""
     return {
+        # The PR itself and its file list, which a readiness run reads to judge
+        # whether the delivered work matches the plan. The bare `pulls/N` route
+        # must be anchored, or it would also swallow `pulls/N/comments`.
+        r"/pulls/\d+$": {
+            "number": PR,
+            "base": {"sha": BASE},
+            "head": {"sha": head},
+            "draft": True,
+            "changed_files": 1,
+        },
+        r"/pulls/\d+/files(?:[?#]|$)": pull_files(head),
+        # The PR's commits, which a readiness run counts to see whether a
+        # reviewed head is still the tip. One commit carrying the head.
+        r"/pulls/\d+/commits(?:[?#]|$)": [
+            {"sha": head, "commit": {"message": "Deliver the plan"}}
+        ],
+        # The review-thread state. A readiness run asks `graphql` for it, and
+        # every recorded review is already resolved with no outstanding
+        # thread, so an empty connection is the honest answer.
+        r"graphql$": {"data": {"repository": {"pullRequest": {
+            "reviewThreads": {"nodes": []},
+        }}}},
         r"/issues/\d+/comments": comments,
         r"/commits/[0-9a-f]+/status$": {
             "state": "success",
@@ -182,7 +225,9 @@ def scenario(
             "statusCheckRollup": GREEN,
         },
         "pr_ready_response": f"Pull request {REPO}#{PR} is marked as ready for review",
-        "api": api_map(comments),
+        # `gh pr diff --name-only` output, one changed path per line.
+        "pr_diff": f"{PLAN_PATH}\n",
+        "api": api_map(comments, head),
         "coords": {"repository": REPO, "pull_request": PR},
     }
     directory = OUT / name
