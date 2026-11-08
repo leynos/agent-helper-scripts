@@ -40,6 +40,9 @@ VERIFICATION_PLAN_SECTION_RE = re.compile(
 )
 
 REQUIRED_SKILL_CONCEPTS = {
+    "suggested BDD features": (
+        "Suggest BDD features that clarify observable acceptance behaviour."
+    ),
     "invariants": "states each invariant",
     "lemmas or intermediate contracts": "states each lemma or intermediate contract",
     "non-trivial axioms": "lists every non-trivial axiom",
@@ -58,6 +61,9 @@ REQUIRED_SKILL_CONCEPTS = {
     ),
 }
 REQUIRED_TEMPLATE_CONCEPTS = {
+    "suggested BDD features": (
+        "Suggest BDD features that clarify observable acceptance behaviour."
+    ),
     "invariants": "every invariant",
     "lemmas or intermediate contracts": "every lemma or intermediate contract",
     "non-trivial axioms": "non-trivial axioms",
@@ -92,13 +98,14 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     ),
     (
         "skill",
-        "code and other documentation count toward line limits",
-        "code and other documentation changes",
+        "each change belongs to one category",
+        "Assign each counted change to one category only",
     ),
     (
         "skill",
         "the worked size-limit example",
-        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+        "1,000-line ExecPlan plus 900 net lines of code, 200 of configuration, "
+        "and 300 of documentation",
     ),
     (
         "skill",
@@ -107,9 +114,25 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     ),
     (
         "template",
-        "the tolerance excludes the plan from both counts",
-        "non-ExecPlan files or `<M>` net lines of code and other documentation, "
-        "stop and escalate. Exclude this ExecPlan file from both counts",
+        "the tolerance excludes added and updated plans from every count",
+        "Exclude ExecPlan files from every size count, including this file "
+        "when added or updated",
+    ),
+    (
+        "template",
+        "a separate code budget",
+        "Code: if changes exceed `<C>` net lines of code",
+    ),
+    (
+        "template",
+        "a separate configuration budget",
+        "Configuration: if changes exceed `<G>` net lines of configuration",
+    ),
+    (
+        "template",
+        "a separate documentation budget excluding ExecPlans",
+        "Documentation: if changes exceed `<D>` net lines of documentation "
+        "excluding ExecPlan files",
     ),
     (
         "user guide",
@@ -119,7 +142,37 @@ SIZE_ACCOUNTING_REQUIREMENTS = (
     (
         "user guide",
         "the guide carries the worked size-limit example",
-        "1,000-line ExecPlan plus 1,400 lines of code and other documentation",
+        "1,000-line ExecPlan plus 900 net lines of code, 200 of configuration, "
+        "and 300 of documentation",
+    ),
+    *(
+        (document_name, concept, required_text)
+        for document_name in ("skill", "template", "user guide")
+        for concept, required_text in (
+            (
+                "evidence before budget setting",
+                "Set budgets only after surveying existing code, comments, "
+                "and documentation",
+            ),
+            (
+                "distinct category limits",
+                "Define separate limits for code, configuration, and "
+                "documentation changes",
+            ),
+            (
+                "historical budget evidence",
+                "revision or decision history",
+            ),
+            (
+                "repeated historical increases",
+                "multiple times",
+            ),
+            (
+                "independent enforcement without cross-category offsets",
+                "Enforce each category independently. Spare capacity or deletions "
+                "in one category must not offset another category exceeding its limit",
+            ),
+        )
     ),
 )
 

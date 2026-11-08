@@ -50,13 +50,36 @@ Document the conflict in `Decision log` and escalate.
 
 Thresholds that trigger escalation when breached. These define the boundaries
 of autonomous action, not quality criteria. State the comparison base and exact
-counting commands, including path exclusions and whether net lines means
-additions minus deletions. Exclude ExecPlan files from every size count; count
-code and other documentation unless a narrower scope is explicitly justified.
+counting commands, including path exclusions. Define separate limits for code,
+configuration, and documentation changes. State whether each measures net lines
+(additions minus deletions) or churn (additions plus deletions). Exclude
+ExecPlan files from every size count, including this file when added or updated.
 
-- Scope: if implementation requires changes to more than `<N>` non-ExecPlan
-  files or `<M>` net lines of code and other documentation, stop and escalate.
-  Exclude this ExecPlan file from both counts.
+Set budgets only after surveying existing code, comments, and documentation.
+Use the affected callers, tests, integration points, configuration, and live
+guidance to estimate the complete change. Review relevant past ExecPlans and
+their revision or decision history for budgets increased multiple times. Record
+the original limits, increases, and causes where available, or state that no
+comparable history exists. Explain how this evidence informs each initial
+category budget and its contingency. Revisit scope or milestone decomposition
+where earlier plans repeatedly underestimated the work; historical increases do
+not authorize exceeding the approved budget during execution.
+
+Classify changes by purpose: production source, tests, and executable build or
+automation logic are code; declarative settings, manifests, lockfiles,
+deployment descriptors, and CI workflow configuration are configuration; prose,
+guides, and reference material are documentation. Assign each counted change to
+one category only. For mixed files, classify changed hunks by purpose or state
+a consistent whole-file rule. Under hunk-based accounting, embedded executable
+logic counts as code. List category paths and any generated-file exclusions.
+
+- Files: if implementation changes more than `<N>` non-ExecPlan files, stop and
+  escalate. Exclude this ExecPlan file from the count.
+- Code: if changes exceed `<C>` net lines of code, stop and escalate.
+- Configuration: if changes exceed `<G>` net lines of configuration, stop and
+  escalate.
+- Documentation: if changes exceed `<D>` net lines of documentation excluding
+  ExecPlan files, stop and escalate.
 - Interface: if a public API change beyond those authorized in `Constraints`
   is needed, stop and escalate.
 - Dependencies: if a dependency beyond those authorized in `Constraints` is
@@ -67,6 +90,12 @@ code and other documentation unless a narrower scope is explicitly justified.
 - Time: if a milestone takes more than `<T>` hours, stop and escalate.
 - Ambiguity: if multiple valid interpretations exist and the choice materially
   affects the outcome, stop and present options with trade-offs.
+
+Enforce each category independently. Spare capacity or deletions in one
+category must not offset another category exceeding its limit. Any overall
+line-count limit is additional to these budgets. Replace net lines with churn
+above if that is the chosen metric, and state any category-specific file-count
+limits.
 
 Adjust these values based on the task. Small, well-understood changes warrant
 tighter tolerances; exploratory work may need looser ones.
@@ -155,6 +184,13 @@ existing test frameworks and relevant versions, fixtures, regression artefacts,
 and gate commands. Distinguish tools installed on the host from tooling the
 repository actually configures. Signpost relevant documentation and skills,
 while including the facts needed to execute this plan here.
+
+Include the budget-setting survey of existing code, comments, and
+documentation. Name comparable historical ExecPlans, their relevant budget
+revisions, and what caused repeated increases. Distinguish missed scope from
+approved scope growth and repository constraints. Read completed plans as
+evidence without changing them. Link these observations to the initial
+estimates in `Tolerances`.
 
 ## Conformance basis
 
@@ -264,6 +300,28 @@ State whether model checking or formal proof is needed and why the selected
 methods are proportionate to the risk. Explain what stronger methods would add
 and which boundaries they would leave unverified. Record the decision in
 `Decision log`; tool availability alone is not a justification.
+
+### Suggested BDD features
+
+Suggest BDD features that clarify observable acceptance behaviour. BDD means
+behaviour-driven development. Name a proposed feature file path and link each
+scenario to requirements, milestones, and acceptance evidence. Include the main
+user outcome and material failure or boundary cases. Replace this illustrative
+feature with concrete inputs and outcomes:
+
+```gherkin
+Feature: <observable capability>
+  Scenario: <main user outcome>
+    Given <a concrete initial state>
+    When <the user performs an action with specific input>
+    Then <a specific observable result occurs>
+```
+
+Label suggestions as proposed until adopted. If the repository has no BDD
+runner, state how existing tests or manual checks exercise these scenarios;
+adding a framework or dependency requires separate authorization. Where BDD is
+adopted, give the runner command and keep the feature synchronized with the
+implementation and Red-Green-Refactor evidence.
 
 ## Plan of work
 

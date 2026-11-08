@@ -216,6 +216,14 @@ Validation is not optional:
   or `Decision log`, then use the nearest observable substitute such as a
   reproducer script, golden fixture, compile-fail test, approval test, or
   manual runtime check.
+- Suggest BDD features that clarify observable acceptance behaviour. BDD means
+  behaviour-driven development: examples written as `Feature`, `Scenario`,
+  `Given`, `When`, and `Then` statements. Include suggested feature text, its
+  proposed repository-relative path, and links to requirements and milestones.
+  Cover the main user outcome and material failure or boundary cases. If the
+  repository has no BDD runner, label these as proposed acceptance scenarios
+  and identify how existing tests or manual checks would exercise them; a
+  suggestion does not authorize adding a framework or dependency.
 - Where behaviour-driven development (BDD) is used, include the feature
   specification in the ExecPlan. Name the feature file path, quote or embed the
   relevant `Feature`, `Scenario`, `Given`, `When`, and `Then` statements, and
@@ -374,14 +382,52 @@ If you change course mid-implementation:
 ## Exception handling (manage by exception)
 
 Exclude ExecPlan files themselves from source lines of code (SLoC) and change
-size constraints or tolerances, including file-count and net-line limits. Count
-only non-ExecPlan files towards file-count limits, and count code and other
-documentation changes towards line limits, including when an ExecPlan is added
-or updated in the same change. For example, a 1,000-line ExecPlan plus 1,400
-lines of code and other documentation counts as 1,400 lines against a
-1,500-line change limit and does not exceed it. Record this exclusion wherever
-the plan defines a size constraint or tolerance so it is applied consistently
-during execution.
+size constraints or tolerances, including file-count and net-line limits,
+including when an ExecPlan is added or updated in the same change. Count only
+non-ExecPlan files towards file-count limits. Record this exclusion wherever
+the plan defines a size constraint or tolerance.
+
+Define separate limits for code, configuration, and documentation changes. Set
+budgets only after surveying existing code, comments, and documentation. Trace
+the affected callers, tests, integration points, configuration, and live
+guidance to estimate the complete change rather than only the main edit.
+Inspect relevant past ExecPlans and their revision or decision history for
+budgets that had to be increased multiple times. Record the original limits,
+revisions, and reasons where available; distinguish missed scope, repository
+constraints, and approved scope growth. If no comparable history exists, say so.
+
+Record this survey and historical evidence in `Context and orientation`, then
+justify each category's initial budget and contingency in `Tolerances`.
+Repeated increases are evidence to revisit the estimate, scope, or milestone
+decomposition before approval; they are not permission to raise limits during
+execution. Read completed plans as historical evidence without rewriting them.
+
+Classify by purpose rather than extension:
+
+- Code: production source, tests, and executable build or automation logic.
+- Configuration: declarative settings, dependency manifests and lockfiles,
+  deployment descriptors, and CI workflow configuration.
+- Documentation: prose, guides, reference material, and other documentation,
+  excluding ExecPlan files.
+
+State the comparison base, category paths or classification rules, counting
+commands, and whether each limit measures net lines (additions minus deletions)
+or churn (additions plus deletions). Assign each counted change to one category
+only. For mixed files, classify changed hunks by purpose or document a
+consistent whole-file rule. Code embedded in a workflow or configuration file
+counts as code under hunk-based accounting. Record any generated-file
+exclusions explicitly; configuration and documentation are not implicitly free.
+
+Enforce each category independently. Spare capacity or deletions in one
+category must not offset another category exceeding its limit. An overall
+file-count or line-count limit may supplement these budgets, but must not
+replace them.
+
+For example, a 1,000-line ExecPlan plus 900 net lines of code, 200 of
+configuration, and 300 of documentation uses 900/1,000 code lines, 200/250
+configuration lines, and 300/400 documentation lines under those respective
+limits. The ExecPlan uses none of these budgets. Raising the code change to
+1,001 net lines breaches the code limit even if the other budgets remain unused.
 
 When a tolerance threshold is reached, a constraint would be violated, or an
 architecture deviation needs approval:

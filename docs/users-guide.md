@@ -522,12 +522,42 @@ and hand PR delivery to `pr-babysitting`. The existing `execplans` skill owns
 plan authoring and the living-document contract; `sdlc-implementation` owns
 implementation, not another copy of the PR lifecycle.
 
-Size limits and change-size tolerances exclude ExecPlan files themselves. Count
-non-ExecPlan files toward file-count limits, and code and other documentation
-toward net-line limits. For example, a 1,000-line ExecPlan plus 1,400 lines of
-code and other documentation remains within a 1,500-line limit. See
+Size limits and change-size tolerances exclude ExecPlan files themselves,
+including newly added or updated plans. Count only non-ExecPlan files towards
+file-count limits. Define separate limits for code, configuration, and
+documentation changes. Code includes tests and executable automation;
+configuration includes declarative settings, manifests, lockfiles and
+workflows; documentation includes prose and reference material, excluding
+ExecPlans. Classify each change once by purpose, with explicit rules for mixed
+files and generated-file exclusions. State the comparison base, counting
+commands, and whether each budget measures net lines or churn.
+
+Set budgets only after surveying existing code, comments, and documentation.
+Include affected callers, tests, integration points and live guidance. Review
+comparable past ExecPlans for budgets increased multiple times, using their
+revision or decision history to distinguish missed scope, repository
+constraints and approved scope growth. Record the evidence, or its absence, and
+justify the initial category budgets and contingency before approval. Repeated
+increases should prompt a fresh estimate or scope review, not automatic budget
+expansion. Completed plans remain historical evidence and need no retrospective
+edits.
+
+Enforce each category independently. Spare capacity or deletions in one
+category must not offset another category exceeding its limit. For example, a
+1,000-line ExecPlan plus 900 net lines of code, 200 of configuration, and 300
+of documentation uses 900/1,000 code lines, 200/250 configuration lines, and
+300/400 documentation lines under those respective limits. The ExecPlan uses
+none of these budgets; a 1,001-line code change still breaches the code budget.
+See
 [the ExecPlans skill](../skills/execplans/SKILL.md#exception-handling-manage-by-exception)
 for the full rule.
+
+Suggest BDD features that clarify observable acceptance behaviour. Plans can
+include proposed feature paths and concrete `Feature`/`Scenario` examples using
+`Given`, `When`, and `Then`, linked to requirements and milestones. Where no
+BDD runner exists, label these as proposed acceptance scenarios and explain how
+existing tests or manual checks cover them; suggesting features does not
+authorize adding a new framework or dependency.
 
 `install-skills` installs the new skill and its references alongside the other
 skills in `${HOME}/.codex/skills` and `${HOME}/.claude/skills`; the
