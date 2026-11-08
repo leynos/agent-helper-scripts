@@ -286,6 +286,11 @@ BDD_REQUIREMENTS = (
         "adding a framework or dependency requires separate authorization",
     ),
     (
+        "template",
+        "proposed labelling until adoption",
+        "Label suggestions as proposed until adopted",
+    ),
+    (
         "user guide",
         "proposed feature paths and traceability links",
         "proposed feature paths and concrete `Feature`/`Scenario` examples "
