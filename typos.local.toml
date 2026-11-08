@@ -37,10 +37,11 @@ ignore = [
   '\bMOLD\b',
   '\bmold\b',
   '\bartifact_name\b',
-  # A verbatim agent recording. Its text is evidence and is not edited to
-  # satisfy a spelling gate, so the exception matches that whole line rather
-  # than the word.
+  # Verbatim agent recordings. Their text is evidence and is not edited to
+  # satisfy a spelling gate, so each exception matches a whole line rather than
+  # the word itself.
   'the entire plan via the plan.s ExecPlan artifact`, but only one artifact,',
+  'Merge wasn.t authorised; `mergeStateStatus` is `BLOCKED`.',
   '\bcolor:',
   # GitHub's pull_request_target activity type. It is an identifier the
   # automerge workflow matches on, so it cannot take the British spelling;

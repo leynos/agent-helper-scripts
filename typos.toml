@@ -39,6 +39,7 @@ extend-ignore-re = [
     "GitHub\\s+Flavored\\s+Markdown\\b(?:\\s\\(GFM\\))?",
     "HashiCorp",
     "How to organise your Rust tests",
+    "Merge wasn.t authorised; `mergeStateStatus` is `BLOCKED`.",
     "RUST_ANALYZER(?:_PRECHECK)?",
     "\\b(?:background|theme)_color\\b",
     "\\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\\b",

@@ -78,15 +78,26 @@ live PR. Every recording here comes from a masked run in three layers.
 
 **Network.** `pasta` gives the run a private network namespace and forwards the
 host interface into it. The first thing the run does there is install an
-`nftables` output policy of `drop`, admitting loopback, DNS, one TCP port to
-the model API host, and established flows. The address comes from
-`ANTHROPIC_BASE_URL` on the host before the namespace drops the network, and
-the run aborts if that host cannot be resolved. After installing the rules it
-proves them: a connection to `1.1.1.1:443` must fail, and the run aborts if it
-succeeds. This is the load-bearing boundary, because the agent runs with Bash
-and a filesystem mask alone cannot stop a second HTTP client. Verified against
-the live network: inside the sandbox `github.com`, `api.github.com` and port 22
-are all unreachable, while the model API and DNS work.
+`nftables` output policy of `drop`, admitting loopback, DNS to this host's own
+resolvers, one TCP port to the model API host, and established flows. The
+resolvers are read from `/etc/resolv.conf` on the host, and the model address
+from `ANTHROPIC_BASE_URL`, both before the namespace drops the network; the run
+aborts if either is empty. DNS is narrowed to those resolvers because admitting
+port 53 generally would leave an arbitrary destination reachable.
+
+After installing the rules, the run proves the boundary in both directions
+before the agent starts, because a blocked-only check can pass on a broken
+network and an allowed-only check can pass with no filter at all:
+
+- at least one model API address must accept a connection on port 443;
+- `1.1.1.1:443` and `140.82.121.4:443` must both fail, addressed literally so a
+  DNS failure cannot be mistaken for a block.
+
+The run aborts on either failure. This is the load-bearing boundary, because
+the agent runs with Bash and a filesystem mask alone cannot stop a second HTTP
+client. Verified against the live network: inside the sandbox `github.com`,
+`api.github.com` and port 22 are all unreachable, while the model API and DNS
+work.
 
 **Mounts.** Inside the network namespace, `unshare -m` adds a private mount
 namespace, made private with `mount --make-rprivate /` first:
@@ -102,13 +113,29 @@ namespace, made private with `mount --make-rprivate /` first:
 - Masking fails closed. A missing target, a shape mismatch (the token pool is
   one file, the client configuration a directory), a failed bind, or a mask
   that does not read back aborts the run before the agent starts.
+- The credential masks are re-proved after they are applied: `hosts.yml` must
+  be absent, and the token pool and credential file must be empty. A directory
+  mask removes the paths beneath it, while a file mask leaves the path present
+  but empty, so each shape is checked for what it should show.
 
-**Process.** `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR` are cleared, and
-the agent runs `--bare`, so operator instructions, hooks, MCP servers and
-memory are absent, with `--permission-mode dontAsk` and
-`--allowedTools Bash,Read,Glob,Grep`. The runner propagates the agent's own
-exit status, so a run killed by its budget or by a timeout is a failure rather
-than a clean rehearsal.
+**Process.** The environment is replaced rather than filtered: `env -i` passes
+only `PATH`, `HOME`, an empty `GH_TOKEN`, `GITHUB_TOKEN` and `GH_CONFIG_DIR`,
+the two model API variables, `GIT_TERMINAL_PROMPT`, `TMPDIR` and `TERM`. No
+ambient token, config override or path reaches the agent. It runs `--bare`, so
+operator instructions, hooks, MCP servers and memory are absent, with
+`--permission-mode dontAsk` and `--allowedTools Bash,Read,Glob,Grep`. The
+runner propagates the agent's own exit status, so a run killed by its budget or
+by a timeout is a failure rather than a clean rehearsal.
+
+These layers are proved, not assumed. A diagnostic stand-in for the CLI once
+recorded the agent's view from inside the sandbox: the credential file, token
+pool and `hosts.yml` were empty or absent, `GH_TOKEN` and `GITHUB_TOKEN` were
+unset, `/usr/bin/gh` and `/bin/gh` both held the stand-in, and `github.com`,
+`api.github.com`, `140.82.121.4:22` and `1.1.1.1:443` were all blocked while
+the model API was reachable. An earlier revision of this runner defined its
+masking helper without calling it, so those surfaces were reachable; the proof
+checks above exist so that the same omission fails the run instead of silently
+weakening it.
 
 The limits are deliberate. The model API stays reachable, because the agent
 needs it. The home directory is still readable, so the agent can read this

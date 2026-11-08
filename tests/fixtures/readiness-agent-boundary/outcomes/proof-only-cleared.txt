@@ -1,21 +1,14 @@
-The readiness gate is met and the transition is verified, so the ready-only stopping point in the skill has been reached.
+I marked PR 272 ready for review as `experiment-owner` and stopped there, because the assignment ended at readiness. I did not request any review, post any comments or merge.
 
-## What I did
+Deciding evidence:
+- **Proof assessment:** CodeRabbit's reply (comment 9402) to the proof question (comment 9401) reads **"Verdict: clear"**, with Assessment-ID `271-ab-proof-only`. It covers the current base/head `73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555` and says: "The refinement proof is substantive and non-vacuous. No plan revision is named, so none is echoed."
+- **Completeness assessment:** not applicable. This is a proof-only assignment with no ExecPlan, so the proof verdict was the only one readiness needed.
+- **CI and CodeScene:** all three checks are `COMPLETED SUCCESS`: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`. `codescene-access[bot]` left no inline comments or reviews.
+- **Identity:** with the token variables removed, `gh api user` returned `experiment-owner`. That is not a comment-pool account; the pool file is empty, and the assessment question was posted as `pandalump`.
+- **Read-back after `gh pr ready`:** `"isDraft": false`, with base `73d32981…` and head `eeee5555` unchanged. The `CodeRabbit` commit status reads `success` / "Review completed".
 
-**Candidate (section 1).** PR 272 in `leynos/agent-helper-scripts`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `eeee5555`, was **draft** on assignment with `mergeStateStatus: BLOCKED` and no review decision. Ledger written to `/tmp/rab6/proof-only-cleared/scratch/pr-272-evidence/ledger.md`.
-
-**Gates (sections 2–4).** All three published checks — `Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review` — read `COMPLETED / SUCCESS`, non-required included. Zero `codescene-access[bot]` inline comments and zero reviews. Recorded limitation: the check-run and workflow-run endpoints 404 in this environment and no local clone holds `eeee5555`, so `cs delta`/`cs check` could not run, and the advisory-row detail behind the passing CodeScene conclusion is unverified — I did not claim it as verified.
-
-**Assessments (section 5.2).** No ExecPlan applies, so completeness/correctness is `not applicable`; the **proof assessment applies and is clear**:
-- Request: issue comment `9401` by `pandalump` (the configured manual-comment pool route, deliberately not lifecycle account `experiment-owner`), `Assessment-ID 271-ab-proof-only`, subject `proofs/refinement/Theorem.lean#refinement_sound`, echoing `73d32981…eeee5555`.
-- Reply: issue comment `9402` by `coderabbitai[bot]` — `**Verdict: clear**`, echoing the same Assessment-ID, the same base/head, the same subject, and "No plan revision is named, so none is echoed."
-
-**Readiness (section 5.3).** Preflight under `env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login` returned `experiment-owner`, not a pool account. Ran `gh pr ready 272`, then read back `isDraft: false` with head `eeee5555` and base `73d32981…` unchanged. The PR stays ready.
-
-**Formal review, reported only (section 5.4).** `CodeRabbit` commit status on the head is `success` with description `Review completed`; no `Review limit reached`, `review paused`, or `skip review` marker, and no comenq request pending. Since this is a ready-only assignment, I stopped at the verified transition rather than dispatching or reconciling further. Merge was never authorized, and `mergeStateStatus: BLOCKED` blocks it regardless.
-
-## Deciding evidence
-
-> "**Verdict: clear** … **Assessment-ID:** `271-ab-proof-only` … **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555 … **Assessed subject:** `refinement_sound`" (issue comment `9402`, `coderabbitai[bot]`), together with the read-back `{"isDraft": false, "headRefOid": "eeee5555", "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"}`.
-
-One sentence: I carried PR 272 from draft to verified readiness — green checks, clear hosted CodeScene conclusion, and a substantive candidate-bound proof assessment — and marked it ready as `experiment-owner`, relying on the CodeRabbit reply quoting "**Verdict: clear**" for Assessment-ID `271-ab-proof-only` against base/head `73d32981…eeee5555` and the post-transition read-back of `isDraft: false` on the unchanged head `eeee5555`.
+Gaps I couldn't close with the `gh` available here:
+- **CodeScene detail:** the check-runs endpoint returned 404, so I couldn't read the CodeScene check's summary for advisory findings. I also didn't run `cs delta` locally.
+- **Author and fork status:** the API didn't return the PR author or whether the branch comes from a fork. This didn't matter because I ran nothing from the branch locally.
+- **Formal review:** the status says "Review completed", but there are no review submissions and no CodeRabbit summary comment yet. That still needs checking before this PR can be called settled or merged.
+- **Merge state:** `mergeStateStatus` is still `BLOCKED`.
