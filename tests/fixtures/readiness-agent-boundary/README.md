@@ -210,12 +210,13 @@ gate, and these recordings do not show the local half being cleared.
 **The stand-in has since been tightened.** These traces were recorded while
 `gh-shim.py` ignored `--jq`, so a filtered call returned the unfiltered
 payload: a status filter yielded the whole status object, and `--jq length` on
-an empty listing yielded `[]` rather than `0`. It now applies the filter,
-derives the HTTP method as `gh api` does, and refuses an unsupported method.
-The recorded decisions therefore rest on payloads that contained the same facts
-a real `gh` would have shown, but the traces are not a faithful simulation of
-its filtered output, and a re-run under the tightened stand-in is a fresh
-recording.
+an empty listing yielded `[]` rather than `0`. It now applies the filter on
+every JSON route, refuses one on a human-readable route instead of returning
+the text, derives the HTTP method as `gh api` does — including the
+`--flag=value` spellings — and resolves that method before any read route. The
+recorded decisions therefore rest on payloads that contained the same facts a
+real `gh` would have shown, but the traces are not a faithful simulation of its
+filtered output, and a re-run under the tightened stand-in is a fresh recording.
 
 ## Recorded artefacts contain no live mutations
 

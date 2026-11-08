@@ -149,17 +149,39 @@ def jq_expression(argv: list[str]) -> str:
 FIELD_FLAGS = ("-f", "-F", "--field", "--raw-field")
 
 
+def has_flag(argv: list[str], name: str) -> bool:
+    """Return whether a flag appears, in either its separated or equals form.
+
+    `gh api` accepts `--raw-field body=x` and `--raw-field=body=x` as the same
+    request, so a reader that looks only for the bare flag misses a mutation
+    written the other way and answers it as a read.
+    """
+    return any(part == name or part.startswith(name + "=") for part in argv)
+
+
+def field_values(argv: list[str]) -> list[str]:
+    """Return the value of every body-carrying field, in argument order."""
+    values = []
+    for index, part in enumerate(argv):
+        for flag in FIELD_FLAGS:
+            if part == flag and index + 1 < len(argv):
+                values.append(argv[index + 1])
+                break
+            if part.startswith(flag + "="):
+                values.append(part.split("=", 1)[1])
+                break
+    return values
+
+
 def field_body(argv: list[str]) -> str:
     """Return the `body=` field of a request, or an empty string.
 
     Every field is scanned, not just the first: a request that sends another
     field before `body=` still carries its comment, and recording it as empty
-    would lose the very text the recording is evidence for.
+    would lose the very text the recording is evidence for. Both the separated
+    and the equals form are read, so either spelling of a POST is recorded.
     """
-    for index, part in enumerate(argv):
-        if part not in FIELD_FLAGS or index + 1 >= len(argv):
-            continue
-        value = argv[index + 1]
+    for value in field_values(argv):
         if value.startswith("body="):
             return value.removeprefix("body=")
     return ""
@@ -284,7 +306,9 @@ def request_method(argv: list[str]) -> str:
     explicit = flag_value(argv, "--method") or flag_value(argv, "-X")
     if explicit:
         return explicit.upper()
-    mutation = any(flag in argv for flag in FIELD_FLAGS) or "--input" in argv
+    mutation = any(has_flag(argv, flag) for flag in FIELD_FLAGS) or has_flag(
+        argv, "--input"
+    )
     return "POST" if mutation else "GET"
 
 
@@ -297,17 +321,24 @@ def is_post_comment(argv: list[str], url: str) -> bool:
 
 
 def answer_api(facts: dict, argv: list[str]) -> int:
-    """Answer one `gh api` invocation."""
+    """Answer one `gh api` invocation.
+
+    The method is resolved before any read route is considered. `gh api` sends
+    a write for a field-bearing or `--method` invocation whatever the path is,
+    so answering `gh api user --method DELETE` with a user object would report
+    a mutation the stand-in never made.
+    """
     url = api_url(argv)
+    method = request_method(argv)
+    if method == "POST" and is_post_comment(argv, url):
+        return handle_post(facts, argv)
+    if method != "GET":
+        return fail(f"gh: unsupported {method} {url}", 2)
     if url == "user":
         # The routing record holds only the login, so serve a user object with
         # that field. A `--jq .login` filter then resolves through the same
         # path as every other payload instead of returning the raw string.
         return emit({"login": login_for(facts)}, jq=jq_expression(argv))
-    if is_post_comment(argv, url):
-        return handle_post(facts, argv)
-    if request_method(argv) != "GET":
-        return fail(f"gh: unsupported {request_method(argv)} {url}", 2)
     return handle_read(facts, argv, url)
 
 
