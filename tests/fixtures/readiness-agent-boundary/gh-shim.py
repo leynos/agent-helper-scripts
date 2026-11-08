@@ -104,8 +104,10 @@ def submitted_body(argv: list[str]) -> str:
         except OSError:
             return ""
     else:
-        # `-f body=...` sends the field directly, with no JSON envelope.
-        return flag_value(argv, "-f") or flag_value(argv, "--raw-field")
+        # `-f body=...` sends the field directly, with no JSON envelope, so the
+        # body is the value after the field name and not the whole expression.
+        field = flag_value(argv, "-f") or flag_value(argv, "--raw-field")
+        return field.removeprefix("body=")
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -114,8 +116,13 @@ def submitted_body(argv: list[str]) -> str:
     return body if isinstance(body, str) else ""
 
 
-def posted_comment(facts: dict, body: str) -> dict:
-    """Return the comment the API creates for a POST carrying `body`."""
+def posted_comment(facts: dict, body: str, login: str) -> dict:
+    """Return the comment the API creates for an authorized POST carrying `body`.
+
+    The author is the account the request authenticated as, not the pool's
+    expected login: a POST that presented no token, or the wrong one, must not
+    record itself as the pool account and so appear authorized.
+    """
     post = facts.get("posted_comment", {})
     return {
         "id": post.get("id", 9901),
@@ -123,7 +130,7 @@ def posted_comment(facts: dict, body: str) -> dict:
             "html_url",
             "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901",
         ),
-        "user": {"login": POOL_LOGIN, "type": "User"},
+        "user": {"login": login, "type": "User"},
         # The submitted text is kept, not replaced by a placeholder: the
         # follow-up's content is part of what the recording is evidence for.
         "body": body,
@@ -150,9 +157,14 @@ def handle_post(facts: dict, argv: list[str]) -> int:
 
     The comment is served back on its own route, so the read-back after a post
     is a separate, independently observable fact rather than an assumption
-    about what the POST did.
+    about what the POST did. A POST without the fixture token is refused: the
+    manual-comment route is authorized by that token, so accepting a request
+    that lacks it would record a success the real service would not grant.
     """
-    posted = posted_comment(facts, submitted_body(argv))
+    login = login_for(facts)
+    if login != POOL_LOGIN:
+        return fail("gh: HTTP 401: Bad credentials")
+    posted = posted_comment(facts, submitted_body(argv), login)
     state = {"isDraft": facts["pr"].get("isDraft", True), "posted": posted}
     STATE.write_text(json.dumps(state), encoding="utf-8")
     return emit(posted["html_url"])
@@ -206,7 +218,11 @@ def answer(argv: list[str]) -> int:
     if argv[:2] == ["pr", "view"]:
         return emit(facts["pr"])
     if argv[:2] == ["pr", "ready"]:
-        STATE.write_text(json.dumps({"isDraft": False}), encoding="utf-8")
+        # Record the transition without dropping what the state already holds:
+        # a run can post a follow-up and then mark the PR ready, and the
+        # posted comment is still evidence after the second transition.
+        state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+        STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
         return emit(facts["pr_ready_response"])
     if argv[:2] == ["pr", "checks"]:
         return emit(facts["pr_checks"])

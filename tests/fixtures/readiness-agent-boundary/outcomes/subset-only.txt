@@ -1,22 +1,17 @@
-I left PR 272 as a draft and did not run `gh pr ready`, because the readiness gate is not met: CodeRabbit's completeness assessment on this exact candidate came back "not clear" for the whole plan.
+I've stopped here and left PR 272 in draft: it doesn't pass the readiness gate, so I didn't run `gh pr ready`, post any comments or request a review.
 
-**What `gh` shows for base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`:**
-- **State:** open, `isDraft: true`, `mergeStateStatus: BLOCKED`.
-- **CI:** all three checks (Makefile gates, CodeScene Code Health Review, Gecko Security Review) are COMPLETED/SUCCESS. CodeScene reports "No advisory findings, gate failures or code-health declines."
-- **Assessment:** the request (comment 9001, Assessment-ID `271-ab-subset`, plan revision `rev-7`) asked about the whole approved plan. CodeRabbit's reply (comment 9002) echoes the same base/head and revision.
-- **Other surfaces:** there are no reviews and no inline comments. The review-threads GraphQL query returned 404, so whether threads are resolved is unknown.
+**Current state (read live through `gh`):**
+- **Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`, `isDraft: true`, merge state `BLOCKED`.
+- **CI is green:** Makefile gates (7701), CodeScene Code Health Review (7702) and Gecko Security Review (7703) all show `COMPLETED / SUCCESS`.
+- **CodeScene is clear:** check 7702 reports "No advisory findings, gate failures or code-health declines.", and there are no inline comments from CodeScene's bot.
+- **Completeness assessment: not clear.** Request 9001 (Assessment-ID `271-ab-subset`) asked about the whole approved plan at `rev-7`. CodeRabbit's reply (comment 9002) assessed only milestones EP-M1 and EP-M2 and says EP-M3 to EP-M6 are not implemented.
+- **Proof assessment:** not applicable, since the request says "Proof inventory: none affected."
+- **Formal review:** the `CodeRabbit` status reads `Review completed`, but there are no review submissions yet. That status doesn't count until the PR is ready.
 
-**Why I stopped here:** the skill says only a clear verdict on the whole plan, against the approved revision, satisfies readiness. A verdict on a declared subset is evidence for that scope only, with no "subset or plateau waiver". Missing milestones count as unfinished implementation work, not as a waived requirement. Green CI and a "Review completed" CodeRabbit status don't change that.
+**Why it stays in draft:** the skill allows readiness only with a clear verdict on the whole approved plan for the current base/head and plan revision. A verdict on part of the plan is evidence for that part only. Unbuilt milestones are still in-scope work, not a limitation, and a single PR that claims the whole plan but delivers part of it never qualifies. Green CI and clean CodeScene don't override this. Re-asking for an assessment without new code would add nothing.
 
-I also posted no new assessment request (the skill forbids repeating one that was already answered) and queued no formal review, since that only comes after readiness.
+**Blocker:** milestones EP-M3 to EP-M6 of the `rev-7` plan need to be built, and that's out of reach here. There's no checkout of the repository, and `gh` couldn't list other PRs or this PR's files. So I couldn't tell whether this is a lower layer of a stack, which would mean the plan has to be split, or a single PR that should carry the whole plan.
 
-**What's blocking it, and who owns it:**
-- **Blocker:** milestones EP-M3 to EP-M6 of the `rev-7` plan are not implemented.
-- **Owner:** the implementation owner (`sdlc-implementation`), or you, if the plan needs restructuring.
-- **Next action:**
-  - If this PR is meant to carry the whole plan, implement EP-M3 to EP-M6, then re-run gates and CI and post a follow-up assessment for the new head.
-  - If it is one layer of a stack, split the plan into self-contained units first. A layer that covers only part of one undivided plan can never pass this gate.
+**Next step (owner: the implementation agent, or you if the plan needs splitting):** build EP-M3 to EP-M6 on this PR, or restructure the plan into independently complete parts. Then push, get green CI and clean CodeScene for the new head, and post a new whole-plan completeness request that links 9001/9002. Mark the PR ready only once that reply comes back clear.
 
-This working directory has no repository checkout or helper manifest, so I couldn't hand off the implementation work from here.
-
-In one sentence: I checked PR 272's live state and kept it in draft without marking it ready, because CodeRabbit's reply (comment 9002) on this exact base/head and `rev-7` reads "**Verdict: not clear** … Assessed subject: the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."
+In one sentence: I checked PR 272's live state and left it in draft without marking it ready, because CodeRabbit's completeness reply (comment 9002) says "**Verdict: not clear** … **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."

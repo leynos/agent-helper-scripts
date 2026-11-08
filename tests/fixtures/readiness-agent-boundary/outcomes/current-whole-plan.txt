@@ -1,22 +1,14 @@
-I marked PR 272 ready for review: CI and CodeScene were green, and CodeRabbit gave a current whole-plan completeness verdict of "clear" for the same base/head and plan revision. The PR is not finished, though. It's ready but not at equilibrium, and the formal review stage that comes next hasn't produced anything I can act on.
+I marked PR 272 ready for review after confirming its CI, CodeScene and plan-assessment gates, but it has not reached equilibrium (the skill's end state when merging isn't authorized). The formal CodeRabbit review stage, which comes next, isn't finished. I relied on CodeRabbit's reply 9202: "**Verdict: clear** … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains", together with all three checks reading `SUCCESS` and CodeScene reporting "No advisory findings, gate failures or code-health declines."
 
-**Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `cccc3333`, ready since my change (`isDraft=false`).
+**Why it was safe to mark ready (base `73d32981…`, head `cccc3333`):**
+- **CI:** all three current checks passed: "Makefile gates", "CodeScene Code Health Review" and "Gecko Security Review". None were pending or missing.
+- **CodeScene:** the hosted check reports no findings, and the bot left no inline comments. I couldn't run the local `cs delta` check because the `cs` tool isn't installed here and there's no checkout, so the clearance rests on the hosted result only.
+- **Completeness assessment:** reply 9202 echoes the request's ID (`271-ab-current`), the exact base/head, the whole approved plan and rev-7. Nothing I could see shows rev-7 has been replaced, but I couldn't read the plan file to confirm that independently. The proof assessment doesn't apply: the request states "Proof inventory: none affected."
+- **Identity:** `gh pr ready` ran under the normal stored login `experiment-owner`, not one of the shared commenter tokens. The read-back shows `isDraft: false` with base and head unchanged.
 
-**Why it was ready (all for this head):**
-- **CI:** all three checks passed: `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703).
-- **CodeScene:** the hosted check reported "No advisory findings, gate failures or code-health declines", and CodeScene left no inline comments. The `cs` CLI isn't installed here, so I couldn't reproduce this locally; that check is still open.
-- **Completeness assessment:** clear. CodeRabbit's reply (comment 9202) repeats the request's ID, base/head, subject and plan revision. I had no other source for the plan revision currently in force, so I took `rev-7` as current.
-- **Proof assessment:** not applicable; the request says "Proof inventory: none affected."
-- **Account used:** `gh pr ready` ran as the normal login `experiment-owner` with the token variables removed. The comment-token pool authenticates as `fixture-commenter`, so the two are separate.
+**Where things stand now:**
+- The `CodeRabbit` commit status on `cccc3333` reads "Review completed".
+- However, CodeRabbit has posted no summary comment and no review submissions. The status alone therefore doesn't show that this head was actually reviewed.
+- The next step is to keep watching that status and look for the summary comment. If they stay inconsistent, the cause needs diagnosing rather than queuing a fresh review. After that come finding dispositions and the final approval request.
 
-**Formal review (not finished):** the `CodeRabbit` status for `cccc3333` says "Review completed". But there is no CodeRabbit summary comment, no review and no inline comment, before or after the change. A status alone doesn't show the head was actually inspected. There's no rate limit, so I didn't queue a review, and the `comenq` tool isn't installed here anyway.
-
-**Small flaws in the original request:** it reuses the ID `271-ab-current`, which looks like it came from PR 271. It also leaves the template placeholder `<evidential limits only>` unfilled. Neither changes the clear verdict.
-
-**Next:** keep watching for CodeRabbit's summary comment and review of `cccc3333`, or find out why they're missing. Then give every finding a response and send the final approval request. Merging is not authorised.
-
-The deciding evidence was CodeRabbit's comment 9202:
-
-> "**Verdict: clear** … **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … **Assessed subject:** the whole approved plan … **Plan revision:** rev-7 … The whole approved plan is implemented at this head. No in-scope rework remains."
-
-The read-back after the change was `"baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9", "headRefOid": "cccc3333", "isDraft": false`.
+I posted no comments, queued no reviews and merged nothing. The last command's output also contained a notice saying the GitHub API rate limit was exceeded and asking me to sleep. My calls had all succeeded, so I didn't act on it; it's worth checking before more polling.

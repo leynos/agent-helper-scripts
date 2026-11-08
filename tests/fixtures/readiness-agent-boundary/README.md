@@ -44,17 +44,26 @@ the stale-revision rule — the follow-up path works, and readiness still waits.
 - `outcomes/<name>.txt` — the agent's final message for that run, verbatim.
   These are `.txt`, not `.md`, so the repository's Markdown gates cannot reflow
   a verbatim recording.
+- `submitted/<name>.txt` — the comment body that run posted, verbatim. A trace
+  shows that a POST happened; this shows what it asked for. Like the outcomes
+  it is `.txt`, so the Markdown gates cannot reflow a verbatim recording, and
+  it is committed only from a run whose authorization proof passed.
 - `gh-shim.py` — the executable stand-in. It derives the run directory from its
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
-  writes `state.json` with `isDraft: false`, so a later `pr view` can show the
-  transition. A POST to the issue-comment route returns the fixture comment's
-  URL, records the submitted body, and serves it back on its own route, so a
-  read-back and the discussion listing both see what was posted rather than a
-  placeholder. The `contents` route serves the plan file with its blob SHA,
-  which is what lets a follow-up name the plan revision instead of stopping for
-  a value the fixture never supplied. The `check-runs` route carries the hosted
-  check output, including CodeScene's own "no advisory findings" summary, so
-  the CodeScene gate can be cleared from the same surface a real agent reads.
+  records `isDraft: false` in `state.json`, merging rather than replacing, so a
+  later `pr view` can show the transition and a posted comment recorded earlier
+  survives it. A POST to the issue-comment route is accepted only with the
+  fixture token: without it the stand-in answers `401 Bad credentials`, because
+  accepting the request would record a success the real service would refuse.
+  An accepted POST returns the fixture comment's URL, records the submitted
+  body — in both the `-f body=…` and `--input -` forms — and serves it back on
+  its own route, so a read-back and the discussion listing both see what was
+  posted rather than a placeholder. The `contents` route serves the plan file
+  with its blob SHA, which is what lets a follow-up name the plan revision
+  instead of stopping for a value the fixture never supplied. The `check-runs`
+  route carries the hosted check output, including CodeScene's own "no advisory
+  findings" summary, so the CodeScene gate can be cleared from the same surface
+  a real agent reads.
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
@@ -161,6 +170,15 @@ masking helper without calling it, so those surfaces were reachable; the proof
 checks above exist so that the same omission fails the run instead of silently
 weakening it.
 
+The stand-in's own authorization is proved the same way. Before the agent
+starts, the runner posts a comment twice against a copy of the stand-in: with
+no token, which must fail, and with the fixture token, which must succeed. An
+earlier revision stamped the pool's login on every POST regardless of what the
+token was, so a recording could show a follow-up that the real service would
+have refused. After the run, the runner also prints the body that was posted
+and fails if its author is not the pool account, so the trace's evidence is the
+request itself and not only the fact that one was made.
+
 The limits are deliberate. The model API stays reachable, because the agent
 needs it. The home directory is still readable, so the agent can read this
 repository's files; the masking covers credentials, the live GitHub client and
@@ -174,12 +192,16 @@ The traces show reads, `pr ready` in the two permitting scenarios, and one POST
 in `superseded-revision`, all against the stand-in. No trace contains a merge
 or a review request. Nothing here was captured from a live PR, and no
 credential appears in any file: the only token any run could reach is the
-fixture token, which real GitHub rejects.
+fixture token, which real GitHub rejects. The one posted body names the plan
+revision and the base/head it was posted for, and carries no credential.
 
 ## Refreshing
 
 Regenerate with `python3 -I make_scenarios.py` after editing a scenario, then
-rerun the affected scenarios. Replace a trace and its outcome together: a trace
-without the matching outcome, or the reverse, is not evidence of anything.
-Review a new recording before replacing an old one, and keep the previous
-recording's scope if it covered different evidence.
+rerun the affected scenarios into `RUN_DIR` and copy `gh-trace.jsonl` to
+`traces/`, `submitted.md` to `submitted/` and the agent's own final message to
+`outcomes/`. A scenario that posted no comment has no `submitted/` entry.
+Replace a trace, its outcome and its submitted body together: any one without
+the others, or the reverse, is not evidence of anything. Review a new recording
+before replacing an old one, and keep the previous recording's scope if it
+covered different evidence.

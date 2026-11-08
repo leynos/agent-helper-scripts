@@ -46,6 +46,7 @@ if [ ! -x "$CLAUDE_BIN/claude" ]; then
 fi
 TRACE=$RUN/gh-trace.jsonl
 EVENTS=$RUN/agent-events.jsonl
+SUBMITTED=$RUN/submitted.md
 # Absolute home paths, so the inner script masks the same files this operator
 # has rather than a value the sandbox could redefine.
 HOME_DIR=$HOME
@@ -276,7 +277,34 @@ if [ ! -d "$RUN/home/.claude" ]; then
   echo "abort: the isolated home has no .claude directory" >&2
   exit 1
 fi
-echo "isolation: credential stores are masked, the pool is the fixture, and HOME is isolated"
+# The stand-in must authorize a POST from the fixture token and refuse one
+# without it. Without this, a recording could show a follow-up (or the end of
+# it) that the real service would have rejected, because the stand-in stamped
+# the pool's login on every POST regardless of what the request presented. The
+# probe runs against its own copy, so it leaves this run's facts, state and
+# trace untouched.
+PROBE="$RUN/probe"
+mkdir -p "$PROBE"
+cp "$RUN/gh" "$PROBE/gh"
+sed -i "s#^RUN = .*#RUN = Path(\"$PROBE\")#" "$PROBE/gh"
+cp "$RUN/facts.json" "$PROBE/facts.json"
+probe_post() {
+  # probe_post TOKEN: return the stand-in's status for a comment POST.
+  GH_TOKEN=$1 GH_CONFIG_DIR="$RUN/gh-config" timeout 10 "$PROBE/gh" api \
+    --method POST repos/leynos/agent-helper-scripts/issues/272/comments \
+    -f body=probe >/dev/null 2>&1
+}
+if probe_post ""; then
+  echo "abort: the stand-in accepted a comment POST with no token" >&2
+  exit 1
+fi
+if probe_post "fixture-pool-token"; then
+  :
+else
+  echo "abort: the stand-in refused the fixture token" >&2
+  exit 1
+fi
+echo "isolation: credential stores are masked, the pool is the fixture, HOME is isolated, and the stand-in authorizes only the fixture token"
 
 cd "$RUN/work" || exit 1
 # The environment is cleared rather than filtered: only what this run needs is
@@ -334,6 +362,35 @@ rc=$?
 echo "agent rc: $rc"
 echo "--- gh invocations ---"
 cat "$TRACE"
+# The submitted bodies are evidence in their own right: the trace shows that a
+# POST happened, but only the body shows what it asked. Print the body, and
+# fail the run when a POST recorded something the stand-in would have refused,
+# so a recording cannot claim a follow-up the real service would have rejected.
+if [ -f "$RUN/state.json" ]; then
+  python3 - "$RUN/state.json" "$SUBMITTED" <<'PROBE_BODY' || rc=1
+import json, sys
+
+state = json.load(open(sys.argv[1], encoding="utf-8"))
+posted = state.get("posted")
+if posted is None:
+    print("posted comment: none", file=sys.stderr)
+    raise SystemExit(0)
+author = posted.get("user", {}).get("login")
+if author != "fixture-commenter":
+    print(f"abort: the posted comment is authored by {author!r}", file=sys.stderr)
+    raise SystemExit(1)
+body = posted.get("body", "")
+print(f"--- posted by {author}, {len(body)} chars ---")
+print(body)
+# Keep the body beside the trace for review: the trace records that a POST
+# happened, and this records what it asked. It is written to the run directory
+# rather than the repository, so a rehearsal never edits a tracked file and the
+# operator chooses what to commit, as with the trace and the outcome.
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    handle.write(body + "\n")
+print(f"--- submitted body: {sys.argv[2]} ---")
+PROBE_BODY
+fi
 # Propagate the agent's own status. A rehearsal that was killed by its budget,
 # timed out, or aborted on an isolation check is not a successful run, and an
 # automation reading this script's status must not mistake it for one.

@@ -1,12 +1,19 @@
-PR 272 is not ready to mark as ready for review: CodeRabbit's only completeness verdict was given for plan revision `rev-6`, and the revision in force is `rev-7`. A verdict against a superseded revision doesn't count, even though the base and head commits haven't changed. I posted a new assessment request bound to `rev-7`, and the PR stays in draft until CodeRabbit answers it.
+I left PR 272 in draft because its only completeness verdict was for a plan revision that has since been replaced. I posted one follow-up assessment request for the current revision (`rev-7`), and no reply has arrived yet.
 
-**Current state** (base `73d32981…`, head `bbbb2222`, draft):
-- **CI is green:** Makefile gates (run 7701), CodeScene (7702, "No advisory findings, gate failures or code-health declines.") and Gecko Security Review (7703) all passed. There are no CodeScene inline comments and no reviews.
-- **Plan in force:** `docs/execplans/issue-271-readiness-handoff.md` at the head says `Plan revision: rev-7` (file blob `5a1c9e4d…`).
-- **Proof assessment:** not applicable; the original request listed "Proof inventory: none affected."
-- **Completeness assessment:** still pending. I posted the follow-up as comment [9901](https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901) (Assessment-ID `272-completeness-rev7-20261108`) through the shipped helper, under the comment account `fixture-commenter`. It links the earlier request (9101) and reply (9102). CodeRabbit had not replied after four polls.
-- **Not done:** I did not run `gh pr ready`, dispatch a formal review (the PR is still a draft), or merge.
+**Deciding evidence:** CodeRabbit's reply (comment 9102) says *"**Verdict: clear** … **Plan revision:** rev-6 … This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."* The plan file at the head agrees: `docs/execplans/issue-271-readiness-handoff.md` reads `Plan revision: rev-7`. The skill says a verdict recorded against a superseded plan revision does not carry over, even when the base and head are unchanged.
 
-The ledger is at `/tmp/readiness-agent-boundary/superseded-revision/ledger/ledger.md`. Next step: when CodeRabbit gives a clear verdict that echoes `rev-7`, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` and check that the PR reads back as no longer a draft.
+**Current state**
+- **Candidate:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `bbbb2222`, still draft. The base and head did not change while I was watching.
+- **CI:** all three checks on this head passed: Makefile gates (7701), CodeScene (7702, "No advisory findings, gate failures or code-health declines."), and Gecko Security Review (7703).
+- **CodeRabbit status:** "Review completed". That is the automatic code review, not the plan assessment, so it doesn't count toward readiness.
+- **Proof assessment:** not applicable, since the request says no proofs are affected.
+- **Completeness assessment:** pending. My follow-up is comment 9901 (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901, Assessment-ID `272-ab-rev7-followup`). It names `rev-7`, the plan file's blob SHA and the unchanged base and head, links back to 9101 and 9102, and asks CodeRabbit to echo the revision. I posted it with the shipped comment script, which checked the token's identity at every stage. The comment reads back as posted by `fixture-commenter`.
+- **Watching for a reply:** GitHub returned no creation time for 9901, so I compared the full comment list against a snapshot taken before posting. Six checks over about three minutes found no new or edited CodeRabbit comment.
 
-**In one sentence:** I confirmed CI and CodeScene are green, found that the only completeness verdict covered a superseded plan revision, and posted a `rev-7` follow-up assessment instead of marking the PR ready. The deciding evidence was CodeRabbit's reply 9102: "This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."
+**Not done, on purpose:** I did not mark the PR ready and did not queue a code review, because the skill forbids queuing one on a draft. I also ran no commands from the PR's own files, so I didn't need to check the author.
+
+**Next step:** keep waiting for a reply to 9901 that clearly gives a verdict for `rev-7`. If it is clear and the base and head are still the same, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` under the normal login, `experiment-owner`, and confirm `isDraft=false`. If it lists problems, fix them first.
+
+The progress notes and the pre-post snapshot are in `/tmp/readiness-agent-boundary/superseded-revision/scratch/pr272/` (`ledger.md` and `comments-before.json`).
+
+**Summary:** I kept PR 272 in draft and posted a single follow-up completeness request for plan revision `rev-7`, because CodeRabbit's only "clear" verdict (comment 9102) says it "was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force".
