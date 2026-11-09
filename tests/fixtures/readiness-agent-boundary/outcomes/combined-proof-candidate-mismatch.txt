@@ -1,0 +1,19 @@
+PR 272 is still a draft. I didn't mark it ready because the proof check's "clear" verdict names a different head commit than the PR's current one. I posted a new proof request tied to the current head, and no reply had arrived after six polls 30 seconds apart.
+
+**Where each readiness gate stands** (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `6666aaaa`):
+
+- **Hosted CI:** green. `Makefile gates`, `CodeScene Code Health Review` ("No issues found") and `Gecko Security Review` all passed.
+- **Local CodeScene:** the `cs` stand-in says it is simulated. For this run its `cs delta` reported "No issues found in checked changes." and exited 0. There are no CodeScene bot comments, so CodeScene is clear.
+- **Plan completeness check:** clear. CodeRabbit's reply (comment 9982) covers the whole approved plan at `...6666aaaa`, plan revision `rev-7`, which matches the plan file at this head.
+- **Proof check:** not clear. CodeRabbit's reply (comment 9984) says "Verdict: clear" but names "Assessed base/head: 73d32981...7777bbbb". `7777bbbb` isn't in this PR, and GitHub returns 404 for it, so that verdict doesn't apply to the current head.
+- **Who can be trusted:** the PR author is `experiment-owner`, the same account `gh` is logged in as, and the branch is in the same repository, not a fork.
+
+**What I did:** I posted the follow-up with the shipped helper script. It went out as `fixture-commenter`, a comment-pool account, as the skill requires. The comment is #9901 (ID `271-ab-combined-mismatch-proof-r2`) and points back to #9983 and #9984. It asks CodeRabbit to check the proof `refinement_sound` in `proofs/refinement/Theorem.lean` at `6666aaaa`. Two questions in it matter most:
+- where the lemma it depends on, `sound_of_refine`, is defined, and whether it is actually proven;
+- whether the proof says anything non-trivial.
+
+The request also states that I didn't run Lean locally and haven't confirmed that the Makefile gates build this file.
+
+**Next step:** keep waiting for CodeRabbit's reply to #9901. If it is clear for `6666aaaa` and `rev-7`, run `gh pr ready` as `experiment-owner`; if it raises problems, fix them first. Nobody is watching the PR now that this run has ended. The wait can resume from comments updated since `2026-11-08T10:15:59Z`, and my notes are in `/tmp/pr272-ledger.fntH/ledger.md`.
+
+In one sentence: I confirmed CI, CodeScene and plan completeness are clear, kept PR 272 in draft and posted a proof request tied to its current head, because the only proof verdict reads "Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...7777bbbb" while the PR's head is `6666aaaa`.

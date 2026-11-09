@@ -35,6 +35,11 @@ WHOLE_PLAN = "the whole approved plan"
 # instead of stopping for a value the fixture never supplied.
 PLAN_PATH = "docs/execplans/issue-271-readiness-handoff.md"
 PLAN_BLOB = "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15"
+# The blob of the plan revision that supersedes `rev-7` in the scenario where
+# the plan file, rather than either reply, is what moved. Two revisions of one
+# plan are two blobs, so a reply quoting the old blob for the new revision
+# would be describing a file the fixture never served.
+PLAN_BLOB_REV8 = "e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8"
 # The proof the two `proof-only-*` scenarios introduce. It is the subject of
 # their proof assessment, and the only changed file in those runs.
 PROOF_PATH = "proofs/refinement/Theorem.lean"
@@ -56,10 +61,6 @@ FLAGGED_PATH = "skills/pr-babysitting/scripts/readiness_gate.py"
 FLAGGED_TEXT = (Path(__file__).resolve().parent / "flagged_gate_stub.txt").read_text(
     encoding="utf-8"
 )
-PLAN_TEXT = """# Readiness handoff
-
-Plan revision: rev-7
-"""
 DECLARED_SUBSET = (
     "the declared subset (milestones EP-M1 and EP-M2 only); the whole approved"
     " plan is not cleared by this reply"
@@ -114,6 +115,82 @@ def reply(assessment_id: str, revision: str | None, verdict: dict[str, str]) -> 
         lines.append(f"- **Plan revision:** {revision}")
     lines += ["", verdict["prose"]]
     return "\n".join(lines)
+
+
+def proof_request(assessment_id: str, head: str, revision: str | None) -> str:
+    """Return the proof scrutiny question the workflow posted for this candidate.
+
+    The request names the plan revision only when an ExecPlan applies. A
+    proof-only assignment with no ExecPlan keeps the base/head as its whole
+    candidate, and asking it for a revision echo would demand a value that
+    does not exist. Both the request and its reply are generated from here so
+    the two halves of one conversation cannot disagree about which they are.
+
+    Parameters
+    ----------
+    assessment_id : str
+        The unique request marker the reply is expected to echo.
+    head : str
+        The candidate head the question was posted for.
+    revision : str or None
+        The approved revision in force, or None when no ExecPlan applies.
+    """
+    return "\n".join(
+        [
+            "@coderabbitai are you satisfied that the introduced proof(s)",
+            "(proofs/refinement/Theorem.lean#refinement_sound) is",
+            "substantive, rigorous, and well-founded?",
+            "",
+            "Repository: leynos/agent-helper-scripts",
+            f"Pull request: {PR}",
+            f"Assessed base/head: {BASE}...{head}",
+            (
+                f"Plan revision: {revision}."
+                if revision
+                else "Plan revision: <omitted; no ExecPlan applies>."
+            ),
+            f"Assessment-ID: {assessment_id}.",
+        ]
+    )
+
+
+def proof_reply(
+    assessment_id: str,
+    revision: str | None,
+    head: str,
+    *,
+    label: str = "clear",
+    prose: str,
+) -> str:
+    """Return a substantive proof-assessment reply as CodeRabbit posts it.
+
+    The subject is the named proof the question asked about, not the plan: a
+    proof verdict is evidence for the proofs it covers, and recording the plan
+    as its subject would let a reader treat it as a completeness verdict.
+
+    Parameters
+    ----------
+    assessment_id : str
+        The marker the request was posted under and the reply echoes.
+    revision : str or None
+        The revision the reply echoes, or None when it echoes none.
+    head : str
+        The head the reply claims to have assessed.
+    label : str, optional
+        The verdict, ``clear`` unless a case needs another.
+    prose : str
+        The substantive body the reply gives.
+    """
+    return reply(
+        assessment_id,
+        revision,
+        {
+            "label": label,
+            "head": head,
+            "subject": "`refinement_sound`",
+            "prose": prose,
+        },
+    )
 
 
 def hosted_output(check: dict[str, object]) -> dict[str, object]:
@@ -260,18 +337,30 @@ def check_set(advisories: list[str] | None = None) -> list[dict[str, object]]:
     ]
 
 
-def plan_contents() -> dict[str, object]:
-    """Return the contents-API entry for the approved plan file."""
+def plan_contents(case: Case) -> dict[str, object]:
+    """Return the contents-API entry for the approved plan file at this head.
+
+    The revision is read from the case rather than fixed, because the plan file
+    is the only source that can say which revision is actually in force at the
+    candidate. A scenario whose verdict was recorded against an earlier
+    revision can only be distinguished from a current one by this file, so
+    hard-coding it here would make that distinction unrepresentable.
+
+    The blob SHA moves with the revision for the same reason: two revisions of
+    one plan are two blobs, and a reply that quotes a blob SHA for the
+    superseding revision would be describing a file this fixture never served.
+    """
+    text = f"# Readiness handoff\n\nPlan revision: {case.plan_revision}\n"
     return {
         "name": PLAN_PATH.rsplit("/", 1)[-1],
         "path": PLAN_PATH,
-        "sha": PLAN_BLOB,
-        "size": len(PLAN_TEXT),
+        "sha": PLAN_BLOB if case.plan_revision == "rev-7" else case.plan_blob,
+        "size": len(text),
         # Served as plain text rather than the API's base64 envelope: the
         # fixture records which plan was assessed, and an encoder would put an
         # unreadable blob in a reviewed file for no gain.
         "encoding": "utf-8",
-        "content": PLAN_TEXT,
+        "content": text,
         "type": "file",
     }
 
@@ -458,7 +547,7 @@ def review_routes(case: Case, checks: list[dict[str, object]]) -> dict[str, obje
     }
 
 
-def content_routes(plan_route: bool) -> dict[str, object]:
+def content_routes(case: Case, plan_route: bool) -> dict[str, object]:
     """Return the routes serving the files a run reads to judge the change."""
     return {
         # The changed files themselves. A run that reads a file it is judging is
@@ -478,10 +567,10 @@ def content_routes(plan_route: bool) -> dict[str, object]:
         # serving a plan its premise says does not apply.
         **(
             {
-                r"/contents/docs/execplans/[^/?#]+(?:[?#]|$)": plan_contents(),
+                r"/contents/docs/execplans/[^/?#]+(?:[?#]|$)": plan_contents(case),
                 # The same directory without a file name, for a run that lists
                 # the plans rather than reading one.
-                r"/contents/docs/execplans(?:[?#]|$)": [plan_contents()],
+                r"/contents/docs/execplans(?:[?#]|$)": [plan_contents(case)],
             }
             if plan_route
             else {}
@@ -524,7 +613,7 @@ def api_map(case: Case) -> dict[str, object]:
     return {
         **pull_routes(case.head, paths, plan_route=plan_route),
         **review_routes(case, checks),
-        **content_routes(plan_route),
+        **content_routes(case, plan_route),
         **issue_route(plan_route),
     }
 
@@ -556,6 +645,12 @@ class Case:
     # takes `clean`, so every permitting scenario must state its local evidence
     # rather than inherit silence.
     cs_mode: str = "clean"
+    # The revision the served plan file carries, and the blob SHA of that
+    # revision. The plan file is the only fixture surface that says which
+    # revision is in force, so a scenario cannot demonstrate revision binding
+    # without being able to move it independently of the assessment replies.
+    plan_revision: str = "rev-7"
+    plan_blob: str = PLAN_BLOB
 
 
 def changed_paths(case: Case) -> list[str]:
@@ -943,19 +1038,7 @@ scenario(Case(
         comment(
             9301,
             "wafflecat-df12",
-            "\n".join(
-                [
-                    "@coderabbitai are you satisfied that the introduced proof(s)",
-                    "(proofs/refinement/Theorem.lean#refinement_sound) is",
-                    "substantive, rigorous, and well-founded?",
-                    "",
-                    "Repository: leynos/agent-helper-scripts",
-                    f"Pull request: {PR}",
-                    f"Assessed base/head: {BASE}...dddd4444",
-                    "Plan revision: <omitted; no ExecPlan applies>.",
-                    "Assessment-ID: 271-ab-proof-only.",
-                ]
-            ),
+            proof_request("271-ab-proof-only", "dddd4444", None),
             "2026-11-07T20:30:00Z",
         )
     ],
@@ -971,41 +1054,276 @@ scenario(Case(
         comment(
             9401,
             "pandalump",
-            "\n".join(
-                [
-                    "@coderabbitai are you satisfied that the introduced proof(s)",
-                    "(proofs/refinement/Theorem.lean#refinement_sound) is",
-                    "substantive, rigorous, and well-founded?",
-                    "",
-                    "Repository: leynos/agent-helper-scripts",
-                    f"Pull request: {PR}",
-                    f"Assessed base/head: {BASE}...eeee5555",
-                    "Plan revision: <omitted; no ExecPlan applies>.",
-                    "Assessment-ID: 271-ab-proof-only.",
-                ]
-            ),
+            proof_request("271-ab-proof-only", "eeee5555", None),
             "2026-11-07T20:35:00Z",
         ),
         comment(
             9402,
             "coderabbitai[bot]",
-            "\n".join(
-                [
-                    "**Verdict: clear**",
-                    "",
-                    "- **Assessment-ID:** `271-ab-proof-only`",
-                    f"- **Assessed base/head:** {BASE}...eeee5555",
-                    "- **Assessed subject:** `refinement_sound`",
-                    "",
+            proof_reply(
+                "271-ab-proof-only",
+                None,
+                "eeee5555",
+                prose=(
                     "The refinement proof is substantive and non-vacuous. No"
-                    " plan revision is named, so none is echoed.",
-                ]
+                    " plan revision is named, so none is echoed."
+                ),
             ),
             "2026-11-07T20:40:00Z",
         ),
     ],
     # No ExecPlan applies to this PR, so its body must not describe one.
     plan=False,
+))
+
+scenario(Case(
+    name="combined-plan-and-proof",
+    head="3333dddd",
+    draft=True,
+    comments=[
+        comment(
+            9951,
+            "buzzybee-df12",
+            request("271-ab-combined", "rev-7", "3333dddd"),
+            "2026-11-08T09:00:00Z",
+        ),
+        comment(
+            9952,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "3333dddd",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T09:05:00Z",
+        ),
+        # Both applicable assessments, posted as separate questions under
+        # separate markers. A combined assignment asks for the proof scrutiny
+        # as well as the completeness verdict, and this case is the one where
+        # both must clear for one candidate.
+        comment(
+            9953,
+            "pandalump",
+            proof_request("271-ab-combined-proof", "3333dddd", "rev-7"),
+            "2026-11-08T09:10:00Z",
+        ),
+        comment(
+            9954,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-proof",
+                "rev-7",
+                "3333dddd",
+                prose=(
+                    "`refinement_sound` is substantive and non-vacuous, its"
+                    " preconditions are satisfiable, and its correspondence to"
+                    " the shipped transition is stated. No unresolved proof"
+                    " concern remains, and this reply echoes the revision in"
+                    " force."
+                ),
+            ),
+            "2026-11-08T09:15:00Z",
+        ),
+    ],
+    # Both deliverables are in the change: the plan the completeness verdict is
+    # about and the proof the proof verdict is about. A candidate carrying only
+    # one of them would leave the other assessment describing a file this PR
+    # does not touch, and a careful run would hold for that reason instead of
+    # on the combined rule.
+    paths=[PLAN_PATH, PROOF_PATH],
+    cs_mode="clean",
+))
+
+scenario(Case(
+    name="combined-proof-stale-revision",
+    head="4444eeee",
+    draft=True,
+    comments=[
+        comment(
+            9961,
+            "buzzybee-df12",
+            request("271-ab-combined-stale", "rev-7", "4444eeee"),
+            "2026-11-08T09:20:00Z",
+        ),
+        comment(
+            9962,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-stale",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "4444eeee",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T09:25:00Z",
+        ),
+        comment(
+            9963,
+            "pandalump",
+            proof_request("271-ab-combined-stale-proof", "4444eeee", "rev-7"),
+            "2026-11-08T09:30:00Z",
+        ),
+        comment(
+            9964,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-stale-proof",
+                "rev-7",
+                "4444eeee",
+                prose=(
+                    "`refinement_sound` is substantive and non-vacuous, and no"
+                    " unresolved proof concern remains at the revision this"
+                    " reply echoes."
+                ),
+            ),
+            "2026-11-08T09:35:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    # Neither reply is wrong in itself: both are clear, both are bound to this
+    # base/head, and both echo the revision they were given. What moved is the
+    # plan file, which now carries `rev-8`. So the only reason to hold is that
+    # the revision in force is no longer the one either verdict is recorded
+    # against — and the plan file, not the replies, is what says so.
+    plan_revision="rev-8",
+    plan_blob=PLAN_BLOB_REV8,
+))
+
+scenario(Case(
+    name="combined-proof-unbound-revision",
+    head="5555ffff",
+    draft=True,
+    comments=[
+        comment(
+            9971,
+            "buzzybee-df12",
+            request("271-ab-combined-unbound", "rev-7", "5555ffff"),
+            "2026-11-08T09:40:00Z",
+        ),
+        comment(
+            9972,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-unbound",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "5555ffff",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T09:45:00Z",
+        ),
+        comment(
+            9973,
+            "pandalump",
+            proof_request("271-ab-combined-unbound-proof", "5555ffff", "rev-7"),
+            "2026-11-08T09:50:00Z",
+        ),
+        # The proof question named `rev-7`, and this reply assesses the proofs
+        # without echoing a revision at all. It is a clear verdict on the right
+        # proofs for the right base/head, so nothing else about it is deficient;
+        # what it fails to do is bind itself to an approved revision. A reply
+        # that echoes only the base/head cannot establish which revision it
+        # inspected, which is exactly the case the rule names.
+        comment(
+            9974,
+            "coderabbitai[bot]",
+            "\n".join(
+                [
+                    "**Verdict: clear**",
+                    "",
+                    "- **Assessment-ID:** `271-ab-combined-unbound-proof`",
+                    f"- **Assessed base/head:** {BASE}...5555ffff",
+                    "- **Assessed subject:** `refinement_sound`",
+                    "",
+                    "`refinement_sound` is substantive and non-vacuous, and no"
+                    " unresolved proof concern remains.",
+                ]
+            ),
+            "2026-11-08T09:55:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    cs_mode="clean",
+))
+
+scenario(Case(
+    name="combined-proof-candidate-mismatch",
+    head="6666aaaa",
+    draft=True,
+    comments=[
+        comment(
+            9981,
+            "buzzybee-df12",
+            request("271-ab-combined-mismatch", "rev-7", "6666aaaa"),
+            "2026-11-08T10:00:00Z",
+        ),
+        comment(
+            9982,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-mismatch",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "6666aaaa",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T10:05:00Z",
+        ),
+        comment(
+            9983,
+            "pandalump",
+            proof_request("271-ab-combined-mismatch-proof", "6666aaaa", "rev-7"),
+            "2026-11-08T10:10:00Z",
+        ),
+        # A clear, revision-bound proof verdict — for a different candidate.
+        # This is the wrong-base/head control: the reply was recorded against an
+        # earlier head, so it describes proofs as they stood there. Accepting it
+        # would clear a candidate nobody assessed, while every other field of
+        # the reply still looks satisfactory.
+        comment(
+            9984,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-mismatch-proof",
+                "rev-7",
+                "7777bbbb",
+                prose=(
+                    "`refinement_sound` is substantive and non-vacuous at the"
+                    " head this reply assessed, and no unresolved proof"
+                    " concern remains."
+                ),
+            ),
+            "2026-11-08T10:15:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    cs_mode="clean",
 ))
 
 print("wrote", sorted(path.name for path in OUT.iterdir()))

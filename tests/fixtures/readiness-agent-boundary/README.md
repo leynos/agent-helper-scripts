@@ -19,19 +19,26 @@ the hosted check's own output, or the recorded local CodeScene result. `base` is
 `73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
 draft in each case. The two `proof-only-*` scenarios differ from the rest in
 one more respect that is part of their premise: their PR body says no ExecPlan
-applies and their diff is the proof they introduce.
+applies and their diff is the proof they introduce. The four `combined-*`
+scenarios differ in the opposite direction: their PR changes the plan file and
+a proof, so both assessments apply, and the plan and proof `contents` routes
+both serve the text a run reads at its own head.
 
-| Scenario                      | Head       | Completeness evidence                                                        | Proof evidence                        | `gh pr ready` |
-| ----------------------------- | ---------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------- |
-| `subset-only`                 | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                  | no            |
-| `subset-clear`                | `ffff6666` | **clear**; subject is still the declared subset                              | none                                  | no            |
-| `superseded-revision`         | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                  | no            |
-| `current-whole-plan`          | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                         | yes           |
-| `codescene-advisory`          | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
-| `local-codescene-finding`     | `1111bbbb` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
-| `local-codescene-unavailable` | `2222cccc` | **clear** whole plan, `rev-7`; every check green                             | none affected                         | no            |
-| `proof-only-pending`          | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered           | no            |
-| `proof-only-cleared`          | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound` | yes           |
+| Scenario                            | Head       | Completeness evidence                                                        | Proof evidence                                     | `gh pr ready` |
+| ----------------------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------- |
+| `subset-only`                       | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                               | no            |
+| `subset-clear`                      | `ffff6666` | **clear**; subject is still the declared subset                              | none                                               | no            |
+| `superseded-revision`               | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                               | no            |
+| `current-whole-plan`                | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                                      | yes           |
+| `codescene-advisory`                | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `local-codescene-finding`           | `1111bbbb` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `local-codescene-unavailable`       | `2222cccc` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `proof-only-pending`                | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered                        | no            |
+| `proof-only-cleared`                | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound`              | yes           |
+| `combined-plan-and-proof`           | `3333dddd` | **clear** whole plan, `rev-7`; the plan file is changed too                  | **clear**, `refinement_sound`, `rev-7`             | yes           |
+| `combined-proof-stale-revision`     | `4444eeee` | clear verdict, but records `rev-7` while the plan file reads `rev-8`         | clear verdict, same stale `rev-7`                  | no            |
+| `combined-proof-unbound-revision`   | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
+| `combined-proof-candidate-mismatch` | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
 
 `codescene-advisory` isolates the CodeScene gate from every other reason to
 hold: the whole approved plan has cleared at the revision in force, and all
@@ -53,11 +60,51 @@ current revision whose only defect is the subject, and it stays in draft anyway.
 `subset-clear` reads the hosted CodeScene check output, the PR's diff and its
 file list rather than reporting them missing, so its hold is the subject and
 nothing else. `superseded-revision` isolates the revision check: the verdict is
-clear and the whole plan, and only the revision is stale. It is also the one
-scenario that exercises the manual-comment route: the agent posts a follow-up
+clear and the whole plan, and only the revision is stale. It is also the first
+scenario to exercise the manual-comment route: the agent posts a follow-up
 asking for a `rev-7` verdict, reads it back, and waits for an answer that the
 facts never supply. The scenario therefore shows both halves of the
 stale-revision rule — the follow-up path works, and readiness still waits.
+
+### The two-assessment cases
+
+The four `combined-*` scenarios are the cases where an ExecPlan implementation
+also introduces a proof, so both the completeness and the proof assessment are
+applicable and both must clear. A verdict on one of them says nothing about the
+other, and the pair of requests means a run cannot infer the revision binding
+from a single reply's echo: `combined-plan-and-proof` is the only permitting
+run in which two assessments have to clear, so a run that accepted one and
+treated the other as covered would transition on evidence it never read.
+
+`combined-plan-and-proof` is the permitting case: two clear replies, each
+echoing `rev-7` for the same base/head, which matches the plan file read at the
+head being judged. The PR changes the plan file and a Lean proof, and the run
+reads both `contents` routes before deciding.
+
+The other three hold for one distinct reason each, so that a hold in one cannot
+be explained by the defect in another:
+
+- `combined-proof-stale-revision` moves the plan file under the replies. Both
+  replies are clear and echo `rev-7`, and both are for the right base/head —
+  but the plan at this head reads `rev-8`, because the plan file is what moved
+  rather than either reply. The run reconciles the echoes against the file and
+  renews both requests for `rev-8`; no reply follows, and the PR stays draft.
+  This is the case the earlier recordings could not reach, where base/head is
+  unchanged and only the revision in force has moved on.
+- `combined-proof-unbound-revision` leaves the proof reply without a revision
+  line at all. The completeness reply is clear and names `rev-7`, the proof
+  reply is clear and names only the Assessment-ID, base/head and subject. A
+  reply that does not echo the revision cannot be bound to it, so the run posts
+  a follow-up asking for the revision to be restated and stays in draft. The
+  bound reply in the same thread is what makes this a test of the binding: a
+  run that inferred the proof revision from the completeness reply would take
+  the pair as clear.
+- `combined-proof-candidate-mismatch` changes the head the proof reply
+  assessed. The reply echoes `rev-7` and is otherwise substantive, but its
+  assessed head is `7777bbbb` where the PR's head is `6666aaaa`; asking the
+  service for that commit returns 404. A verdict recorded against another
+  revision does not carry over, so the run asks again against the real head and
+  stays in draft.
 
 ## Layout
 
@@ -124,23 +171,31 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   fixture comment's URL, records the submitted body — in both the `-f body=…`
   and `--input -` forms — and serves it back on its own route, so a read-back
   and the discussion listing both see what was posted rather than a
-  placeholder. A single-comment route serves any comment the recorded listing
-  carries, so a read-back finds a comment the run itself did not post. The
-  `contents` route serves the plan file with its blob SHA, which is what lets a
-  follow-up name the plan revision instead of stopping for a value the fixture
-  never supplied. The `pulls/N`, `pulls/N/files`, `pulls/N/commits`, `pr list`,
-  `pr diff` and `graphql` review-thread routes answer the reads a readiness run
-  makes when it checks whether the delivered work matches the plan; without
-  them a run reported those reads as 404 and could not see the diff at all. The
-  `graphql` route takes POST only, and only for a document whose own text is a
-  query: a mutation, a subscription, any other verb, or a read with no document
-  is refused as unsupported rather than answered from the recorded reads. A
-  stray `query` in another field does not make a mutation a query, and two
-  documents are both read, so a mutation sent after a query is still refused.
-  The check's own `annotations` route serves the entries its
-  `annotations_count` advertises, and the `contents` route serves the file a
-  finding names, so a run investigating an advisory reads the code rather than
-  being told it is missing. `gh repo clone` is refused as unreachable —
+  placeholder. Each accepted post is appended under an id of its own, because a
+  run that renews two assessments posts twice and a stand-in holding one
+  comment made the second look like it had replaced the first. Every post is
+  also stamped with `created_at` and `updated_at`, one value taken from the
+  latest the facts record plus a minute: the real service stamps every comment,
+  and a run that polls for a fresh reply filters the discussion by time. A
+  comment with no stamp reads back as `created_at: null`, which two recordings
+  reported as the service failing to record when an accepted comment was made.
+  A single-comment route serves any comment the recorded listing carries, so a
+  read-back finds a comment the run itself did not post. The `contents` route
+  serves the plan file with its blob SHA, which is what lets a follow-up name
+  the plan revision instead of stopping for a value the fixture never supplied.
+  The `pulls/N`, `pulls/N/files`, `pulls/N/commits`, `pr list`, `pr diff` and
+  `graphql` review-thread routes answer the reads a readiness run makes when it
+  checks whether the delivered work matches the plan; without them a run
+  reported those reads as 404 and could not see the diff at all. The `graphql`
+  route takes POST only, and only for a document whose own text is a query: a
+  mutation, a subscription, any other verb, or a read with no document is
+  refused as unsupported rather than answered from the recorded reads. A stray
+  `query` in another field does not make a mutation a query, and two documents
+  are both read, so a mutation sent after a query is still refused. The check's
+  own `annotations` route serves the entries its `annotations_count`
+  advertises, and the `contents` route serves the file a finding names, so a
+  run investigating an advisory reads the code rather than being told it is
+  missing. `gh repo clone` is refused as unreachable —
   `Could not resolve host: github.com` — because that is what the dropped
   network really does; reporting it as an unsupported command would misdescribe
   the environment. The `check-runs` route carries the hosted check output,
@@ -154,8 +209,8 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   base and head refs and file list, because the skill's candidate-trust check
   reads them before it trusts any candidate-defined command, and a fixture
   without them made every run report that it could not decide. A `contents`
-  route serves the proof the `proof-only-*` scenarios introduce, so a run
-  assessing it reads the subject rather than a 404.
+  route serves the proof the `proof-only-*` and `combined-*` scenarios
+  introduce, so a run assessing it reads the subject rather than a 404.
 - `make_scenarios.py` — regenerates every `facts.json`.
 - `flagged_gate_stub.txt` — the file the advisory scenario serves and the local
   finding is measured against. It is data, so it stays out of the generator: a
@@ -363,6 +418,19 @@ proof verdict is the only applicable assessment. `superseded-revision` reads
 `contents/docs/execplans` while naming the stale revision in a follow-up, which
 is a different use of the route from the confirmation above.
 
+The three holding `combined-*` cases each reconcile the same way, and their
+traces show it: `combined-proof-stale-revision`,
+`combined-proof-unbound-revision` and `combined-proof-candidate-mismatch` all
+read `contents/docs/execplans/issue-271-readiness-handoff.md` at their own head
+before deciding, so none of them holds merely because it never looked. What
+differs is what the read established. In the stale case the file reads `rev-8`
+against replies that echo `rev-7`; in the unbound case the completeness reply
+names `rev-7` and the proof reply names nothing, so the revision check cannot
+be satisfied for the proof from its own reply; in the mismatch case the
+revision matches and the head does not. The permits case reads both `contents`
+routes, the plan and the proof, at the head it judges, because a combined
+assignment has two subjects to reconcile and one read would not cover both.
+
 **CodeScene, local half.** The local result is a **simulated** `cs`
 (`cs-shim.py`), not CodeScene. The real binary performs a licence check against
 `api.codescene.io` on every invocation, and this sandbox drops all egress
@@ -401,26 +469,42 @@ candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
-**Freshness of each recording.** All nine were re-recorded together under the
-stand-in, the facts, the mount mask and the simulated `cs` as they now behave,
-and each run passed its own outcome assertion. They were replaced when the
-runner gained the shared `pr-ready` boundary line, the successful read-back
-check, the candidate-bound plan read and the head-commit route, and when the
-assignment began naming the stand-in as the local source. The last change is
-why all nine, not only the two permitting ones, had to be redone: before it,
-the stand-in's own "not a CodeScene analysis" disclosure was an unmodelled
-third variable. Two runs of one scenario then diverged — one accepted the clean
-result and transitioned, the other read the disclosure as "the local source is
-unverified" and held — so the recordings were evidence about how each agent
-read the banner rather than about the rule. The assignment now names the
-stand-in as this environment's local source without revealing what it answered.
-Earlier revisions of these files were not so: the stand-in once ignored `--jq`,
-so a filtered call returned the unfiltered payload, it once answered a
-field-bearing `gh api` call as a read, so a POST recorded nothing, and the
-permitting recordings were made before any local CodeScene result existed, so
-they transitioned while their outcomes said `cs` was unavailable. That last
-state is what the rule now forbids, and those recordings were replaced rather
-than reworded.
+**Freshness of each recording.** All thirteen recordings passed their own
+outcome assertion when they were made. They were replaced when the runner
+gained the shared `pr-ready` boundary line, the successful read-back check, the
+candidate-bound plan read and the head-commit route, and when the assignment
+began naming the stand-in as the local source; both changes reached every
+scenario, so all nine originals were redone together.
+
+The stand-in's handling of a posted comment changed last, and only the
+recordings that post were redone under it: the four `combined-*` scenarios and
+`superseded-revision`. Before that change a posted comment read back with
+`created_at: null` and a second post overwrote the first, and two outcomes
+reported those as defects in the service. A stand-in that mismodelled the
+record it exists to serve cannot be the evidence for how an agent reads that
+record. The eight recordings that post nothing are unaffected, because the
+change is confined to the comment the stand-in records and serves back; they
+were not re-recorded, and their provenance is the earlier refresh above.
+
+A recording made before an assertion was added is still valid evidence for what
+it observed, but it has not been re-run against the assertion. The plan-read
+check now extends to the three holding `combined-*` cases, which were recorded
+after it did; no earlier recording is held to a check it was not made under.
+
+Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
+unmodelled third variable, and that is why all nine original scenarios, not
+only the permitting ones, were redone together. Two runs of one scenario then
+diverged — one accepted the clean result and transitioned, the other read the
+disclosure as "the local source is unverified" and held — so the recordings
+were evidence about how each agent read the banner rather than about the rule.
+The assignment now names the stand-in as this environment's local source
+without revealing what it answered. Earlier revisions of these files were not
+so: the stand-in once ignored `--jq`, so a filtered call returned the
+unfiltered payload, it once answered a field-bearing `gh api` call as a read,
+so a POST recorded nothing, and the permitting recordings were made before any
+local CodeScene result existed, so they transitioned while their outcomes said
+`cs` was unavailable. That last state is what the rule now forbids, and those
+recordings were replaced rather than reworded.
 
 The facts were also incomplete in a way the runs themselves reported: the
 recorded PR carried no author or head-repository fields, so a run following the
@@ -437,12 +521,12 @@ completeness assessment instead of deciding the proof one.
 
 ## Recorded artefacts contain no live mutations
 
-The traces show reads, `pr ready` in the two permitting scenarios, and one POST
-in `superseded-revision`, all against the stand-in. No trace contains a merge
-or a review request. Nothing here was captured from a live PR, no real
-CodeScene command was run, and no credential appears in any file: the only
-token any run could reach is the fixture token, which real GitHub rejects. The
-one posted body names the plan revision and the base/head it was posted for,
+The traces show reads, `pr ready` in the three permitting scenarios, and POSTs
+in the runs that renew an assessment, all against the stand-in. No trace
+contains a merge or a review request. Nothing here was captured from a live PR,
+no real CodeScene command was run, and no credential appears in any file: the
+only token any run could reach is the fixture token, which real GitHub rejects.
+Every posted body names the plan revision and the base/head it was posted for,
 and carries no credential.
 
 ## Refreshing

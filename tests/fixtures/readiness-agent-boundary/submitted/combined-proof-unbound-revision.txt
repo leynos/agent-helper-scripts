@@ -1,0 +1,19 @@
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — `refinement_sound`) is substantive, rigorous, and well-founded?
+
+Follow-up to the proof request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9973 and your reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9974. That reply echoed the Assessment-ID and base/head but not the plan revision, so its verdict cannot yet be bound to the approved ExecPlan revision. The candidate has not changed.
+
+Published head: 5555ffff; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: per the approved plan `docs/execplans/issue-271-readiness-handoff.md`; please check how `State`, `refine`, and `sound` correspond to shipped code.
+Assumptions, trusted boundaries, domain, and bounds: the theorem rests entirely on `sound_of_refine`, which is not defined in this file; please identify where it comes from and whether it assumes the conclusion.
+Verifier evidence: no Lean toolchain version, command, or per-obligation output has been recorded for this candidate; treat that as an evidential limit.
+Non-vacuity and limitations: no witness or negative control has been recorded showing that `refine s = s` is satisfiable; please assess this.
+Plan revision: rev-7 (plan file blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head).
+Assessment-ID: 271-ab-combined-unbound-proof-r2.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply; echo the plan revision only when this request names one.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Check substance, rigour, foundations, and correspondence to production code.
+Identify each unresolved concern or missing inspection explicitly.
+

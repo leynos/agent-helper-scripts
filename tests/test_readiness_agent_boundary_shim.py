@@ -79,16 +79,31 @@ def invoke(
     )
 
 
-def posted(run: Path) -> dict:
-    """Return the comment the run recorded, failing clearly when none was.
+def posted(run: Path) -> list[dict]:
+    """Return the comments the run recorded, failing clearly when none was.
 
     Reading `state.json` directly would report a missing file, which says
     nothing about the defect. Naming the absent record instead shows that the
     write was answered as a read.
+
+    The record is a list because the real service assigns a new id to every
+    accepted comment, and a run that renews two assessments posts twice.
     """
     state = run / "state.json"
     assert state.exists(), "no comment was recorded: the write was treated as a read"
     return json.loads(state.read_text(encoding="utf-8"))["posted"]
+
+
+def last_posted(run: Path) -> dict:
+    """Return the most recently recorded comment, asserting one exists.
+
+    A single-post test reads the only entry; the caller that checks several
+    posts reads `posted` directly. Naming the last one keeps a one-post test
+    from indexing a list it never claimed was ordered.
+    """
+    comments = posted(run)
+    assert comments, "no comment was recorded: the write was treated as a read"
+    return comments[-1]
 
 
 @pytest.mark.parametrize(
@@ -284,7 +299,7 @@ def test_equals_form_fields_still_post(run: Path, flag: str) -> None:
         token=POOL_TOKEN,
     )
     assert done.returncode == 0, done.stderr
-    record = posted(run)
+    record = last_posted(run)
     assert record["body"] == "equals-form", "expected record[\"body\"] to equal \"equals-form\""
     assert record["user"]["login"] == "fixture-commenter", "expected record[\"user\"][\"login\"] to equal \"fixture-commenter\""
 
@@ -301,7 +316,7 @@ def test_equals_form_input_still_posts(run: Path, tmp_path: Path) -> None:
         token=POOL_TOKEN,
     )
     assert done.returncode == 0, done.stderr
-    assert posted(run)["body"] == "from a file", "expected posted(run)[\"body\"] to equal \"from a file\""
+    assert last_posted(run)["body"] == "from a file", "expected posted(run)[\"body\"] to equal \"from a file\""
 
 
 def test_pr_view_applies_a_filter(run: Path) -> None:
@@ -642,7 +657,7 @@ def test_a_refused_post_does_not_displace_an_earlier_one(run: Path) -> None:
     assert first.returncode == 0, first.stderr
     refused = invoke(run, "api", COMMENT_ROUTE, "-f", "body=", token=POOL_TOKEN)
     assert refused.returncode != 0, "expected refused.returncode not to equal 0"
-    assert posted(run)["body"] == "first", "expected posted(run)[\"body\"] to equal \"first\""
+    assert last_posted(run)["body"] == "first", "expected posted(run)[\"body\"] to equal \"first\""
 
 
 def test_an_unauthorized_post_after_an_accepted_one_changes_nothing(run: Path) -> None:
@@ -660,7 +675,7 @@ def test_an_unauthorized_post_after_an_accepted_one_changes_nothing(run: Path) -
     assert refused.returncode != 0, "expected refused.returncode not to equal 0"
     assert "401" in refused.stderr, "expected \"401\" in refused.stderr to hold"
     assert posted(run) == before, "a refused POST rewrote the accepted comment"
-    ident = before["id"]
+    ident = before[-1]["id"]
     single = invoke(run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}")
     assert single.returncode == 0, single.stderr
     assert json.loads(single.stdout)["body"] == "accepted", (
@@ -687,7 +702,7 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
     # The response is the created comment, so the body that was sent comes back
     # on the call itself rather than only from a later read.
     assert json.loads(done.stdout)["body"] == "hello", "the POST response lost the body"
-    ident = posted(run)["id"]
+    ident = last_posted(run)["id"]
     url = f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
     single = invoke(run, "api", url)
     assert single.returncode == 0, single.stderr
@@ -698,7 +713,7 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
         for item in json.loads(listing.stdout)
     )
     assert invoke(run, "pr", "ready", "272").returncode == 0
-    assert posted(run)["body"] == "hello", "the transition dropped the comment"
+    assert last_posted(run)["body"] == "hello", "the transition dropped the comment"
     assert json.loads((run / "state.json").read_text())["isDraft"] is False, "expected json.loads((run / \"state.json\").read_text())[\"isDraft\"] is False to hold"
     # The transition rewrites the same state file, so both read routes are
     # exercised again: a fix that preserved the comment in the record but
@@ -719,6 +734,80 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
 def cs_run(tmp_path: Path) -> Path:
     """Place a runnable copy of the simulated `cs` beside a facts file."""
     return place_shim(CS_SHIM, "cs", tmp_path)
+
+
+def test_two_accepted_posts_are_two_readable_comments(run: Path) -> None:
+    """A second accepted POST adds a comment; it does not replace the first.
+
+    The real service assigns a new id to every accepted comment. A stand-in
+    that held one posted comment made the second look like it had overwritten
+    the first: the stale-revision rehearsal renewed both assessments, and its
+    outcome reported that the PR's discussion showed only one of the two
+    requests. That is a fixture artefact, and an agent cannot tell it apart
+    from a service that lost a comment.
+
+    Both must remain readable afterwards, through the route that serves one
+    comment and the listing that serves the discussion, because a run reads
+    back what it posted through both.
+    """
+    first = invoke(run, "api", COMMENT_ROUTE, "-f", "body=first", token=POOL_TOKEN)
+    assert first.returncode == 0, first.stderr
+    second = invoke(run, "api", COMMENT_ROUTE, "-f", "body=second", token=POOL_TOKEN)
+    assert second.returncode == 0, second.stderr
+    first_id = json.loads(first.stdout)["id"]
+    second_id = json.loads(second.stdout)["id"]
+    assert first_id != second_id, (
+        "two accepted comments shared one id, so the second overwrote the first"
+    )
+    for ident, body in ((first_id, "first"), (second_id, "second")):
+        single = invoke(
+            run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
+        )
+        assert single.returncode == 0, f"{body} is no longer readable: {single.stderr}"
+        assert json.loads(single.stdout)["body"] == body
+    listing = json.loads(invoke(run, "api", COMMENT_ROUTE).stdout)
+    bodies = {item["id"]: item["body"] for item in listing}
+    assert bodies.get(first_id) == "first", "the listing dropped the first comment"
+    assert bodies.get(second_id) == "second", "the listing dropped the second comment"
+
+
+def test_a_posted_comment_is_stamped_after_the_discussion(run: Path) -> None:
+    """A posted comment carries the timestamps the real service stamps.
+
+    `gh` filters a discussion by `created_at` when it polls for a fresh reply,
+    and a comment with no stamp cannot be selected by such a filter. The
+    candidate-mismatch rehearsal posted a follow-up and read it back with
+    `created_at: null`, then reported that as a defect in the service; the
+    superseded-revision recording said the same. Both are this stand-in's
+    omission, and an agent cannot tell one from a service that accepted a
+    comment without recording when.
+
+    The stamp must also sort after the thread it was posted into, or a poll
+    that asks for comments newer than the last recorded reply would skip the
+    very comment the run had just added.
+    """
+    done = invoke(run, "api", COMMENT_ROUTE, "-f", "body=stamped", token=POOL_TOKEN)
+    assert done.returncode == 0, done.stderr
+    created = json.loads(done.stdout)["created_at"]
+    assert created, "an accepted POST was served without a created_at"
+    assert created == json.loads(done.stdout)["updated_at"], (
+        "a just-posted comment's created_at and updated_at disagreed"
+    )
+    single = invoke(run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{last_posted(run)['id']}")
+    assert single.returncode == 0, single.stderr
+    assert json.loads(single.stdout)["created_at"] == created, (
+        "the comment's own route served a different stamp from the POST"
+    )
+    discussed = max(
+        item["updated_at"]
+        for item in json.loads((run / "facts.json").read_text(encoding="utf-8"))["api"][
+            "/issues/\\d+/comments"
+        ]
+    )
+    assert created > discussed, (
+        f"the posted comment is stamped {created}, not after the discussion's "
+        f"latest entry {discussed}, so a time-filtered poll would skip it"
+    )
 
 
 #: The finding a test records for a `finding` mode. The stand-in has no
@@ -1241,7 +1330,9 @@ def test_the_plan_probe_accepts_a_candidate_read_before_the_transition(
             answer(plan_read("cccc3333")),
         ],
     )
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode == 0, done.stderr
 
 
@@ -1267,7 +1358,9 @@ def test_the_plan_probe_refuses_a_base_read_then_a_candidate_read(
             answer(plan_read("cccc3333")),
         ],
     )
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode != 0, "a base read was accepted as the candidate's plan"
     assert "no usable candidate-bound plan read before the transition" in done.stderr, (
         "expected 'no usable candidate-bound plan read before the transition'"
@@ -1291,7 +1384,9 @@ def test_the_plan_probe_refuses_a_candidate_read_that_failed(
         tmp_path / "answers.jsonl",
         [answer(plan_read("cccc3333"), 1, ""), answer(READY_INVOCATION, 0, "")],
     )
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode != 0, "a failed candidate read was accepted"
     assert "candidate-bound plan read failed" in done.stderr, "expected 'candidate-bound plan read failed' in done.stderr"
 
@@ -1318,7 +1413,9 @@ def test_the_plan_probe_keeps_scanning_after_a_failed_candidate_read(
             answer(READY_INVOCATION, 0, ""),
         ],
     )
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode == 0, (
         "a failed read followed by a successful one was still refused:"
         f" {done.stderr}"
@@ -1340,7 +1437,9 @@ def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(
         tmp_path / "answers.jsonl",
         [answer(plan_read("cccc3333"), 0, ""), answer(READY_INVOCATION, 0, "")],
     )
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode != 0, "an empty candidate read was accepted"
     assert "candidate-bound plan read returned nothing" in done.stderr, "expected 'candidate-bound plan read returned nothing' in done.stderr"
 
@@ -1358,7 +1457,9 @@ def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
         tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
     )
     answers = write_lines(tmp_path / "answers.jsonl", [answer(plan_read("cccc3333"))])
-    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    done = run_probe(
+        "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+    )
     assert done.returncode != 0, "expected done.returncode not to equal 0"
     assert "disagree in length" in done.stderr, "expected 'disagree in length' in done.stderr"
 
@@ -1474,18 +1575,18 @@ def test_the_preflight_refuses_a_wrong_token_after_an_accepted_post(
     """
     state = tmp_path / "state.json"
     state.write_text(
-        json.dumps({"isDraft": True, "posted": {"id": 1, "body": "probe"}}),
+        json.dumps({"isDraft": True, "posted": [{"id": 1, "body": "probe"}]}),
         encoding="utf-8",
     )
     kept = run_probe("PROBE_AUTHZ", str(state))
     assert kept.returncode == 0, kept.stderr
     state.write_text(
-        json.dumps({"isDraft": True, "posted": {"id": 1, "body": "injected"}}),
+        json.dumps({"isDraft": True, "posted": [{"id": 1, "body": "injected"}]}),
         encoding="utf-8",
     )
     overwritten = run_probe("PROBE_AUTHZ", str(state))
     assert overwritten.returncode != 0, "a rewritten comment was accepted as refused"
-    assert "changed the recorded comment" in overwritten.stderr, "expected 'changed the recorded comment' in overwritten.stderr"
+    assert "changed the recorded comments" in overwritten.stderr, "expected 'changed the recorded comments' in overwritten.stderr"
 
 
 def cs_entry(argv: list[str]) -> dict:
@@ -1764,6 +1865,121 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
             f"{probe}'s refusal sits outside the permitting branch that invokes"
             " the probe"
         )
+
+
+def test_the_combined_scenario_is_held_to_every_permitting_check() -> None:
+    """The combined case transitions, so every permitting check must reach it.
+
+    A scenario listed as permitting but left out of the plan-read branch, the
+    delta check, or the read-back would be filed as a recording of the combined
+    gate while proving less than the plan-only case does. Each of those checks
+    is selected by scenario name, so a new name is exactly what silently
+    escapes them.
+    """
+    runner = RUNNER.read_text()
+    # The permitting list is what sets EXPECT_READY for the outcome assertions.
+    # It is a case arm naming the scenarios, so the arm's own pattern is what
+    # has to carry the new name.
+    permitting = re.search(
+        r"^case \$SCENARIO in\n(?P<arm>.*?)\)\n\s+EXPECT_READY=yes",
+        runner,
+        re.DOTALL | re.MULTILINE,
+    )
+    assert permitting, "the runner's permitting list is no longer recognizable"
+    assert "combined-plan-and-proof" in permitting.group("arm"), (
+        "the combined scenario is not permitted, so its transition would fail"
+    )
+    # The plan-read probe is gated by its own scenario case, so the combined
+    # case needs a name there too: without it the transition is accepted with
+    # no evidence that the revision was reconciled against the plan file.
+    # The arm is bounded by `esac`, so the match cannot run back into an
+    # earlier scenario case and pick its names up. Without that bound the
+    # search spans from the first `case $SCENARIO in` in the file and the
+    # assertion passes whatever the plan-read branch actually says.
+    plan_branch = re.search(
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+plan_line=",
+        runner,
+        re.DOTALL,
+    )
+    assert plan_branch, "the plan-read branch is no longer recognizable"
+    assert "combined-plan-and-proof" in plan_branch.group("names"), (
+        "the combined scenario transitions without the plan-read check"
+    )
+
+
+def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
+    """A holding combined case must have read the plan it says it reconciled.
+
+    Each of the three exists because a verdict is unusable as given: a stale
+    revision, an unbound one, or a different head. Every one of those grounds
+    is established from the plan file or the candidate, so a run that held
+    without reading the plan would be filed as evidence for a rule it never
+    applied. The plan-read arm is selected by scenario name, so a holding case
+    left out of it is exactly the silent gap this asserts against.
+    """
+    runner = RUNNER.read_text()
+    plan_branch = re.search(
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+plan_line=",
+        runner,
+        re.DOTALL,
+    )
+    assert plan_branch, "the plan-read branch is no longer recognizable"
+    for name in (
+        "combined-proof-stale-revision",
+        "combined-proof-unbound-revision",
+        "combined-proof-candidate-mismatch",
+    ):
+        assert name in plan_branch.group("names"), (
+            f"{name} holds without being held to the plan read, so its hold"
+            " could be for a reason the scenario does not name"
+        )
+
+
+def test_the_plan_probe_accepts_a_holding_run() -> None:
+    """The plan probe must run for a hold, which has no transition to order by.
+
+    The probe originally required a `pr ready` to order the plan read against.
+    A holding run issues none, so extending the plan-read arm to the holding
+    combined cases without this would abort every one of them at the probe
+    rather than recording the hold. The requirement still applies to a
+    permitting run, or a permitting rehearsal could be recorded with its plan
+    read after the transition.
+    """
+    runner = RUNNER.read_text()
+    assert 'if ready is None and expect_ready != "no":' in runner, (
+        "the plan probe no longer distinguishes a holding run's missing"
+        " transition from a permitting run's"
+    )
+    assert "if ready is None:\n    ready = len(trace)" in runner, (
+        "a holding run's plan read is not ordered against the end of its trace"
+    )
+    assert '"$EXPECT_READY" <<\'PROBE_PLAN\'' in runner, (
+        "the plan probe is not given the expectation it now branches on"
+    )
+
+
+def test_a_holding_combined_case_asserts_the_defect_it_demonstrates() -> None:
+    """Each holding combined case must still record the defect it names.
+
+    The premise is a property of the facts, not of the recording. If a later
+    edit moved the plan file back to the revision the replies echo, or gave the
+    unbound proof reply a revision, or pointed the mismatch at the real head,
+    the run would hold on nothing and still be filed under the scenario's name.
+    """
+    runner = RUNNER.read_text()
+    premise = re.search(
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+if ! python3"
+        r".*?<<'PROBE_PREMISE'",
+        runner,
+        re.DOTALL,
+    )
+    assert premise, "the premise assertion is no longer recognizable"
+    for name in (
+        "combined-proof-stale-revision",
+        "combined-proof-unbound-revision",
+        "combined-proof-candidate-mismatch",
+    ):
+        assert name in premise.group("names"), f"{name} is not held to its premise"
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:

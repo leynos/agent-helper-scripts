@@ -313,12 +313,16 @@ import json, sys
 # A refused POST must not reach the record. Reading the body rather than the
 # file's existence is what distinguishes "refused" from "accepted and
 # replaced": both leave a state file, and only one leaves the right body.
+#
+# Every accepted comment is examined, not just the latest. The record holds one
+# entry per accepted POST, so a run that posts twice has two comments and a
+# stand-in that overwrote the first would still satisfy a check on the last.
 state = json.load(open(sys.argv[1], encoding="utf-8"))
-posted = state.get("posted") or {}
-body = posted.get("body")
-if body != "probe":
+posted = state.get("posted") or []
+bodies = [entry.get("body") for entry in posted]
+if bodies != ["probe"]:
     print(
-        f"abort: a wrong-token POST changed the recorded comment to {body!r}",
+        f"abort: a wrong-token POST changed the recorded comments to {bodies!r}",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -400,23 +404,33 @@ if [ -f "$RUN/state.json" ]; then
 import json, sys
 
 state = json.load(open(sys.argv[1], encoding="utf-8"))
-posted = state.get("posted")
-if posted is None:
+posted = state.get("posted") or []
+if not posted:
     print("posted comment: none", file=sys.stderr)
     raise SystemExit(0)
-author = posted.get("user", {}).get("login")
-if author != "fixture-commenter":
-    print(f"abort: the posted comment is authored by {author!r}", file=sys.stderr)
+authors = {entry.get("user", {}).get("login") for entry in posted}
+if authors != {"fixture-commenter"}:
+    print(f"abort: a posted comment is authored by {authors!r}", file=sys.stderr)
     raise SystemExit(1)
-body = posted.get("body", "")
-print(f"--- posted by {author}, {len(body)} chars ---")
-print(body)
-# Keep the body beside the trace for review: the trace records that a POST
-# happened, and this records what it asked. It is written to the run directory
-# rather than the repository, so a rehearsal never edits a tracked file and the
-# operator chooses what to commit, as with the trace and the outcome.
+bodies = [entry.get("body", "") for entry in posted]
+for index, body in enumerate(bodies, 1):
+    print(f"--- posted {index}/{len(bodies)} by fixture-commenter, {len(body)} chars ---")
+    print(body)
+# Keep the bodies beside the trace for review: the trace records that a POST
+# happened, and this records what it asked. A run may post two follow-ups when
+# both assessments are renewed, so every body is written, separated by a header
+# naming which post it was. A single-post run writes one body with no header,
+# which is what the committed recordings already hold. It is written to the run
+# directory rather than the repository, so a rehearsal never edits a tracked
+# file and the operator chooses what to commit, as with the trace and the
+# outcome.
 with open(sys.argv[2], "w", encoding="utf-8") as handle:
-    handle.write(body + "\n")
+    if len(bodies) == 1:
+        handle.write(bodies[0] + "\n")
+    else:
+        for index, body in enumerate(bodies, 1):
+            handle.write(f"--- posted comment {index} of {len(bodies)} ---\n")
+            handle.write(body + "\n")
 print(f"--- submitted body: {sys.argv[2]} ---")
 PROBE_BODY
 fi
@@ -426,7 +440,9 @@ fi
 # otherwise fails here rather than being filed as a fresh recording.
 EXPECT_READY=no
 case $SCENARIO in
-  current-whole-plan | proof-only-cleared) EXPECT_READY=yes ;;
+  current-whole-plan | proof-only-cleared | combined-plan-and-proof)
+    EXPECT_READY=yes
+    ;;
 esac
 # Read the local CodeScene mode this run was given. A scenario whose local
 # evidence is a finding or unavailable must not transition, whatever its other
@@ -513,24 +529,35 @@ PROBE_DELTA
       ;;
   esac
 fi
-# A plan-bearing permitting run must read the plan file before the transition,
-# and read it for the head it is judging. `current-whole-plan` reconciles the
-# echo against the revision in force, which is only evidence if the read came
-# first; accepting the verdict's own echo would clear a superseded revision.
+# A plan-bearing run must read the plan file before deciding, and read it for
+# the head it is judging. `current-whole-plan` reconciles the echo against the
+# revision in force, which is only evidence if the read came first; accepting
+# the verdict's own echo would clear a superseded revision.
+# `combined-plan-and-proof` applies for the same reason, and with more force:
+# it is the only permitting run where two assessments must both clear, so the
+# revision binding cannot be inferred from a single verdict's echo.
+#
+# The three holding combined cases are held to the same read. Each of them
+# exists because a verdict is not usable as given — a stale revision, an
+# unbound one, a different head — and every one of those grounds is a fact
+# about the plan file or the candidate, not about the reply alone. A run that
+# never read the plan could not have established any of them, so its hold would
+# be for some other reason and the recording would demonstrate nothing. A
+# holding run is not held to the read-back: there is no transition to read.
 case $SCENARIO in
-  current-whole-plan)
+  current-whole-plan | combined-plan-and-proof | combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
     plan_line=$(grep -n 'contents/docs/execplans/.*ref=' "$TRACE" | head -1 | cut -d: -f1)
     ready_line=$(grep -n '"pr", "ready"' "$TRACE" | head -1 | cut -d: -f1)
     if [ -z "$plan_line" ]; then
-      echo "abort: '$SCENARIO' marked ready without reading the plan file" >&2
+      echo "abort: '$SCENARIO' decided without reading the plan file" >&2
       rc=1
     elif [ -n "$ready_line" ] && [ "$plan_line" -gt "$ready_line" ]; then
       echo "abort: '$SCENARIO' read the plan after the transition, not before it" >&2
       rc=1
-    elif ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PLAN'
+    elif ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" "$EXPECT_READY" <<'PROBE_PLAN'
 import json, sys
 
-trace_path, answers_path, facts_path = sys.argv[1:4]
+trace_path, answers_path, facts_path, expect_ready = sys.argv[1:5]
 facts = json.load(open(facts_path, encoding="utf-8"))
 pr = facts["pr"]
 # The candidate is the head, named either by its commit or by its branch. The
@@ -561,9 +588,16 @@ ready = next(
      if isinstance(argv, list) and argv[:2] == ["pr", "ready"]),
     None,
 )
-if ready is None:
+# A permitting run orders the plan read against its transition. A holding run
+# has no transition to order against, and the decision is the end of the run,
+# so every read it made is before that decision by construction. Requiring a
+# transition here would make the three holding combined cases unrunnable, and
+# skipping the check for them would accept a hold with no evidence behind it.
+if ready is None and expect_ready != "no":
     print("no transition to order the plan read against", file=sys.stderr)
     raise SystemExit(1)
+if ready is None:
+    ready = len(trace)
 if len(answers) != len(trace):
     print("the answer record and the trace disagree in length", file=sys.stderr)
     raise SystemExit(1)
@@ -629,6 +663,140 @@ if [ "$SCENARIO" = codescene-advisory ] && ! grep -q 'check-runs' "$TRACE"; then
   echo "abort: '$SCENARIO' did not read the hosted check output at all" >&2
   rc=1
 fi
+# The combined permitting run is the only one where a transition needs both
+# applicable assessments. A run that transitioned would otherwise be recorded
+# as clearing the combined gate even if it never read the thread carrying the
+# proof verdict, which is the coverage the scenario exists to add.
+case $SCENARIO in
+  combined-plan-and-proof)
+    # The proof reply is the one entry in the recorded discussion that answers
+    # the proof question; the completeness reply does not contain it. Reading
+    # the discussion after the last assessment is what a readiness run does, so
+    # the check is that the thread was read at all and that it carried both
+    # markers. Both are asserted from the facts rather than from the trace's
+    # text: the trace records the routes, and only the facts say what the
+    # thread held.
+    if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_COMBINED'
+import json, sys
+
+# Both applicable assessments must be present on the recorded thread, and each
+# reply must answer its own question. Without the pair the scenario does not
+# describe a combined assignment, and a permitting run recorded from it would
+# not be evidence that the combined gate clears.
+facts = json.load(open(sys.argv[1], encoding="utf-8"))
+bodies = [str(entry.get("body", "")) for entry in facts["api"][r"/issues/\d+/comments"]]
+requests = [body for body in bodies if "Assessment-ID:" in body and "@coderabbitai" in body]
+replies = [
+    body for body in bodies
+    if "**Verdict:" in body and "**Assessed subject:** `refinement_sound`" in body
+]
+if len(requests) != 2:
+    print(f"combined scenario records {len(requests)} questions, expected 2", file=sys.stderr)
+    raise SystemExit(1)
+if len(replies) != 1:
+    print(f"combined scenario records {len(replies)} proof replies, expected 1", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(0)
+PROBE_COMBINED
+    then
+      echo "abort: '$SCENARIO' does not record a combined assignment" >&2
+      rc=1
+    fi
+    ;;
+esac
+# Each holding combined case exists for exactly one reason, and the premise is
+# a property of the recorded facts rather than of the recording. A run is
+# accepted as evidence for "a stale revision does not clear" only if the
+# revision really is stale, and likewise for the other two. Without this check
+# a later edit to a scenario could remove the defect and leave the recording
+# looking like a hold on the named ground when it was a hold on nothing.
+case $SCENARIO in
+  combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
+    if ! python3 - "$SCENARIO" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PREMISE'
+import json, re, sys
+
+name, facts_path = sys.argv[1:3]
+facts = json.load(open(facts_path, encoding="utf-8"))
+pr = facts["pr"]
+bodies = [str(entry.get("body", "")) for entry in facts["api"][r"/issues/\d+/comments"]]
+replies = [body for body in bodies if "**Verdict:" in body]
+
+
+def filed(text, field):
+    """Return the value a reply records for one field, or None."""
+    found = re.search(rf"\*\*{field}:\*\*\s*(.+)", text)
+    return found.group(1).strip() if found else None
+
+
+def revision_of(text):
+    """Return the plan revision a file's body states, or None."""
+    found = re.search(r"Plan revision:\s*(\S+)", text)
+    return found.group(1) if found else None
+
+
+# The plan text the run could read, from its own contents route.
+plan_text = "\n".join(
+    str(payload.get("content", ""))
+    for pattern, payload in facts["api"].items()
+    if "contents/docs/execplans/" in pattern and isinstance(payload, dict)
+)
+revision_in_force = revision_of(plan_text)
+proof_replies = [
+    body for body in replies if "**Assessed subject:** `refinement_sound`" in body
+]
+problems = []
+if len(proof_replies) != 1:
+    problems.append(f"{len(proof_replies)} proof replies, expected 1")
+else:
+    proof = proof_replies[0]
+    if name == "combined-proof-stale-revision":
+        # Both replies echo a revision the plan file no longer states. That is
+        # the whole premise: the replies are right about everything except the
+        # revision that has since moved.
+        echoed = {filed(body, "Plan revision") for body in replies}
+        if echoed != {"rev-7"}:
+            problems.append(f"replies echo {sorted(echoed)}, expected rev-7")
+        if revision_in_force != "rev-8":
+            problems.append(f"the plan file reads {revision_in_force!r}, expected rev-8")
+        if {filed(body, "Assessed base/head") for body in replies} != {
+            f"{pr['baseRefOid']}...{pr['headRefOid']}"
+        }:
+            problems.append("a reply assesses a base/head other than the PR's")
+    elif name == "combined-proof-unbound-revision":
+        # The proof reply is clear and bound to the candidate, and its only
+        # defect is that it states no plan revision. The completeness reply in
+        # the same thread must state one, or the case would be testing a thread
+        # with no revision anywhere rather than a reply that failed to bind.
+        if filed(proof, "Plan revision") is not None:
+            problems.append("the proof reply states a plan revision")
+        completeness = [body for body in replies if body not in proof_replies]
+        if len(completeness) != 1 or filed(completeness[0], "Plan revision") != "rev-7":
+            problems.append("the completeness reply does not state rev-7")
+        if revision_in_force != "rev-7":
+            problems.append(f"the plan file reads {revision_in_force!r}, expected rev-7")
+    else:
+        # The proof reply is otherwise complete: it echoes the revision in force
+        # and is clear. What it assesses is a head that is not the PR's.
+        assessed = filed(proof, "Assessed base/head") or ""
+        head = assessed.rsplit("...", 1)[-1]
+        if head == pr["headRefOid"]:
+            problems.append("the proof reply assesses the PR's own head")
+        if head not in assessed or len(head) < 4:
+            problems.append(f"the reply's assessed head {head!r} is not a commit")
+        if filed(proof, "Plan revision") != revision_in_force:
+            problems.append("the proof reply does not echo the revision in force")
+for problem in problems:
+    print(problem, file=sys.stderr)
+if problems:
+    raise SystemExit(1)
+raise SystemExit(0)
+PROBE_PREMISE
+    then
+      echo "abort: '$SCENARIO' does not record the defect it exists to demonstrate" >&2
+      rc=1
+    fi
+    ;;
+esac
 ready_calls=$(grep -c '"pr", "ready"' "$TRACE" 2>/dev/null || true)
 if [ "$EXPECT_READY" = yes ] && [ "$ready_calls" -eq 0 ]; then
   echo "abort: '$SCENARIO' should mark the PR ready, but no 'pr ready' was issued" >&2

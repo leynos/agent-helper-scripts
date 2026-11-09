@@ -1,0 +1,20 @@
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — `refinement_sound`) is substantive, rigorous, and well-founded?
+
+Published head: 6666aaaa; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: the approved ExecPlan `docs/execplans/issue-271-readiness-handoff.md` (issue #271, binding the draft-to-ready gate to the implementation handoff); please identify which production transition `refine`/`sound` model and whether that link is established at this head.
+Assumptions, trusted boundaries, domain, and bounds: the proof depends entirely on the lemma `sound_of_refine`, which is not defined in this file; please check where it is defined and whether it is proven or assumed (axiom/`sorry`), and whether the fixed-point precondition `refine s = s` is satisfiable.
+Verifier evidence: the hosted `Makefile gates` check passed at 6666aaaa; no local Lean/Lake run has been recorded for this candidate, and I have not confirmed that the gates build this file. Treat verifier coverage as unconfirmed.
+Non-vacuity and limitations: no witness or negative control has been recorded yet; please assess non-vacuity explicitly.
+Plan revision: rev-7 (plan file blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head).
+Assessment-ID: 271-ab-combined-mismatch-proof-r2.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Check substance, rigour, foundations, and correspondence to production code.
+Identify each unresolved concern or missing inspection explicitly.
+
+Context: this follows up https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9983. The reply at https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9984 echoed head `7777bbbb`, which is not this PR's published head (`6666aaaa`), so its verdict cannot be bound to the current candidate.
+

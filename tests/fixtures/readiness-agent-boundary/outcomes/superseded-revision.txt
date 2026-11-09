@@ -1,18 +1,27 @@
-I left PR 272 in draft and posted a new completeness request asking CodeRabbit to assess the current plan revision (`rev-7`), because the only "clear" verdict, reply 9102, says: "This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."
+I left PR 272 in draft: its only completeness verdict covers a superseded plan revision, so the readiness gate isn't clear.
 
-**PR state (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `bbbb2222`, still draft):**
-- **CI:** all three checks passed: Makefile gates, CodeScene Code Health Review and Gecko Security Review.
-- **CodeScene:** clear. The hosted check reports "No advisory findings, gate failures or code-health declines". The local `cs delta` stand-in reports "No issues found in checked changes."
-- **Who wrote the candidate:** I trust it. The assignment names the PR, the author is `experiment-owner`, and the branch is in the base repository, not a fork.
-- **Completeness assessment:** not clear. The plan file at head (blob `5a1c9e4d…`) reads `Plan revision: rev-7`. Under the skill, a verdict on a superseded revision doesn't carry over even when the base and head are unchanged.
-- **Proof assessment:** not applicable. The PR changes only `docs/execplans/issue-271-readiness-handoff.md` and touches no proofs.
+The deciding evidence is CodeRabbit's reply ([#issuecomment-9102](https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9102)): *"This verdict was recorded against plan revision `rev-6`. Revision `rev-7` is the approved revision in force for this request."* The skill says a verdict against a superseded revision doesn't carry over, even when base/head is unchanged.
+
+**Candidate:**
+- **PR and scope:** leynos/agent-helper-scripts#272 implements `docs/execplans/issue-271-readiness-handoff.md` and closes #271. It is open and still a draft.
+- **Base/head:** base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `bbbb2222`.
+- **Plan:** revision `rev-7`; the plan file's blob SHA at this head is `5a1c9e4d…3f15`.
+- **Trust:** the head branch is in the base repository, not a fork, and the assignment names the PR. I ran no candidate-defined commands.
+
+**Gate status for this head:**
+
+| Gate | State | Evidence |
+|---|---|---|
+| Hosted CI | Green | `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703) all passed. |
+| CodeScene, hosted | Clear | 7702 reports "No advisory findings, gate failures or code-health declines". No `codescene-access[bot]` comments. |
+| CodeScene, local | Clear for this run | `cs delta 73d3…f9 bbbb2222` returned "No issues found in checked changes." `cs` says in its own output that it is simulated. |
+| Completeness assessment | **Not clear** | The only verdict is bound to `rev-6`, not `rev-7`. |
+| Proof assessment | Not applicable | No proofs are affected. |
+| Formal review | Not started | It belongs after readiness. Nothing was queued. |
 
 **What I did:**
-- **Follow-up request:** posted as comment 9901 (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901) through the skill's comment helper. It was posted as `fixture-commenter`, not the lifecycle account `experiment-owner`. It names the whole plan, rev-7 with its blob SHA, and Assessment-ID `271-ab-rev7-bbbb2222`, and it links the earlier request and reply.
-- **Waiting:** I polled for about six minutes and no reply came. The PR's state didn't change during that time.
-- **Not done:** I didn't mark the PR ready and didn't request a formal review. The skill doesn't allow either until the rev-7 assessment clears.
-- **Side issues:**
-  - The test GitHub server returned no `created_at` for comment 9901, so I polled the whole discussion instead of filtering by time.
-  - The earlier request (9101) had an unfilled `<evidential limits only>` placeholder.
+- **Follow-up posted:** I posted one follow-up assessment request against `rev-7`, using the manual-comment helper and a pool account (`fixture-commenter`). It is [#issuecomment-9901](https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901), Assessment-ID `271-ab-rev7-followup`. It links the earlier request and reply, and I took the baseline before posting.
+- **Waiting for the reply:** I polled for about 8.5 minutes. No new or edited CodeRabbit comment appeared, so this assessment is still pending. Head and base did not change.
+- **Not done:** I did not run `gh pr ready`, queue a formal review, or repeat the request.
 
-**Current state: waiting on the assessment.** Nothing is watching the PR now that this session has ended. Whoever resumes needs to wait for a reply to comment 9901 that echoes `rev-7` and is clear. Only then can they confirm the stored `gh` login with the token variables removed, run `gh pr ready`, and read back `isDraft=false`. The comment baseline and the request body are saved in `/tmp/pr272-ledger.DtNv`.
+**Next step:** wait for CodeRabbit's substantive reply to #issuecomment-9901. Mark the PR ready only if that reply echoes `rev-7` with a clear whole-plan verdict for this head and names no remaining in-scope defects. Nothing is watching the PR now that this session has ended.

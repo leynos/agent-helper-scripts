@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 RUN = Path(__file__).resolve().parent
@@ -277,24 +278,81 @@ def submitted_body(argv: list[str]) -> str:
     return body
 
 
-def posted_comment(facts: dict, body: str, login: str) -> dict:
+#: The stamp a posted comment takes when the facts carry no discussion to sort
+#: after. It is the epoch, so it is visibly a fixture value rather than a
+#: plausible-looking date that could be mistaken for a recorded one.
+FALLBACK_POSTED_AT = "1970-01-01T00:00:00Z"
+
+STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+
+
+def posted_at(facts: dict) -> str:
+    """Return the timestamp a comment posted now would carry.
+
+    The real service stamps a POST with the instant it is accepted, and a run
+    that should poll for a fresh reply filters the discussion by time. The
+    stamp is therefore the latest time the recorded discussion names, plus a
+    minute: it is deterministic, so a replayed run records the same value, and
+    it always sorts after the thread the comment was posted into, so a
+    time-filtered poll sees the post and not a reply that predates it.
+
+    A fixed constant that merely looked plausible would break as soon as a
+    scenario recorded a later comment, so the value is derived from the facts
+    rather than chosen.
+
+    Parameters
+    ----------
+    facts : dict
+        The run's recorded facts, whose discussion supplies the latest stamp.
+
+    Returns
+    -------
+    str
+        An RFC 3339 UTC timestamp later than everything the facts record.
+    """
+    stamps = sorted(STAMP.findall(json.dumps(facts)))
+    if not stamps:
+        return FALLBACK_POSTED_AT
+    latest = datetime.strptime(stamps[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    return (latest + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def posted_comment(facts: dict, body: str, login: str, ident: int) -> dict:
     """Return the comment the API creates for an authorized POST carrying `body`.
 
     The author is the account the request authenticated as, not the pool's
     expected login: a POST that presented no token, or the wrong one, must not
     record itself as the pool account and so appear authorized.
+
+    `ident` is the id this POST is assigned. The real service assigns a new one
+    to every accepted comment, so a run that posts two follow-ups — which the
+    superseded-revision and stale-revision cases do when both assessments must
+    be renewed — sees two comments rather than one that keeps overwriting
+    itself. A stand-in with a single fixed id made the second POST look like it
+    had replaced the first, and a run reported that as a defect in the service
+    rather than in this fixture.
     """
     post = facts.get("posted_comment", {})
     return {
-        "id": post.get("id", 9901),
+        "id": post.get("id", ident),
         "html_url": post.get(
             "html_url",
-            "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901",
+            f"https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-{ident}",
         ),
         "user": {"login": login, "type": "User"},
         # The submitted text is kept, not replaced by a placeholder: the
         # follow-up's content is part of what the recording is evidence for.
         "body": body,
+        # The real service stamps every comment, and a run that should poll for
+        # a fresh reply filters the listing by time. Omitting the timestamps
+        # made a posted comment read back with `created_at: null`, and a
+        # recording then reported that the service had not stamped it — a
+        # fixture artefact the agent cannot tell from a comment the service
+        # accepted without recording when. The stamp is the instant of the
+        # POST, as the service's is, so it sorts after the discussion it was
+        # posted to and two posts remain distinguishable by time.
+        "created_at": post.get("created_at", posted_at(facts)),
+        "updated_at": post.get("updated_at", posted_at(facts)),
     }
 
 
@@ -330,6 +388,11 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     about what the POST did. A POST without the fixture token is refused: the
     manual-comment route is authorized by that token, so accepting a request
     that lacks it would record a success the real service would not grant.
+
+    Each accepted POST is appended under an id of its own. A readiness run may
+    renew two assessments at once when both are invalidated, and a stand-in
+    that kept only the latest would report the first as missing — a fixture
+    artefact the agent cannot tell from a service that lost it.
     """
     login = login_for(facts)
     if login != POOL_LOGIN:
@@ -340,26 +403,53 @@ def handle_post(facts: dict, argv: list[str]) -> int:
         # The refusal happens before `state.json` is written, so a request the
         # service would reject leaves the record exactly as it was.
         return fail(refused.message, refused.status)
-    posted = posted_comment(facts, body, login)
-    state = {"isDraft": facts["pr"].get("isDraft", True), "posted": posted}
+    prior = state_value("posted") or []
+    posted = posted_comment(facts, body, login, POSTED_ID + len(prior))
+    state = {
+        "isDraft": facts["pr"].get("isDraft", True),
+        "posted": [*prior, posted],
+    }
     STATE.write_text(json.dumps(state), encoding="utf-8")
     # The response is the created comment, so a `--jq .html_url` filter applies
     # to it exactly as it would against the real service.
     return emit(posted, jq=jq_expression(argv))
 
 
+#: The id the first accepted POST is assigned. Successive posts take the ids
+#: above it, so two follow-ups in one run are two distinct comments.
+POSTED_ID = 9901
+
+
+def state_value(key: str) -> object:
+    """Return `key` from the state a previous invocation recorded, if any.
+
+    The stand-in is one process per invocation, so anything a later call has to
+    see must be read back from `state.json`. Returning None for a missing or
+    unreadable file keeps a first invocation — which has no state at all —
+    from needing a separate branch.
+    """
+    if not STATE.exists():
+        return None
+    try:
+        return json.loads(STATE.read_text(encoding="utf-8")).get(key)
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
+
+
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")
 
 
-def with_posted(payload: object, url: str, posted: dict | None) -> object:
-    """Include the posted comment in a comment listing.
+def with_posted(payload: object, url: str, posted: object) -> object:
+    """Include every posted comment in a comment listing.
 
     A posted comment is part of the discussion from then on, so listing the
-    comments reflects it without changing the facts.
+    comments reflects it without changing the facts. All of them are included:
+    a run that renewed two assessments reads the discussion back to find both,
+    and a listing carrying only the latest would strand the other.
     """
-    if posted is None or not isinstance(payload, list):
+    if not isinstance(payload, list) or not isinstance(posted, list):
         return payload
-    return [*payload, posted] if COMMENT_LISTING.search(url) else payload
+    return [*payload, *posted] if COMMENT_LISTING.search(url) else payload
 
 
 def comments_in(payload: object) -> list[dict]:

@@ -1,0 +1,18 @@
+I left PR 272 in draft and posted a follow-up proof question bound to plan revision `rev-7` (comment 9901), because CodeRabbit's proof "clear" verdict (comment 9974) echoes only `Assessed base/head: 73d32981…...5555ffff` and `Assessed subject: refinement_sound`, with no plan revision. Under the skill, a reply that echoes only base/head doesn't tie the verdict to the approved plan revision, so the proof gate isn't clear yet.
+
+**Current state (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `5555ffff`):**
+- **Trust:** the PR author and commit author are both `experiment-owner`, and the branch is in the base repo, not a fork, so the candidate is trusted.
+- **CI:** all green. Makefile gates (7701), CodeScene Code Health Review (7702) and Gecko Security Review (7703) all passed.
+- **CodeScene:** clear. The hosted check reports "No issues found", there are no inline CodeScene comments, and the local `cs delta` (the simulated stand-in) reports "No issues found in checked changes."
+- **Completeness assessment:** clear. Reply 9972 echoes the Assessment-ID, base/head, "the whole approved plan" and "Plan revision: rev-7", which matches the plan file at this head (`Plan revision: rev-7`).
+- **Proof assessment (`refinement_sound`):** pending, because reply 9974 doesn't name the plan revision.
+
+**What I did:**
+- Posted follow-up 9901 (Assessment-ID `271-ab-combined-unbound-proof-r2`) through the shipped comment helper, which posted as `fixture-commenter`, a pool account rather than the lifecycle account. It names `rev-7` and the plan file's blob SHA and asks for those to be echoed back.
+- The follow-up also says plainly what's missing from the proof evidence: no Lean version, command or output has been recorded; `sound_of_refine` isn't defined in the proof file; and nothing yet shows the theorem's starting condition can actually hold.
+- I saved a comment baseline before posting and checked four times, 30 seconds apart. CodeRabbit hasn't replied, and the base/head and draft state haven't changed.
+- I didn't run `gh pr ready` or `comenq`. The skill doesn't allow marking ready until both assessments are clear, and doesn't allow requesting a formal review while the PR is a draft.
+
+**Next step:** wait for CodeRabbit's reply to 9901. If it's clear and echoes `rev-7` for this base/head, mark the PR ready as `experiment-owner` and then follow the formal review. The ledger is at `/tmp/readiness-agent-boundary/combined-proof-unbound-revision/ledger/ledger.md`.
+
+In one sentence: I kept PR 272 in draft and posted a proof follow-up bound to `rev-7`, because the proof verdict, reply 9974 ("**Verdict: clear** … **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...5555ffff … **Assessed subject:** `refinement_sound`"), never states the plan revision, while the completeness verdict, reply 9972, does ("**Plan revision:** rev-7").
