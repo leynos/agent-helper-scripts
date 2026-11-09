@@ -133,6 +133,36 @@ def test_a_graphql_read_query_is_still_answered(run: Path) -> None:
     assert "reviewThreads" in done.stdout, "expected 'reviewThreads' in done.stdout"
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("-f", "query="),
+        ("-f", "query=   "),
+        ("-f", "queryName=query{prUpdated}"),
+        ("--field", "queryBody={prUpdated}"),
+        (),
+    ],
+    ids=["empty", "whitespace", "other-field", "other-long-field", "absent"],
+)
+def test_a_field_that_is_not_the_query_document_is_refused(
+    run: Path, argv: tuple[str, ...]
+) -> None:
+    """Only a non-empty `query=` field is the read document.
+
+    A value that merely starts with `query` belongs to another field, and an
+    empty document carries nothing to read. Answering either from the recorded
+    reads reports a query the run never sent — the same defect as answering a
+    mutation, which is why the check is on the field name and its content
+    rather than on a prefix.
+    """
+    done = invoke(run, "api", "graphql", *argv)
+    assert done.returncode != 0, f"answered a non-document request: {done.stdout}"
+    # A field-bearing call is a POST and an absent field makes it a GET, so the
+    # refusal names the method the real service would have received. Either way
+    # the request is refused rather than answered from the recorded reads.
+    assert "unsupported" in done.stderr and "graphql" in done.stderr, done.stderr
+
+
 def test_a_word_before_the_document_does_not_make_a_mutation_read(run: Path) -> None:
     """A `query` anywhere before the document is not the document being a query.
 
@@ -1362,6 +1392,64 @@ def recorded_facts(tmp_path: Path) -> Path:
     return facts
 
 
+@pytest.mark.parametrize(
+    "separators",
+    [(None, None), (",", ":")],
+    ids=["default-separators", "compact-separators"],
+)
+def test_the_delta_probe_reads_the_boundary_from_parsed_entries(
+    tmp_path: Path, recorded_facts: Path, separators: tuple
+) -> None:
+    """The boundary is found by its parsed event, not by its file text.
+
+    The runner used to locate it with `grep '"event": "pr-ready"'`, which
+    agrees with `json.dumps` defaults only. Under compact separators the same
+    trace has no line matching that pattern, so the probe would report a run
+    that never transitioned. Reading parsed entries makes the check independent
+    of how the stand-in happens to serialize its line.
+    """
+    trace = tmp_path / "cs-trace.jsonl"
+    facts = json.loads(recorded_facts.read_text(encoding="utf-8"))
+    base, head = facts["pr"]["baseRefOid"], facts["pr"]["headRefOid"]
+    entries = [cs_entry(["delta", base, head]), CS_BOUNDARY]
+    kwargs = {} if separators == (None, None) else {"separators": separators}
+    trace.write_text(
+        "".join(json.dumps(entry, **kwargs) + "\n" for entry in entries),
+        encoding="utf-8",
+    )
+    if separators == (",", ":"):
+        assert '"event": "pr-ready"' not in trace.read_text(encoding="utf-8"), (
+            "the compact trace still matches the old grep, so this case is vacuous"
+        )
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert done.stdout.strip() == "yes", done.stdout
+
+
+def test_the_delta_probe_counts_the_boundary_rather_than_searching_for_it(
+    tmp_path: Path, recorded_facts: Path
+) -> None:
+    """No boundary and two boundaries are distinct refusals, both from the probe.
+
+    The shell used two `grep` calls to tell these apart. Counting parsed
+    entries makes the distinction part of what the probe decides, so the
+    shell's messages report a value instead of re-reading the file.
+    """
+    facts = json.loads(recorded_facts.read_text(encoding="utf-8"))
+    base, head = facts["pr"]["baseRefOid"], facts["pr"]["headRefOid"]
+    delta = cs_entry(["delta", base, head])
+
+    none_trace = write_lines(tmp_path / "none.jsonl", [delta])
+    none_done = run_probe("PROBE_DELTA", str(none_trace), str(recorded_facts))
+    assert none_done.returncode != 0
+    assert none_done.stdout.strip() == "boundaries=0", none_done.stdout
+
+    two_trace = write_lines(tmp_path / "two.jsonl", [delta, CS_BOUNDARY, CS_BOUNDARY])
+    two_done = run_probe("PROBE_DELTA", str(two_trace), str(recorded_facts))
+    assert two_done.returncode != 0
+    assert two_done.stdout.strip() == "boundaries=2", two_done.stdout
+
+
 def test_the_delta_probe_accepts_a_candidate_bound_delta_before_the_boundary(
     tmp_path: Path, recorded_facts: Path
 ) -> None:
@@ -1495,18 +1583,32 @@ def test_the_state_probe_refuses_anything_but_a_ready_boolean(
     assert done.returncode != 0, f"accepted {content} as a ready served state"
 
 
+def _enclosing_branch(runner: str, offset: int) -> int:
+    """Return the offset of the column-zero `fi` closing the branch at ``offset``.
+
+    A shell branch opened at column zero is closed by the first `fi` at column
+    zero after it; deeper `fi` lines close nested blocks. Tracking that alone is
+    enough here: the runner's permitting branches hold no nested `if` whose
+    terminator sits at column zero.
+    """
+    closing = re.compile(r"^fi$", re.MULTILINE).search(runner, offset)
+    assert closing, "the branch containing this probe is never closed"
+    return closing.end()
+
+
 def test_the_runner_reaches_the_delta_and_state_checks() -> None:
     """A probe that is correct but never wired in proves nothing.
 
     Executing an extracted heredoc tests the probe's logic; it does not show
-    the runner calls it. Both checks sit inside the permitting branch, so each
-    one's `abort:` message must be present in the runner's own text and each
-    probe must be invoked from it.
+    the runner calls it, nor that the call is guarded by the permitting branch.
+    Both checks are delinquent only for a run expected to transition, so each
+    probe and its own refusal must sit *inside* the branch that opens on
+    `EXPECT_READY = yes` — not merely somewhere later in the file, which a
+    probe moved past the closing `fi` would also satisfy.
     """
     runner = RUNNER.read_text()
-    # Both are delinquent only for a run expected to transition, so the guard
-    # around them is the permitting branch rather than the whole script.
-    permitting = runner.index('if [ "$EXPECT_READY" = yes ]')
+    guards = [m for m in re.finditer(r'^if .*EXPECT_READY.*= yes.*then$', runner, re.MULTILINE)]
+    assert guards, "the runner no longer opens a permitting branch"
     for probe, message in (
         (
             "PROBE_DELTA",
@@ -1515,16 +1617,29 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
         ("PROBE_STATE", "transitioned but the served state still reads draft"),
     ):
         invocation = runner.index(f"<<'{probe}'")
-        assert invocation > permitting, f"{probe} is invoked outside the permitting branch"
+        # The probe must be enclosed by one of the permitting guards: a guard
+        # opening before it, whose own `fi` closes after it.
+        assert any(
+            guard.start() < invocation < _enclosing_branch(runner, guard.start())
+            for guard in guards
+        ), f"{probe} is not invoked inside a permitting branch"
         # The refusal must be the one this probe's failure emits, and the `rc=1`
         # that turns it into a failing run must be the line directly after it.
         # Searching the whole script for the text finds some other check's
         # message, and searching the tail for any `rc=1` finds a later block's,
         # so neither ties the failure to this probe.
+        # The search runs on a slice, so its offsets are relative to
+        # `invocation`; rebasing is what makes the containment test below
+        # compare the refusal against the guard's absolute position.
         refusal = re.search(
             re.escape(message) + r"[^\n]*\n\s*rc=1", runner[invocation:]
         )
         assert refusal, f"{probe}'s refusal no longer sets rc=1 directly"
+        refusal_at = invocation + refusal.start()
+        assert any(
+            guard.start() < refusal_at < _enclosing_branch(runner, guard.start())
+            for guard in guards
+        ), f"{probe}'s refusal sits outside every permitting branch"
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
@@ -1544,6 +1659,9 @@ def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
         assert answer not in runner, (
             "the prompt must not reveal which local result the run will get"
         )
+
+
+def test_a_permitting_scenario_cannot_carry_an_unusable_local_mode() -> None:
     """A scenario written to permit cannot carry a finding or unavailable mode.
 
     Recording that pairing would file, as evidence, a run whose facts

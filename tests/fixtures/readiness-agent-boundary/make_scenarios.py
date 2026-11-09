@@ -342,7 +342,7 @@ def pull_files(head: str, paths: list[str]) -> list[dict[str, object]]:
     ]
 
 
-def commit_message(plan_route: bool) -> str:
+def commit_message(*, plan_route: bool) -> str:
     """Return the one commit message every route serving this head must give.
 
     `pulls/N/commits`, `commits/<sha>` and `pr view --json commits` all describe
@@ -364,9 +364,11 @@ def serves_plan(case: Case, paths: list[str]) -> bool:
     return case.plan or any(path.startswith("docs/execplans/") for path in paths)
 
 
-def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, object]:
+def pull_routes(
+    head: str, paths: list[str], *, plan_route: bool
+) -> dict[str, object]:
     """Return the routes describing the PR itself and its delivered change."""
-    message = commit_message(plan_route)
+    message = commit_message(plan_route=plan_route)
     return {
         # The PR itself and its file list, which a readiness run reads to judge
         # whether the delivered work matches the plan. The bare `pulls/N` route
@@ -520,7 +522,7 @@ def api_map(case: Case) -> dict[str, object]:
     paths = changed_paths(case)
     plan_route = serves_plan(case, paths)
     return {
-        **pull_routes(case.head, paths, plan_route),
+        **pull_routes(case.head, paths, plan_route=plan_route),
         **review_routes(case, checks),
         **content_routes(plan_route),
         **issue_route(plan_route),
@@ -638,7 +640,9 @@ def scenario(case: Case) -> None:
             "commits": [
                 {
                     "sha": case.head,
-                    "messageHeadline": commit_message(serves_plan(case, paths)),
+                    "messageHeadline": commit_message(
+                        plan_route=serves_plan(case, paths)
+                    ),
                 }
             ],
         },

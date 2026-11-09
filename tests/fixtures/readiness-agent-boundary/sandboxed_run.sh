@@ -456,31 +456,35 @@ fi
 # ready` is served, so both events land in one file and their order is the
 # file's order rather than an inference from two clocks.
 if [ "$EXPECT_READY" = yes ] && [ -s "$CS_TRACE" ]; then
-  if ! grep -q '"event": "pr-ready"' "$CS_TRACE"; then
-    echo "abort: '$SCENARIO' has no transition boundary in the local CodeScene trace" >&2
-    rc=1
-  elif [ "$(grep -c '"event": "pr-ready"' "$CS_TRACE")" -ne 1 ]; then
-    echo "abort: '$SCENARIO' records more than one transition boundary" >&2
-    rc=1
-  else
-    delta_before=$(python3 - "$CS_TRACE" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_DELTA'
+  # The boundary count is read from parsed entries, not from a `grep` over the
+  # file text. The stand-in writes its line with `json.dumps` separators, so a
+  # pattern matching `"event": "pr-ready"` agrees with it only by coincidence:
+  # a change to either separator would silently make every run look as though
+  # no transition had been recorded.
+  delta_before=$(python3 - "$CS_TRACE" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_DELTA'
 import json, sys
 
 trace, facts_path = sys.argv[1], sys.argv[2]
 facts = json.load(open(facts_path, encoding="utf-8"))
 base = facts["pr"]["baseRefOid"]
 head = facts["pr"]["headRefOid"]
-seen_delta = False
+entries = []
 for line in open(trace, encoding="utf-8"):
     try:
-        entry = json.loads(line)
+        entries.append(json.loads(line))
     except json.JSONDecodeError:
         print("malformed trace line", file=sys.stderr)
         raise SystemExit(2)
-    if entry.get("event") == "pr-ready":
-        # Everything after the boundary is the run's own read-back, which is
-        # not evidence for the decision it follows.
-        break
+boundaries = [i for i, e in enumerate(entries) if e.get("event") == "pr-ready"]
+if len(boundaries) != 1:
+    # The count is the answer, so the shell can say which boundary rule failed.
+    # Anything but exactly one is a refusal: none means the run never
+    # transitioned, and more than one means the trace cannot be read as a
+    # single decision.
+    print(f"boundaries={len(boundaries)}")
+    raise SystemExit(1)
+seen_delta = False
+for entry in entries[:boundaries[0]]:
     argv = entry.get("argv") or []
     # The candidate-bound delta is the call that names both endpoints. A bare
     # `cs delta` reads the working tree, which this sandbox does not have, so
@@ -490,15 +494,24 @@ for line in open(trace, encoding="utf-8"):
 print("yes" if seen_delta else "no")
 raise SystemExit(0 if seen_delta else 1)
 PROBE_DELTA
-    ) || true
-    case $delta_before in
-      yes) echo "outcome: candidate-bound 'cs delta' read before 'pr ready'" ;;
-      *)
-        echo "abort: '$SCENARIO' marked ready without a candidate-bound 'cs delta' before the transition" >&2
-        rc=1
-        ;;
-    esac
-  fi
+  ) || true
+  # Everything after the boundary is the run's own read-back, which is not
+  # evidence for the decision it follows, so the probe stops at it.
+  case $delta_before in
+    yes) echo "outcome: candidate-bound 'cs delta' read before 'pr ready'" ;;
+    boundaries=0)
+      echo "abort: '$SCENARIO' has no transition boundary in the local CodeScene trace" >&2
+      rc=1
+      ;;
+    boundaries=*)
+      echo "abort: '$SCENARIO' records more than one transition boundary" >&2
+      rc=1
+      ;;
+    *)
+      echo "abort: '$SCENARIO' marked ready without a candidate-bound 'cs delta' before the transition" >&2
+      rc=1
+      ;;
+  esac
 fi
 # A plan-bearing permitting run must read the plan file before the transition,
 # and read it for the head it is judging. `current-whole-plan` reconciles the

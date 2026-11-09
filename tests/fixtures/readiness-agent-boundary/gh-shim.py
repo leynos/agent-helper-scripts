@@ -448,12 +448,19 @@ def is_graphql_read(argv: list[str]) -> bool:
     read as a query, and returning on the first match meant the document was
     never reached. The document is therefore read from its own field, and a
     mutation anywhere in it wins over a `query` keyword in its operation text.
+
+    The document is taken from `query=` itself rather than from any value that
+    merely starts with `query`, so a differently named field such as
+    `queryName=query` cannot supply one. An empty or whitespace-only document
+    is no document: answering it with the recorded read would report a query
+    the run never sent, which is the same defect as answering a mutation.
     """
     documents = [
-        value for value in field_values(argv)
-        if value.lstrip().startswith(("query", "mutation", "subscription", "{", "#"))
+        value.removeprefix("query=")
+        for value in field_values(argv)
+        if value.startswith("query=")
     ]
-    if not documents:
+    if not documents or any(not document.strip() for document in documents):
         return False
     if any(re.search(r"\bmutation\b", document) for document in documents):
         return False

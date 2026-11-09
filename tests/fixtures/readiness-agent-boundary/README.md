@@ -440,14 +440,15 @@ and carries no credential.
 
 Regenerate with `python3 -I make_scenarios.py` after editing a scenario, or
 after editing `flagged_gate_stub.txt`, whose text the advisory scenario serves
-verbatim. Then rerun the affected scenarios and copy four files per run:
+verbatim. Then rerun the affected scenarios and copy the following files per
+run, where the run produced them:
 
-| Run directory             | Committed path           |
-| ------------------------- | ------------------------ |
-| `gh-trace.jsonl`          | `traces/<name>.jsonl`    |
-| `cs-trace.jsonl`          | `traces/<name>-cs.jsonl` |
-| the agent's final message | `outcomes/<name>.txt`    |
-| `submitted.md`            | `submitted/<name>.txt`   |
+| Run directory             | Committed path           | Present when             |
+| ------------------------- | ------------------------ | ------------------------ |
+| `gh-trace.jsonl`          | `traces/<name>.jsonl`    | always                   |
+| `cs-trace.jsonl`          | `traces/<name>-cs.jsonl` | the run invoked `cs`     |
+| the agent's final message | `outcomes/<name>.txt`    | always                   |
+| `submitted.md`            | `submitted/<name>.txt`   | the run posted a comment |
 
 The `cs` trace is committed because it is half the evidence, not a scratch log:
 it shows whether the local result was consulted before the decision, and the
