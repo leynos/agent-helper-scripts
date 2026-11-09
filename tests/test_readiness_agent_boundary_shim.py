@@ -632,11 +632,26 @@ def cs_run(tmp_path: Path) -> Path:
     return place_shim(CS_SHIM, "cs", tmp_path)
 
 
+#: The finding a test records for a `finding` mode. The stand-in has no
+#: built-in text, so every scenario that asks for a finding must record one.
+TEST_FINDING = (
+    "skills/pr-babysitting/scripts/readiness_gate.py\n"
+    "  🚩 New issue: Large Method\n"
+    "     Function: _assess_gate at line 7\n"
+)
+
+
 def write_mode(directory: Path, mode: str) -> None:
-    """Record the local CodeScene mode the run should answer with."""
-    (directory / "facts.json").write_text(
-        json.dumps({"cs_mode": mode}), encoding="utf-8"
-    )
+    """Record the local CodeScene mode the run should answer with.
+
+    A `finding` mode also records the finding text. The stand-in refuses to
+    invent one, because a built-in description would name a file the scenario
+    may not serve — the incoherence the recorded-finding rule exists to stop.
+    """
+    facts: dict[str, object] = {"cs_mode": mode}
+    if mode == "finding":
+        facts["cs_finding"] = TEST_FINDING
+    (directory / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
 
 
 def test_the_simulated_cs_discloses_itself_on_every_answer(cs_run: Path) -> None:
@@ -649,6 +664,42 @@ def test_the_simulated_cs_discloses_itself_on_every_answer(cs_run: Path) -> None
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
     assert "simulated output for rehearsal" in done.stderr, "expected 'simulated output for rehearsal' in done.stderr"
     assert "not a CodeScene analysis" in done.stderr, "expected 'not a CodeScene analysis' in done.stderr"
+
+
+def test_a_finding_mode_without_a_recorded_finding_is_refused(cs_run: Path) -> None:
+    """The stand-in may not invent a finding the scenario never recorded.
+
+    A built-in description names a path and a line count, so serving it would
+    report a defect in code this scenario does not contain. That is the same
+    incoherence as a stale served stub, reached by a different path: the run
+    would hold on evidence that does not describe its own candidate.
+    """
+    (cs_run / "facts.json").write_text(
+        json.dumps({"cs_mode": "finding"}), encoding="utf-8"
+    )
+    done = invoke_cs(cs_run, "delta", "base", "HEAD")
+    assert done.returncode == 2, done.stdout
+    assert "record none" in done.stderr, done.stderr
+    assert "New issue" not in done.stdout, "the stand-in served an invented finding"
+
+
+def test_every_recorded_finding_scenario_records_its_finding() -> None:
+    """A recorded scenario that answers with a finding must carry its text.
+
+    The stand-in now refuses instead of inventing, so a scenario that answered
+    a finding from a built-in default would fail at the boundary. This is the
+    fixture-side check: no recorded `finding` scenario may rely on that.
+    """
+    checked = 0
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        if facts.get("cs_mode") != "finding":
+            continue
+        checked += 1
+        assert isinstance(facts.get("cs_finding"), str) and facts["cs_finding"], (
+            f"{facts_path.parent.name} requests a finding but records none"
+        )
+    assert checked, "no scenario exercises a recorded finding"
 
 
 def invoke_cs(directory: Path, *argv: str) -> subprocess.CompletedProcess[str]:

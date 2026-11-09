@@ -76,7 +76,10 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   reproduces the real CLI's exit status for each — including the non-zero exit
   when the licence check fails — and discloses itself on every answer. A
   missing or unrecognized mode answers `unavailable`, so a broken fixture
-  cannot manufacture the clean result the rehearsal is checking for.
+  cannot manufacture the clean result the rehearsal is checking for. A
+  `finding` mode must also record `cs_finding`: the stand-in carries no
+  built-in text and refuses rather than invent one, since a default would name
+  a path and line count this scenario may not serve.
 - `cs-trace.jsonl` (per run, in the run directory) — every simulated `cs`
   invocation with the mode it answered from. A run that never invoked it cannot
   have cleared the local half, whatever its outcome says. The stand-in appends a

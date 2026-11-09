@@ -46,14 +46,12 @@ NO_ISSUES = "No issues found in checked changes."
 # describe code the served fixture does not contain. A stand-in that reported a
 # line count the recorded file contradicts would be evidence a run rightly
 # discounts, and the run would then hold for a reason the scenario is not
-# testing.
-DEFAULT_FINDING = (
-    "skills/pr-babysitting/scripts/readiness_gate.py\n"
-    "Code Health: (9.57 -> 9.12)\n"
-    "\n"
-    "  🚩 New issue: Large Method\n"
-    "     Function: _assess_gate at line 7\n"
-    "     Status: _assess_gate is above the threshold for lines of code\n"
+# testing. There is deliberately no fallback text: a `finding` mode with no
+# recorded finding is an unanswerable request, and inventing an answer would be
+# the defect this rule exists to prevent.
+NO_RECORDED_FINDING = (
+    "cs-stand-in: the facts request a finding but record none;"
+    " this scenario cannot answer a local finding"
 )
 
 UNAVAILABLE = """\
@@ -89,10 +87,16 @@ def read_mode(facts: dict) -> str:
     return mode if mode in {"clean", "finding", "unavailable"} else "unavailable"
 
 
-def read_finding(facts: dict) -> str:
-    """Return the finding text the facts record, or the default description."""
+def read_finding(facts: dict) -> str | None:
+    """Return the finding text the facts record, or None when they record none.
+
+    A `finding` scenario without one is a fixture defect, not a request with a
+    sensible default. Returning a built-in description here let such a scenario
+    report a finding about a file it never served, which is the incoherence the
+    data-file split was introduced to prevent; the caller now refuses instead.
+    """
     finding = facts.get("cs_finding")
-    return finding if isinstance(finding, str) and finding else DEFAULT_FINDING
+    return finding if isinstance(finding, str) and finding else None
 
 
 def banner() -> None:
@@ -121,6 +125,12 @@ def answer(argv: list[str], mode: str, finding: str) -> int:
     if mode == "unavailable":
         sys.stdout.write(UNAVAILABLE)
         return 1
+    if mode == "finding" and finding is None:
+        # Refuse rather than invent. A scenario that asks for a finding has to
+        # record the text, or the run would be answered with a description of
+        # code this candidate does not contain.
+        print(NO_RECORDED_FINDING, file=sys.stderr)
+        return 2
     match argv:
         case ["check", target, *_]:
             return answer_check(str(target), mode, finding)
@@ -132,22 +142,30 @@ def answer(argv: list[str], mode: str, finding: str) -> int:
     return 2
 
 
-def answer_check(target: str, mode: str, finding: str) -> int:
-    """Answer one focused `cs check` on a single file."""
-    if mode == "finding":
+def answer_check(target: str, mode: str, finding: str | None) -> int:
+    """Answer one focused `cs check` on a single file.
+
+    `finding` is non-None here: `answer` refuses a `finding` mode that records
+    no text before dispatching, so the lookup below cannot meet None.
+    """
+    if mode == "finding" and finding is not None:
         print(f"{target}: {finding.splitlines()[-1].strip()}")
         return 0
     print(f"{target}: no issues found")
     return 0
 
 
-def answer_delta(argv: list[str], mode: str, finding: str) -> int:
-    """Answer one `cs delta`, in the shape the real CLI prints it."""
+def answer_delta(argv: list[str], mode: str, finding: str | None) -> int:
+    """Answer one `cs delta`, in the shape the real CLI prints it.
+
+    `finding` is non-None for a `finding` mode: `answer` refuses a scenario
+    that requests one without recording it.
+    """
     base = "HEAD~1" if len(argv) < 3 else argv[1]
     print(f"Performing delta analysis between {base} and {argv[-1]}.")
     print("No uncommitted changed are included.")
     print()
-    if mode == "finding":
+    if mode == "finding" and finding is not None:
         print(finding)
         return 0
     print(NO_ISSUES if len(argv) > 2 else NO_CODE)
