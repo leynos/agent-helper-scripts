@@ -804,7 +804,7 @@ DEFECTIVE_RULES = (
             # Drops only the empty-inventory rule, the way a model that read
             # an unnamed inventory as nothing to compare would: every listed
             # proof is trivially covered when none is listed.
-            lambda cand, applies: None,
+            lambda _cand, _applies: None,
         ),
         (candidate(), completeness(), proof(verdict=CLEAR, proofs=(THEOREM,)),
          {"proof_applies": True}),

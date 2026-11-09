@@ -508,6 +508,33 @@ def readiness(
     blocked = proof_request(candidate, proof_applies)
     if blocked is not None:
         return blocked
+    blocked = _settled(candidate, completeness, proof, completeness_applies, proof_applies)
+    if blocked is not None:
+        return blocked
+    blocked = _subject(completeness, completeness_applies)
+    if blocked is not None:
+        return blocked
+    return _cleared()
+
+
+def _settled(
+    candidate: Candidate,
+    completeness: Verdict,
+    proof: Verdict,
+    completeness_applies: bool,
+    proof_applies: bool,
+) -> Readiness | None:
+    """Return the first assessment that does not settle, or None if both do.
+
+    The checks run in the documented order for each assessment: an applicable
+    assessment may not excuse itself, a substantive verdict must be bound to
+    the accepted candidate and the revision in force, and a proof verdict must
+    cover the inventory the request named. An assessment established as ``not
+    applicable`` has no reply to bind, so it is skipped after its disposition.
+
+    The helpers are resolved by name at call time, so a module-attribute
+    override still replaces the check it names.
+    """
     for kind, verdict, applies in (
         (COMPLETENESS, completeness, completeness_applies),
         (PROOF, proof, proof_applies),
@@ -524,7 +551,4 @@ def readiness(
             blocked = _proof_inventory(verdict, candidate, applies)
             if blocked is not None:
                 return blocked
-    blocked = _subject(completeness, completeness_applies)
-    if blocked is not None:
-        return blocked
-    return _cleared()
+    return None

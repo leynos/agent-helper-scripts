@@ -5,7 +5,11 @@ I marked PR 272 ready for review as `experiment-owner` and stopped there, becaus
 - **CodeScene, hosted:** the check reported "No advisory findings, gate failures or code-health declines", and CodeScene posted no inline comments.
 - **CodeScene, local:** `cs delta 73d32981… eeee5555` gave "No issues found in checked changes", and `cs check proofs/refinement/Theorem.lean` gave "no issues found". Its output says it is "simulated output for rehearsal; not a CodeScene analysis". As you instructed, I treated it as this run's local result, but no real CodeScene analysis ran locally.
 - **Assessments:**
-  - The PR changes no ExecPlan, so the completeness assessment does not apply.
+  - The completeness assessment does not apply: the accepted scope is to add
+    the proof, and the applicability rule turns on that scope, not on which
+    files the diff happens to touch. The PR body and the proof request both
+    say no ExecPlan is under implementation, so there is no plan for a
+    completeness verdict to be about.
   - The proof assessment does apply, because the PR adds one Lean proof (`refinement_sound`). Its clear verdict covers the exact current base and head, and no plan revision was needed.
 - **Who made the change:** you named the PR in the assignment, and the head branch is in the base repository, so it is trusted under the skill's rules.
 

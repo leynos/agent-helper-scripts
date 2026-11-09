@@ -337,14 +337,20 @@ PR_VIEW_JSON = (
     "headRepository,headRepositoryOwner,isCrossRepository,mergeable,mergeStateStatus,"
     "reviewDecision,statusCheckRollup,body,commits"
 )
+#: The listing route reads a narrower record than the view, and the semantic
+#: assertions below check the same fields on both. Request them all: a route
+#: the shim projected to a shorter list would otherwise be asked to prove
+#: values it never served, which is evidence the real `gh` would not provide.
+PR_LIST_JSON = (
+    "number,state,isDraft,headRefName,baseRefName,statusCheckRollup"
+)
 
 
 @pytest.mark.parametrize(
     "argv",
     [
         ("pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", PR_VIEW_JSON),
-        ("pr", "list", "--repo", "leynos/agent-helper-scripts", "--json",
-         "number,headRefName,baseRefName,isDraft"),
+        ("pr", "list", "--repo", "leynos/agent-helper-scripts", "--json", PR_LIST_JSON),
         ("pr", "checks", "272", "--repo", "leynos/agent-helper-scripts"),
     ],
     ids=["view", "list", "checks"],
@@ -1189,7 +1195,10 @@ def test_the_plan_probe_refuses_a_base_read_then_a_candidate_read(
     )
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
     assert done.returncode != 0, "a base read was accepted as the candidate's plan"
-    assert "no candidate-bound plan read before the transition" in done.stderr, "expected 'no candidate-bound plan read before the transition' in done.stderr"
+    assert "no usable candidate-bound plan read before the transition" in done.stderr, (
+        "expected 'no usable candidate-bound plan read before the transition'"
+        f" in done.stderr: {done.stderr}"
+    )
 
 
 def test_the_plan_probe_refuses_a_candidate_read_that_failed(
@@ -1211,6 +1220,35 @@ def test_the_plan_probe_refuses_a_candidate_read_that_failed(
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
     assert done.returncode != 0, "a failed candidate read was accepted"
     assert "candidate-bound plan read failed" in done.stderr, "expected 'candidate-bound plan read failed' in done.stderr"
+
+
+def test_the_plan_probe_keeps_scanning_after_a_failed_candidate_read(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """A failed read must not mask a later one that succeeded.
+
+    The rule is that one usable read satisfies it. Exiting on the first
+    candidate-bound attempt whether or not it worked reported a run as having
+    never read the plan, when it had read the plan on the retry. That abort
+    discards a costly rehearsal for a fault the run had already recovered from.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl",
+        [plan_read("cccc3333"), plan_read("cccc3333"), READY_INVOCATION],
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [
+            answer(plan_read("cccc3333"), 1, ""),
+            answer(plan_read("cccc3333")),
+            answer(READY_INVOCATION, 0, ""),
+        ],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode == 0, (
+        "a failed read followed by a successful one was still refused:"
+        f" {done.stderr}"
+    )
 
 
 def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(

@@ -500,6 +500,27 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     return handle_read(facts, argv, url)
 
 
+def project(payload: object, argv: list[str]) -> object:
+    """Return only the fields `--json` asked for, as `gh` does.
+
+    The real client serves the named fields alone and refuses a name it does
+    not know. Serving the whole record instead would let a run read a field it
+    never requested, so a recording could show evidence that the real command
+    would not have provided.
+    """
+    asked = [name for name in flag_value(argv, "--json").split(",") if name]
+    if not asked:
+        return payload
+    if isinstance(payload, list):
+        return [project(item, argv) for item in payload]
+    if not isinstance(payload, dict):
+        return payload
+    unknown = [name for name in asked if name not in payload]
+    if unknown:
+        raise Refused(f"gh: Unknown JSON field: {unknown[0]!r}")
+    return {name: payload[name] for name in asked}
+
+
 def answer_pr(facts: dict, argv: list[str]) -> int:
     """Answer one `gh pr` invocation.
 
@@ -510,9 +531,9 @@ def answer_pr(facts: dict, argv: list[str]) -> int:
         # A listing of one PR is the same PR. Serving it as a single object
         # would break every filter written for a list, so it stays a list.
         case ["pr", "view"]:
-            return emit(facts["pr"], jq=jq_expression(argv))
+            return emit(project(facts["pr"], argv), jq=jq_expression(argv))
         case ["pr", "list"]:
-            return emit([facts["pr"]], jq=jq_expression(argv))
+            return emit(project([facts["pr"]], argv), jq=jq_expression(argv))
         case ["pr", "diff"]:
             return emit(facts["pr_diff"])
         case ["pr", "ready"]:
@@ -543,31 +564,39 @@ def mark_ready(facts: dict) -> int:
 def answer(argv: list[str]) -> int:
     """Answer one invocation from the recorded facts."""
     facts = read_facts()
-    # Each case is a prefix, not the whole argument list: the trailing words
-    # are the command's own arguments, and a case that matched only an exact
-    # length would turn every invocation carrying them into "unsupported".
-    match argv:
-        case ["api", *_]:
-            return answer_api(facts, argv)
-        case ["pr", *_]:
-            return answer_pr(facts, argv)
-        case ["repo", "clone", *_]:
-            # A clone reaches GitHub over the network, which this sandbox
-            # drops, so it fails here for the reason it would really fail
-            # rather than being reported as a command the client lacks.
-            return fail(
-                "fatal: unable to access 'https://github.com/': "
-                "Could not resolve host: github.com"
-            )
-        case ["auth", "status", *_]:
-            # The real command prints a human-readable line rather than JSON,
-            # so a filter on it is refused by `emit` instead of silently
-            # ignored.
-            return emit(
-                f"Logged in to github.com as {facts['login']}",
-                jq=jq_expression(argv),
-            )
-    return fail(f"gh: unsupported invocation {argv}")
+    # A route may refuse what the real client would refuse — an unknown
+    # `--json` field, a malformed body — and a refusal is an answer with a
+    # non-zero status, not a crash. Letting it escape would report a traceback
+    # where the agent should see the client's own message.
+    try:
+        # Each case is a prefix, not the whole argument list: the trailing
+        # words are the command's own arguments, and a case that matched only
+        # an exact length would turn every invocation carrying them into
+        # "unsupported".
+        match argv:
+            case ["api", *_]:
+                return answer_api(facts, argv)
+            case ["pr", *_]:
+                return answer_pr(facts, argv)
+            case ["repo", "clone", *_]:
+                # A clone reaches GitHub over the network, which this sandbox
+                # drops, so it fails here for the reason it would really fail
+                # rather than being reported as a command the client lacks.
+                return fail(
+                    "fatal: unable to access 'https://github.com/': "
+                    "Could not resolve host: github.com"
+                )
+            case ["auth", "status", *_]:
+                # The real command prints a human-readable line rather than
+                # JSON, so a filter on it is refused by `emit` instead of
+                # silently ignored.
+                return emit(
+                    f"Logged in to github.com as {facts['login']}",
+                    jq=jq_expression(argv),
+                )
+        return fail(f"gh: unsupported invocation {argv}")
+    except Refused as refused:
+        return fail(refused.message, refused.status)
 
 
 def main(argv: list[str]) -> int:

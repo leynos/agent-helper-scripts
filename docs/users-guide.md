@@ -939,8 +939,8 @@ candidate's local delta is **unverified**, not clean: the gate stays open, the
 PR stays in draft, and the outcome names the missing tool as the deciding
 evidence. A hosted green check cannot substitute for the missing local half,
 because the two read different inputs — the hosted check evaluates the pushed
-diff, while the local check evaluates the tree the agent is about to push. "I
-could not run the check" and "the check found nothing" are different facts, and
+diff, while the local check evaluates the tree the agent is about to push. "The
+check could not run" and "the check found nothing" are different facts, and
 only the second clears the rule. The ledger records the unavailable source,
 what would have evaluated it, and that readiness waits on it.
 

@@ -303,7 +303,14 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
             "read its conditions there rather than expecting a second copy here.",
             (
                 "read its conditions there rather than expecting a second copy here."
-                " It also requires green CI and CodeScene findings."
+                " It also requires green CI."
+            ),
+        ),
+        (
+            "read its conditions there rather than expecting a second copy here.",
+            (
+                "read its conditions there rather than expecting a second copy here."
+                " It also requires CodeScene findings."
             ),
         ),
         (
@@ -311,7 +318,12 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
             "",
         ),
     ],
-    ids=["restates-the-verdict", "restates-the-delivery-gates", "drops-the-pointer"],
+    ids=[
+        "restates-the-verdict",
+        "restates-green-ci",
+        "restates-codescene-findings",
+        "drops-the-pointer",
+    ],
 )
 def test_handoff_rejects_a_setup_gate_that_restates_or_drops_the_rule(
     implementation_text: str, setup_text: str, old: str, new: str

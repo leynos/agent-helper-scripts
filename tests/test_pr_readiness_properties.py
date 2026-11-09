@@ -258,7 +258,8 @@ def _assessment_breaks(kind: str, *, subject: bool) -> tuple[Break, ...]:
     if kind == PROOF:
         # The inventory rule binds only the proof assessment, and only when it
         # is applicable: an unaffected proof has no inventory to cover.
-        breaks = breaks + (
+        breaks = (
+            *breaks,
             Break(
                 f"{kind}-inventory-incomplete",
                 required,
@@ -345,7 +346,7 @@ def _perturbed_states(draw: st.DrawFn) -> tuple[State, frozenset[str]]:
 
 
 def _assessment_holds(
-    verdict: Verdict, applies: bool, candidate: Candidate, *, inventory: bool = False
+    verdict: Verdict, candidate: Candidate, *, applies: bool, inventory: bool = False
 ) -> bool:
     """Return whether one assessment satisfies the documented condition.
 
@@ -355,11 +356,9 @@ def _assessment_holds(
     cover the inventory the request named: clearing the proof gate without
     saying which proofs were assessed does not establish that they are sound.
     """
-    if verdict.verdict not in VERDICTS:
-        return False
     if verdict.verdict == NOT_APPLICABLE:
         return not applies and bool(verdict.justification.strip())
-    if verdict.verdict in (NOT_CLEAR, PENDING):
+    if verdict.verdict not in VERDICTS or verdict.verdict in (NOT_CLEAR, PENDING):
         return False
     if (verdict.base, verdict.head) != (candidate.base, candidate.head):
         return False
@@ -398,9 +397,11 @@ def _holds(state: State) -> bool:
         state.ci_green
         and state.codescene_clear
         and _assessment_holds(
-            state.completeness, state.completeness_applies, candidate
+            state.completeness, candidate, applies=state.completeness_applies
         )
-        and _assessment_holds(state.proof, state.proof_applies, candidate, inventory=True)
+        and _assessment_holds(
+            state.proof, candidate, applies=state.proof_applies, inventory=True
+        )
         and _subject_holds(state.completeness, state.completeness_applies)
     )
 

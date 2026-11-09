@@ -154,8 +154,11 @@ def test_a_current_verdict_marks_the_draft_ready() -> None:
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert decision.ready, decision.reason
-    assert not candidate.is_draft
-    assert candidate.ready_transitions == [HEAD]
+    assert not candidate.is_draft, "a ready decision left the candidate in draft"
+    assert candidate.ready_transitions == [HEAD], (
+        f"the ready decision recorded {candidate.ready_transitions}, not one"
+        f" transition at {HEAD}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -520,13 +523,20 @@ def test_an_applicable_proof_request_with_no_inventory_keeps_the_draft() -> None
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert not decision.ready, "an unnamed proof inventory cleared the gate"
-    assert decision.reason == "proof-inventory-empty"
+    assert decision.reason == "proof-inventory-empty", (
+        f"the gate held for {decision.reason!r} rather than the empty inventory"
+    )
     assert thread.requests == [], (
         "a proof request with no inventory was published: "
         f"{[request['kind'] for request in thread.requests]}"
     )
-    assert candidate.is_draft
-    assert candidate.ready_transitions == []
+    assert candidate.is_draft, (
+        "a proof request with no inventory left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
+    assert candidate.ready_transitions == [], (
+        f"the draft was ended with an unnamed inventory: {decision.reason!r}"
+    )
 
 
 def test_both_requests_are_posted_before_the_decision() -> None:

@@ -134,6 +134,16 @@ def answer(argv: list[str], mode: str, finding: str | None) -> int:
         # code this candidate does not contain.
         print(NO_RECORDED_FINDING, file=sys.stderr)
         return 2
+    return dispatch(argv, mode, finding)
+
+
+def dispatch(argv: list[str], mode: str, finding: str | None) -> int:
+    """Route one invocation to its handler, or refuse an unsupported one.
+
+    The routing is split out of `answer` so that function keeps its
+    pre-dispatch exits — `version`, the unavailable mode and the missing-text
+    refusal — apart from the answers they guard against.
+    """
     match argv:
         case ["check", target, *_]:
             return answer_check(str(target), mode, finding)

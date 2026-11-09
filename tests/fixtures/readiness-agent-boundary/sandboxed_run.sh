@@ -571,6 +571,7 @@ if len(answers) != len(trace):
 # AND before the transition. Checking those separately let a run read `main`
 # first and the head afterwards, satisfying each condition with a different
 # call — so the revision reconciled was never the one the decision used.
+problems = []
 for index, argv in enumerate(trace[:ready]):
     if not isinstance(argv, list) or argv[:1] != ["api"]:
         continue
@@ -584,16 +585,22 @@ for index, argv in enumerate(trace[:ready]):
     if not refs & candidate_refs:
         continue
     # A read the agent could not use is not the read it reconciled. The answer
-    # record holds the status and the text, so both are required here.
+    # record holds the status and the text, so both are required here. A failed
+    # or empty read is recorded and the scan continues: one unusable attempt
+    # does not establish the rule, and it must not hide a later attempt that
+    # does. Exiting on the first one aborted runs that had in fact read the
+    # plan at the head they judged, and each rehearsal is a costly model run.
     answer = answers[index] or {}
     if answer.get("status") != 0:
-        print(f"candidate-bound plan read failed: {answer.get('status')}", file=sys.stderr)
-        raise SystemExit(1)
+        problems.append(f"candidate-bound plan read failed: {answer.get('status')}")
+        continue
     if not str(answer.get("stdout", "")).strip():
-        print("candidate-bound plan read returned nothing", file=sys.stderr)
-        raise SystemExit(1)
+        problems.append("candidate-bound plan read returned nothing")
+        continue
     raise SystemExit(0)
-print("no candidate-bound plan read before the transition", file=sys.stderr)
+for problem in problems:
+    print(problem, file=sys.stderr)
+print("no usable candidate-bound plan read before the transition", file=sys.stderr)
 raise SystemExit(1)
 PROBE_PLAN
     then

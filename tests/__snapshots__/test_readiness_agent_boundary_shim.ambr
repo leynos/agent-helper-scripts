@@ -9,44 +9,10 @@
 # name: test_the_structured_pr_routes_keep_their_shape[list]
   list([
     dict({
-      'author': dict({
-        'login': 'experiment-owner',
-        'type': 'User',
-      }),
       'baseRefName': 'main',
-      'baseRefOid': '<candidate-bound>',
-      'body': '<candidate-bound>',
-      'commits': list([
-        dict({
-          'messageHeadline': 'Deliver the plan',
-          'sha': '<candidate-bound>',
-        }),
-      ]),
-      'files': list([
-        dict({
-          'additions': 12,
-          'changes': 12,
-          'deletions': 0,
-          'filename': 'docs/execplans/issue-271-readiness-handoff.md',
-          'sha': '<candidate-bound>',
-          'status': 'modified',
-        }),
-      ]),
       'headRefName': 'issue-271-readiness-handoff',
-      'headRefOid': '<candidate-bound>',
-      'headRepository': dict({
-        'name': 'agent-helper-scripts',
-        'nameWithOwner': 'leynos/agent-helper-scripts',
-      }),
-      'headRepositoryOwner': dict({
-        'login': 'leynos',
-      }),
-      'isCrossRepository': False,
       'isDraft': True,
-      'mergeStateStatus': 'BLOCKED',
-      'mergeable': 'MERGEABLE',
       'number': 272,
-      'reviewDecision': '',
       'state': 'OPEN',
       'statusCheckRollup': list([
         dict({
@@ -80,8 +46,6 @@
           'status': 'COMPLETED',
         }),
       ]),
-      'title': 'Bind the draft-to-ready gate to the implementation handoff',
-      'url': '<candidate-bound>',
     }),
   ])
 # ---
@@ -98,16 +62,6 @@
       dict({
         'messageHeadline': 'Deliver the plan',
         'sha': '<candidate-bound>',
-      }),
-    ]),
-    'files': list([
-      dict({
-        'additions': 12,
-        'changes': 12,
-        'deletions': 0,
-        'filename': 'docs/execplans/issue-271-readiness-handoff.md',
-        'sha': '<candidate-bound>',
-        'status': 'modified',
       }),
     ]),
     'headRefName': 'issue-271-readiness-handoff',
@@ -159,6 +113,5 @@
       }),
     ]),
     'title': 'Bind the draft-to-ready gate to the implementation handoff',
-    'url': '<candidate-bound>',
   })
 # ---

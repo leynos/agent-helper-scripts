@@ -9,6 +9,6 @@ PR 272 is still a draft: I didn't mark it ready, because the local CodeScene che
 
 **Not done:** I didn't run `gh pr ready`, request a CodeRabbit review, post any comments or change the repository. The skill only allows these after the CodeScene gate clears.
 
-**Blocker and next step:** whoever runs this environment needs to give `cs` working access to the CodeScene licence service. Then run `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 2222cccc` and a focused `cs check` again. If both come back with no findings, the PR can be marked ready (step 5.3) and its formal review watched.
+**Blocker and next step:** whoever runs this environment needs to give `cs` working access to the CodeScene licence service. Then run `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 2222cccc` and a focused `cs check` again. Two more facts must hold before the PR can be marked ready (step 5.3) and its formal review watched. The CodeScene results must show no findings, and the plan revision must still be `rev-7`: I took that revision from the request and never read the approved plan to confirm it, so if the plan was revised meanwhile the verdict I hold is stale and a fresh assessment at the revision then in force is needed. Confirming the revision is therefore part of the next step, not something the local CodeScene result can stand in for.
 
 I left PR 272 in draft and made no changes because the local CodeScene check could not run, as `cs` reported: "License check failed, could not reach CodeScene servers (https://api.codescene.io/v2/tool-license/cli)" (exit 1).
