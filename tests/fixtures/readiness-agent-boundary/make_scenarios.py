@@ -352,6 +352,18 @@ def commit_message(plan_route: bool) -> str:
     return "Deliver the plan" if plan_route else "Introduce the refinement proof"
 
 
+def serves_plan(case: Case, paths: list[str]) -> bool:
+    """Return whether this scenario's routes serve an ExecPlan.
+
+    The commit text, the file contents and the issue body all branch on the
+    same fact, and `commit_message` exists because three commit routes
+    disagreeing about one head read as two commits. Two copies of the input
+    predicate can drift apart and reintroduce exactly that, so both callers
+    use this one.
+    """
+    return case.plan or any(path.startswith("docs/execplans/") for path in paths)
+
+
 def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, object]:
     """Return the routes describing the PR itself and its delivered change."""
     message = commit_message(plan_route)
@@ -384,7 +396,13 @@ def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, obje
         # read the commit object itself to report who wrote it. Anchored at the
         # end of the path so it cannot swallow the `/status` or `/check-runs`
         # sub-routes, which carry different shapes.
-        r"/commits/[0-9a-f]+$": {
+        #
+        # Pinned to this scenario's head rather than to any hex SHA. A route
+        # matching any commit answers a request for another SHA with this
+        # head's metadata, so a run checking commit identity reads false
+        # evidence — the served object would be answering about a commit the
+        # fixture never recorded.
+        rf"/commits/{head}$": {
             "sha": head,
             "author": {"login": "experiment-owner", "type": "User"},
             "committer": {"login": "experiment-owner", "type": "User"},
@@ -406,7 +424,10 @@ def review_routes(case: Case, checks: list[dict[str, object]]) -> dict[str, obje
             "reviewThreads": {"nodes": []},
         }}}},
         r"/issues/\d+/comments": case.comments,
-        r"/commits/[0-9a-f]+/status$": {
+        # Pinned to the head for the same reason as the commit object: a status
+        # route answering any SHA reports this head's review state for a commit
+        # it never recorded.
+        rf"/commits/{case.head}/status$": {
             "state": "success",
             "statuses": [
                 {
@@ -418,7 +439,9 @@ def review_routes(case: Case, checks: list[dict[str, object]]) -> dict[str, obje
         },
         r"/pulls/\d+/reviews$": [],
         r"/pulls/\d+/comments$": [],
-        r"/commits/[0-9a-f]+/check-runs(?:[?#]|$)": {
+        # Head-pinned: a check-runs route keyed on any SHA would report this
+        # head's CI for an unrecorded commit.
+        rf"/commits/{case.head}/check-runs(?:[?#]|$)": {
             "total_count": len(checks),
             "check_runs": [
                 check_run(index, check) for index, check in enumerate(checks)
@@ -495,9 +518,7 @@ def api_map(case: Case) -> dict[str, object]:
     """
     checks = check_set(case.advisories)
     paths = changed_paths(case)
-    plan_route = case.plan or any(
-        path.startswith("docs/execplans/") for path in paths
-    )
+    plan_route = serves_plan(case, paths)
     return {
         **pull_routes(case.head, paths, plan_route),
         **review_routes(case, checks),
@@ -617,12 +638,7 @@ def scenario(case: Case) -> None:
             "commits": [
                 {
                     "sha": case.head,
-                    "messageHeadline": commit_message(
-                        case.plan
-                        or any(
-                            path.startswith("docs/execplans/") for path in paths
-                        )
-                    ),
+                    "messageHeadline": commit_message(serves_plan(case, paths)),
                 }
             ],
         },

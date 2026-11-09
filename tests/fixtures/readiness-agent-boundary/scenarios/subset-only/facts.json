@@ -108,7 +108,7 @@
         }
       }
     ],
-    "/commits/[0-9a-f]+$": {
+    "/commits/aaaa1111$": {
       "sha": "aaaa1111",
       "author": {
         "login": "experiment-owner",
@@ -160,7 +160,7 @@
         "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9002"
       }
     ],
-    "/commits/[0-9a-f]+/status$": {
+    "/commits/aaaa1111/status$": {
       "state": "success",
       "statuses": [
         {
@@ -172,7 +172,7 @@
     },
     "/pulls/\\d+/reviews$": [],
     "/pulls/\\d+/comments$": [],
-    "/commits/[0-9a-f]+/check-runs(?:[?#]|$)": {
+    "/commits/aaaa1111/check-runs(?:[?#]|$)": {
       "total_count": 3,
       "check_runs": [
         {

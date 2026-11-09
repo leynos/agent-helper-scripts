@@ -811,16 +811,23 @@ and that the hosted check and the local delta do not disagree about one file.
 
 The runner's post-run checks are exercised on their own as well. The test
 module extracts each check's Python from the runner's heredoc and runs it over
-a synthetic trace and answer record, so a check that is dead, out of order or
-unreachable fails a test rather than only failing to appear in a string search.
-Each probe is covered both by the recording it must accept and by the sequences
-it must refuse: a base-branch plan read followed by a candidate read, a
-candidate read that failed or returned nothing, an isDraft read taken before
-the transition, and a read-back whose value is `null`, `true`, empty or prose.
-Asserting that a literal exists in the script would pass on a check that never
-runs, which is how the ordering gap survived an earlier review. The stand-in's
-own authorization is proved the same way, with a wrong-token POST after an
-accepted comment that must leave the recorded comment unchanged.
+a synthetic trace and answer record, so a check that is dead or misordered
+fails a test rather than only failing to appear in a string search. Each probe
+is covered both by the recording it must accept and by the sequences it must
+refuse: a base-branch plan read followed by a candidate read, a candidate read
+that failed or returned nothing, an isDraft read taken before the transition,
+and a read-back whose value is `null`, `true`, empty or prose. Asserting that a
+literal exists in the script would pass on a check that never runs, which is
+how the ordering gap survived an earlier review. The stand-in's own
+authorization is proved the same way, with a wrong-token POST after an accepted
+comment that must leave the recorded comment unchanged.
+
+Reachability is the one property those cases cannot establish. Extracting a
+heredoc proves what the probe decides, not that the runner reaches it, so that
+half stays a source-text assertion: the check must sit inside the permitting
+branch, and its own refusal message must be followed by the `rc=1` that fails
+the run. Those assertions cannot pass on a probe whose refusal was moved
+outside the branch or demoted to a warning.
 
 A recording is only evidence for what it exercised. The sandbox has no checkout
 and the real `cs` cannot run there — it needs a licence service the network

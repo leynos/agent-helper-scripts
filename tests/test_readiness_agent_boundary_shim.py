@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -1028,11 +1029,46 @@ def test_every_route_serving_the_commit_gives_the_same_message() -> None:
         facts = json.loads(facts_path.read_text(encoding="utf-8"))
         view = facts["pr"]["commits"][0]["messageHeadline"]
         pulls = facts["api"][r"/pulls/\d+/commits(?:[?#]|$)"][0]["commit"]["message"]
-        single = facts["api"][r"/commits/[0-9a-f]+$"]["commit"]["message"]
+        single = facts["api"][commit_object_route(facts)]["commit"]["message"]
         assert view == pulls == single, (
             f"{facts_path.parent.name} gives three messages for one head: "
             f"{view!r}, {pulls!r}, {single!r}"
         )
+
+
+def commit_object_route(facts: dict) -> str:
+    """Return the `commits/<sha>` route key for this scenario's own head.
+
+    The route is pinned to the head rather than matching any hex SHA, so the
+    key carries that SHA instead of a character class. Looking the key up by a
+    fixed literal would only find a fixture that still answers any commit.
+    """
+    head = facts["pr"]["headRefOid"]
+    route = rf"/commits/{head}$"
+    assert route in facts["api"], (
+        f"the commit route is not pinned to the head: found"
+        f" {[key for key in facts['api'] if 'commits' in key]}"
+    )
+    return route
+
+
+def test_every_commit_route_answers_only_its_own_head() -> None:
+    """A route keyed on any SHA answers about a commit the fixture never saw.
+
+    A run that checks commit identity would then be handed this head's
+    metadata for whatever SHA it asked about, which is false evidence rather
+    than a 404. The three head-derived routes are pinned together because the
+    defect was one of a kind, not one instance.
+    """
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        head = facts["pr"]["headRefOid"]
+        commit_routes = [key for key in facts["api"] if "/commits/" in key]
+        assert commit_routes, f"{facts_path.parent.name} records no commit routes"
+        for route in commit_routes:
+            assert head in route, (
+                f"{facts_path.parent.name} answers any commit at {route!r}"
+            )
 
 
 def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:
@@ -1472,13 +1508,23 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
     # around them is the permitting branch rather than the whole script.
     permitting = runner.index('if [ "$EXPECT_READY" = yes ]')
     for probe, message in (
-        ("PROBE_DELTA", "has no transition boundary in the local CodeScene trace"),
+        (
+            "PROBE_DELTA",
+            "marked ready without a candidate-bound 'cs delta' before the transition",
+        ),
         ("PROBE_STATE", "transitioned but the served state still reads draft"),
     ):
         invocation = runner.index(f"<<'{probe}'")
         assert invocation > permitting, f"{probe} is invoked outside the permitting branch"
-        assert message in runner, f"the runner no longer reports {probe}'s refusal"
-        assert "rc=1" in runner[invocation:], f"{probe}'s failure does not set rc"
+        # The refusal must be the one this probe's failure emits, and the `rc=1`
+        # that turns it into a failing run must be the line directly after it.
+        # Searching the whole script for the text finds some other check's
+        # message, and searching the tail for any `rc=1` finds a later block's,
+        # so neither ties the failure to this probe.
+        refusal = re.search(
+            re.escape(message) + r"[^\n]*\n\s*rc=1", runner[invocation:]
+        )
+        assert refusal, f"{probe}'s refusal no longer sets rc=1 directly"
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:

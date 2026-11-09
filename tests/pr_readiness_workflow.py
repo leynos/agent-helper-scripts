@@ -45,6 +45,10 @@ class Reply:
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
     justification: str = ""
+    # The proofs a proof assessment says it cleared. Empty for every other
+    # kind, and empty for a proof reply that names none, which is exactly the
+    # reply the inventory gate must reject.
+    proofs: tuple[str, ...] = ()
 
 
 @dataclass
@@ -112,6 +116,10 @@ class PullRequest:
     ci_green: bool = True
     codescene_clear: bool = True
     approved_plan_revision: str | None = None
+    # The proof inventory the assignment's request names. The model refuses a
+    # clear proof verdict that does not cover every entry, so a double that
+    # never carries an inventory cannot exercise that rule at all.
+    required_proofs: tuple[str, ...] = ()
     ready_transitions: list[str] = field(default_factory=list)
 
     def mark_ready(self) -> None:
@@ -141,6 +149,7 @@ class PullRequest:
             approved_plan_revision=self.approved_plan_revision,
             ci_green=self.ci_green,
             codescene_clear=self.codescene_clear,
+            required_proofs=self.required_proofs,
         )
 
 
@@ -180,6 +189,7 @@ def _verdict(
         echoed_revision=reply.echoed_revision,
         subject=reply.subject,
         justification=reply.justification,
+        proofs=reply.proofs,
     )
 
 

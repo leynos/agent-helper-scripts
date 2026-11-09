@@ -104,7 +104,7 @@ def banner() -> None:
     print(BANNER, file=sys.stderr)
 
 
-def answer(argv: list[str], mode: str, finding: str) -> int:
+def answer(argv: list[str], mode: str, finding: str | None) -> int:
     """Answer one `cs` invocation in the shape the real CLI uses.
 
     Exit status carries the verdict as well as the text: the real `cs delta`
@@ -115,6 +115,9 @@ def answer(argv: list[str], mode: str, finding: str) -> int:
     alongside the delta. A run that finds the focused check unsupported has to
     record it as unevaluated, which is a different fact from the clean result
     it is looking for.
+
+    `finding` is None when the facts record no text, which is the case the
+    refusal below answers; the checked helpers narrow it to a non-None string.
     """
     banner()
     # `version` answers before the mode is consulted: it touches no code, so

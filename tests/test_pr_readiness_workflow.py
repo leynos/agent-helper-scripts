@@ -54,6 +54,7 @@ def pull(
     revision: str | None = REVISION,
     ci_green: bool = True,
     codescene_clear: bool = True,
+    required_proofs: tuple[str, ...] = (),
 ) -> PullRequest:
     """Return a draft PR double for the accepted candidate."""
     return PullRequest(
@@ -63,6 +64,7 @@ def pull(
         ci_green=ci_green,
         codescene_clear=codescene_clear,
         approved_plan_revision=revision,
+        required_proofs=required_proofs,
     )
 
 
@@ -83,6 +85,7 @@ class _Reply:
     base: str = BASE
     justification: str = ""
     author: str = CODERABBIT
+    proofs: tuple[str, ...] = ()
 
 
 #: The default reply content: clear, whole-plan, and candidate-bound.
@@ -116,6 +119,7 @@ def reply_with(assessment_id: str, **changes: object) -> Reply:
         echoed_revision=fields.echoed,
         subject=fields.subject,
         justification=fields.justification,
+        proofs=fields.proofs,
     )
 
 
@@ -404,6 +408,52 @@ def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert decision.reason == "completeness-subject-unrecognized"
+
+
+#: One proof the request names, as the assignment would list it.
+PROOF_ONE = "proofs/refinement/Theorem.lean#refinement_sound"
+
+#: A second proof the request names but the reply may not cover.
+PROOF_TWO = "proofs/refinement/Lemma.lean#step_preserves"
+
+
+def test_the_workflow_carries_the_requested_proof_inventory() -> None:
+    """The double's inventory reaches the model rather than being dropped.
+
+    The proof inventory lives in the candidate, so a double that never passes
+    one leaves `proof-inventory-incomplete` unreachable however the workflow
+    is driven. Both halves are checked: the inventory the request names is the
+    one the model compares against, and a reply covering it clears.
+    """
+    thread = discussion()
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID, proofs=(PROOF_ONE,)))
+    candidate = pull(required_proofs=(PROOF_ONE,))
+
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
+
+    assert candidate.ready_transitions == [HEAD], decision.reason
+    assert not candidate.is_draft
+
+
+def test_an_incomplete_proof_inventory_keeps_the_draft_in_place() -> None:
+    """A clear proof verdict covering one of two proofs does not clear the gate.
+
+    The reply is otherwise well formed — clear, the whole plan, candidate-bound
+    — so the only reason it can fail is the proof it never named. That is what
+    distinguishes this from the unsettled-verdict cases beside it.
+    """
+    thread = discussion()
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID, proofs=(PROOF_ONE,)))
+    candidate = pull(required_proofs=(PROOF_ONE, PROOF_TWO))
+
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
+
+    assert not decision.ready
+    assert decision.reason == "proof-inventory-incomplete"
+    assert candidate.is_draft
+    assert candidate.ready_transitions == []
 
 
 def test_both_requests_are_posted_before_the_decision() -> None:
