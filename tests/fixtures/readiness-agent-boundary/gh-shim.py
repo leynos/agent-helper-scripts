@@ -599,14 +599,29 @@ def answer(argv: list[str]) -> int:
         return fail(refused.message, refused.status)
 
 
-def main(argv: list[str]) -> int:
-    """Record the invocation and its result, then answer it.
+def run_recorded(argv: list[str]) -> int:
+    """Answer one invocation inside the recording boundary.
 
-    The answer is captured by redirecting this process's own standard output
-    into a buffer, so what is recorded is the bytes the agent received —
-    including whatever a `--jq` filter made of them — and not a second
-    rendering of the payload. Standard error stays on the real stream, so the
-    agent still sees a refusal.
+    The boundary is the whole of `main`'s work around `answer`: the argv is
+    written before the answer is computed, so an invocation that crashes is
+    still visible in the trace, and the bytes the agent received are captured
+    from this process's own standard output rather than re-derived, so a `--jq`
+    filter that yields `null` while exiting zero is recorded as `null`.
+
+    Keeping this in one function is what makes the trace trustworthy. A route
+    that answered *outside* the boundary would leave a command the agent ran
+    with no entry, and a recording would then under-report what the run read.
+    Everything reachable from `answer` is inside it.
+
+    Parameters
+    ----------
+    argv : list of str
+        The invocation, exactly as the agent spelled it.
+
+    Returns
+    -------
+    int
+        The exit status the agent sees.
     """
     record(argv)
     buffer = io.StringIO()
@@ -615,6 +630,11 @@ def main(argv: list[str]) -> int:
     sys.stdout.write(buffer.getvalue())
     record_answer(argv, status, buffer.getvalue())
     return status
+
+
+def main(argv: list[str]) -> int:
+    """Route this process's invocation through the recording boundary."""
+    return run_recorded(argv)
 
 
 if __name__ == "__main__":

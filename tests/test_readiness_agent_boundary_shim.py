@@ -1794,3 +1794,56 @@ def test_a_permitting_scenario_cannot_carry_an_unusable_local_mode() -> None:
     runner = RUNNER.read_text()
     for mode in ("unavailable", "finding"):
         assert f'"$CS_MODE" = {mode}' in runner, "expected f'\"$CS_MODE\" = {mode}' in runner to hold"
+
+
+#: The read-only invocations a readiness run makes, each of which must appear
+#: in the trace with the answer it was given. They are read routes the skill
+#: depends on, chosen to span the three answering mechanisms: a `--json`
+#: projection, a `--jq` filter and a REST read.
+READS = (
+    (
+        "pr-view",
+        ("pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", PR_VIEW_JSON),
+    ),
+    ("pr-checks", ("pr", "checks", "272", "--repo", "leynos/agent-helper-scripts")),
+    ("user", ("api", "user", "--jq", ".login")),
+    ("issue-comments", ("api", "repos/leynos/agent-helper-scripts/issues/272/comments")),
+)
+
+
+@pytest.mark.parametrize(("name", "argv"), READS, ids=[name for name, _ in READS])
+def test_a_read_only_query_is_answered_inside_the_recording_boundary(
+    run: Path, name: str, argv: tuple[str, ...]
+) -> None:
+    """Every read leaves one trace entry and one answer record, in step.
+
+    The trace is how a recording shows what the agent read. A route answered
+    outside the boundary would leave an invocation the agent made with no
+    entry, so the trace would under-report the run's reads and a probe could
+    not tell an unread source from an unrecorded one.
+
+    The two files are checked together: a trace entry with no matching answer
+    record would show the call but not what it returned, which is the half of
+    the evidence a readiness decision rests on.
+    """
+    done = invoke(run, *argv)
+    assert done.returncode == 0, done.stderr
+
+    traced = [
+        json.loads(line)
+        for line in (run / "gh-trace.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    recorded = [
+        json.loads(line)
+        for line in (run / "gh-answers.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert traced == [list(argv)], f"{name} was answered outside the boundary: {traced}"
+    assert [entry["argv"] for entry in recorded] == [list(argv)], (
+        f"{name} left no answer record: {recorded}"
+    )
+    answered = recorded[0]
+    assert answered["status"] == 0, f"{name} recorded status {answered['status']}"
+    assert answered["stdout"] == done.stdout, (
+        f"{name} recorded {answered['stdout']!r}, not what the agent received"
+    )
+    assert answered["stdout"].strip(), f"{name} recorded an empty answer"
