@@ -1310,6 +1310,177 @@ def test_the_preflight_refuses_a_wrong_token_after_an_accepted_post(
     assert "changed the recorded comment" in overwritten.stderr, "expected 'changed the recorded comment' in overwritten.stderr"
 
 
+def cs_entry(argv: list[str]) -> dict:
+    """Return one line of the `cs` trace, in the shape the stand-in writes."""
+    return {"argv": argv, "mode": "clean"}
+
+
+CS_BOUNDARY = {"event": "pr-ready", "head": "cccc3333"}
+
+
+@pytest.fixture
+def recorded_facts(tmp_path: Path) -> Path:
+    """Return the recorded facts whose base and head the delta must name."""
+    facts = tmp_path / "facts.json"
+    facts.write_text(SCENARIO.read_text(encoding="utf-8"), encoding="utf-8")
+    return facts
+
+
+def test_the_delta_probe_accepts_a_candidate_bound_delta_before_the_boundary(
+    tmp_path: Path, recorded_facts: Path
+) -> None:
+    """The probe must pass the recording it was written for.
+
+    Without an accepting case the refusal tests below would pass against a
+    probe that rejects everything, which is a broken check reported as a strict
+    one.
+    """
+    trace = write_lines(
+        tmp_path / "cs-trace.jsonl",
+        [
+            cs_entry(["delta", "73d32981c7b7e8f52590a074873e28a9f369f0f9", "cccc3333"]),
+            CS_BOUNDARY,
+        ],
+    )
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "yes", done.stdout
+
+
+def test_the_delta_probe_refuses_a_missing_delta(
+    tmp_path: Path, recorded_facts: Path
+) -> None:
+    """A run that marked the PR ready without any local delta is refused.
+
+    The local CodeScene result is a documented prerequisite, so a transition
+    with no candidate-bound `cs delta` before it has skipped the gate.
+    """
+    trace = write_lines(tmp_path / "cs-trace.jsonl", [CS_BOUNDARY])
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode != 0, "a transition with no local delta was accepted"
+    assert done.stdout.strip() == "no", done.stdout
+
+
+def test_the_delta_probe_refuses_a_delta_after_the_boundary(
+    tmp_path: Path, recorded_facts: Path
+) -> None:
+    """A delta read after the transition cannot justify it.
+
+    Ordering is the whole claim: the same call recorded on the wrong side of
+    the boundary is a check performed after the decision it was supposed to
+    inform.
+    """
+    trace = write_lines(
+        tmp_path / "cs-trace.jsonl",
+        [
+            CS_BOUNDARY,
+            cs_entry(["delta", "73d32981c7b7e8f52590a074873e28a9f369f0f9", "cccc3333"]),
+        ],
+    )
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode != 0, "a delta read after the transition was accepted"
+    assert done.stdout.strip() == "no", done.stdout
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["delta"],
+        ["delta", "cccc3333"],
+        ["delta", "73d32981c7b7e8f52590a074873e28a9f369f0f9", "eeee5555"],
+    ],
+    ids=["bare", "head-only", "wrong-head"],
+)
+def test_the_delta_probe_requires_both_endpoints(
+    tmp_path: Path, recorded_facts: Path, argv: list[str]
+) -> None:
+    """A delta is candidate-bound only when its argv names both endpoints.
+
+    A bare `cs delta` reads the working tree, which this sandbox does not have,
+    and a delta naming another head is about another candidate. Both are
+    consultations that cannot clear the gate, so neither counts as the one the
+    decision rests on.
+    """
+    trace = write_lines(tmp_path / "cs-trace.jsonl", [cs_entry(argv), CS_BOUNDARY])
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode != 0, done.stdout
+    assert done.stdout.strip() == "no", done.stdout
+
+
+def test_the_delta_probe_refuses_a_malformed_trace_line(
+    tmp_path: Path, recorded_facts: Path
+) -> None:
+    """An unreadable trace is not a clean one.
+
+    A truncated or corrupt line could be the delta itself, so treating it as
+    absent and carrying on would accept a recording whose evidence the probe
+    never actually read.
+    """
+    trace = tmp_path / "cs-trace.jsonl"
+    trace.write_text("{not json}\n", encoding="utf-8")
+    done = run_probe("PROBE_DELTA", str(trace), str(recorded_facts))
+    assert done.returncode == 2, done.stdout
+    assert "malformed trace line" in done.stderr, done.stderr
+
+
+def test_the_state_probe_accepts_a_ready_served_state(tmp_path: Path) -> None:
+    """The probe passes the state a completed transition actually serves."""
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"isDraft": False}), encoding="utf-8")
+    done = run_probe("PROBE_STATE", str(state))
+    assert done.returncode == 0, done.stderr
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        json.dumps({"isDraft": True}),
+        json.dumps({}),
+        json.dumps({"isDraft": None}),
+        json.dumps({"isDraft": "false"}),
+        json.dumps({"draft": False}),
+        json.dumps({"isDraft": 0}),
+    ],
+    ids=["draft", "absent", "null", "string-false", "other-key", "zero"],
+)
+def test_the_state_probe_refuses_anything_but_a_ready_boolean(
+    tmp_path: Path, content: str
+) -> None:
+    """Only the boolean `false` is the served ready state.
+
+    `isDraft is False` is a value check, not a truthiness check: a missing key
+    yields None and a string or zero is not the boolean the service sends. Each
+    of those would otherwise read as "not draft" and hide a transition that
+    never happened.
+    """
+    state = tmp_path / "state.json"
+    state.write_text(content, encoding="utf-8")
+    done = run_probe("PROBE_STATE", str(state))
+    assert done.returncode != 0, f"accepted {content} as a ready served state"
+
+
+def test_the_runner_reaches_the_delta_and_state_checks() -> None:
+    """A probe that is correct but never wired in proves nothing.
+
+    Executing an extracted heredoc tests the probe's logic; it does not show
+    the runner calls it. Both checks sit inside the permitting branch, so each
+    one's `abort:` message must be present in the runner's own text and each
+    probe must be invoked from it.
+    """
+    runner = RUNNER.read_text()
+    # Both are delinquent only for a run expected to transition, so the guard
+    # around them is the permitting branch rather than the whole script.
+    permitting = runner.index('if [ "$EXPECT_READY" = yes ]')
+    for probe, message in (
+        ("PROBE_DELTA", "has no transition boundary in the local CodeScene trace"),
+        ("PROBE_STATE", "transitioned but the served state still reads draft"),
+    ):
+        invocation = runner.index(f"<<'{probe}'")
+        assert invocation > permitting, f"{probe} is invoked outside the permitting branch"
+        assert message in runner, f"the runner no longer reports {probe}'s refusal"
+        assert "rc=1" in runner[invocation:], f"{probe}'s failure does not set rc"
+
+
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
     """The prompt must not leave the stand-in's identity as the variable.
 
