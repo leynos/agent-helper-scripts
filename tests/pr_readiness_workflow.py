@@ -65,8 +65,20 @@ class Discussion:
     responses: list[Reply] = field(default_factory=list)
     requests: list[dict[str, str]] = field(default_factory=list)
 
-    def post(self, kind: str, assessment_id: str, plan_revision: str | None) -> str:
+    def post(
+        self,
+        kind: str,
+        assessment_id: str,
+        plan_revision: str | None,
+        proofs: tuple[str, ...] = (),
+    ) -> str:
         """Record one assessment question and return its request marker.
+
+        The proof question's wording names the proofs it asks about, so the
+        request records them. Which proofs the request asked about is not
+        recoverable from a transcript that keeps only its kind and marker, and
+        a reconciliation that cannot see the asked inventory cannot tell a
+        narrowed answer from a complete one.
 
         Parameters
         ----------
@@ -76,6 +88,8 @@ class Discussion:
             Unique request marker the reply is expected to echo.
         plan_revision : str or None
             Revision in force, or None when no ExecPlan applies.
+        proofs : tuple of str, optional
+            The proof inventory the question names; empty for every other kind.
 
         Returns
         -------
@@ -83,7 +97,12 @@ class Discussion:
             The recorded request marker.
         """
         self.requests.append(
-            {"kind": kind, "id": assessment_id, "revision": plan_revision or ""}
+            {
+                "kind": kind,
+                "id": assessment_id,
+                "revision": plan_revision or "",
+                "proofs": ",".join(proofs),
+            }
         )
         return assessment_id
 
@@ -287,7 +306,12 @@ def _assess(
     if not selection.applies:
         return _not_applicable(selection.reason, pull)
     revision = pull.approved_plan_revision
-    posted = discussion.post(selection.kind, selection.assessment_id, revision)
+    posted = discussion.post(
+        selection.kind,
+        selection.assessment_id,
+        revision,
+        pull.required_proofs if selection.kind == PROOF else (),
+    )
     return _verdict(selection.kind, discussion.observe(posted), revision)
 
 

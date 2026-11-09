@@ -176,6 +176,10 @@ REASON_CITATIONS = {
         "Require an explicit satisfactory assessment of the listed proofs with"
         " no unresolved substantive proof concern."
     ),
+    "proof-inventory-empty": (
+        "record a justified `not applicable` instead of posting an empty"
+        " inventory or creating a ceremonial proof"
+    ),
     "ready": (
         "Only when CI is green, CodeScene is clear, and all applicable"
         " pre-readiness assessments hold for the accepted base/head"
@@ -358,6 +362,15 @@ def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> R
     answers a question that was never asked, and a reply that covers some of
     them leaves the rest unassessed while still leaving draft.
 
+    An assignment that requires a proof assessment must also name an inventory.
+    The documents offer exactly two routes when no proof is affected: say the
+    assessment does not apply, or list the proofs a newly introduced one
+    affects. An applicable proof assessment with nothing listed is neither, so
+    it is a request nobody could answer rather than a clear gate. The check
+    sits outside the ``not applicable`` early return: a reply cannot supply the
+    inventory an assignment never named, and a reply carrying its own is not
+    evidence of what the request asked.
+
     Parameters
     ----------
     verdict : Verdict
@@ -372,7 +385,11 @@ def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> R
     Readiness or None
         A draft-preserving decision, or None when every listed proof is covered.
     """
-    if not applies or verdict.verdict == NOT_APPLICABLE:
+    if not applies:
+        return None
+    if not candidate.required_proofs:
+        return _decision("proof-inventory-empty")
+    if verdict.verdict == NOT_APPLICABLE:
         return None
     missing = [proof for proof in candidate.required_proofs if proof not in verdict.proofs]
     if missing:

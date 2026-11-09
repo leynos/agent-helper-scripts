@@ -18,9 +18,11 @@ from dataclasses import dataclass, replace
 import pytest
 from pr_readiness_model import (
     CLEAR,
+    COMPLETENESS,
     DECLARED_SUBSET,
     NOT_CLEAR,
     PENDING,
+    PROOF,
     WHOLE_PLAN,
 )
 from pr_readiness_workflow import (
@@ -39,6 +41,17 @@ REVISION = "rev-2026-11-01"
 COMPLETENESS_ID = "271-boundary-completeness"
 PROOF_ID = "271-boundary-proof"
 
+#: One proof the request names, as the assignment would list it.
+PROOF_ONE = "proofs/refinement/Theorem.lean#refinement_sound"
+
+#: A second proof the request names but the reply may not cover.
+PROOF_TWO = "proofs/refinement/Lemma.lean#step_preserves"
+
+#: The inventory a satisfiable proof request names. An applicable proof
+#: assessment must name one, so the ordinary case is a named proof rather than
+#: an empty list; a test that wants the unnamed case passes an empty inventory.
+DEFAULT_PROOFS = (PROOF_ONE,)
+
 #: The ordinary assignment with the proof assessment also applicable.
 with_proof = Assignment(proof_applies=True)
 
@@ -54,9 +67,14 @@ def pull(
     revision: str | None = REVISION,
     ci_green: bool = True,
     codescene_clear: bool = True,
-    required_proofs: tuple[str, ...] = (),
+    required_proofs: tuple[str, ...] = DEFAULT_PROOFS,
 ) -> PullRequest:
-    """Return a draft PR double for the accepted candidate."""
+    """Return a draft PR double for the accepted candidate.
+
+    The proof inventory defaults to a named proof, because an applicable proof
+    assessment must name one. A test that wants the unnamed case says so with
+    ``required_proofs=()``.
+    """
     return PullRequest(
         base=BASE,
         head=HEAD,
@@ -85,7 +103,10 @@ class _Reply:
     base: str = BASE
     justification: str = ""
     author: str = CODERABBIT
-    proofs: tuple[str, ...] = ()
+    # The proofs a proof reply says it cleared. It defaults to the inventory
+    # the ordinary request names, so a positive case is the default; a test
+    # that wants an uncited or partial reply names its own list.
+    proofs: tuple[str, ...] = DEFAULT_PROOFS
 
 
 #: The default reply content: clear, whole-plan, and candidate-bound.
@@ -410,13 +431,6 @@ def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> 
     assert decision.reason == "completeness-subject-unrecognized"
 
 
-#: One proof the request names, as the assignment would list it.
-PROOF_ONE = "proofs/refinement/Theorem.lean#refinement_sound"
-
-#: A second proof the request names but the reply may not cover.
-PROOF_TWO = "proofs/refinement/Lemma.lean#step_preserves"
-
-
 def test_the_workflow_carries_the_requested_proof_inventory() -> None:
     """The double's inventory reaches the model rather than being dropped.
 
@@ -452,6 +466,56 @@ def test_an_incomplete_proof_inventory_keeps_the_draft_in_place() -> None:
 
     assert not decision.ready
     assert decision.reason == "proof-inventory-incomplete"
+    assert candidate.is_draft
+    assert candidate.ready_transitions == []
+
+
+def test_the_proof_request_records_the_inventory_it_asked_about() -> None:
+    """The posted proof question names the inventory, and only that question.
+
+    A transcript that keeps only a kind and a marker cannot show what the
+    request asked, so a reconciliation cannot tell a narrowed answer from a
+    complete one. The inventory belongs to the request for the same reason the
+    revision does, and the completeness question names none.
+    """
+    thread = discussion()
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(
+        reply_with(PROOF_ID, proofs=(PROOF_ONE, PROOF_TWO))
+    )
+    candidate = pull(required_proofs=(PROOF_ONE, PROOF_TWO))
+
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
+
+    assert decision.ready, decision.reason
+    posted = {request["kind"]: request for request in thread.requests}
+    assert posted[PROOF]["proofs"] == f"{PROOF_ONE},{PROOF_TWO}", (
+        f"the proof request recorded {posted[PROOF]['proofs']!r}"
+    )
+    assert posted[COMPLETENESS]["proofs"] == "", (
+        "only the proof question names a proof inventory"
+    )
+
+
+def test_an_applicable_proof_request_with_no_inventory_keeps_the_draft() -> None:
+    """An applicable proof assessment must name what it asks about.
+
+    The shipped documents offer two routes when no proof is affected: declare
+    the assessment not applicable, or list the proofs a new one touches. A
+    proof assignment that takes neither posts a question with nothing to
+    assess, and a clear reply to it would clear a gate that never existed. The
+    reply here names a proof of its own, which cannot supply the inventory the
+    request failed to ask for.
+    """
+    thread = discussion()
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID, proofs=(PROOF_ONE,)))
+    candidate = pull(required_proofs=())
+
+    decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
+
+    assert not decision.ready, "an unnamed proof inventory cleared the gate"
+    assert decision.reason == "proof-inventory-empty"
     assert candidate.is_draft
     assert candidate.ready_transitions == []
 

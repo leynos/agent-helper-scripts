@@ -315,6 +315,27 @@ def test_a_clear_proof_verdict_must_cover_the_whole_inventory() -> None:
     assert decision.reason == "proof-inventory-incomplete"
 
 
+def test_an_applicable_proof_assessment_must_name_an_inventory() -> None:
+    """An applicable proof request with nothing listed has nothing to clear.
+
+    The shipped documents give exactly two routes when no proof is affected:
+    declare the assessment not applicable, or list the proofs a newly
+    introduced one affects. A proof assignment that takes neither asks a
+    question with no subject, and a clear reply to it would open the gate with
+    no proof assessed. The reply's own list cannot substitute: a reply that
+    names a proof the request never asked about is answering a different
+    question.
+    """
+    decision = readiness(
+        candidate(),
+        completeness(),
+        proof(verdict=CLEAR, proofs=(THEOREM,)),
+        proof_applies=True,
+    )
+    assert not decision.ready, "an applicable proof assessment with no inventory cleared"
+    assert decision.reason == "proof-inventory-empty"
+
+
 def test_a_clear_proof_verdict_covering_one_of_two_proofs_is_incomplete() -> None:
     """Covering part of the inventory leaves the rest unassessed.
 
@@ -370,13 +391,18 @@ def test_an_undefended_not_applicable_keeps_the_pr_in_draft() -> None:
 
 
 def test_a_proof_only_assignment_needs_no_plan_revision() -> None:
-    """Without an ExecPlan the base/head is the whole candidate."""
+    """Without an ExecPlan the base/head is the whole candidate.
+
+    The assignment still names the proof it asks about; only the revision echo
+    is waived, not the inventory an applicable proof assessment requires.
+    """
     decision = readiness(
-        candidate(revision=None),
+        candidate(revision=None, required_proofs=(THEOREM,)),
         completeness(verdict=NOT_APPLICABLE,
                      bounds=bound(revision=None, echoed=None),
                      justification="No ExecPlan governs this change."),
-        proof(verdict=CLEAR, bounds=bound(revision=None, echoed=None)),
+        proof(verdict=CLEAR, bounds=bound(revision=None, echoed=None),
+              proofs=(THEOREM,)),
         completeness_applies=False,
         proof_applies=True,
     )
@@ -569,6 +595,12 @@ REASON_STATES = {
         proof(verdict=CLEAR),
         {"proof_applies": True},
     ),
+    "proof-inventory-empty": (
+        candidate(),
+        completeness(),
+        proof(verdict=CLEAR),
+        {"proof_applies": True},
+    ),
     "ready": (candidate(), completeness(), proof()),
 }
 
@@ -756,6 +788,25 @@ DEFECTIVE_RULES = (
         id="proof-revision-binding-dropped",
     ),
     pytest.param(
+        "_proof_inventory",
+        lambda monkeypatch: monkeypatch.setattr(
+            readiness_module,
+            "_proof_inventory",
+            # Drops only the empty-inventory rule, the way a model that read
+            # an unnamed inventory as nothing to compare would: every listed
+            # proof is trivially covered when none is listed.
+            lambda verdict, cand, applies: (
+                None
+                if applies and not cand.required_proofs
+                else _real_proof_inventory(verdict, cand, applies)
+            ),
+        ),
+        (candidate(), completeness(), proof(verdict=CLEAR, proofs=(THEOREM,)),
+         {"proof_applies": True}),
+        "proof-inventory-empty",
+        id="empty-inventory-accepted",
+    ),
+    pytest.param(
         "_revision_bound",
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module, "_revision_bound", lambda verdict, cand, kind: None
@@ -803,6 +854,7 @@ DEFECTIVE_RULES = (
     ),
 )
 _real_disposition = readiness_module._disposition
+_real_proof_inventory = readiness_module._proof_inventory
 _real_delivery_gates = readiness_module.delivery_gate
 _real_subject = readiness_module._subject
 
