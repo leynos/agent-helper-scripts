@@ -151,6 +151,14 @@ as a script. Refresh the skills with `install-skills` to pick up the changes.
 - **CodeScene.** Previously only a failing quality gate triggered repair. Every
   outstanding issue now counts, including advisory findings in a passing check,
   `codescene-access[bot]` inline comments, and local `cs delta` warnings.
+- **Unverified local CodeScene.** A local `cs` that is absent, fails, or cannot
+  reach its licence service now blocks readiness instead of being treated as
+  clean. The candidate's local delta is recorded as unverified, the gate stays
+  open, and the PR stays in draft until a local result exists. A hosted green
+  check is not a substitute: if your agents previously relied on the hosted
+  result when the CLI was unavailable, they will now hold the PR in draft and
+  name the missing tool. Provide a working `codescene-cli` installation and
+  licence access, or expect readiness to wait on that source.
 - **Comment helper.** The posting function embedded in `references/comments.md`
   is replaced by `skills/pr-babysitting/scripts/post-manual-comment.sh`. The
   token-pool format at `~/.local/share/github-tokens` is unchanged. The helper

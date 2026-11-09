@@ -774,6 +774,21 @@ reproduces one. Both are described in
 which is the normative account of the scenarios, the stand-ins and the
 isolation boundary; read it before changing a recording.
 
+`tests/test_readiness_agent_boundary_shim.py` pins the stand-ins' routes. The
+`pr view`, `pr list` and `pr checks` answers a readiness run parses are held as
+snapshots in `tests/__snapshots__/test_readiness_agent_boundary_shim.ambr`,
+with candidate-bound values (`headRefOid`, `baseRefOid`, `url`, `body`, the
+per-file and per-commit `sha`) redacted. A re-recording therefore changes the
+snapshot only when the served shape changes, not when the recorded candidate
+moves. Regenerate deliberately with:
+
+```bash
+uv run --group dev python -m pytest \
+  tests/test_readiness_agent_boundary_shim.py --snapshot-update
+```
+
+Read the diff: a changed shape is a change to what the rehearsal can evidence.
+
 The runner is a rehearsal, not a gate. It needs a `claude` CLI, a model API
 credential, `pasta`, `nft` and `unshare`, none of which CI provides, so it is
 not part of `make ci` and a missing run is not a failing check. It runs the

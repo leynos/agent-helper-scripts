@@ -263,6 +263,102 @@ def test_pr_view_applies_a_filter(run: Path) -> None:
     assert done.stdout.strip() in {"true", "false"}
 
 
+#: Keys whose values are bound to one recording rather than to the route's
+#: contract. The readiness runner reads these to judge a candidate, so a
+#: snapshot that pinned them would fail on every re-recording while saying
+#: nothing about whether the stand-in still serves the shape a run needs.
+#: `sha` is redacted in place rather than along with `files` and `commits`:
+#: those two are arrays the run iterates, so their element shape is contract.
+CANDIDATE_BOUND = frozenset({"headRefOid", "baseRefOid", "url", "body", "sha"})
+
+#: The checks payload is a tab-separated table whose rows name hosted checks.
+#: Its shape is the contract; the check names and conclusions belong to the
+#: facts being served.
+CHECKS_ROW = "<check>\t<status>\t<conclusion>"
+
+
+def redact(value: object) -> object:
+    """Return `value` with candidate-bound fields replaced by placeholders.
+
+    Parameters
+    ----------
+    value : object
+        Any part of a served payload, recursed through mappings and sequences.
+
+    Returns
+    -------
+    object
+        The same structure with each candidate-bound value redacted, so the
+        snapshot pins the served contract rather than one recording's facts.
+    """
+    if isinstance(value, dict):
+        return {
+            key: "<candidate-bound>" if key in CANDIDATE_BOUND else redact(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+PR_VIEW_JSON = (
+    "number,title,author,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,"
+    "headRepository,headRepositoryOwner,isCrossRepository,mergeable,mergeStateStatus,"
+    "reviewDecision,statusCheckRollup,body,commits"
+)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", PR_VIEW_JSON),
+        ("pr", "list", "--repo", "leynos/agent-helper-scripts", "--json",
+         "number,headRefName,baseRefName,isDraft"),
+        ("pr", "checks", "272", "--repo", "leynos/agent-helper-scripts"),
+    ],
+    ids=["view", "list", "checks"],
+)
+def test_the_structured_pr_routes_keep_their_shape(
+    run: Path, argv: tuple[str, ...], snapshot: object
+) -> None:
+    """The JSON and tabular routes a readiness run reads keep their contract.
+
+    The runner parses these three answers to decide whether a candidate is
+    ready, so a route that changed shape would change the verdict rather than
+    merely fail a command. Pinning the shape here makes such a change visible
+    as a diff instead of as a run that holds for an unexplained reason.
+
+    Candidate-bound values are redacted, and the semantic assertions stay
+    beside the snapshot: the snapshot shows the shape, and the assertions say
+    which parts of it the run actually depends on.
+    """
+    done = invoke(run, *argv)
+    assert done.returncode == 0, done.stderr
+    if argv[:2] == ("pr", "checks"):
+        # The route serves a table, not JSON, and a real `gh` ends it with a
+        # newline, so the terminal empty string is part of the served text
+        # rather than a row. Counting it as a row would fail every recording.
+        rows = [row for row in done.stdout.splitlines() if row]
+        assert rows, "the checks route served no rows"
+        assert all(len(row.split("\t")) == 3 for row in rows), done.stdout
+        assert done.stdout.endswith("\n"), "the checks route must end its table"
+        assert snapshot == "\n".join([CHECKS_ROW] * len(rows)), (
+            "the checks route changed its tabular contract"
+        )
+        return
+    payload = json.loads(done.stdout)
+    redacted = redact(payload)
+    assert snapshot == redacted, "the structured PR route changed its contract"
+    # Read the same fields from the copy the run sees, not from the redacted
+    # snapshot: the snapshot proves the shape, these prove the values are usable.
+    view = payload[0] if isinstance(payload, list) else payload
+    assert view["isDraft"] is True, "the recorded candidate must start in draft"
+    assert view["state"] == "OPEN", view["state"]
+    assert view["headRefName"], "the run needs a head branch to read a plan at"
+    assert view["baseRefName"], "the run needs a base branch to bind a verdict"
+    assert isinstance(view["statusCheckRollup"], list), view["statusCheckRollup"]
+
+
 @pytest.mark.parametrize(
     ("argv", "shape"),
     [

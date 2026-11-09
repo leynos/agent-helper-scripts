@@ -933,6 +933,17 @@ local and hosted validation. Suppression remains an absolute last resort,
 reached only after refactoring, restructuring, and false-positive verification
 have failed, and is justified on the PR.
 
+A local CodeScene result that could not be obtained does not clear the gate.
+When `cs` is absent, exits non-zero, or cannot reach its licence service, the
+candidate's local delta is **unverified**, not clean: the gate stays open, the
+PR stays in draft, and the outcome names the missing tool as the deciding
+evidence. A hosted green check cannot substitute for the missing local half,
+because the two read different inputs — the hosted check evaluates the pushed
+diff, while the local check evaluates the tree the agent is about to push. "I
+could not run the check" and "the check found nothing" are different facts, and
+only the second clears the rule. The ledger records the unavailable source,
+what would have evaluated it, and that readiness waits on it.
+
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes
 actual delivery requirements from Sourcery's separately planned follow-up
