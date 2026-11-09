@@ -91,10 +91,14 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   a non-empty trace of this kind, or without the boundary line the runner
   requires before the decision, did not clear the local half of the gate.
 - `gh-answers.jsonl` (per run, in the run directory) — every `gh` invocation
-  with the exit status it was answered with. The argv trace records that a read
-  was attempted; this records that it succeeded, which is what separates a read
-  the agent could act on from one that failed and left it guessing. The runner
-  requires at least one successful `isDraft` read after the last `pr ready`.
+  with the exit status it was answered with and the text it printed. The argv
+  trace records that a read was attempted; this records that it succeeded and
+  what the agent received, which is what separates a read the agent could act
+  on from one that failed or returned nothing usable. The text is captured from
+  the stand-in's own standard output, so it includes whatever a `--jq` filter
+  made of the payload. The runner requires an `isDraft` read after the last
+  `pr ready` that both succeeded and reads as a non-draft, and a
+  candidate-bound plan read before it that both succeeded and returned text.
 - `gh-shim.py` — the executable stand-in. It derives the run directory from its
   own `__file__`, records each argv, and answers from `facts.json`. `pr ready`
   records `isDraft: false` in `state.json`, merging rather than replacing, so a
@@ -116,10 +120,15 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   `pr diff` and `graphql` review-thread routes answer the reads a readiness run
   makes when it checks whether the delivered work matches the plan; without
   them a run reported those reads as 404 and could not see the diff at all. The
-  check's own `annotations` route serves the entries its `annotations_count`
-  advertises, and the `contents` route serves the file a finding names, so a
-  run investigating an advisory reads the code rather than being told it is
-  missing. `gh repo clone` is refused as unreachable —
+  `graphql` route takes POST only, and only for a document whose own text is a
+  query: a mutation, a subscription, any other verb, or a read with no document
+  is refused as unsupported rather than answered from the recorded reads. A
+  stray `query` in another field does not make a mutation a query, and two
+  documents are both read, so a mutation sent after a query is still refused.
+  The check's own `annotations` route serves the entries its
+  `annotations_count` advertises, and the `contents` route serves the file a
+  finding names, so a run investigating an advisory reads the code rather than
+  being told it is missing. `gh repo clone` is refused as unreachable —
   `Could not resolve host: github.com` — because that is what the dropped
   network really does; reporting it as an unsupported command would misdescribe
   the environment. The `check-runs` route carries the hosted check output,
@@ -265,6 +274,13 @@ The gate assertions are specific rather than aggregate:
   is the value the stand-in served, so the runner fails a transition whose
   served state still reads `isDraft: true`, and `gh-answers.jsonl` makes a
   failed read-back distinguishable from one the agent could act on.
+- The **value the agent actually read** must state the ready state. An exit
+  status is not a value: `pr view --json isDraft --jq 'null'` exits zero and
+  prints `null`. The stand-in records the text each invocation printed,
+  including whatever a `--jq` filter made of it, and the runner accepts only an
+  answer that reads as not-a-draft — the JSON object, a filtered `false`, a JSON
+  `"false"`, or a `false <ref>` template. `null`, `true`, an empty body, a
+  prose string and a failed call are each refused.
 - A permitting run must have invoked the simulated `cs` at all. Marking ready
   without consulting the local result is the waiver the rule forbids, and an
   outcome that merely mentions the tool was missing is not evidence that it was
@@ -279,14 +295,24 @@ The gate assertions are specific rather than aggregate:
   `grep '...ref='` and then re-tested that same line for `ref=`, which can
   never fail; it now resolves the `ref=` value and requires it to name the head
   commit or the PR's head branch. `?ref=main` serves the base branch's copy, so
-  reading it says nothing about the revision in force.
+  reading it says nothing about the revision in force. The read must also have
+  succeeded and returned text: a 404, or an empty 200, is not a revision the
+  decision could have reconciled. One read has to satisfy every condition —
+  candidate-bound, before the transition, successful and non-empty — because
+  two reads can satisfy them separately while the revision actually used was
+  the base branch's copy.
 - A scenario whose recorded local result is `finding` or `unavailable` may not
   be written as one that permits a transition; the two facts contradict each
   other, and the runner refuses the contradiction rather than recording it.
 
 The stand-in's own authorization is proved the same way. Before the agent
-starts, the runner posts a comment twice against a copy of the stand-in: with
-no token, which must fail, and with the fixture token, which must succeed. An
+starts, the runner posts a comment against a copy of the stand-in: with no
+token, which must fail; with the fixture token, which must succeed; and then
+with a wrong token, after which the accepted comment must still be the one the
+fixture token recorded. The third call is what makes the refusal about the
+credential rather than the starting state: the first refusal ran against an
+empty record, so a stand-in that wrote the comment before checking the token
+passed both and would have overwritten an accepted comment in the real run. An
 earlier revision stamped the pool's login on every POST regardless of what the
 token was, so a recording could show a follow-up that the real service would
 have refused. After the run, the runner also prints the body that was posted

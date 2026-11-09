@@ -302,6 +302,30 @@ else
   echo "abort: the stand-in refused the fixture token" >&2
   exit 1
 fi
+# The refusal must be about the token and not the starting state. The POST
+# above is now recorded, so a stand-in that wrote the comment before checking
+# the credential would overwrite it here and look identical to one that
+# refused cleanly. A wrong token must leave the accepted comment in place.
+probe_post "wrong-token" || true
+if ! python3 - "$PROBE/state.json" <<'PROBE_AUTHZ'
+import json, sys
+
+# A refused POST must not reach the record. Reading the body rather than the
+# file's existence is what distinguishes "refused" from "accepted and
+# replaced": both leave a state file, and only one leaves the right body.
+state = json.load(open(sys.argv[1], encoding="utf-8"))
+posted = state.get("posted") or {}
+body = posted.get("body")
+if body != "probe":
+    print(
+        f"abort: a wrong-token POST changed the recorded comment to {body!r}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PROBE_AUTHZ
+then
+  exit 1
+fi
 echo "isolation: credential stores are masked, the pool is the fixture, HOME is isolated, and the stand-in authorizes only the fixture token"
 
 cd "$RUN/work" || exit 1
@@ -490,10 +514,10 @@ case $SCENARIO in
     elif [ -n "$ready_line" ] && [ "$plan_line" -gt "$ready_line" ]; then
       echo "abort: '$SCENARIO' read the plan after the transition, not before it" >&2
       rc=1
-    elif ! python3 - "$TRACE" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PLAN'
+    elif ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PLAN'
 import json, sys
 
-trace, facts_path = sys.argv[1], sys.argv[2]
+trace_path, answers_path, facts_path = sys.argv[1:4]
 facts = json.load(open(facts_path, encoding="utf-8"))
 pr = facts["pr"]
 # The candidate is the head, named either by its commit or by its branch. The
@@ -502,11 +526,39 @@ pr = facts["pr"]
 # names neither is not the candidate either, so it cannot be the read the
 # revision is reconciled against.
 candidate_refs = {str(pr.get("headRefOid", "")), str(pr.get("headRefName", ""))} - {""}
-for line in open(trace, encoding="utf-8"):
-    try:
-        argv = json.loads(line)
-    except json.JSONDecodeError:
-        continue
+
+def load(path):
+    """Return one parsed entry per line, skipping blank and malformed lines."""
+    entries = []
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            entries.append(None)
+    return entries
+
+trace = load(trace_path)
+# The trace and the answer record are appended in the same order by the same
+# process, so their indices name the same invocation.
+answers = load(answers_path)
+ready = next(
+    (index for index, argv in enumerate(trace)
+     if isinstance(argv, list) and argv[:2] == ["pr", "ready"]),
+    None,
+)
+if ready is None:
+    print("no transition to order the plan read against", file=sys.stderr)
+    raise SystemExit(1)
+if len(answers) != len(trace):
+    print("the answer record and the trace disagree in length", file=sys.stderr)
+    raise SystemExit(1)
+# The read that clears the revision check is the one that is BOTH candidate-bound
+# AND before the transition. Checking those separately let a run read `main`
+# first and the head afterwards, satisfying each condition with a different
+# call — so the revision reconciled was never the one the decision used.
+for index, argv in enumerate(trace[:ready]):
     if not isinstance(argv, list) or argv[:1] != ["api"]:
         continue
     if not any("contents/docs/execplans/" in str(arg) for arg in argv):
@@ -516,9 +568,19 @@ for line in open(trace, encoding="utf-8"):
         for arg in argv
         if "ref=" in str(arg)
     }
-    if refs & candidate_refs:
-        raise SystemExit(0)
-print("no", file=sys.stderr)
+    if not refs & candidate_refs:
+        continue
+    # A read the agent could not use is not the read it reconciled. The answer
+    # record holds the status and the text, so both are required here.
+    answer = answers[index] or {}
+    if answer.get("status") != 0:
+        print(f"candidate-bound plan read failed: {answer.get('status')}", file=sys.stderr)
+        raise SystemExit(1)
+    if not str(answer.get("stdout", "")).strip():
+        print("candidate-bound plan read returned nothing", file=sys.stderr)
+        raise SystemExit(1)
+    raise SystemExit(0)
+print("no candidate-bound plan read before the transition", file=sys.stderr)
 raise SystemExit(1)
 PROBE_PLAN
     then
@@ -577,9 +639,11 @@ if [ "$EXPECT_READY" = yes ]; then
   # The argv trace records attempts, so neither check above shows the read
   # succeeded. A `pr view` answered with an error, or one the shim refused,
   # still appears there. `gh-answers.jsonl` carries each invocation's exit
-  # status, so the read the transition is judged on must be a successful one.
-  if ! python3 - "$ANSWERS" <<'PY'
-import json, sys
+  # status and the text it printed, so the read the transition is judged on must
+  # both succeed and carry a ready value: `pr view --json isDraft --jq 'null'`
+  # exits zero and prints `null`, which would satisfy an exit status alone.
+  if ! python3 - "$ANSWERS" <<'PROBE_READBACK'
+import json, re, sys
 
 try:
     answered = [
@@ -590,8 +654,8 @@ except (OSError, json.JSONDecodeError) as error:
     raise SystemExit(1)
 # The answer record and the argv trace are appended in the same order, and the
 # runner has already established that an isDraft read follows the transition.
-# What this adds is its status: the transition is judged on a read that
-# succeeded, not on one that was merely attempted.
+# What this adds is the value: the transition is judged on a read that both
+# succeeded and returned the ready state.
 last_ready = max(
     (index for index, entry in enumerate(answered)
      if entry.get("argv", [])[:2] == ["pr", "ready"]),
@@ -613,20 +677,59 @@ failed = [entry for entry in read_backs if entry.get("status") != 0]
 if failed:
     print(f"{len(failed)} read-back call(s) failed", file=sys.stderr)
     raise SystemExit(1)
-print(f"read-back statuses: {[entry['status'] for entry in read_backs]}")
+
+
+def shows_ready(text: str) -> bool:
+    """Return whether this answer states the PR is no longer a draft.
+
+    The answer is what the agent read, so it may be the JSON object, a `--jq`
+    reduced `false`, a JSON string `"false"`, or a template printing
+    `false <ref>`. `null`, a missing field, and a `true` value are all
+    not-ready. A caller that asked for the value and got nothing usable has not
+    observed the transition, whatever the exit status.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return False
+    # A template's output is not JSON at all, so it lands in this branch: an
+    # earlier version searched only for the `"isDraft": false` spelling here
+    # and refused `false cccc3333`, which is a ready value a run may print.
+    leading_false = re.fullmatch(r"false(?:\s.*)?", stripped) is not None
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return leading_false or bool(re.search(r'"isDraft"\s*:\s*false', stripped))
+    if isinstance(parsed, bool):
+        return parsed is False
+    if isinstance(parsed, dict):
+        return parsed.get("isDraft") is False
+    if isinstance(parsed, str):
+        return re.fullmatch(r"false(?:\s.*)?", parsed.strip()) is not None
+    return False
+
+
+ready_values = [entry for entry in read_backs if shows_ready(str(entry.get("stdout", "")))]
+if not ready_values:
+    print(
+        f"no read-back returned a ready state: "
+        f"{[str(entry.get('stdout', ''))[:40] for entry in read_backs]}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+print(f"read-back values: {[str(entry.get('stdout', '')).strip()[:40] for entry in ready_values]}")
 raise SystemExit(0)
-PY
+PROBE_READBACK
   then
-    echo "abort: '$SCENARIO' transitioned but no successful read-back observed it" >&2
+    echo "abort: '$SCENARIO' transitioned but no successful read-back observed a ready state" >&2
     rc=1
   fi
   # `state.json` is the value the stand-in served from, so reading it here is
   # what makes the observed transition a value rather than a call.
-  if ! python3 - "$STATE" <<'PY'
+  if ! python3 - "$STATE" <<'PROBE_STATE'
 import json, sys
 state = json.load(open(sys.argv[1]))
 sys.exit(0 if state.get("isDraft") is False else 1)
-PY
+PROBE_STATE
   then
     echo "abort: '$SCENARIO' transitioned but the served state still reads draft" >&2
     rc=1

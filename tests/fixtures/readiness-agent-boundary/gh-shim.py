@@ -10,6 +10,8 @@ facts before an answer is produced; the answer itself comes from
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import re
@@ -26,10 +28,12 @@ STATE = RUN / "state.json"
 #: check and the transition: two files written by two processes cannot say
 #: which came first.
 CS_TRACE = RUN / "cs-trace.jsonl"
-#: One line per invocation with the status it was answered with. The argv trace
-#: records that a read was attempted; this records that it succeeded, which is
-#: what separates a read the agent could act on from one that failed and left
-#: it guessing.
+#: One line per invocation with the status it was answered with and the text the
+#: agent actually received. The argv trace records that a read was attempted, and
+#: the status records that it returned zero. Neither shows the value: a filtered
+#: `pr view --json isDraft --jq 'null'` exits 0 and prints `null`. The answer text
+#: is what the agent could act on, so it is recorded rather than inferred from the
+#: payload the stand-in meant to serve.
 ANSWERS = RUN / "gh-answers.jsonl"
 
 
@@ -39,10 +43,18 @@ def record(argv: list[str]) -> None:
         handle.write(json.dumps(argv) + "\n")
 
 
-def record_answer(argv: list[str], status: int) -> None:
-    """Append the status an invocation was answered with."""
+def record_answer(argv: list[str], status: int, stdout: str) -> None:
+    """Append the status and the text an invocation was answered with.
+
+    The text is what the agent received, captured from this process's own
+    standard output rather than re-derived from the payload. A `--jq` filter
+    can turn a correct payload into `null` while still exiting zero, and
+    re-deriving the answer would record the intent instead of the result.
+    """
     with ANSWERS.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"argv": argv, "status": status}) + "\n")
+        handle.write(
+            json.dumps({"argv": argv, "status": status, "stdout": stdout}) + "\n"
+        )
 
 
 def fail(message: str, status: int = 1) -> int:
@@ -430,13 +442,25 @@ def is_graphql_read(argv: list[str]) -> bool:
     the whole route would answer a `mutation{...}` with a recorded read and
     report a write the stand-in never made, which is the same defect as
     accepting a POST it refused.
+
+    Only the `query` field carries the document. Scanning every field let an
+    `operationName=query` sent ahead of a mutation document make the mutation
+    read as a query, and returning on the first match meant the document was
+    never reached. The document is therefore read from its own field, and a
+    mutation anywhere in it wins over a `query` keyword in its operation text.
     """
-    for value in field_values(argv):
-        if re.search(r"\bmutation\b", value):
-            return False
-        if re.search(r"\bquery\b", value):
-            return True
-    return False
+    documents = [
+        value for value in field_values(argv)
+        if value.lstrip().startswith(("query", "mutation", "subscription", "{", "#"))
+    ]
+    if not documents:
+        return False
+    if any(re.search(r"\bmutation\b", document) for document in documents):
+        return False
+    if any(re.search(r"\bsubscription\b", document) for document in documents):
+        return False
+    return all(re.search(r"\bquery\b", document) or "{" in document
+               for document in documents)
 
 
 def answer_api(facts: dict, argv: list[str]) -> int:
@@ -452,8 +476,15 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     if method == "POST" and is_post_comment(argv, url):
         return handle_post(facts, argv)
     # `graphql` is a POST whether the document reads or writes, so it is
-    # exempted only when its own text is a query.
-    if method != "GET" and not (url == "graphql" and is_graphql_read(argv)):
+    # exempted only when the method is POST and its own text is a query. Any
+    # other verb on that route is a request the real service would reject, not
+    # a read the stand-in may answer. A GET is no exception: the GraphQL
+    # endpoint takes only POST, so letting GET fall through to the REST read
+    # routes would serve a document the service would have refused.
+    if url == "graphql":
+        if method != "POST" or not is_graphql_read(argv):
+            return fail(f"gh: unsupported {method} {url}", 2)
+    elif method != "GET":
         return fail(f"gh: unsupported {method} {url}", 2)
     if url == "user":
         # The routing record holds only the login, so serve a user object with
@@ -523,13 +554,18 @@ def answer(argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     """Record the invocation and its result, then answer it.
 
-    The status is recorded after the answer is produced, so a failed read is
-    distinguishable from one the agent could act on. The argv trace alone
-    cannot tell them apart: it records the attempt either way.
+    The answer is captured by redirecting this process's own standard output
+    into a buffer, so what is recorded is the bytes the agent received —
+    including whatever a `--jq` filter made of them — and not a second
+    rendering of the payload. Standard error stays on the real stream, so the
+    agent still sees a refusal.
     """
     record(argv)
-    status = answer(argv)
-    record_answer(argv, status)
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        status = answer(argv)
+    sys.stdout.write(buffer.getvalue())
+    record_answer(argv, status, buffer.getvalue())
     return status
 
 

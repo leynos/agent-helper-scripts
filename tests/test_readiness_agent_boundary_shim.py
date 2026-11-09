@@ -126,6 +126,92 @@ def test_a_graphql_read_query_is_still_answered(run: Path) -> None:
     assert "reviewThreads" in done.stdout
 
 
+def test_a_word_before_the_document_does_not_make_a_mutation_read(run: Path) -> None:
+    """A `query` anywhere before the document is not the document being a query.
+
+    Requiring only that some field looks like a query let `operationName=query`
+    serve a following `mutation{...}` from the recorded reads, which reports a
+    write the stand-in never made. The document has to be found in its own
+    field, and a mutation in it has to win over that earlier word.
+    """
+    done = invoke(
+        run,
+        "api",
+        "graphql",
+        "-f",
+        "operationName=query",
+        "-f",
+        'query=mutation{addComment(input:{body:"x"}){clientMutationId}}',
+    )
+    assert done.returncode == 2, done.stdout
+    assert "unsupported POST graphql" in done.stderr
+
+
+def test_a_mutation_after_a_read_is_still_refused(run: Path) -> None:
+    """Two documents are two operations, and one of them writes.
+
+    The recorded trace is a list of invocations, and the first one that looks
+    like a read must not end the scan: a run that sends its query first and its
+    mutation second would otherwise have the mutation answered from the reads.
+    """
+    done = invoke(
+        run,
+        "api",
+        "graphql",
+        "-f",
+        f"query={GRAPHQL_READ}",
+        "-f",
+        'query=mutation{markPullRequestReadyForReview(input:{pullRequestId:"1"}){clientMutationId}}',
+    )
+    assert done.returncode == 2, done.stdout
+    assert "unsupported POST graphql" in done.stderr
+
+
+def test_a_subscription_is_not_answered_from_the_recorded_reads(run: Path) -> None:
+    """A subscription is a request the stand-in cannot answer, so it must refuse.
+
+    It is neither the recorded query nor a flat mutation, so treating anything
+    that is not a mutation as readable would answer it from the read facts.
+    """
+    done = invoke(run, "api", "graphql", "-f", "query=subscription{prUpdated}")
+    assert done.returncode == 2, done.stdout
+    assert "unsupported POST graphql" in done.stderr
+
+
+@pytest.mark.parametrize(
+    ("method", "expected"),
+    [("--method DELETE", "DELETE"), ("-X PATCH", "PATCH"), ("--method PUT", "PUT")],
+    ids=["delete", "patch", "put"],
+)
+def test_a_non_post_graphql_request_is_refused(
+    run: Path, method: str, expected: str
+) -> None:
+    """Exempting the route by name alone would accept any verb on it.
+
+    The real service answers `graphql` as a POST. A DELETE or PUT there is a
+    request it would reject, so serving a recorded read for it reports a call
+    the run did not make.
+    """
+    done = invoke(
+        run, "api", "graphql", *method.split(), "-f", f"query={GRAPHQL_READ}"
+    )
+    assert done.returncode == 2, done.stdout
+    assert f"unsupported {expected} graphql" in done.stderr
+
+
+def test_an_explicit_get_graphql_read_is_refused(run: Path) -> None:
+    """A GET is how the real client reads a REST path, not a GraphQL document.
+
+    `gh api graphql` is a POST; a GET naming `graphql` with a query field is
+    not a call the service supports, so the stand-in must not answer it as one.
+    """
+    done = invoke(
+        run, "api", "--method", "GET", "graphql", "-f", f"query={GRAPHQL_READ}"
+    )
+    assert done.returncode == 2, done.stdout
+    assert "unsupported GET graphql" in done.stderr
+
+
 @pytest.mark.parametrize(
     "flag",
     ["--raw-field=body=equals-form", "--field=body=equals-form"],
@@ -368,6 +454,33 @@ def test_a_refused_post_does_not_displace_an_earlier_one(run: Path) -> None:
     assert posted(run)["body"] == "first"
 
 
+def test_an_unauthorized_post_after_an_accepted_one_changes_nothing(run: Path) -> None:
+    """A wrong token is refused on its own merits, not only on a clean slate.
+
+    The earlier refusal test starts with no state, so a stand-in that recorded
+    the comment before checking the token would write over nothing and look the
+    same. Here a comment is already accepted: the refused POST must leave it,
+    and every route that serves it, exactly as it was.
+    """
+    accepted = invoke(run, "api", COMMENT_ROUTE, "-f", "body=accepted", token=POOL_TOKEN)
+    assert accepted.returncode == 0, accepted.stderr
+    before = posted(run)
+    refused = invoke(run, "api", COMMENT_ROUTE, "-f", "body=injected", token="wrong-token")
+    assert refused.returncode != 0
+    assert "401" in refused.stderr
+    assert posted(run) == before, "a refused POST rewrote the accepted comment"
+    ident = before["id"]
+    single = invoke(run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}")
+    assert single.returncode == 0, single.stderr
+    assert json.loads(single.stdout)["body"] == "accepted", (
+        "the single-comment route served the refused body"
+    )
+    listing = invoke(run, "api", COMMENT_ROUTE)
+    assert [item["body"] for item in json.loads(listing.stdout) if item["id"] == ident] == [
+        "accepted"
+    ], "the discussion listing served the refused body"
+
+
 def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
     """The accepted comment survives every surface the skill reads after a POST.
 
@@ -501,6 +614,41 @@ def test_the_simulated_cs_records_each_invocation(cs_run: Path) -> None:
 
 
 RUNNER = FIXTURES / "sandboxed_run.sh"
+
+
+def probe_body(marker: str) -> str:
+    """Return the Python the runner runs from the heredoc named `marker`.
+
+    Extracting the body rather than reimplementing it means a negative control
+    exercises the bytes the runner actually executes. Copying the logic into
+    the test would let the two drift, and the test would then prove something
+    about the test.
+    """
+    text = RUNNER.read_text()
+    opening = f"<<'{marker}'\n"
+    start = text.index(opening) + len(opening)
+    end = text.index(f"\n{marker}\n", start)
+    return text[start:end]
+
+
+def run_probe(marker: str, *argv: str) -> subprocess.CompletedProcess[str]:
+    """Run one of the runner's Python probes over the given arguments."""
+    return subprocess.run(
+        ["python3", "-", *argv],
+        input=probe_body(marker),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def write_lines(path: Path, entries: list[object]) -> Path:
+    """Write one JSON document per line, as the trace and answer files are."""
+    path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    return path
+
+
+READY_INVOCATION = ["pr", "ready", "272", "--repo", "leynos/agent-helper-scripts"]
 
 FLAGGED = "skills/pr-babysitting/scripts/readiness_gate.py"
 FINDING_SCENARIO = FIXTURES / "scenarios" / "local-codescene-finding" / "facts.json"
@@ -688,6 +836,262 @@ def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:
     # The head is what makes a read candidate-bound, so the probe has to name
     # it rather than accept whatever ref the trace carries.
     assert 'pr.get("headRefOid", "")' in runner
+
+
+PLAN_ROUTE = "repos/leynos/agent-helper-scripts/contents/docs/execplans/271-plan.md"
+
+
+def plan_read(ref: str) -> list[str]:
+    """Return the argv of a plan read at one ref."""
+    return ["api", "-H", "Accept: application/vnd.github.raw", f"{PLAN_ROUTE}?ref={ref}"]
+
+
+def answer(argv: list[str], status: int = 0, stdout: str = "the plan\n") -> dict:
+    """Return one line of the stand-in's answer record."""
+    return {"argv": argv, "status": status, "stdout": stdout}
+
+
+@pytest.fixture
+def whole_plan(tmp_path: Path) -> Path:
+    """Return the recorded facts for the scenario that reconciles a plan."""
+    facts = tmp_path / "facts.json"
+    facts.write_text(SCENARIO.read_text(encoding="utf-8"), encoding="utf-8")
+    return facts
+
+
+def test_the_plan_probe_accepts_a_candidate_read_before_the_transition(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The probe must pass the recording it was written for, or it proves nothing.
+
+    Without this the negative controls below would pass against a probe that
+    refuses everything, which is a broken gate reported as a strict one.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl",
+        [plan_read("cccc3333"), READY_INVOCATION, plan_read("cccc3333")],
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [
+            answer(plan_read("cccc3333")),
+            answer(READY_INVOCATION, 0, ""),
+            answer(plan_read("cccc3333")),
+        ],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode == 0, done.stderr
+
+
+def test_the_plan_probe_refuses_a_base_read_then_a_candidate_read(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """Two reads, each satisfying one condition, are not one satisfying both.
+
+    A read at `main` before the transition and one at the head after it passed
+    an earlier pair of checks: the plan read came first, and the candidate was
+    read. They were about different files, so the revision the decision used
+    was never the revision the check compared.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl",
+        [plan_read("main"), READY_INVOCATION, plan_read("cccc3333")],
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [
+            answer(plan_read("main")),
+            answer(READY_INVOCATION, 0, ""),
+            answer(plan_read("cccc3333")),
+        ],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode != 0, "a base read was accepted as the candidate's plan"
+    assert "no candidate-bound plan read before the transition" in done.stderr
+
+
+def test_the_plan_probe_refuses_a_candidate_read_that_failed(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The trace records an attempt; a 404 is not the text the revision was read from.
+
+    The read is candidate-bound and precedes the decision, so the ordering
+    check alone would accept it. The answer record is what separates a read the
+    agent could reconcile from one that returned an error.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333"), 1, ""), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode != 0, "a failed candidate read was accepted"
+    assert "candidate-bound plan read failed" in done.stderr
+
+
+def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """A zero exit with an empty body is not a revision either.
+
+    The stand-in answers an unrecorded ref with an empty 200 in some routes, so
+    the status alone does not establish that there was a plan to compare.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333"), 0, ""), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode != 0, "an empty candidate read was accepted"
+    assert "candidate-bound plan read returned nothing" in done.stderr
+
+
+def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """Indexed pairing assumes both files hold the same invocations.
+
+    A truncated answer record would line its entries up against the wrong argv,
+    so a failure would be attributed to a call that succeeded. Refusing the
+    mismatch is what keeps the index a pairing rather than a guess.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(tmp_path / "answers.jsonl", [answer(plan_read("cccc3333"))])
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
+    assert done.returncode != 0
+    assert "disagree in length" in done.stderr
+
+
+READ_BACK = ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts",
+             "--json", "isDraft,headRefOid,baseRefOid"]
+
+
+def read_back_answer(status: int = 0, stdout: str = '{"isDraft": false}') -> dict:
+    """Return an answer record for the post-transition read-back."""
+    return answer(READ_BACK, status, stdout)
+
+
+def test_the_read_back_probe_accepts_the_recorded_shapes(tmp_path: Path) -> None:
+    """Every shape a run may legitimately print reads as the same observation.
+
+    The real client prints the object, `--jq .isDraft` prints `false`, and a
+    template prints `false <ref>`. Refusing any of them would fail a run that
+    observed the transition, so each must be accepted before the refusals below
+    can mean anything.
+    """
+    for stdout in ('{"isDraft": false, "headRefOid": "c"}', "false", "false cccc3333"):
+        answers = write_lines(
+            tmp_path / "answers.jsonl",
+            [answer(READY_INVOCATION, 0, ""), read_back_answer(stdout=stdout)],
+        )
+        done = run_probe("PROBE_READBACK", str(answers))
+        assert done.returncode == 0, f"{stdout!r} was refused: {done.stderr}"
+
+
+def test_the_read_back_probe_refuses_a_read_before_the_transition(tmp_path: Path) -> None:
+    """Only the reads after the decision observe it.
+
+    An initial `pr view` carries `isDraft` too, so a probe that scanned the
+    whole record would pass on a draft state read before `pr ready` was ever
+    called.
+    """
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [read_back_answer(), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_READBACK", str(answers))
+    assert done.returncode != 0
+    assert "no isDraft read after the transition" in done.stderr
+
+
+def test_the_read_back_probe_refuses_a_filtered_null(tmp_path: Path) -> None:
+    """`--jq 'null'` exits zero and prints nothing usable.
+
+    The exit status says the call was answered; the value says what it
+    answered. A read-back judged on the status alone passes here while showing
+    the agent nothing about the draft state.
+    """
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [
+            answer(READY_INVOCATION, 0, ""),
+            read_back_answer(stdout="null"),
+        ],
+    )
+    done = run_probe("PROBE_READBACK", str(answers))
+    assert done.returncode != 0
+    assert "no read-back returned a ready state" in done.stderr
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    ['{"isDraft": true}', "true", '"ready"', "", "falsey"],
+    ids=["object-true", "filtered-true", "wrong-string", "empty", "truncated"],
+)
+def test_the_read_back_probe_refuses_every_not_ready_value(
+    tmp_path: Path, stdout: str
+) -> None:
+    """A value that does not state the ready state is not the observation.
+
+    Each shape here exits zero. Accepting any of them would let a run whose
+    read-back showed a draft, a string, or nothing at all count as having
+    observed the transition.
+    """
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(READY_INVOCATION, 0, ""), read_back_answer(stdout=stdout)],
+    )
+    done = run_probe("PROBE_READBACK", str(answers))
+    assert done.returncode != 0, f"{stdout!r} was accepted as a ready read-back"
+
+
+def test_the_read_back_probe_refuses_a_failed_read(tmp_path: Path) -> None:
+    """A failed read-back is not an observation, whatever it printed.
+
+    The value check alone would pass on a body the client printed while
+    exiting non-zero, which is not a read the agent could rely on.
+    """
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(READY_INVOCATION, 0, ""), read_back_answer(status=1)],
+    )
+    done = run_probe("PROBE_READBACK", str(answers))
+    assert done.returncode != 0
+    assert "failed" in done.stderr
+
+
+def test_the_preflight_refuses_a_wrong_token_after_an_accepted_post(
+    tmp_path: Path,
+) -> None:
+    """The preflight's own POST control has to start from a recorded comment.
+
+    The two preflight POSTs prove a token is refused and the fixture token is
+    accepted, but the refusal ran against an empty record: a stand-in that
+    wrote the comment before checking the credential passed both and would
+    have overwritten an accepted comment in the real run. The probe is
+    exercised here against the state a wrong-token POST leaves behind.
+    """
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps({"isDraft": True, "posted": {"id": 1, "body": "probe"}}),
+        encoding="utf-8",
+    )
+    kept = run_probe("PROBE_AUTHZ", str(state))
+    assert kept.returncode == 0, kept.stderr
+    state.write_text(
+        json.dumps({"isDraft": True, "posted": {"id": 1, "body": "injected"}}),
+        encoding="utf-8",
+    )
+    overwritten = run_probe("PROBE_AUTHZ", str(state))
+    assert overwritten.returncode != 0, "a rewritten comment was accepted as refused"
+    assert "changed the recorded comment" in overwritten.stderr
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
