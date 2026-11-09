@@ -88,14 +88,14 @@ def test_write_method_reaches_the_user_route(
     """
     done = invoke(run, "api", *method.split(), "user")
     assert done.returncode == 2, done.stdout
-    assert f"unsupported {expected} user" in done.stderr
+    assert f"unsupported {expected} user" in done.stderr, "expected the formatted refusal in done.stderr"
 
 
 def test_explicit_read_method_still_serves_the_user_route(run: Path) -> None:
     """An explicit GET keeps the route readable, so the refusal is about method."""
     done = invoke(run, "api", "--method", "GET", "user", "--jq", ".login")
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip()
+    assert done.stdout.strip(), "expected done.stdout.strip() to hold"
 
 
 GRAPHQL_READ = (
@@ -122,14 +122,14 @@ def test_a_graphql_mutation_is_refused(run: Path, query: str) -> None:
     """
     done = invoke(run, "api", "graphql", "-f", f"query={query}")
     assert done.returncode == 2, done.stdout
-    assert "unsupported POST graphql" in done.stderr
+    assert "unsupported POST graphql" in done.stderr, "expected 'unsupported POST graphql' in done.stderr"
 
 
 def test_a_graphql_read_query_is_still_answered(run: Path) -> None:
     """The readiness run's review-thread query keeps working, so the test bites."""
     done = invoke(run, "api", "graphql", "-f", f"query={GRAPHQL_READ}")
     assert done.returncode == 0, done.stderr
-    assert "reviewThreads" in done.stdout
+    assert "reviewThreads" in done.stdout, "expected 'reviewThreads' in done.stdout"
 
 
 def test_a_word_before_the_document_does_not_make_a_mutation_read(run: Path) -> None:
@@ -150,7 +150,7 @@ def test_a_word_before_the_document_does_not_make_a_mutation_read(run: Path) -> 
         'query=mutation{addComment(input:{body:"x"}){clientMutationId}}',
     )
     assert done.returncode == 2, done.stdout
-    assert "unsupported POST graphql" in done.stderr
+    assert "unsupported POST graphql" in done.stderr, "expected 'unsupported POST graphql' in done.stderr"
 
 
 def test_a_mutation_after_a_read_is_still_refused(run: Path) -> None:
@@ -170,7 +170,7 @@ def test_a_mutation_after_a_read_is_still_refused(run: Path) -> None:
         'query=mutation{markPullRequestReadyForReview(input:{pullRequestId:"1"}){clientMutationId}}',
     )
     assert done.returncode == 2, done.stdout
-    assert "unsupported POST graphql" in done.stderr
+    assert "unsupported POST graphql" in done.stderr, "expected 'unsupported POST graphql' in done.stderr"
 
 
 def test_a_subscription_is_not_answered_from_the_recorded_reads(run: Path) -> None:
@@ -181,7 +181,7 @@ def test_a_subscription_is_not_answered_from_the_recorded_reads(run: Path) -> No
     """
     done = invoke(run, "api", "graphql", "-f", "query=subscription{prUpdated}")
     assert done.returncode == 2, done.stdout
-    assert "unsupported POST graphql" in done.stderr
+    assert "unsupported POST graphql" in done.stderr, "expected 'unsupported POST graphql' in done.stderr"
 
 
 @pytest.mark.parametrize(
@@ -202,7 +202,7 @@ def test_a_non_post_graphql_request_is_refused(
         run, "api", "graphql", *method.split(), "-f", f"query={GRAPHQL_READ}"
     )
     assert done.returncode == 2, done.stdout
-    assert f"unsupported {expected} graphql" in done.stderr
+    assert f"unsupported {expected} graphql" in done.stderr, "expected the formatted refusal in done.stderr"
 
 
 def test_an_explicit_get_graphql_read_is_refused(run: Path) -> None:
@@ -215,7 +215,7 @@ def test_an_explicit_get_graphql_read_is_refused(run: Path) -> None:
         run, "api", "--method", "GET", "graphql", "-f", f"query={GRAPHQL_READ}"
     )
     assert done.returncode == 2, done.stdout
-    assert "unsupported GET graphql" in done.stderr
+    assert "unsupported GET graphql" in done.stderr, "expected 'unsupported GET graphql' in done.stderr"
 
 
 @pytest.mark.parametrize(
@@ -237,8 +237,8 @@ def test_equals_form_fields_still_post(run: Path, flag: str) -> None:
     )
     assert done.returncode == 0, done.stderr
     record = posted(run)
-    assert record["body"] == "equals-form"
-    assert record["user"]["login"] == "fixture-commenter"
+    assert record["body"] == "equals-form", "expected record[\"body\"] to equal \"equals-form\""
+    assert record["user"]["login"] == "fixture-commenter", "expected record[\"user\"][\"login\"] to equal \"fixture-commenter\""
 
 
 def test_equals_form_input_still_posts(run: Path, tmp_path: Path) -> None:
@@ -253,7 +253,7 @@ def test_equals_form_input_still_posts(run: Path, tmp_path: Path) -> None:
         token=POOL_TOKEN,
     )
     assert done.returncode == 0, done.stderr
-    assert posted(run)["body"] == "from a file"
+    assert posted(run)["body"] == "from a file", "expected posted(run)[\"body\"] to equal \"from a file\""
 
 
 def test_pr_view_applies_a_filter(run: Path) -> None:
@@ -305,7 +305,7 @@ def test_a_readiness_read_is_answered(run: Path, argv: tuple[str, ...]) -> None:
     """
     done = invoke(run, *argv)
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip()
+    assert done.stdout.strip(), "expected done.stdout.strip() to hold"
 
 
 def test_a_recorded_comment_is_served_on_its_own_route(run: Path) -> None:
@@ -320,7 +320,7 @@ def test_a_recorded_comment_is_served_on_its_own_route(run: Path) -> None:
         run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
     )
     assert done.returncode == 0, done.stderr
-    assert json.loads(done.stdout)["id"] == ident
+    assert json.loads(done.stdout)["id"] == ident, "expected json.loads(done.stdout)[\"id\"] to equal ident"
 
 
 def test_a_passing_codescene_check_can_still_carry_findings(tmp_path: Path) -> None:
@@ -344,15 +344,15 @@ def test_a_passing_codescene_check_can_still_carry_findings(tmp_path: Path) -> N
     checks = {run["name"]: run for run in json.loads(done.stdout)["check_runs"]}
     scene = checks["CodeScene Code Health Review"]
     assert scene["conclusion"] == "SUCCESS", "the badge must not be what blocks the run"
-    assert scene["output"]["annotations_count"] > 0
-    assert "Complex Method" in scene["output"]["summary"]
+    assert scene["output"]["annotations_count"] > 0, "expected scene[\"output\"][\"annotations_count\"] > 0 to hold"
+    assert "Complex Method" in scene["output"]["summary"], "expected 'Complex Method' in scene[\"output\"][\"summary\"]"
     # The finding must name code this candidate changes, or it is evidence about
     # a different PR and the run would be reasoning about the wrong thing.
     changed = json.loads(
         invoke(tmp_path, "api", "repos/leynos/agent-helper-scripts/pulls/272/files").stdout
     )
     paths = {entry["filename"] for entry in changed}
-    assert "skills/pr-babysitting/scripts/readiness_gate.py" in paths
+    assert "skills/pr-babysitting/scripts/readiness_gate.py" in paths, "expected 'skills/pr-babysitting/scripts/readiness_gate.py' in paths"
 
 
 def test_a_clone_fails_for_the_reason_the_sandbox_supplies(run: Path) -> None:
@@ -363,9 +363,9 @@ def test_a_clone_fails_for_the_reason_the_sandbox_supplies(run: Path) -> None:
     which is a different and misleading fact about the environment.
     """
     done = invoke(run, "repo", "clone", "leynos/agent-helper-scripts")
-    assert done.returncode != 0
-    assert "Could not resolve host" in done.stderr
-    assert "unsupported invocation" not in done.stderr
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "Could not resolve host" in done.stderr, "expected 'Could not resolve host' in done.stderr"
+    assert "unsupported invocation" not in done.stderr, "expected \"unsupported invocation\" not in done.stderr to hold"
 
 
 @pytest.mark.parametrize(
@@ -387,7 +387,7 @@ def test_a_filter_on_a_human_readable_route_is_refused(
     """
     done = invoke(run, *argv)
     assert done.returncode == 2, done.stdout
-    assert "--jq is not supported on this route" in done.stderr
+    assert "--jq is not supported on this route" in done.stderr, "expected '--jq is not supported on this route' in done.stderr"
 
 
 @pytest.mark.parametrize(
@@ -401,7 +401,7 @@ def test_an_unfiltered_human_readable_route_still_answers(
     """The refusal is specific to a filter: the plain route keeps working."""
     done = invoke(run, *argv)
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip()
+    assert done.stdout.strip(), "expected done.stdout.strip() to hold"
 
 
 COMMENT_ROUTE = "repos/leynos/agent-helper-scripts/issues/272/comments"
@@ -441,9 +441,9 @@ def test_an_unauthorized_post_leaves_state_unchanged(run: Path) -> None:
     done = invoke(
         run, "api", COMMENT_ROUTE, "-f", "body=unauthorized", token="wrong-token"
     )
-    assert done.returncode != 0
-    assert "401" in done.stderr
-    assert not (run / "state.json").exists()
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "401" in done.stderr, "expected \"401\" in done.stderr to hold"
+    assert not (run / "state.json").exists(), "expected not (run / \"state.json\").exists() to hold"
 
 
 def test_a_refused_post_does_not_displace_an_earlier_one(run: Path) -> None:
@@ -456,8 +456,8 @@ def test_a_refused_post_does_not_displace_an_earlier_one(run: Path) -> None:
     first = invoke(run, "api", COMMENT_ROUTE, "-f", "body=first", token=POOL_TOKEN)
     assert first.returncode == 0, first.stderr
     refused = invoke(run, "api", COMMENT_ROUTE, "-f", "body=", token=POOL_TOKEN)
-    assert refused.returncode != 0
-    assert posted(run)["body"] == "first"
+    assert refused.returncode != 0, "expected refused.returncode not to equal 0"
+    assert posted(run)["body"] == "first", "expected posted(run)[\"body\"] to equal \"first\""
 
 
 def test_an_unauthorized_post_after_an_accepted_one_changes_nothing(run: Path) -> None:
@@ -472,8 +472,8 @@ def test_an_unauthorized_post_after_an_accepted_one_changes_nothing(run: Path) -
     assert accepted.returncode == 0, accepted.stderr
     before = posted(run)
     refused = invoke(run, "api", COMMENT_ROUTE, "-f", "body=injected", token="wrong-token")
-    assert refused.returncode != 0
-    assert "401" in refused.stderr
+    assert refused.returncode != 0, "expected refused.returncode not to equal 0"
+    assert "401" in refused.stderr, "expected \"401\" in refused.stderr to hold"
     assert posted(run) == before, "a refused POST rewrote the accepted comment"
     ident = before["id"]
     single = invoke(run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{ident}")
@@ -506,7 +506,7 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
     url = f"repos/leynos/agent-helper-scripts/issues/comments/{ident}"
     single = invoke(run, "api", url)
     assert single.returncode == 0, single.stderr
-    assert json.loads(single.stdout)["body"] == "hello"
+    assert json.loads(single.stdout)["body"] == "hello", "expected json.loads(single.stdout)[\"body\"] to equal \"hello\""
     listing = invoke(run, "api", COMMENT_ROUTE)
     assert any(
         item["id"] == ident and item["body"] == "hello"
@@ -514,7 +514,7 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
     )
     assert invoke(run, "pr", "ready", "272").returncode == 0
     assert posted(run)["body"] == "hello", "the transition dropped the comment"
-    assert json.loads((run / "state.json").read_text())["isDraft"] is False
+    assert json.loads((run / "state.json").read_text())["isDraft"] is False, "expected json.loads((run / \"state.json\").read_text())[\"isDraft\"] is False to hold"
     # The transition rewrites the same state file, so both read routes are
     # exercised again: a fix that preserved the comment in the record but
     # served an empty one afterwards would otherwise go unnoticed.
@@ -551,8 +551,8 @@ def test_the_simulated_cs_discloses_itself_on_every_answer(cs_run: Path) -> None
     """
     write_mode(cs_run, "clean")
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
-    assert "simulated output for rehearsal" in done.stderr
-    assert "not a CodeScene analysis" in done.stderr
+    assert "simulated output for rehearsal" in done.stderr, "expected 'simulated output for rehearsal' in done.stderr"
+    assert "not a CodeScene analysis" in done.stderr, "expected 'not a CodeScene analysis' in done.stderr"
 
 
 def invoke_cs(directory: Path, *argv: str) -> subprocess.CompletedProcess[str]:
@@ -582,8 +582,8 @@ def test_the_simulated_cs_answers_each_mode_in_the_cli_shape(
     """
     write_mode(cs_run, mode)
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
-    assert done.returncode == status
-    assert needle in done.stdout
+    assert done.returncode == status, "expected done.returncode to equal status"
+    assert needle in done.stdout, "expected needle in done.stdout to hold"
 
 
 @pytest.mark.parametrize(
@@ -601,8 +601,8 @@ def test_the_simulated_cs_fails_closed_without_a_recorded_mode(
     if setup is not None:
         (cs_run / "facts.json").write_text(setup, encoding="utf-8")
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
-    assert done.returncode == 1
-    assert "License check failed" in done.stdout
+    assert done.returncode == 1, "expected done.returncode to equal 1"
+    assert "License check failed" in done.stdout, "expected 'License check failed' in done.stdout"
 
 
 def test_the_simulated_cs_records_each_invocation(cs_run: Path) -> None:
@@ -797,7 +797,7 @@ def test_the_runner_requires_the_served_state_to_read_ready() -> None:
     assert 'state.get("isDraft") is False' in runner, (
         "the read-back must check the served value, not only that it was read"
     )
-    assert "the served state still reads draft" in runner
+    assert "the served state still reads draft" in runner, "expected 'the served state still reads draft' in runner"
 
 
 def test_the_runner_requires_the_local_codescene_result_before_readiness() -> None:
@@ -807,8 +807,8 @@ def test_the_runner_requires_the_local_codescene_result_before_readiness() -> No
     fail a run that marked ready without consulting the local result at all.
     """
     runner = RUNNER.read_text()
-    assert '[ "$EXPECT_READY" = yes ] && [ ! -s "$CS_TRACE" ]' in runner
-    assert "marked the PR ready without invoking the local CodeScene check" in runner
+    assert '[ "$EXPECT_READY" = yes ] && [ ! -s "$CS_TRACE" ]' in runner, "expected '[ \"$EXPECT_READY\" = yes ] && [ ! -s \"$CS_TRACE\" ]' in runner to hold"
+    assert "marked the PR ready without invoking the local CodeScene check" in runner, "expected 'marked the PR ready without invoking the local CodeScene check' in runner"
 
 
 def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
@@ -818,7 +818,7 @@ def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
     saw, which is the superseded-revision defect the rule exists to prevent.
     """
     runner = RUNNER.read_text()
-    assert "contents/docs/execplans/.*ref=" in runner
+    assert "contents/docs/execplans/.*ref=" in runner, "expected 'contents/docs/execplans/.*ref=' in runner"
     assert "read the plan after the transition, not before it" in runner
 
 
@@ -875,9 +875,9 @@ def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:
     candidate read from one at the base.
     """
     runner = RUNNER.read_text()
-    assert "PROBE_PLAN" in runner
-    assert "did not read the plan at the head it is judging" in runner
-    assert "candidate_refs" in runner
+    assert "PROBE_PLAN" in runner, "expected 'PROBE_PLAN' in runner"
+    assert "did not read the plan at the head it is judging" in runner, "expected 'did not read the plan at the head it is judging' in runner"
+    assert "candidate_refs" in runner, "expected 'candidate_refs' in runner"
     # The head is what makes a read candidate-bound, so the probe has to name
     # it rather than accept whatever ref the trace carries.
     assert 'pr.get("headRefOid", "")' in runner
@@ -952,7 +952,7 @@ def test_the_plan_probe_refuses_a_base_read_then_a_candidate_read(
     )
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
     assert done.returncode != 0, "a base read was accepted as the candidate's plan"
-    assert "no candidate-bound plan read before the transition" in done.stderr
+    assert "no candidate-bound plan read before the transition" in done.stderr, "expected 'no candidate-bound plan read before the transition' in done.stderr"
 
 
 def test_the_plan_probe_refuses_a_candidate_read_that_failed(
@@ -973,7 +973,7 @@ def test_the_plan_probe_refuses_a_candidate_read_that_failed(
     )
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
     assert done.returncode != 0, "a failed candidate read was accepted"
-    assert "candidate-bound plan read failed" in done.stderr
+    assert "candidate-bound plan read failed" in done.stderr, "expected 'candidate-bound plan read failed' in done.stderr"
 
 
 def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(
@@ -993,7 +993,7 @@ def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(
     )
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
     assert done.returncode != 0, "an empty candidate read was accepted"
-    assert "candidate-bound plan read returned nothing" in done.stderr
+    assert "candidate-bound plan read returned nothing" in done.stderr, "expected 'candidate-bound plan read returned nothing' in done.stderr"
 
 
 def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
@@ -1010,8 +1010,8 @@ def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
     )
     answers = write_lines(tmp_path / "answers.jsonl", [answer(plan_read("cccc3333"))])
     done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan))
-    assert done.returncode != 0
-    assert "disagree in length" in done.stderr
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "disagree in length" in done.stderr, "expected 'disagree in length' in done.stderr"
 
 
 READ_BACK = ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts",
@@ -1052,8 +1052,8 @@ def test_the_read_back_probe_refuses_a_read_before_the_transition(tmp_path: Path
         [read_back_answer(), answer(READY_INVOCATION, 0, "")],
     )
     done = run_probe("PROBE_READBACK", str(answers))
-    assert done.returncode != 0
-    assert "no isDraft read after the transition" in done.stderr
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "no isDraft read after the transition" in done.stderr, "expected 'no isDraft read after the transition' in done.stderr"
 
 
 def test_the_read_back_probe_refuses_a_filtered_null(tmp_path: Path) -> None:
@@ -1071,8 +1071,8 @@ def test_the_read_back_probe_refuses_a_filtered_null(tmp_path: Path) -> None:
         ],
     )
     done = run_probe("PROBE_READBACK", str(answers))
-    assert done.returncode != 0
-    assert "no read-back returned a ready state" in done.stderr
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "no read-back returned a ready state" in done.stderr, "expected 'no read-back returned a ready state' in done.stderr"
 
 
 @pytest.mark.parametrize(
@@ -1108,8 +1108,8 @@ def test_the_read_back_probe_refuses_a_failed_read(tmp_path: Path) -> None:
         [answer(READY_INVOCATION, 0, ""), read_back_answer(status=1)],
     )
     done = run_probe("PROBE_READBACK", str(answers))
-    assert done.returncode != 0
-    assert "failed" in done.stderr
+    assert done.returncode != 0, "expected done.returncode not to equal 0"
+    assert "failed" in done.stderr, "expected 'failed' in done.stderr"
 
 
 def test_the_preflight_refuses_a_wrong_token_after_an_accepted_post(
@@ -1136,7 +1136,7 @@ def test_the_preflight_refuses_a_wrong_token_after_an_accepted_post(
     )
     overwritten = run_probe("PROBE_AUTHZ", str(state))
     assert overwritten.returncode != 0, "a rewritten comment was accepted as refused"
-    assert "changed the recorded comment" in overwritten.stderr
+    assert "changed the recorded comment" in overwritten.stderr, "expected 'changed the recorded comment' in overwritten.stderr"
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
@@ -1150,8 +1150,8 @@ def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
     without saying what it answered, which is the variable under test.
     """
     runner = RUNNER.read_text()
-    assert "stand-in for the local CodeScene check" in runner
-    assert "Treat its answer as the local result for this" in runner
+    assert "stand-in for the local CodeScene check" in runner, "expected 'stand-in for the local CodeScene check' in runner"
+    assert "Treat its answer as the local result for this" in runner, "expected 'Treat its answer as the local result for this' in runner"
     for answer in ("No issues found", "License check failed", "New issue"):
         assert answer not in runner, (
             "the prompt must not reveal which local result the run will get"
@@ -1163,4 +1163,4 @@ def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
     """
     runner = RUNNER.read_text()
     for mode in ("unavailable", "finding"):
-        assert f'"$CS_MODE" = {mode}' in runner
+        assert f'"$CS_MODE" = {mode}' in runner, "expected f'\"$CS_MODE\" = {mode}' in runner to hold"

@@ -329,30 +329,16 @@ def test_an_unaffected_completeness_needs_no_subject_or_revision() -> None:
 
 
 @pytest.mark.parametrize(
-    ("state", "reason"),
+    ("kind", "reason"),
     [
-        (
-            dict(
-                completeness=NOT_APPLICABLE,
-                justification="I will not assess this.",
-                proof_applies=False,
-            ),
-            "completeness-declared-not-applicable",
-        ),
-        (
-            dict(
-                completeness=None,
-                justification="No proofs are affected.",
-                proof_applies=True,
-            ),
-            "proof-declared-not-applicable",
-        ),
+        ("completeness", "completeness-declared-not-applicable"),
+        ("proof", "proof-declared-not-applicable"),
     ],
     ids=["applicable-completeness", "applicable-proof"],
 )
 @pytest.mark.parametrize("justified", [True, False], ids=["justified", "bare"])
 def test_an_applicable_assessment_cannot_excuse_itself(
-    state: dict, reason: str, justified: bool
+    *, kind: str, reason: str, justified: bool
 ) -> None:
     """A reply may not declare an applicable assessment not applicable.
 
@@ -361,19 +347,19 @@ def test_an_applicable_assessment_cannot_excuse_itself(
     subject checks, so a PR could open its gate with no substantive answer at
     all. The justification must not matter: a defended excuse is still an
     excuse, which is why this holds with and without one.
+
+    The case is selected by `kind` rather than by a ``None`` sentinel in a
+    pre-built dict: the sentinel made the parameter's meaning depend on a
+    field's value, and the dict hid which assessment was under test.
     """
-    justification = state["justification"] if justified else ""
-    applies = {"proof_applies": state["proof_applies"]}
-    completeness_verdict = (
-        completeness(verdict=state["completeness"], justification=justification)
-        if state["completeness"]
-        else completeness()
-    )
-    proof_verdict = (
-        proof()
-        if state["completeness"]
-        else proof(verdict=NOT_APPLICABLE, justification=justification)
-    )
+    justification = "I will not assess this." if justified else ""
+    excuse = {"verdict": NOT_APPLICABLE, "justification": justification}
+    if kind == "completeness":
+        completeness_verdict = completeness(**excuse)
+        proof_verdict, applies = proof(), {"proof_applies": False}
+    else:
+        completeness_verdict = completeness()
+        proof_verdict, applies = proof(**excuse), {"proof_applies": True}
     decision = readiness(
         candidate(), completeness_verdict, proof_verdict, **applies
     )
