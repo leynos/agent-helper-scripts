@@ -88,6 +88,7 @@ def candidate(
     head: str = HEAD,
     ci_green: bool = True,
     codescene_clear: bool = True,
+    required_proofs: tuple[str, ...] = (),
 ) -> Candidate:
     """Return the accepted candidate, optionally with a plan revision."""
     return Candidate(
@@ -96,11 +97,17 @@ def candidate(
         approved_plan_revision=revision,
         ci_green=ci_green,
         codescene_clear=codescene_clear,
+        required_proofs=required_proofs,
     )
 
 
 def _verdict(
-    bounds: _Bounds, *, verdict: str, subject: str, justification: str
+    bounds: _Bounds,
+    *,
+    verdict: str,
+    subject: str,
+    justification: str,
+    proofs: tuple[str, ...] = (),
 ) -> Verdict:
     """Return one assessment verdict bound to ``bounds``."""
     return Verdict(
@@ -111,6 +118,7 @@ def _verdict(
         echoed_revision=bounds.echoed,
         subject=subject,
         justification=justification,
+        proofs=proofs,
     )
 
 
@@ -132,10 +140,15 @@ def proof(
     bounds: _Bounds = BOUND,
     verdict: str = NOT_APPLICABLE,
     justification: str = NO_PROOF,
+    proofs: tuple[str, ...] = (),
 ) -> Verdict:
     """Return a proof verdict; the default is a justified not-applicable."""
     return _verdict(
-        bounds, verdict=verdict, subject=PROOF_SUBJECT, justification=justification
+        bounds,
+        verdict=verdict,
+        subject=PROOF_SUBJECT,
+        justification=justification,
+        proofs=proofs,
     )
 
 
@@ -279,6 +292,72 @@ def test_a_proof_verdict_must_echo_its_revision_under_an_execplan() -> None:
     )
     assert not decision.ready
     assert decision.reason == "proof-revision-unbound"
+
+
+THEOREM = "proofs/refinement/Theorem.lean#refinement_sound"
+LEMMA = "proofs/refinement/Lemma.lean#step_preserves"
+
+
+def test_a_clear_proof_verdict_must_cover_the_whole_inventory() -> None:
+    """A clear verdict names every proof the request listed.
+
+    The gate asks that the listed proofs are substantive. A reply that says
+    only "the proofs are fine" answers a question nobody asked, and the gate
+    would open with none of the inventory actually assessed.
+    """
+    decision = readiness(
+        candidate(required_proofs=(THEOREM,)),
+        completeness(),
+        proof(verdict=CLEAR),
+        proof_applies=True,
+    )
+    assert not decision.ready, "an unnamed proof inventory cleared the gate"
+    assert decision.reason == "proof-inventory-incomplete"
+
+
+def test_a_clear_proof_verdict_covering_one_of_two_proofs_is_incomplete() -> None:
+    """Covering part of the inventory leaves the rest unassessed.
+
+    This is the scope narrowing the rule forbids: the reply reads as a clear
+    assessment while one listed proof has no verdict at all.
+    """
+    decision = readiness(
+        candidate(required_proofs=(THEOREM, LEMMA)),
+        completeness(),
+        proof(verdict=CLEAR, proofs=(THEOREM,)),
+        proof_applies=True,
+    )
+    assert not decision.ready, "a partly covered proof inventory cleared the gate"
+    assert decision.reason == "proof-inventory-incomplete"
+
+
+def test_a_clear_proof_verdict_covering_the_inventory_allows_readiness() -> None:
+    """The positive control: naming every listed proof is sufficient.
+
+    Without it, the inventory rule would pass by refusing everything.
+    """
+    decision = readiness(
+        candidate(required_proofs=(THEOREM, LEMMA)),
+        completeness(),
+        proof(verdict=CLEAR, proofs=(THEOREM, LEMMA)),
+        proof_applies=True,
+    )
+    assert decision.ready, decision.reason
+
+
+def test_a_justified_not_applicable_needs_no_inventory() -> None:
+    """An unaffected proof has no inventory to cover.
+
+    Reading the rule as applying here would keep draft for a change that
+    introduces no proofs at all, which the shipped documents do not require.
+    """
+    decision = readiness(
+        candidate(required_proofs=(THEOREM,)),
+        completeness(),
+        proof(verdict=NOT_APPLICABLE),
+        proof_applies=False,
+    )
+    assert decision.ready, decision.reason
 
 
 def test_an_undefended_not_applicable_keeps_the_pr_in_draft() -> None:
@@ -483,6 +562,12 @@ REASON_STATES = {
     ),
     "proof-revision-unbound": (
         candidate(), completeness(), proof(verdict=CLEAR, bounds=bound(echoed=None))
+    ),
+    "proof-inventory-incomplete": (
+        candidate(required_proofs=(THEOREM,)),
+        completeness(),
+        proof(verdict=CLEAR),
+        {"proof_applies": True},
     ),
     "ready": (candidate(), completeness(), proof()),
 }

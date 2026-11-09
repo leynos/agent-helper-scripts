@@ -68,6 +68,10 @@ UNRECOGNIZED_SUBJECT = "the milestones I chose"
 #: whole-plan rule does not constrain.
 PROOF_SUBJECT = "named proofs"
 
+#: The one proof the generated candidates list, so a clear proof verdict must
+#: name it to clear.
+PROOF_ONE = "proofs/refinement/Theorem.lean#refinement_sound"
+
 DEFENDED = "No assessment applies to this change."
 UNDEFENDED = "   "
 
@@ -86,6 +90,10 @@ class State:
     proof_applies: bool
     completeness: Verdict
     proof: Verdict
+    #: The proof inventory the request names. Fixed rather than generated: the
+    #: property under test is that a verdict must cover whatever it names, and
+    #: one named proof is enough to exercise both sides of that comparison.
+    required_proofs: tuple[str, ...] = (PROOF_ONE,)
 
     def candidate(self) -> Candidate:
         """Return the accepted candidate this state describes."""
@@ -95,6 +103,7 @@ class State:
             approved_plan_revision=self.revision,
             ci_green=self.ci_green,
             codescene_clear=self.codescene_clear,
+            required_proofs=self.required_proofs,
         )
 
     def with_assessment(self, kind: str, **changes: object) -> State:
@@ -138,6 +147,9 @@ def _settled(
             head=HEAD,
             plan_revision=revision,
             echoed_revision=revision,
+            # A clear proof verdict names the candidate's inventory, so the
+            # settled state covers what the request asked about.
+            proofs=(PROOF_ONE,) if kind == PROOF else (),
             **fields,
         )
 
@@ -243,6 +255,17 @@ def _assessment_breaks(kind: str, *, subject: bool) -> tuple[Break, ...]:
             "not-applicable-undefended",
         ),
     )
+    if kind == PROOF:
+        # The inventory rule binds only the proof assessment, and only when it
+        # is applicable: an unaffected proof has no inventory to cover.
+        breaks = breaks + (
+            Break(
+                f"{kind}-inventory-incomplete",
+                required,
+                lambda s: s.with_assessment(kind, proofs=()),
+                "proof-inventory-incomplete",
+            ),
+        )
     if not subject:
         return breaks
     return breaks + (
@@ -321,12 +344,16 @@ def _perturbed_states(draw: st.DrawFn) -> tuple[State, frozenset[str]]:
     return _with_breaks(state, chosen), chosen
 
 
-def _assessment_holds(verdict: Verdict, applies: bool, candidate: Candidate) -> bool:
+def _assessment_holds(
+    verdict: Verdict, applies: bool, candidate: Candidate, *, inventory: bool = False
+) -> bool:
     """Return whether one assessment satisfies the documented condition.
 
     An applicable assessment may not excuse itself, a substantive verdict must
     be true of the accepted candidate, and under an ExecPlan it must also
-    record and echo the revision in force.
+    record and echo the revision in force. A proof verdict additionally has to
+    cover the inventory the request named: clearing the proof gate without
+    saying which proofs were assessed does not establish that they are sound.
     """
     if verdict.verdict not in VERDICTS:
         return False
@@ -335,6 +362,10 @@ def _assessment_holds(verdict: Verdict, applies: bool, candidate: Candidate) -> 
     if verdict.verdict in (NOT_CLEAR, PENDING):
         return False
     if (verdict.base, verdict.head) != (candidate.base, candidate.head):
+        return False
+    if inventory and any(
+        proof not in verdict.proofs for proof in candidate.required_proofs
+    ):
         return False
     if candidate.approved_plan_revision is None:
         return True
@@ -369,7 +400,7 @@ def _holds(state: State) -> bool:
         and _assessment_holds(
             state.completeness, state.completeness_applies, candidate
         )
-        and _assessment_holds(state.proof, state.proof_applies, candidate)
+        and _assessment_holds(state.proof, state.proof_applies, candidate, inventory=True)
         and _subject_holds(state.completeness, state.completeness_applies)
     )
 

@@ -46,7 +46,9 @@ class Verdict:
     base/head alone. It stays ``None`` for an assessment with no ExecPlan.
     ``subject`` is the ledger's record of what the verdict covered: the whole
     approved plan, or a declared subset that is evidence for its actual scope
-    only and never clears the gate.
+    only and never clears the gate. For a proof assessment it is the named
+    proofs the reply says it assessed, which ``readiness`` compares with the
+    candidate's proof inventory.
     """
 
     verdict: str
@@ -56,6 +58,7 @@ class Verdict:
     echoed_revision: str | None = None
     subject: str = WHOLE_PLAN
     justification: str = ""
+    proofs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,11 @@ class Candidate:
     pre-readiness gates: readiness needs green CI and clear CodeScene findings
     as well as the assessments, so the model refuses to mark a candidate ready
     without them.
+
+    ``required_proofs`` is the proof inventory the assignment's request names.
+    A clear proof verdict must cover every entry: a reply that clears the proof
+    assessment without saying which proofs it assessed does not establish what
+    the gate asks, which is that the listed proofs are substantive.
     """
 
     base: str
@@ -74,6 +82,7 @@ class Candidate:
     approved_plan_revision: str | None = None
     ci_green: bool = True
     codescene_clear: bool = True
+    required_proofs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -162,6 +171,10 @@ REASON_CITATIONS = {
     ),
     "proof-revision-unbound": (
         "a proof request under an ExecPlan must also name and echo the revision"
+    ),
+    "proof-inventory-incomplete": (
+        "Require an explicit satisfactory assessment of the listed proofs with"
+        " no unresolved substantive proof concern."
     ),
     "ready": (
         "Only when CI is green, CodeScene is clear, and all applicable"
@@ -337,6 +350,36 @@ def _disposition(
     return None
 
 
+def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> Readiness | None:
+    """Reject a proof verdict that does not cover the listed proofs.
+
+    The proof request names an inventory, and the gate asks that those proofs
+    are substantive. A reply that clears the assessment without naming them
+    answers a question that was never asked, and a reply that covers some of
+    them leaves the rest unassessed while still leaving draft.
+
+    Parameters
+    ----------
+    verdict : Verdict
+        The proof assessment's verdict.
+    candidate : Candidate
+        The accepted candidate, carrying the proof inventory the request named.
+    applies : bool
+        Whether the assignment requires a proof assessment.
+
+    Returns
+    -------
+    Readiness or None
+        A draft-preserving decision, or None when every listed proof is covered.
+    """
+    if not applies or verdict.verdict == NOT_APPLICABLE:
+        return None
+    missing = [proof for proof in candidate.required_proofs if proof not in verdict.proofs]
+    if missing:
+        return _decision("proof-inventory-incomplete")
+    return None
+
+
 def _subject(subject: Verdict, applies: bool) -> Readiness | None:
     """Reject a subject that is not the whole approved plan.
 
@@ -345,8 +388,8 @@ def _subject(subject: Verdict, applies: bool) -> Readiness | None:
     managed-stack layer records one without being able to leave draft on it.
     An unrecognized subject is not a documented record at all. The whole-plan
     requirement applies only to the completeness assessment; a proof
-    assessment's subject is its named proofs, which ``_disposition`` has
-    already required to be handed to the gate.
+    assessment's subject is its named proofs, which ``_proof_inventory`` has
+    already compared with the request's inventory.
 
     Parameters
     ----------
@@ -427,6 +470,10 @@ def readiness(
         blocked = _revision_bound(verdict, candidate, kind)
         if blocked is not None:
             return blocked
+        if kind == PROOF:
+            blocked = _proof_inventory(verdict, candidate, applies)
+            if blocked is not None:
+                return blocked
     blocked = _subject(completeness, completeness_applies)
     if blocked is not None:
         return blocked
