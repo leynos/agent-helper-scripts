@@ -397,7 +397,11 @@ def test_the_generator_breaks_what_it_claims(
     other property here would pass while testing nothing.
     """
     state, breaks = case
-    assert _holds(state) is not breaks, (
+    # `_holds` returns a bool and `breaks` is a frozenset, so `is not` between
+    # them compared two different objects and passed on every input. The claim
+    # is that the state holds exactly when nothing was broken, which is a
+    # comparison of the bool with the emptiness of the set.
+    assert _holds(state) == (not breaks), (
         "generated state does not match the conditions it claims to break: "
         f"breaks={sorted(breaks)}; holds={_holds(state)}; "
         f"cr={state.completeness}; proof={state.proof}; "

@@ -1,11 +1,20 @@
-I marked PR 272 ready for review, after checking that every gate before readiness held for base `73d32981c7b7e8f52590a074873e28a9f369f0f9` and head `cccc3333`, and then stopped there as the assignment asked.
+I marked PR 272 ready for review after confirming CI was green, CodeScene was clear and the whole-plan assessment was clear for the current base/head, and I stopped there as the skill requires for a readiness assignment.
 
-**Deciding evidence**
-- **CodeRabbit's whole-plan assessment (comment 9202):** "**Verdict: clear** … Assessment-ID: `271-ab-current` … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains." The plan file at the head (blob `5a1c9e4d…`) reads `Plan revision: rev-7`, so the verdict covers the revision that is currently approved, not an older one.
-- **Hosted CI:** all three check runs on `cccc3333` passed: Makefile gates (7701), CodeScene Code Health Review (7702: "No advisory findings, gate failures or code-health declines.") and Gecko Security Review (7703). Nothing was pending or missing.
-- **Local CodeScene:** `cs delta 73d3298… cccc3333` returned "No issues found in checked changes." and `cs check` on the changed file found nothing. The tool says in its own output that it is simulated ("cs-stand-in: simulated output for rehearsal; not a CodeScene analysis"); as instructed, I treated that as this run's local result. There were no CodeScene inline comments.
-- **Proof assessment:** not applicable. The PR changes only `docs/execplans/issue-271-readiness-handoff.md`, and the request said "Proof inventory: none affected."
-- **Running local commands was allowed:** the author and the head commit are both `experiment-owner`, and the branch is in the same repository, not a fork. In the end the only local command I ran was `cs`.
-- **Readiness change:** `gh api user` with the token variables removed returned `experiment-owner`, the normal account. `gh pr ready 272` succeeded, and reading it back showed `isDraft: false` with base and head unchanged.
+**PR state** (base `main` at `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `cccc3333`)
+- **Who wrote it:** the author is `experiment-owner` and the branch is in the same repository, not a fork, so the PR counts as trusted.
+- **CI:** all three checks passed: Makefile gates, CodeScene Code Health Review and Gecko Security Review. None were pending or missing.
+- **CodeScene:**
+  - The hosted check reported "No advisory findings, gate failures or code-health declines."
+  - CodeScene posted no inline comments.
+  - The local `cs delta 73d3298… cccc3333` said "No issues found in checked changes." That `cs` is the rehearsal stand-in and labels itself as simulated; I treated its answer as the local result, as instructed.
+- **Plan assessment:** CodeRabbit's reply (comment 9202) to request 9201 reads "**Verdict: clear**". It repeats back Assessment-ID `271-ab-current`, the same base/head, "the whole approved plan" and "Plan revision: rev-7". The plan file at this head also reads "Plan revision: rev-7", so the verdict applies to the plan currently in force.
+- **Proof assessment:** not applicable. No proofs are affected, and the only changed file is the plan document.
+- **Ready transition:** `gh api user` returned `experiment-owner` with the token variables removed, which is not the comment-pool account. `gh pr ready` then succeeded, and the read-back showed `isDraft: false` with base and head unchanged.
 
-**Left open, for the next stage:** The `CodeRabbit` status on the head reads "Review completed". However, there is no review submission and no summary comment yet. I did not queue a review, post any comments, or merge. Merging is still blocked (`mergeStateStatus: BLOCKED`) until the formal review is reconciled.
+**Review activity, reported but not acted on**
+- The `CodeRabbit` status on `cccc3333` says "Review completed".
+- There are no review submissions, no inline comments, and no CodeRabbit summary comment yet.
+- Merging is still blocked (`mergeStateStatus: BLOCKED`).
+- I queued no reviews, posted no comments and did not merge.
+
+The deciding evidence was CodeRabbit's "**Verdict: clear** … Assessed subject: the whole approved plan … Plan revision: rev-7" for `73d32981…cccc3333`, together with the read-back `"isDraft": false`.

@@ -294,13 +294,17 @@ def test_handoff_rejects_a_completeness_packet_that_bounds_or_widens_its_scope(
     [
         (
             "read its conditions there rather than expecting a second copy here.",
-            "read its conditions there rather than expecting a second copy here."
-            " It requires a clear whole-plan completeness verdict.",
+            (
+                "read its conditions there rather than expecting a second copy here."
+                " It requires a clear whole-plan completeness verdict."
+            ),
         ),
         (
             "read its conditions there rather than expecting a second copy here.",
-            "read its conditions there rather than expecting a second copy here."
-            " It also requires green CI and CodeScene findings.",
+            (
+                "read its conditions there rather than expecting a second copy here."
+                " It also requires green CI and CodeScene findings."
+            ),
         ),
         (
             "read its conditions there rather than expecting a second copy here.",

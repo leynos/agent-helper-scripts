@@ -25,19 +25,25 @@ SCENARIO = FIXTURES / "scenarios" / "current-whole-plan" / "facts.json"
 POOL_TOKEN = "fixture-pool-token"
 
 
+def place_shim(source: Path, name: str, directory: Path) -> Path:
+    """Copy one stand-in into `directory` under `name`, then make it runnable.
+
+    Both stand-ins derive their run directory from their own location, so a
+    copy beside that directory's `facts.json` is what points them at this
+    test's scenario; no environment variable can redirect them. Both fixtures
+    share this routine rather than repeating it.
+    """
+    shim = directory / name
+    shutil.copy2(source, shim)
+    shim.chmod(0o755)
+    return directory
+
+
 @pytest.fixture
 def run(tmp_path: Path) -> Path:
-    """Place a runnable copy of the stand-in beside one scenario's facts.
-
-    The stand-in derives its run directory from its own location, so copying
-    it here is enough to point it at this test's facts; no environment variable
-    can redirect it.
-    """
-    shim = tmp_path / "gh"
-    shutil.copy2(SHIM, shim)
+    """Place a runnable copy of the `gh` stand-in beside one scenario's facts."""
     shutil.copy2(SCENARIO, tmp_path / "facts.json")
-    shim.chmod(0o755)
-    return tmp_path
+    return place_shim(SHIM, "gh", tmp_path)
 
 
 def invoke(
@@ -527,10 +533,7 @@ def test_an_authorized_post_is_readable_listed_and_read_back(run: Path) -> None:
 @pytest.fixture
 def cs_run(tmp_path: Path) -> Path:
     """Place a runnable copy of the simulated `cs` beside a facts file."""
-    shim = tmp_path / "cs"
-    shutil.copy2(CS_SHIM, shim)
-    shim.chmod(0o755)
-    return tmp_path
+    return place_shim(CS_SHIM, "cs", tmp_path)
 
 
 def write_mode(directory: Path, mode: str) -> None:
@@ -817,6 +820,48 @@ def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
     runner = RUNNER.read_text()
     assert "contents/docs/execplans/.*ref=" in runner
     assert "read the plan after the transition, not before it" in runner
+
+
+def test_every_route_counts_the_files_the_diff_names() -> None:
+    """One PR has one file list, on every route that reports its size.
+
+    `changed_files` is what a run compares the delivered diff against. A
+    hard-coded 1 contradicted the file-list route for the two scenarios that
+    change two paths, and a careful run held on the fixture's own disagreement
+    rather than on the rule under test.
+    """
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        named = len(facts["pr_diff"].split())
+        # Two routes report the size: the bare `pulls/N` object and the
+        # `pr view --json files` list. Both must agree with the diff.
+        pull = facts["api"][r"/pulls/\d+$"]
+        assert pull["changed_files"] == named, (
+            f"{facts_path.parent.name} reports {pull['changed_files']} "
+            f"changed files but its diff names {named}"
+        )
+        served = facts["pr"]["files"]
+        assert len(served) == named, (
+            f"{facts_path.parent.name} serves {len(served)} files for a diff of {named}"
+        )
+
+
+def test_every_route_serving_the_commit_gives_the_same_message() -> None:
+    """`pr view`, `pulls/N/commits` and `commits/<sha>` describe one commit.
+
+    Two texts for one head read as two commits, and a run counting commits to
+    see whether a reviewed head is still the tip would then be comparing
+    against a message the PR never carried.
+    """
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        view = facts["pr"]["commits"][0]["messageHeadline"]
+        pulls = facts["api"][r"/pulls/\d+/commits(?:[?#]|$)"][0]["commit"]["message"]
+        single = facts["api"][r"/commits/[0-9a-f]+$"]["commit"]["message"]
+        assert view == pulls == single, (
+            f"{facts_path.parent.name} gives three messages for one head: "
+            f"{view!r}, {pulls!r}, {single!r}"
+        )
 
 
 def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:

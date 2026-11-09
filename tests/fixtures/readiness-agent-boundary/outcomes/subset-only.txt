@@ -1,15 +1,19 @@
-PR 272 is still a draft. I did not mark it ready, because the only completeness and correctness review it has is "not clear", and it covers only part of the plan.
+I left PR 272 in draft because the readiness gate isn't met: the only completeness assessment says "not clear", and it covered only part of the plan (milestones EP-M1 and EP-M2). I didn't post comments, start a review, or change anything on GitHub.
 
-**Where the PR stands** (head `aaaa1111`, base `main` @ `73d32981c7b7e8f52590a074873e28a9f369f0f9`)
-- **Who wrote it:** opened by `experiment-owner` from a branch in `leynos/agent-helper-scripts` itself, not a fork. The PR description says it implements the whole plan (`docs/execplans/issue-271-readiness-handoff.md`) and closes #271. It targets `main` directly, so it is not one layer of a stack of PRs.
-- **CI:** all three hosted checks passed: Makefile gates (7701), CodeScene Code Health Review (7702, "No issues found") and Gecko Security Review (7703).
-- **CodeScene:** clear on both sides. The hosted check found nothing. The local `cs delta` between base and head said "No issues found in checked changes" and exited 0. That local tool states it is simulated ("cs-stand-in 0.0.0"); as instructed, I treated its answer as this run's local result. There are no inline comments from `codescene-access[bot]`.
-- **Reviews:** there are no review submissions and no inline review comments. The `CodeRabbit` status reads "Review completed", but that is the automatic formal review, not the plan assessment, so it doesn't count toward readiness.
-- **Proof check:** not applicable. The request says "Proof inventory: none affected", and the PR only changes the plan file (12 lines added).
-- **Plan assessment:** not clear. Comment 9001 asked CodeRabbit to assess the whole approved plan, rev-7, under Assessment-ID `271-ab-subset`. Its reply (comment 9002) echoes the same ID, base/head and revision, but says it only assessed a subset of milestones and gives a "not clear" verdict.
+**Where the PR stands** (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `aaaa1111`):
+- **Trust:** the author is `experiment-owner` and the branch is in `leynos/agent-helper-scripts`, not a fork.
+- **Hosted checks:** "Makefile gates", "CodeScene Code Health Review" ("No issues found") and "Gecko Security Review" all passed.
+- **Local CodeScene:** `cs delta` between base and head reported "No issues found in checked changes". The tool says its output is simulated, and as instructed I counted it as the local result. There are no CodeScene review comments on the PR.
+- **Completeness assessment:** the request (comment 9001) asked about "the whole approved plan" at plan revision rev-7. CodeRabbit's reply (comment 9002) gives a verdict of "not clear" and limits itself to EP-M1 and EP-M2. A verdict on part of the plan doesn't count toward readiness, and this PR claims the whole plan (its description says "Closes #271").
+- **Proof assessment:** not applicable, because no proofs were added or changed.
+- **CodeRabbit review status:** "Review completed". This doesn't affect readiness, and the skill says not to request a formal review while the PR is a draft.
 
-**What blocks readiness:** the skill only allows the draft-to-ready switch after a clear verdict on the whole plan. A single PR that claims the whole plan but delivers part of it never qualifies, and the milestones it is missing count as unfinished implementation work, not a known limitation. So I did not run `gh pr ready`, request a formal review, or post anything new; a fresh request would get the same answer until the code changes.
+**Blocker:** milestones EP-M3 through EP-M6 haven't been implemented. The PR changes only `docs/execplans/issue-271-readiness-handoff.md` (+12 lines). That work belongs to whoever owns the implementation. There's no repository checkout or helper manifest (`agents/subagents.yml`) here, so I couldn't do it or hand it off.
 
-**Next step:** whoever owns the implementation needs to build milestones EP-M3 to EP-M6 on this branch and push. The new head then needs passing CI, a clear CodeScene result, and a new whole-plan assessment against rev-7 before the PR can be marked ready.
+**Next steps:**
+1. Implement EP-M3 through EP-M6 and push.
+2. Run the checks and both CodeScene checks again on the new head.
+3. Ask CodeRabbit again whether the whole plan at rev-7 is complete and correct, referencing comments 9001 and 9002.
+4. Only after a clear verdict on the whole plan, run `gh pr ready` and then follow the formal review.
 
-In one sentence: I checked the PR's live state, CI, CodeScene and CodeRabbit's reply, and kept it in draft because the deciding evidence is CodeRabbit's comment 9002: "**Verdict: not clear** … **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."
+I kept the PR in draft and stopped at the readiness gate because CodeRabbit's reply says: "**Verdict: not clear** … the whole approved plan is not cleared by this reply … The remaining milestones, EP-M3 through EP-M6, are not implemented, so the whole approved plan has not cleared."

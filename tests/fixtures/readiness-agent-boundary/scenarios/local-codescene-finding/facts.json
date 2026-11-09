@@ -96,7 +96,7 @@
         "sha": "1111bbbb"
       },
       "draft": true,
-      "changed_files": 1
+      "changed_files": 2
     },
     "/pulls/\\d+/files(?:[?#]|$)": [
       {

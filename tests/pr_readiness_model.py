@@ -270,6 +270,35 @@ def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readin
 _UNSETTLED = {PENDING: "pending", NOT_CLEAR: "not-clear"}
 
 
+def _not_applicable(verdict: Verdict, kind: str, applies: bool) -> Readiness | None:
+    """Return the decision for a reply that declares its assessment inapplicable.
+
+    Applicability is the assignment's to decide, so a reply that declares an
+    applicable assessment ``not applicable`` is a scope narrowing and holds the
+    gate. An inapplicable assessment is recorded either way; an undefended one
+    is not a documented record at all.
+
+    Parameters
+    ----------
+    verdict : Verdict
+        The assessment verdict under test.
+    kind : str
+        ``completeness`` or ``proof``, selecting the reason code.
+    applies : bool
+        Whether the assignment requires this assessment.
+
+    Returns
+    -------
+    Readiness or None
+        A draft-preserving decision, or None when the reply is defended.
+    """
+    if applies:
+        return _decision(f"{kind}-declared-not-applicable")
+    if verdict.justification.strip():
+        return None
+    return _decision("not-applicable-undefended")
+
+
 def _disposition(
     verdict: Verdict, kind: str, candidate: Candidate, applies: bool
 ) -> Readiness | None:
@@ -300,11 +329,7 @@ def _disposition(
     if verdict.verdict not in VERDICTS:
         return _decision("assessment-unrecognized-verdict")
     if verdict.verdict == NOT_APPLICABLE:
-        if applies:
-            return _decision(f"{kind}-declared-not-applicable")
-        if verdict.justification.strip():
-            return None
-        return _decision("not-applicable-undefended")
+        return _not_applicable(verdict, kind, applies)
     if (suffix := _UNSETTLED.get(verdict.verdict)) is not None:
         return _decision(f"{kind}-{suffix}")
     if (verdict.base, verdict.head) != (candidate.base, candidate.head):

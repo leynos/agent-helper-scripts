@@ -434,8 +434,19 @@ def pull_files(head: str, paths: list[str]) -> list[dict[str, object]]:
     ]
 
 
+def commit_message(plan_route: bool) -> str:
+    """Return the one commit message every route serving this head must give.
+
+    `pulls/N/commits`, `commits/<sha>` and `pr view --json commits` all describe
+    the same commit. Computing the text once keeps them from disagreeing, which
+    a careful run would otherwise read as two different commits on one head.
+    """
+    return "Deliver the plan" if plan_route else "Introduce the refinement proof"
+
+
 def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, object]:
     """Return the routes describing the PR itself and its delivered change."""
+    message = commit_message(plan_route)
     return {
         # The PR itself and its file list, which a readiness run reads to judge
         # whether the delivered work matches the plan. The bare `pulls/N` route
@@ -445,7 +456,11 @@ def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, obje
             "base": {"sha": BASE},
             "head": {"sha": head},
             "draft": True,
-            "changed_files": 1,
+            # Derived, not fixed: the file-list route serves `paths`, so a
+            # hard-coded 1 contradicts it for every scenario that changes two.
+            # A careful run would then hold on the fixture's own disagreement
+            # rather than on the rule the scenario exists to exercise.
+            "changed_files": len(paths),
         },
         r"/pulls/\d+/files(?:[?#]|$)": pull_files(head, paths),
         # The PR's commits, which a readiness run counts to see whether a
@@ -453,11 +468,7 @@ def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, obje
         r"/pulls/\d+/commits(?:[?#]|$)": [
             {
                 "sha": head,
-                "commit": {
-                    "message": "Deliver the plan"
-                    if plan_route
-                    else "Introduce the refinement proof"
-                },
+                "commit": {"message": message},
             }
         ],
         # The head commit on its own. The skill records the PR author, head
@@ -470,9 +481,7 @@ def pull_routes(head: str, paths: list[str], plan_route: bool) -> dict[str, obje
             "author": {"login": "experiment-owner", "type": "User"},
             "committer": {"login": "experiment-owner", "type": "User"},
             "commit": {
-                "message": "Deliver the plan"
-                if plan_route
-                else "Introduce the refinement proof",
+                "message": message,
                 "author": {"name": "experiment-owner"},
             },
         },
@@ -694,8 +703,19 @@ def scenario(case: Case) -> None:
             # `--json files` on the same object; a run reads them to see whether
             # the delivery matches the plan.
             "files": pull_files(case.head, paths),
+            # The same head and the same commit text the API routes give. A
+            # hard-coded headline disagreed with them for every proof-only
+            # scenario, which read as two commits on one head.
             "commits": [
-                {"sha": case.head, "messageHeadline": "Deliver the plan"}
+                {
+                    "sha": case.head,
+                    "messageHeadline": commit_message(
+                        case.plan
+                        or any(
+                            path.startswith("docs/execplans/") for path in paths
+                        )
+                    ),
+                }
             ],
         },
         "pr_ready_response": f"Pull request {REPO}#{PR} is marked as ready for review",
