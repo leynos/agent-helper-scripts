@@ -472,20 +472,19 @@ def answer_api(facts: dict, argv: list[str]) -> int:
     a mutation the stand-in never made.
     """
     url = api_url(argv)
-    method = request_method(argv)
-    if method == "POST" and is_post_comment(argv, url):
-        return handle_post(facts, argv)
-    # `graphql` is a POST whether the document reads or writes, so it is
-    # exempted only when the method is POST and its own text is a query. Any
-    # other verb on that route is a request the real service would reject, not
-    # a read the stand-in may answer. A GET is no exception: the GraphQL
-    # endpoint takes only POST, so letting GET fall through to the REST read
-    # routes would serve a document the service would have refused.
-    if url == "graphql":
-        if method != "POST" or not is_graphql_read(argv):
+    match request_method(argv):
+        case "POST" if is_post_comment(argv, url):
+            return handle_post(facts, argv)
+        # `graphql` is a POST whether the document reads or writes, so it is
+        # exempted only when its own text is a query. A GET is no exception:
+        # the GraphQL endpoint takes only POST, so letting GET fall through to
+        # the REST read routes would serve a document the service refused.
+        case "POST" if url == "graphql" and is_graphql_read(argv):
+            pass
+        case "GET" if url != "graphql":
+            pass
+        case method:
             return fail(f"gh: unsupported {method} {url}", 2)
-    elif method != "GET":
-        return fail(f"gh: unsupported {method} {url}", 2)
     if url == "user":
         # The routing record holds only the login, so serve a user object with
         # that field. A `--jq .login` filter then resolves through the same
@@ -500,54 +499,67 @@ def answer_pr(facts: dict, argv: list[str]) -> int:
     `pr view` and `pr checks` serve JSON, so a `--jq` filter is applied to them.
     `pr ready` answers with a fixed response and takes no filter.
     """
-    # A listing of one PR is the same PR. Serving it as a single object would
-    # break every filter written for a list, so it stays a list.
-    if argv[:2] == ["pr", "view"]:
-        return emit(facts["pr"], jq=jq_expression(argv))
-    if argv[:2] == ["pr", "list"]:
-        return emit([facts["pr"]], jq=jq_expression(argv))
-    if argv[:2] == ["pr", "diff"]:
-        return emit(facts["pr_diff"])
-    if argv[:2] == ["pr", "ready"]:
-        # Record the transition without dropping what the state already holds:
-        # a run can post a follow-up and then mark the PR ready, and the
-        # posted comment is still evidence after the second transition.
-        state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
-        STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
-        # The same instant is recorded in the local-check trace, so the runner
-        # can tell a `cs delta` read before the decision from one run after it.
-        # Appending at the transition is what makes that ordering observable;
-        # two files on their own can only show that both happened.
-        with CS_TRACE.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"event": "pr-ready", "head": head_ref(facts)}) + "\n")
-        return emit(facts["pr_ready_response"])
-    if argv[:2] == ["pr", "checks"]:
-        return emit(facts["pr_checks"], jq=jq_expression(argv))
+    match argv[:2]:
+        # A listing of one PR is the same PR. Serving it as a single object
+        # would break every filter written for a list, so it stays a list.
+        case ["pr", "view"]:
+            return emit(facts["pr"], jq=jq_expression(argv))
+        case ["pr", "list"]:
+            return emit([facts["pr"]], jq=jq_expression(argv))
+        case ["pr", "diff"]:
+            return emit(facts["pr_diff"])
+        case ["pr", "ready"]:
+            return mark_ready(facts)
+        case ["pr", "checks"]:
+            return emit(facts["pr_checks"], jq=jq_expression(argv))
     return fail(f"gh: unsupported invocation {argv}")
+
+
+def mark_ready(facts: dict) -> int:
+    """Record the draft-to-ready transition and answer it.
+
+    The transition is written without dropping what the state already holds: a
+    run can post a follow-up and then mark the PR ready, and the posted comment
+    is still evidence after the second transition.
+    """
+    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+    STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
+    # The same instant is recorded in the local-check trace, so the runner can
+    # tell a `cs delta` read before the decision from one run after it.
+    # Appending at the transition is what makes that ordering observable; two
+    # files on their own can only show that both happened.
+    with CS_TRACE.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"event": "pr-ready", "head": head_ref(facts)}) + "\n")
+    return emit(facts["pr_ready_response"])
 
 
 def answer(argv: list[str]) -> int:
     """Answer one invocation from the recorded facts."""
     facts = read_facts()
-    if argv[:1] == ["api"]:
-        return answer_api(facts, argv)
-    if argv[:1] == ["pr"]:
-        return answer_pr(facts, argv)
-    if argv[:2] == ["repo", "clone"]:
-        # A clone reaches GitHub over the network, which this sandbox drops, so
-        # it fails here for the reason it would really fail rather than being
-        # reported as a command the client does not have.
-        return fail(
-            "fatal: unable to access 'https://github.com/': "
-            "Could not resolve host: github.com"
-        )
-    if argv[:2] == ["auth", "status"]:
-        # The real command prints a human-readable line rather than JSON, so a
-        # filter on it is refused by `emit` instead of silently ignored.
-        return emit(
-            f"Logged in to github.com as {facts['login']}",
-            jq=jq_expression(argv),
-        )
+    # Each case is a prefix, not the whole argument list: the trailing words
+    # are the command's own arguments, and a case that matched only an exact
+    # length would turn every invocation carrying them into "unsupported".
+    match argv:
+        case ["api", *_]:
+            return answer_api(facts, argv)
+        case ["pr", *_]:
+            return answer_pr(facts, argv)
+        case ["repo", "clone", *_]:
+            # A clone reaches GitHub over the network, which this sandbox
+            # drops, so it fails here for the reason it would really fail
+            # rather than being reported as a command the client lacks.
+            return fail(
+                "fatal: unable to access 'https://github.com/': "
+                "Could not resolve host: github.com"
+            )
+        case ["auth", "status", *_]:
+            # The real command prints a human-readable line rather than JSON,
+            # so a filter on it is refused by `emit` instead of silently
+            # ignored.
+            return emit(
+                f"Logged in to github.com as {facts['login']}",
+                jq=jq_expression(argv),
+            )
     return fail(f"gh: unsupported invocation {argv}")
 
 

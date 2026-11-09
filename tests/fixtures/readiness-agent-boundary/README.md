@@ -145,6 +145,10 @@ stale-revision rule — the follow-up path works, and readiness still waits.
   route serves the proof the `proof-only-*` scenarios introduce, so a run
   assessing it reads the subject rather than a 404.
 - `make_scenarios.py` — regenerates every `facts.json`.
+- `flagged_gate_stub.txt` — the file the advisory scenario serves and the local
+  finding is measured against. It is data, so it stays out of the generator: a
+  reader edits the text it is about, and the size the finding reports is
+  computed from it.
 - `sandboxed_run.sh` — the runner, including the isolation described below.
 
 ## Reproducing a run
@@ -431,8 +435,9 @@ and carries no credential.
 
 ## Refreshing
 
-Regenerate with `python3 -I make_scenarios.py` after editing a scenario. Then
-rerun the affected scenarios and copy four files per run:
+Regenerate with `python3 -I make_scenarios.py` after editing a scenario, or
+after editing `flagged_gate_stub.txt`, whose text the advisory scenario serves
+verbatim. Then rerun the affected scenarios and copy four files per run:
 
 | Run directory             | Committed path           |
 | ------------------------- | ------------------------ |
@@ -443,10 +448,13 @@ rerun the affected scenarios and copy four files per run:
 
 The `cs` trace is committed because it is half the evidence, not a scratch log:
 it shows whether the local result was consulted before the decision, and the
-boundary line the stand-in writes into it is what makes that ordering checkable.
-`gh-answers.jsonl` is scratch: the runner asserts on it during the run, but
-its claim — that the read-back succeeded — is already recorded in the outcome
-it produced, and it duplicates the argv trace at twice the size.
+boundary line the stand-in writes into it is what makes that ordering
+checkable. Copy it whenever the run produced one, and delete a stale
+`traces/<name>-cs.jsonl` when the new run produced no `cs` trace at all: a
+committed trace left behind by an earlier run would claim a consultation this
+run never made. `gh-answers.jsonl` is scratch: the runner asserts on it during
+the run, but its claim — that the read-back succeeded — is already recorded in
+the outcome it produced, and it duplicates the argv trace at twice the size.
 
 A scenario that posted no comment has no `submitted/` entry. Replace a trace,
 its `cs` trace, its outcome and its submitted body together: any one without

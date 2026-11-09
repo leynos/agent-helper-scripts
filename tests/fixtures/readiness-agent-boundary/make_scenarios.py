@@ -50,104 +50,12 @@ FLAGGED_PATH = "skills/pr-babysitting/scripts/readiness_gate.py"
 # A finding whose stated size the served file contradicts is one a careful run
 # discounts, and the run would then hold for a reason the scenario is not
 # testing.
-FLAGGED_TEXT = '''"""Read the readiness gate's assessments."""
-
-COMPLETENESS = "completeness"
-PROOF = "proof"
-KINDS = (COMPLETENESS, PROOF)
-VERDICTS = ("clear", "not clear")
-BOT = "coderabbitai[bot]"
-
-
-def _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:
-    """Return whether every applicable assessment clears for this candidate.
-
-    The checks are written out one after another rather than split into
-    helpers, which is the shape the recorded local finding describes. This is a
-    fixture, not a working gate: it exists to be read, and the size the finding
-    reports is computed from this text.
-    """
-    if not state:
-        return False
-    if state.get("isDraft") is True:
-        return False
-    if state.get("state") != "OPEN":
-        return False
-    if state.get("merged") is True:
-        return False
-    if not state.get("headRefOid"):
-        return False
-    if not state.get("baseRefOid"):
-        return False
-    if plan.get("approved") is not True:
-        return False
-    if not plan.get("revision"):
-        return False
-    if not plan.get("subject"):
-        return False
-    if plan.get("revision") != state.get("revision"):
-        return False
-    if plan.get("head") != state.get("headRefOid"):
-        return False
-    if plan.get("base") != state.get("baseRefOid"):
-        return False
-    for thread in threads:
-        if thread.get("isOutdated"):
-            return False
-        if not thread.get("isResolved"):
-            return False
-        kind = thread.get("assessment")
-        if kind not in KINDS:
-            return False
-        if thread.get("verdict") not in VERDICTS:
-            return False
-        if thread.get("author") != BOT:
-            return False
-        if not thread.get("replies"):
-            return False
-        if any(reply.get("dismissed") for reply in thread.get("replies", [])):
-            return False
-        if kind == PROOF:
-            if not thread.get("cleared"):
-                return False
-            if not thread.get("scrutinized"):
-                return False
-            if thread.get("waived"):
-                return False
-        if kind == COMPLETENESS:
-            if thread.get("subject") != plan.get("subject"):
-                return False
-            if thread.get("revision") != plan.get("revision"):
-                return False
-            if thread.get("head") != state.get("headRefOid"):
-                return False
-            if thread.get("base") != state.get("baseRefOid"):
-                return False
-            if thread.get("scope") != plan.get("scope"):
-                return False
-    for proof in proofs:
-        if not proof.get("changed"):
-            continue
-        if not proof.get("scrutinized"):
-            return False
-        if not str(proof.get("path", "")).endswith(".lean"):
-            return False
-        if not proof.get("statement"):
-            return False
-        if proof.get("sorry"):
-            return False
-        if proof.get("axioms") not in ({"propext"}, set()):
-            return False
-        if proof.get("reviewed") is not True:
-            return False
-    if not threads:
-        return False
-    if not proofs and plan.get("proves"):
-        return False
-    if len(threads) > 200:
-        return False
-    return True
-'''
+# The stub is data, not code: it is served verbatim, its size is measured
+# from the text, and linting it as Python would only invite edits that make
+# the served file drift from the finding that describes it.
+FLAGGED_TEXT = (Path(__file__).resolve().parent / "flagged_gate_stub.txt").read_text(
+    encoding="utf-8"
+)
 PLAN_TEXT = """# Readiness handoff
 
 Plan revision: rev-7

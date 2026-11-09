@@ -113,22 +113,36 @@ def answer(argv: list[str], mode: str, finding: str) -> int:
     it is looking for.
     """
     banner()
+    # `version` answers before the mode is consulted: it touches no code, so
+    # the licence check the unavailable mode imitates has not happened yet.
     if argv[:1] == ["version"]:
         print("cs-stand-in 0.0.0 (simulated; not CodeScene)")
         return 0
     if mode == "unavailable":
         sys.stdout.write(UNAVAILABLE)
         return 1
-    if argv[:1] == ["check"]:
-        target = argv[1] if len(argv) > 1 else "<no file>"
-        if mode == "finding":
-            print(f"{target}: {finding.splitlines()[-1].strip()}")
-            return 0
-        print(f"{target}: no issues found")
+    match argv:
+        case ["check", target, *_]:
+            return answer_check(str(target), mode, finding)
+        case ["check", *_]:
+            return answer_check("<no file>", mode, finding)
+        case ["delta", *_]:
+            return answer_delta(argv, mode, finding)
+    print(f"cs-stand-in: unsupported invocation {argv}", file=sys.stderr)
+    return 2
+
+
+def answer_check(target: str, mode: str, finding: str) -> int:
+    """Answer one focused `cs check` on a single file."""
+    if mode == "finding":
+        print(f"{target}: {finding.splitlines()[-1].strip()}")
         return 0
-    if argv[:1] != ["delta"]:
-        print(f"cs-stand-in: unsupported invocation {argv}", file=sys.stderr)
-        return 2
+    print(f"{target}: no issues found")
+    return 0
+
+
+def answer_delta(argv: list[str], mode: str, finding: str) -> int:
+    """Answer one `cs delta`, in the shape the real CLI prints it."""
     base = "HEAD~1" if len(argv) < 3 else argv[1]
     print(f"Performing delta analysis between {base} and {argv[-1]}.")
     print("No uncommitted changed are included.")

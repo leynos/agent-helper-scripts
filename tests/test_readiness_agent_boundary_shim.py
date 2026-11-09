@@ -733,6 +733,30 @@ def test_the_two_sources_describe_the_same_finding() -> None:
         assert number in hosted, hosted
 
 
+def test_every_served_stub_matches_the_data_file_it_came_from() -> None:
+    """The stub is generated into the facts, so it can go stale.
+
+    While the text was a literal in the generator, the served body and the
+    finding measured against it could not disagree. Reading it from a data file
+    separates them: editing the file without regenerating leaves every
+    `facts.json` serving the old text, and the finding then describes a
+    function the fixture no longer serves.
+    """
+    stub = (FIXTURES / "flagged_gate_stub.txt").read_text(encoding="utf-8")
+    served_routes = 0
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        for path, body in served_files(facts).items():
+            if not path.startswith("skills/"):
+                continue
+            served_routes += 1
+            assert body == stub, (
+                f"{facts_path.parent.name} serves a stale {path};"
+                " regenerate with `python3 -I make_scenarios.py`"
+            )
+    assert served_routes, "no scenario serves the flagged stub, so nothing was checked"
+
+
 def test_the_hosted_summary_agrees_with_the_hosted_annotations() -> None:
     """One analysis has one set of numbers, on every route that serves it.
 
