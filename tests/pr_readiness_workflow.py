@@ -60,13 +60,25 @@ class Discussion:
     returns only a correlated reply from the assessment bot, so an unrelated
     comment cannot be mistaken for a verdict.
 
+    Two rules pull in opposite directions and both have to hold.
+
     The skill's request template requires each question to carry a *unique*
     request marker. A thread that let two questions share one marker could not
     tell two answers apart: ``observe`` would return the first reply matching
     the marker, so a later question with no answer of its own would be cleared
-    by the answer to an earlier one. ``post`` therefore mints a marker this
-    thread has not used rather than recording the caller's stem verbatim, which
-    keeps a second question from inheriting the first one's reply.
+    by the answer to an earlier one.
+
+    The shipped instructions also say to preserve an unanswered question and
+    not repeat it. A thread that minted a fresh marker on every invocation
+    would strand the reply to a question that is still outstanding: the answer
+    arrives, the next invocation posts a differently-marked duplicate, and the
+    verdict that was asked for is never read.
+
+    So the marker is a function of the question, not of the call. ``post``
+    returns the marker already outstanding for this kind, revision and proof
+    inventory, and mints a new one only when the question differs from
+    everything already asked. An unchanged re-ask is the same question, so it
+    keeps its marker and the reply that eventually echoes it stays bound.
     """
 
     base: str
@@ -87,7 +99,10 @@ class Discussion:
         request records them. Which proofs the request asked about is not
         recoverable from a transcript that keeps only its kind and marker, and
         a reconciliation that cannot see the asked inventory cannot tell a
-        narrowed answer from a complete one.
+        narrowed answer from a complete one. That is also why the inventory
+        takes part in deciding whether a question is the one already
+        outstanding: a re-ask that widens the proof list is a new question and
+        gets a marker of its own.
 
         Parameters
         ----------
@@ -96,8 +111,8 @@ class Discussion:
         assessment_id : str
             Stem of the request marker the reply is expected to echo. The
             first use of a stem is recorded as written; a repeat of a stem
-            already on the thread is recorded with a ``#N`` suffix so the two
-            questions never share a marker.
+            already on the thread for a *different* question is recorded with a
+            ``#N`` suffix so the two never share a marker.
         plan_revision : str or None
             Revision in force, or None when no ExecPlan applies.
         proofs : tuple of str, optional
@@ -106,18 +121,78 @@ class Discussion:
         Returns
         -------
         str
-            The recorded request marker, unique on this thread.
+            The request marker for this question: the outstanding one when the
+            question is unchanged, otherwise a marker unique on the thread.
         """
+        question = self._question(kind, plan_revision, proofs)
+        asked = self._asked(question)
+        if asked is not None:
+            return asked["id"]
         marker = self._mint(assessment_id)
-        self.requests.append(
-            {
-                "kind": kind,
-                "id": marker,
-                "revision": plan_revision or "",
-                "proofs": ",".join(proofs),
-            }
-        )
+        self.requests.append({**question, "id": marker})
         return marker
+
+    def _question(
+        self, kind: str, plan_revision: str | None, proofs: tuple[str, ...]
+    ) -> dict[str, str]:
+        """Return the parts of a request that decide whether it is a new question.
+
+        The candidate is part of the question: the same wording asked about a
+        different base/head is a different assessment, and must not inherit a
+        verdict obtained for the earlier candidate. So are the revision in
+        force and the proof inventory, because those bound what the answer is
+        about.
+
+        Parameters
+        ----------
+        kind : str
+            ``completeness`` or ``proof``.
+        plan_revision : str or None
+            Revision in force, or None when no ExecPlan applies.
+        proofs : tuple of str
+            The proof inventory the question names.
+
+        Returns
+        -------
+        dict
+            The question's identity, without its marker.
+        """
+        return {
+            "kind": kind,
+            "base": self.base,
+            "head": self.head,
+            "revision": plan_revision or "",
+            "proofs": ",".join(proofs),
+        }
+
+    def _asked(self, question: dict[str, str]) -> dict[str, str] | None:
+        """Return the request already recording ``question``, if there is one.
+
+        The shipped instructions say to preserve an outstanding question and
+        not repeat it, so an unchanged question returns the marker it was first
+        asked under — whether or not a reply has arrived yet. Reusing the
+        marker is what keeps the sequence live: a reply that lands between two
+        invocations still answers the question the next invocation is asking,
+        because the marker it echoes is the one that is returned here.
+
+        Minting a fresh marker instead would strand that reply, and the run
+        would hold forever on a question that was answered.
+
+        Parameters
+        ----------
+        question : dict
+            The question's identity, without its marker.
+
+        Returns
+        -------
+        dict or None
+            The first request recording this question, or None when it has not
+            been asked on this thread.
+        """
+        for request in self.requests:
+            if {key: request[key] for key in question} == question:
+                return request
+        return None
 
     def _mint(self, stem: str) -> str:
         """Return ``stem``, suffixed if this thread has already used it.

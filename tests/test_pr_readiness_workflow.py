@@ -38,6 +38,9 @@ from pr_readiness_workflow import (
 
 BASE = "base0000"
 HEAD = "head0000"
+#: A second head, so a case can move the candidate without touching the
+#: accepted base. A reply bound to one head must not clear the other.
+HEAD_SUPERSEDING = "head1111"
 REVISION = "rev-2026-11-01"
 COMPLETENESS_ID = "271-boundary-completeness"
 PROOF_ID = "271-boundary-proof"
@@ -552,74 +555,89 @@ def test_both_requests_are_posted_before_the_decision() -> None:
 
 
 
-def test_a_repeated_assessment_does_not_adopt_an_earlier_reply() -> None:
-    """A second question under the same stem gets a marker of its own.
+def test_a_reply_arriving_between_invocations_still_clears_the_question() -> None:
+    """An unanswered question is preserved, so its eventual reply is read.
 
-    The sequence runs twice on one candidate. The first run's reply is on the
-    thread; the second run posts a fresh question that nobody has answered. A
-    double that reused the marker would hand the second run the first run's
-    answer and report a clearance nobody gave for the new question.
+    The sequence runs, posts its questions and returns pending. The replies
+    land between that invocation and the next. The second run must reach
+    readiness without posting again: it asks the same question, gets the same
+    marker, and the reply echoing that marker is found.
+
+    A double that minted a fresh marker per call would strand the replies — the
+    run would hold forever on a question that was in fact answered, which is
+    the liveness defect this pins.
     """
     thread = discussion()
     candidate = pull()
 
-    first = assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+    first = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
     assert not first.ready, "the first run cleared a question nobody answered"
+    asked = [request["id"] for request in thread.requests]
 
-    # Answer the first question only.
-    thread.responses.append(reply_with(thread.requests[0]["id"]))
+    # Both replies arrive now, echoing the markers already outstanding.
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+    thread.responses.append(reply_with(PROOF_ID))
 
-    second = assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+    second = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not second.ready, (
-        "the second question adopted the first run's reply:"
+    assert second.ready, (
+        "a reply that arrived between invocations was stranded:"
         f" reason={second.reason!r}"
     )
-    assert second.reason == "completeness-pending", (
-        f"the second question settled as {second.reason!r}, not pending"
+    assert candidate.ready_transitions == [HEAD], (
+        f"the run recorded {candidate.ready_transitions}, not one transition"
     )
-    assert candidate.is_draft, (
-        f"the draft was ended by an answer to a different question:"
-        f" {candidate.ready_transitions}"
-    )
-    markers = [request["id"] for request in thread.requests]
-    assert len(set(markers)) == len(markers), (
-        f"two questions shared a marker: {markers}"
+    assert [request["id"] for request in thread.requests] == asked, (
+        "the unchanged question was re-posted under a new marker:"
+        f" {[request['id'] for request in thread.requests]}"
     )
 
 
-def test_a_reply_to_an_earlier_question_does_not_clear_a_later_one() -> None:
-    """A reply is bound to the marker its question was posted under.
+def test_a_superseded_candidate_does_not_reuse_the_earlier_markers() -> None:
+    """A verdict obtained for one candidate is not asked for on another.
 
-    Correlation is by marker, not by recency: a reply answering the first
-    question must leave a later question pending even though it is the newest
-    substantive reply on the thread.
+    The question is preserved only while its candidate is unchanged. Once the
+    head moves, the completeness question is a new one about a new candidate,
+    so it is posted under a marker of its own rather than reusing the earlier
+    marker and inheriting the reply bound to it.
+
+    The check is made on the thread rather than through a decision: a moved
+    candidate is refused earlier, by the candidate-bound checks, so no new
+    question is posted in that path and the decision cannot show the marker.
+    """
+    thread = discussion()
+    first = thread.post(COMPLETENESS, COMPLETENESS_ID, REVISION)
+    thread.responses.append(reply_with(first))
+
+    thread.head = HEAD_SUPERSEDING
+    second = thread.post(COMPLETENESS, COMPLETENESS_ID, REVISION)
+
+    assert second != first, f"the moved candidate reused the marker {first!r}"
+    assert [request["id"] for request in thread.requests] == [first, second], (
+        f"the thread records {[r['id'] for r in thread.requests]}, not both"
+    )
+    assert thread.observe(second) is None, (
+        "the marker minted for the new candidate already had a reply"
+    )
+
+
+def test_an_unanswered_question_is_not_repeated_after_a_reply_lands() -> None:
+    """Asking again before the reply arrives records one question, not two.
+
+    The shipped instructions say to preserve an unanswered question rather
+    than repeat it. Running the sequence twice with no reply in between must
+    leave a single request on the thread, so the reply that later arrives
+    answers one question rather than one of several identical ones.
     """
     thread = discussion()
     candidate = pull()
 
     assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
-    first_marker = thread.requests[0]["id"]
-
     assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
-    second_marker = thread.requests[1]["id"]
-    assert second_marker != first_marker, "the two questions shared a marker"
 
-    thread.responses.append(reply_with(first_marker))
-    decision = assess_and_maybe_mark_ready(
-        candidate, thread, assignment=IMPLEMENTATION
-    )
-
-    assert not decision.ready, (
-        "a reply to the earlier question cleared the later one:"
-        f" reason={decision.reason!r}"
-    )
-    assert decision.reason == "completeness-pending", (
-        f"the later question settled as {decision.reason!r}, not pending"
-    )
-    answered = {reply.assessment_id for reply in thread.responses}
-    assert second_marker not in answered, (
-        "the newest question had a reply while the case claimed it had none"
+    assert [request["kind"] for request in thread.requests] == ["completeness"], (
+        "the unanswered question was repeated:"
+        f" {[request['kind'] for request in thread.requests]}"
     )
 
 
