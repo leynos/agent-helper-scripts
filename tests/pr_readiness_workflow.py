@@ -26,6 +26,7 @@ from pr_readiness_model import (
     Readiness,
     Verdict,
     delivery_gate,
+    proof_request,
     readiness,
 )
 
@@ -344,6 +345,12 @@ def assess_and_maybe_mark_ready(
         The decision, after the ready transition has or has not been performed.
     """
     blocked = delivery_gate(pull.candidate())
+    if blocked is not None:
+        return blocked
+    # A proof assessment that names no inventory has no question to publish,
+    # so the sequence stops before spending any reply on one. Like a blocked
+    # delivery gate, this returns before the assessment questions are posted.
+    blocked = proof_request(pull.candidate(), assignment.proof_applies)
     if blocked is not None:
         return blocked
     completeness, proof = (

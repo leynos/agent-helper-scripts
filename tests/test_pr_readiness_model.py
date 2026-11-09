@@ -456,17 +456,24 @@ def test_an_applicable_assessment_cannot_excuse_itself(
     The case is selected by `kind` rather than by a ``None`` sentinel in a
     pre-built dict: the sentinel made the parameter's meaning depend on a
     field's value, and the dict hid which assessment was under test.
+
+    The applicable proof case names an inventory, because otherwise the
+    empty-inventory precondition would refuse it first and the excuse would
+    never be reached. Without that, the test would still pass while asserting
+    nothing about the rule it is named for.
     """
     justification = "I will not assess this." if justified else ""
     excuse = {"verdict": NOT_APPLICABLE, "justification": justification}
     if kind == "completeness":
         completeness_verdict = completeness(**excuse)
         proof_verdict, applies = proof(), {"proof_applies": False}
+        accepted = candidate()
     else:
         completeness_verdict = completeness()
         proof_verdict, applies = proof(**excuse), {"proof_applies": True}
+        accepted = candidate(required_proofs=(THEOREM,))
     decision = readiness(
-        candidate(), completeness_verdict, proof_verdict, **applies
+        accepted, completeness_verdict, proof_verdict, **applies
     )
     assert not decision.ready, "an applicable assessment excused itself"
     assert decision.reason == reason
@@ -567,11 +574,13 @@ REASON_STATES = {
         candidate(), completeness(subject=DECLARED_SUBSET), proof()
     ),
     "proof-pending": (
-        candidate(), completeness(), proof(verdict=PENDING, justification=""),
+        candidate(required_proofs=(THEOREM,)),
+        completeness(),
+        proof(verdict=PENDING, justification=""),
         {"proof_applies": True},
     ),
     "proof-declared-not-applicable": (
-        candidate(),
+        candidate(required_proofs=(THEOREM,)),
         completeness(),
         proof(verdict=NOT_APPLICABLE, justification="No proofs are affected."),
         {"proof_applies": True},
@@ -788,18 +797,14 @@ DEFECTIVE_RULES = (
         id="proof-revision-binding-dropped",
     ),
     pytest.param(
-        "_proof_inventory",
+        "proof_request",
         lambda monkeypatch: monkeypatch.setattr(
             readiness_module,
-            "_proof_inventory",
+            "proof_request",
             # Drops only the empty-inventory rule, the way a model that read
             # an unnamed inventory as nothing to compare would: every listed
             # proof is trivially covered when none is listed.
-            lambda verdict, cand, applies: (
-                None
-                if applies and not cand.required_proofs
-                else _real_proof_inventory(verdict, cand, applies)
-            ),
+            lambda cand, applies: None,
         ),
         (candidate(), completeness(), proof(verdict=CLEAR, proofs=(THEOREM,)),
          {"proof_applies": True}),
@@ -854,7 +859,6 @@ DEFECTIVE_RULES = (
     ),
 )
 _real_disposition = readiness_module._disposition
-_real_proof_inventory = readiness_module._proof_inventory
 _real_delivery_gates = readiness_module.delivery_gate
 _real_subject = readiness_module._subject
 

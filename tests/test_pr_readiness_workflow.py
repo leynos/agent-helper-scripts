@@ -506,6 +506,11 @@ def test_an_applicable_proof_request_with_no_inventory_keeps_the_draft() -> None
     assess, and a clear reply to it would clear a gate that never existed. The
     reply here names a proof of its own, which cannot supply the inventory the
     request failed to ask for.
+
+    The question must not be posted either. The sequence stops before the
+    assessment step, so no reply is spent on it, and the recorded requests —
+    not only the decision — show that. A sequence that posted first and
+    refused afterwards would pass every other assertion here.
     """
     thread = discussion()
     thread.responses.append(reply_with(COMPLETENESS_ID))
@@ -516,6 +521,10 @@ def test_an_applicable_proof_request_with_no_inventory_keeps_the_draft() -> None
 
     assert not decision.ready, "an unnamed proof inventory cleared the gate"
     assert decision.reason == "proof-inventory-empty"
+    assert thread.requests == [], (
+        "a proof request with no inventory was published: "
+        f"{[request['kind'] for request in thread.requests]}"
+    )
     assert candidate.is_draft
     assert candidate.ready_transitions == []
 

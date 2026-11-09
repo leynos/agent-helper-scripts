@@ -354,6 +354,38 @@ def _disposition(
     return None
 
 
+def proof_request(candidate: Candidate, applies: bool) -> Readiness | None:
+    """Reject an applicable proof assessment that names no inventory.
+
+    The published question carries the proofs it asks about. An assignment
+    that requires the assessment but names none has nothing to publish: the
+    documents give exactly two routes when no proof is affected — record a
+    justified ``not applicable``, or list the proofs a newly introduced one
+    affects — and an empty inventory is neither.
+
+    This is asked before the question is posted, not after its reply arrives.
+    Posting it would spend the assessor's reply on a question with no subject,
+    and the reply cannot repair the omission: a list it supplied itself would
+    be answering a different question from the one the assignment meant to
+    ask.
+
+    Parameters
+    ----------
+    candidate : Candidate
+        The accepted candidate, carrying the inventory the request would name.
+    applies : bool
+        Whether the assignment requires a proof assessment.
+
+    Returns
+    -------
+    Readiness or None
+        A draft-preserving decision, or None when a request may be posted.
+    """
+    if applies and not candidate.required_proofs:
+        return _decision("proof-inventory-empty")
+    return None
+
+
 def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> Readiness | None:
     """Reject a proof verdict that does not cover the listed proofs.
 
@@ -366,10 +398,10 @@ def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> R
     The documents offer exactly two routes when no proof is affected: say the
     assessment does not apply, or list the proofs a newly introduced one
     affects. An applicable proof assessment with nothing listed is neither, so
-    it is a request nobody could answer rather than a clear gate. The check
-    sits outside the ``not applicable`` early return: a reply cannot supply the
-    inventory an assignment never named, and a reply carrying its own is not
-    evidence of what the request asked.
+    it is a request nobody could answer rather than a clear gate. That
+    precondition is checked by ``readiness`` before any reply is read, because
+    a reply cannot supply the inventory an assignment never named and a reply
+    carrying its own is not evidence of what the request asked.
 
     Parameters
     ----------
@@ -385,11 +417,7 @@ def _proof_inventory(verdict: Verdict, candidate: Candidate, applies: bool) -> R
     Readiness or None
         A draft-preserving decision, or None when every listed proof is covered.
     """
-    if not applies:
-        return None
-    if not candidate.required_proofs:
-        return _decision("proof-inventory-empty")
-    if verdict.verdict == NOT_APPLICABLE:
+    if not applies or verdict.verdict == NOT_APPLICABLE:
         return None
     missing = [proof for proof in candidate.required_proofs if proof not in verdict.proofs]
     if missing:
@@ -473,6 +501,11 @@ def readiness(
         ``stay draft`` with the deciding rule's reason.
     """
     blocked = delivery_gate(candidate)
+    if blocked is not None:
+        return blocked
+    # The proof request's subject is checked before any reply is read: a
+    # reply cannot supply the inventory an assignment never named.
+    blocked = proof_request(candidate, proof_applies)
     if blocked is not None:
         return blocked
     for kind, verdict, applies in (

@@ -1605,6 +1605,12 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
     probe and its own refusal must sit *inside* the branch that opens on
     `EXPECT_READY = yes` — not merely somewhere later in the file, which a
     probe moved past the closing `fi` would also satisfy.
+
+    The probe and its refusal must share *one* permitting branch, not merely
+    be enclosed by permitting branches of their own. Two independent
+    containment tests let a refusal moved into a different permitting branch
+    pass: the probe is still called, and the message still fails the run, but
+    it fails for the wrong reason and at the wrong point.
     """
     runner = RUNNER.read_text()
     guards = [m for m in re.finditer(r'^if .*EXPECT_READY.*= yes.*then$', runner, re.MULTILINE)]
@@ -1617,12 +1623,6 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
         ("PROBE_STATE", "transitioned but the served state still reads draft"),
     ):
         invocation = runner.index(f"<<'{probe}'")
-        # The probe must be enclosed by one of the permitting guards: a guard
-        # opening before it, whose own `fi` closes after it.
-        assert any(
-            guard.start() < invocation < _enclosing_branch(runner, guard.start())
-            for guard in guards
-        ), f"{probe} is not invoked inside a permitting branch"
         # The refusal must be the one this probe's failure emits, and the `rc=1`
         # that turns it into a failing run must be the line directly after it.
         # Searching the whole script for the text finds some other check's
@@ -1636,10 +1636,22 @@ def test_the_runner_reaches_the_delta_and_state_checks() -> None:
         )
         assert refusal, f"{probe}'s refusal no longer sets rc=1 directly"
         refusal_at = invocation + refusal.start()
-        assert any(
-            guard.start() < refusal_at < _enclosing_branch(runner, guard.start())
+        # One branch must hold both ends. Checking them against the guard list
+        # separately would accept a probe in one permitting branch and its
+        # refusal in another.
+        enclosing = [
+            guard
             for guard in guards
-        ), f"{probe}'s refusal sits outside every permitting branch"
+            if guard.start() < invocation < _enclosing_branch(runner, guard.start())
+        ]
+        assert enclosing, f"{probe} is not invoked inside a permitting branch"
+        assert any(
+            refusal_at < _enclosing_branch(runner, guard.start())
+            for guard in enclosing
+        ), (
+            f"{probe}'s refusal sits outside the permitting branch that invokes"
+            " the probe"
+        )
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
