@@ -74,12 +74,21 @@ stale-revision rule — the follow-up path works, and readiness still waits.
 - `cs-shim.py` — the **simulated** `cs`. It answers `delta` and `check` from
   the scenario's recorded `cs_mode` (`clean`, `finding` or `unavailable`),
   reproduces the real CLI's exit status for each — including the non-zero exit
-  when the licence check fails — and discloses itself on every answer. A
-  missing or unrecognized mode answers `unavailable`, so a broken fixture
-  cannot manufacture the clean result the rehearsal is checking for. A
-  `finding` mode must also record `cs_finding`: the stand-in carries no
-  built-in text and refuses rather than invent one, since a default would name
-  a path and line count this scenario may not serve.
+  when the licence check fails — and discloses itself on every answer. An
+  unrecognized mode answers `unavailable`, so a broken fixture cannot
+  manufacture the clean result the rehearsal is checking for. A `finding` mode
+  must also record `cs_finding`: the stand-in carries no built-in text and
+  refuses rather than invent one, since a default would name a path and line
+  count this scenario may not serve.
+- **Fixture faults are not local results.** Facts that were never served —
+  missing, unreadable, not JSON, or not an object — exit `3` with a
+  `fixture fault` diagnostic on standard error, and nothing is written to
+  `cs-trace.jsonl`. They are deliberately *not* answered as `unavailable`,
+  because that answer states a fact about the real binary (present, licence
+  check failed) that a missing `facts.json` cannot establish. A served file
+  whose `cs_mode` is unknown stays `unavailable`: the facts exist and record
+  something this scenario cannot evaluate, which is the situation the licence
+  failure describes.
 - `cs-trace.jsonl` (per run, in the run directory) — every simulated `cs`
   invocation with the mode it answered from. A run that never invoked it cannot
   have cleared the local half, whatever its outcome says. The stand-in appends a

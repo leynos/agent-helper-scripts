@@ -59,6 +59,14 @@ class Discussion:
     ``post`` records the question the workflow would publish, and ``observe``
     returns only a correlated reply from the assessment bot, so an unrelated
     comment cannot be mistaken for a verdict.
+
+    The skill's request template requires each question to carry a *unique*
+    request marker. A thread that let two questions share one marker could not
+    tell two answers apart: ``observe`` would return the first reply matching
+    the marker, so a later question with no answer of its own would be cleared
+    by the answer to an earlier one. ``post`` therefore mints a marker this
+    thread has not used rather than recording the caller's stem verbatim, which
+    keeps a second question from inheriting the first one's reply.
     """
 
     base: str
@@ -86,7 +94,10 @@ class Discussion:
         kind : str
             ``completeness`` or ``proof``.
         assessment_id : str
-            Unique request marker the reply is expected to echo.
+            Stem of the request marker the reply is expected to echo. The
+            first use of a stem is recorded as written; a repeat of a stem
+            already on the thread is recorded with a ``#N`` suffix so the two
+            questions never share a marker.
         plan_revision : str or None
             Revision in force, or None when no ExecPlan applies.
         proofs : tuple of str, optional
@@ -95,17 +106,44 @@ class Discussion:
         Returns
         -------
         str
-            The recorded request marker.
+            The recorded request marker, unique on this thread.
         """
+        marker = self._mint(assessment_id)
         self.requests.append(
             {
                 "kind": kind,
-                "id": assessment_id,
+                "id": marker,
                 "revision": plan_revision or "",
                 "proofs": ",".join(proofs),
             }
         )
-        return assessment_id
+        return marker
+
+    def _mint(self, stem: str) -> str:
+        """Return ``stem``, suffixed if this thread has already used it.
+
+        Refusing to reuse a marker is what makes correlation meaningful. A
+        thread that recorded two questions under one marker would answer the
+        later one from the earlier reply, and a run that re-asks after a push
+        would read a stale verdict as clearance for the new candidate.
+
+        Parameters
+        ----------
+        stem : str
+            The marker to record if it is unused.
+
+        Returns
+        -------
+        str
+            An unused marker derived from ``stem``.
+        """
+        taken = {request["id"] for request in self.requests}
+        if stem not in taken:
+            return stem
+        attempt = 2
+        while f"{stem}#{attempt}" in taken:
+            attempt += 1
+        return f"{stem}#{attempt}"
 
     def observe(self, assessment_id: str) -> Reply | None:
         """Return the substantive reply echoing ``assessment_id``, if posted.

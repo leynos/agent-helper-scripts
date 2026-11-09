@@ -27,6 +27,7 @@ from pr_readiness_model import (
 )
 from pr_readiness_workflow import (
     CODERABBIT,
+    IMPLEMENTATION,
     PROOF_ONLY,
     Assignment,
     Discussion,
@@ -548,3 +549,114 @@ def test_both_requests_are_posted_before_the_decision() -> None:
 
     assert len(thread.requests) == 2
     assert candidate.is_draft
+
+
+
+def test_a_repeated_assessment_does_not_adopt_an_earlier_reply() -> None:
+    """A second question under the same stem gets a marker of its own.
+
+    The sequence runs twice on one candidate. The first run's reply is on the
+    thread; the second run posts a fresh question that nobody has answered. A
+    double that reused the marker would hand the second run the first run's
+    answer and report a clearance nobody gave for the new question.
+    """
+    thread = discussion()
+    candidate = pull()
+
+    first = assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+    assert not first.ready, "the first run cleared a question nobody answered"
+
+    # Answer the first question only.
+    thread.responses.append(reply_with(thread.requests[0]["id"]))
+
+    second = assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+
+    assert not second.ready, (
+        "the second question adopted the first run's reply:"
+        f" reason={second.reason!r}"
+    )
+    assert second.reason == "completeness-pending", (
+        f"the second question settled as {second.reason!r}, not pending"
+    )
+    assert candidate.is_draft, (
+        f"the draft was ended by an answer to a different question:"
+        f" {candidate.ready_transitions}"
+    )
+    markers = [request["id"] for request in thread.requests]
+    assert len(set(markers)) == len(markers), (
+        f"two questions shared a marker: {markers}"
+    )
+
+
+def test_a_reply_to_an_earlier_question_does_not_clear_a_later_one() -> None:
+    """A reply is bound to the marker its question was posted under.
+
+    Correlation is by marker, not by recency: a reply answering the first
+    question must leave a later question pending even though it is the newest
+    substantive reply on the thread.
+    """
+    thread = discussion()
+    candidate = pull()
+
+    assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+    first_marker = thread.requests[0]["id"]
+
+    assess_and_maybe_mark_ready(candidate, thread, assignment=IMPLEMENTATION)
+    second_marker = thread.requests[1]["id"]
+    assert second_marker != first_marker, "the two questions shared a marker"
+
+    thread.responses.append(reply_with(first_marker))
+    decision = assess_and_maybe_mark_ready(
+        candidate, thread, assignment=IMPLEMENTATION
+    )
+
+    assert not decision.ready, (
+        "a reply to the earlier question cleared the later one:"
+        f" reason={decision.reason!r}"
+    )
+    assert decision.reason == "completeness-pending", (
+        f"the later question settled as {decision.reason!r}, not pending"
+    )
+    answered = {reply.assessment_id for reply in thread.responses}
+    assert second_marker not in answered, (
+        "the newest question had a reply while the case claimed it had none"
+    )
+
+
+def test_a_narrow_proof_reply_does_not_clear_a_wider_inventory() -> None:
+    """A re-asked question is not answered by the reply to the narrower one.
+
+    The first request names one proof and is answered. The assignment then
+    covers a second proof, so the request is re-posted with the wider
+    inventory. A double that reused the marker would serve the one-proof reply
+    to the two-proof question; the reply covers only what it was asked about,
+    and clearing the wider scope on it would report an assessment nobody made.
+    """
+    thread = discussion()
+    # A proof-only assignment has no ExecPlan, so the candidate carries no
+    # approved revision and the reply echoes none.
+    narrow = pull(revision=None, required_proofs=(PROOF_ONE,))
+    narrow_reply = reply_with(PROOF_ID, revision=None, echoed=None)
+    thread.responses.append(narrow_reply)
+
+    cleared = assess_and_maybe_mark_ready(narrow, thread, assignment=PROOF_ONLY)
+    assert cleared.ready, cleared.reason
+
+    wider = pull(revision=None, required_proofs=(PROOF_ONE, PROOF_TWO))
+    decision = assess_and_maybe_mark_ready(wider, thread, assignment=PROOF_ONLY)
+
+    assert not decision.ready, (
+        "a reply to the one-proof request cleared the two-proof request:"
+        f" reason={decision.reason!r}"
+    )
+    # Pending, not an incomplete inventory: nobody answered the wider
+    # question, so there is no partial reply to judge. The one-proof answer
+    # stayed bound to the one-proof request it echoes.
+    assert decision.reason == "proof-pending", (
+        f"the wider question settled as {decision.reason!r}, not pending"
+    )
+    assert wider.is_draft, "the wider inventory left the PR ready"
+    latest = thread.requests[-1]
+    assert latest["proofs"] == f"{PROOF_ONE},{PROOF_TWO}", (
+        f"the re-ask named {latest['proofs']!r}, not the wider inventory"
+    )

@@ -84,7 +84,10 @@ merge remains blocked until the applicable assessment clears.
 
 An assessment verdict now counts for the accepted base/head **and** the
 approved plan revision in force, and the substantive reply must echo that
-revision. Reassess work whose evidence predates this change:
+revision. The revision half of that rule binds only an ExecPlan assignment: a
+proof-only assignment with no ExecPlan keeps the base/head as its whole
+candidate and asks for no revision echo. Reassess work whose evidence predates
+this change:
 
 - A completeness verdict obtained against an earlier base/head does not cover a
   later push. Request a candidate-bound follow-up rather than transferring the

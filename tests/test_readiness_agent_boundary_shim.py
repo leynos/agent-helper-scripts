@@ -1,10 +1,27 @@
-"""Contract regressions for the readiness agent-boundary stand-in.
+"""Contract regressions for the readiness agent-boundary rehearsal.
 
-The stand-in stands in for `gh` inside the rehearsal sandbox, so a route it
-answers wrongly changes the evidence a recording provides rather than merely
-failing a command. Each case here pins one such route against the behaviour
-the real client has: a write stays a write however its flags are spelled, and a
-filter is applied to JSON or refused outright.
+The rehearsal runs a headless agent against the shipped `pr-babysitting` skill
+inside a sandbox that replaces two clients with recorded stand-ins. The `gh`
+stand-in serves the GitHub routes a readiness run reads and records every
+invocation; because a route it answers wrongly changes the evidence a recording
+provides rather than merely failing a command, each case here pins one route
+against the behaviour the real client has: a write stays a write however its
+flags are spelled, a filter is applied to JSON or refused outright, and a
+`--json` list yields only the fields it names. The `cs` stand-in serves the
+local CodeScene routes the same run reads — `delta` and a focused `check` —
+answering each mode (`clean`, `finding`, `unavailable`) in the CLI's own shape
+and exit status, disclosing in its own output that it is simulated, and keeping
+a fixture fault (facts never served) distinct from a local result it cannot
+evaluate.
+
+The runner's checks are proved the same way. `sandboxed_run.sh` extracts each
+heredoc probing a trace and runs it against constructed input, so `PROBE_PLAN`,
+`PROBE_READBACK`, `PROBE_AUTHZ`, `PROBE_DELTA` and `PROBE_STATE` are exercised
+by the sequences they must accept and refuse rather than by reading the
+script's text. Extracting a probe proves what it decides, not that the runner
+reaches it, so the two checks that are delinquent exactly when a run is
+expected to transition also carry a source-text containment assertion; the
+others have no equivalent wiring assertion.
 """
 
 from __future__ import annotations
@@ -308,6 +325,32 @@ CANDIDATE_BOUND = frozenset({"headRefOid", "baseRefOid", "url", "body", "sha"})
 CHECKS_ROW = "<check>\t<status>\t<conclusion>"
 
 
+def recorded_rows(facts_path: Path) -> list[tuple[str, str, str]]:
+    """Return the check rows ``facts_path`` records, as the route serves them.
+
+    The `pr_checks` fact is the tab-separated table the route prints. Reading
+    it back here is what lets the checks case compare served values with the
+    recording rather than with a placeholder.
+
+    Parameters
+    ----------
+    facts_path : Path
+        A scenario's ``facts.json``.
+
+    Returns
+    -------
+    list of tuple
+        One ``(name, status, conclusion)`` per recorded row.
+    """
+    facts = json.loads(facts_path.read_text(encoding="utf-8"))
+    table = facts["pr_checks"]
+    return [
+        tuple(line.split("\t"))  # type: ignore[misc]
+        for line in table.splitlines()
+        if line
+    ]
+
+
 def redact(value: object) -> object:
     """Return `value` with candidate-bound fields replaced by placeholders.
 
@@ -381,6 +424,15 @@ def test_the_structured_pr_routes_keep_their_shape(
         assert done.stdout.endswith("\n"), "the checks route must end its table"
         assert snapshot == "\n".join([CHECKS_ROW] * len(rows)), (
             "the checks route changed its tabular contract"
+        )
+        # The placeholder snapshot proves the column count and nothing more.
+        # A route that served the right number of empty columns would pass it
+        # while giving the run no check name or result to read, so the served
+        # values are compared with the facts they were recorded from.
+        served = [tuple(row.split("\t")) for row in rows]
+        assert served == recorded_rows(SCENARIO), (
+            "the checks route did not serve the recorded check names and results:"
+            f" {served}"
         )
         return
     payload = json.loads(done.stdout)
@@ -771,22 +823,44 @@ def test_the_simulated_cs_answers_each_mode_in_the_cli_shape(
 
 
 @pytest.mark.parametrize(
-    "setup", [None, "not json", json.dumps({"cs_mode": "invented"})],
-    ids=["no-facts", "malformed", "unknown-mode"],
+    "setup",
+    [None, "not json", json.dumps([]), json.dumps({"cs_mode": "invented"})],
+    ids=["no-facts", "malformed", "not-an-object", "unknown-mode"],
 )
-def test_the_simulated_cs_fails_closed_without_a_recorded_mode(
+def test_the_simulated_cs_fails_closed_without_a_usable_mode(
     cs_run: Path, setup: str | None
 ) -> None:
-    """A missing or unrecognized mode reports unavailable, never clean.
+    """No usable mode yields an unevaluable answer, never a clean one.
 
-    Defaulting to `clean` would let a broken fixture manufacture the clearance
-    the rehearsal exists to check, which is the failure mode the rule names.
+    The two cases are answered differently on purpose, and both are refusals:
+
+    * A facts file that was never served — missing, malformed, or not an
+      object — is a fixture fault. The stand-in cannot say the licence check
+      failed, because no recorded fact establishes that the CLI was present at
+      all. It exits 3 with its own diagnostic, and nothing reaches the trace.
+    * A served file whose mode is unknown is an `unavailable` answer: the facts
+      exist and record something this scenario cannot evaluate, which is the
+      situation the real CLI reports with a non-zero licence failure.
+
+    Defaulting either to `clean` would let a broken fixture manufacture the
+    clearance the rehearsal exists to check.
     """
     if setup is not None:
         (cs_run / "facts.json").write_text(setup, encoding="utf-8")
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
-    assert done.returncode == 1, "expected done.returncode to equal 1"
-    assert "License check failed" in done.stdout, "expected 'License check failed' in done.stdout"
+    if setup != json.dumps({"cs_mode": "invented"}):
+        assert done.returncode == 3, done.stdout
+        assert "fixture fault" in done.stderr, done.stderr
+        assert "not a CodeScene result" in done.stderr, done.stderr
+        assert "License check failed" not in done.stdout, (
+            "a fixture fault was reported as a licence failure"
+        )
+        assert not (cs_run / "cs-trace.jsonl").exists(), (
+            "a fixture fault was recorded as a local CodeScene answer"
+        )
+    else:
+        assert done.returncode == 1, done.stdout
+        assert "License check failed" in done.stdout, done.stdout
 
 
 def test_the_simulated_cs_records_each_invocation(cs_run: Path) -> None:

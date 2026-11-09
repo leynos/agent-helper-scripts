@@ -697,6 +697,15 @@ requested local CLI reviews; PR babysitting assigns monitoring-only scrutineers
 for hosted CI. See the [Makefile targets](#makefile-targets) and
 [scrutineer contract](#scrutineer-operating-contract) for validation details.
 
+Readiness requires an evaluated local CodeScene delta as well as the hosted
+check. The two read different inputs: the hosted review judges the pushed diff,
+while the local delta judges the tree about to be pushed. An unavailable local
+`cs` — one that is absent, exits non-zero, or cannot reach its licence service
+— leaves the delta **unverified**, not clean, and that blocks a draft's
+readiness. A hosted green check cannot substitute for it; the ledger records
+the unavailable source, what would have evaluated it, and that readiness waits
+on it.
+
 Use `comenq-coderabbit` for hosted review dispatch and recovery, `rebase` and
 `sem` for replay and semantic review, and `github-stacks` for managed stack
 operations. `weave-git-merge` is optional and applies only when Weave is

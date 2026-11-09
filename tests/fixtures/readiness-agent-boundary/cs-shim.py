@@ -37,7 +37,8 @@ TRACE = RUN / "cs-trace.jsonl"
 
 # What the stand-in says about itself, first on every invocation. A reader of a
 # recording has to see that this was simulated without hunting for the README.
-BANNER = "cs-stand-in: simulated output for rehearsal; not a CodeScene analysis"
+BANNER_PREFIX = "cs-stand-in: "
+BANNER = f"{BANNER_PREFIX}simulated output for rehearsal; not a CodeScene analysis"
 
 NO_CODE = "No applicable code changes found."
 NO_ISSUES = "No issues found in checked changes."
@@ -67,13 +68,46 @@ def record(argv: list[str], mode: str) -> None:
         handle.write(json.dumps({"argv": argv, "mode": mode}) + "\n")
 
 
+#: Exit status for a fixture fault. Distinct from every status the real `cs`
+#: returns, so a run that reads the status can tell "the fixture did not supply
+#: its facts" from any answer about code — including the licence failure the
+#: `unavailable` mode imitates.
+FIXTURE_FAULT = 3
+
+
+class FixtureFault(Exception):
+    """The run's recorded facts are missing or unreadable.
+
+    This is a fault in the rehearsal, not a local CodeScene result. Reporting
+    it as `unavailable` would state that the CLI was present and its licence
+    check failed — a fact about the real binary that a missing `facts.json`
+    cannot establish. The two are reported separately so a recording shows
+    which one happened.
+    """
+
+
 def read_facts() -> dict:
-    """Return the run's facts, or an empty mapping when they are unreadable."""
+    """Return the run's recorded facts.
+
+    Raises
+    ------
+    FixtureFault
+        Raised when the facts file is missing, unreadable, not JSON, or not a
+        JSON object. Each of those means the scenario supplied nothing to
+        answer from, which the CLI boundary reports as a fixture fault rather
+        than as a local CodeScene answer.
+    """
     try:
-        facts = json.loads(FACTS.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-    return facts if isinstance(facts, dict) else {}
+        text = FACTS.read_text(encoding="utf-8")
+    except OSError as fault:
+        raise FixtureFault(f"cannot read {FACTS.name}: {fault}") from fault
+    try:
+        facts = json.loads(text)
+    except json.JSONDecodeError as fault:
+        raise FixtureFault(f"{FACTS.name} is not valid JSON: {fault}") from fault
+    if not isinstance(facts, dict):
+        raise FixtureFault(f"{FACTS.name} holds {type(facts).__name__}, not an object")
+    return facts
 
 
 def read_mode(facts: dict) -> str:
@@ -81,7 +115,10 @@ def read_mode(facts: dict) -> str:
 
     An unrecognized or missing mode is not a clean result: defaulting to
     `clean` would let a broken fixture manufacture the very clearance the
-    rehearsal exists to check.
+    rehearsal exists to check. It differs from a fixture fault, though: the
+    facts were served, and what they record cannot be evaluated. The
+    `unavailable` answer is the accurate one there, because the real CLI in
+    that situation would also be present and unable to evaluate.
     """
     mode = facts.get("cs_mode")
     return mode if mode in {"clean", "finding", "unavailable"} else "unavailable"
@@ -119,7 +156,6 @@ def answer(argv: list[str], mode: str, finding: str | None) -> int:
     `finding` is None when the facts record no text, which is the case the
     refusal below answers; the checked helpers narrow it to a non-None string.
     """
-    banner()
     # `version` answers before the mode is consulted: it touches no code, so
     # the licence check the unavailable mode imitates has not happened yet.
     if argv[:1] == ["version"]:
@@ -186,8 +222,24 @@ def answer_delta(argv: list[str], mode: str, finding: str | None) -> int:
 
 
 def main(argv: list[str]) -> int:
-    """Record the invocation, then answer it from the recorded mode."""
-    facts = read_facts()
+    """Record the invocation, then answer it from the recorded mode.
+
+    A fixture fault is reported and recorded here rather than answered: no
+    mode was served, so there is no local CodeScene fact to record, and
+    inventing one would put a simulated result in the trace for a scenario
+    that supplied none.
+    """
+    banner()
+    try:
+        facts = read_facts()
+    except FixtureFault as fault:
+        print(f"{BANNER_PREFIX}fixture fault: {fault}", file=sys.stderr)
+        print(
+            f"{BANNER_PREFIX}no recorded mode was served; this is not a"
+            " CodeScene result",
+            file=sys.stderr,
+        )
+        return FIXTURE_FAULT
     mode = read_mode(facts)
     record(argv, mode)
     return answer(argv, mode, read_finding(facts))
