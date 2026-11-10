@@ -419,6 +419,15 @@ def _assess(
     """
     if not selection.applies:
         return _not_applicable(selection.reason, pull)
+    # The question's marker is minted from the discussion's own base and head,
+    # while the revision and inventory it asks about come from the pull
+    # request. If the two doubles drift apart, the marker names a candidate the
+    # request does not, and a reply naming the request's head could inherit a
+    # marker minted for the other one. Refuse rather than post that question.
+    assert (discussion.base, discussion.head) == (pull.base, pull.head), (
+        "the discussion and the pull request describe different candidates:"
+        f" {(discussion.base, discussion.head)} != {(pull.base, pull.head)}"
+    )
     revision = pull.approved_plan_revision
     posted = discussion.post(
         selection.kind,

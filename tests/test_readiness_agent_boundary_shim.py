@@ -2177,6 +2177,35 @@ def test_every_committed_answer_record_belongs_to_a_committed_trace() -> None:
         )
 
 
+#: What a live service answer or a pasted request header looks like. Kept
+#: module-level so the guard below and the test of its failure message read
+#: one pattern rather than two that could drift apart.
+CREDENTIAL = re.compile(
+    r"(gh[pousr]_[A-Za-z0-9]{16,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|(?i:authorization)\s*:\s*\S+"
+    r"|(?i:bearer)\s+[A-Za-z0-9._-]{16,})"
+)
+
+
+def credential_failure(name: str, found: re.Match[str]) -> str:
+    """Compose the failure message for a credential-shaped match.
+
+    The message names the file and the byte offset and withholds the match
+    itself. CI logs are published, so quoting even a prefix of a real token
+    would copy part of the very secret this test exists to keep out of the
+    repository; the file and offset are enough to locate it by hand.
+
+    It is a function of its arguments, and separate from the test that uses it,
+    so the withholding can be checked directly: an assertion's own rewritten
+    report is a second channel the message cannot control.
+    """
+    return (
+        f"{name} carries something credential-shaped at offset"
+        f" {found.start()}; the match is withheld from this output"
+    )
+
+
 def test_a_committed_answer_record_carries_no_credential() -> None:
     """A committed record holds fixture answers, never a credential.
 
@@ -2184,24 +2213,43 @@ def test_a_committed_answer_record_carries_no_credential() -> None:
     fixture pool token, so nothing here should look like a secret. The check is
     a guard on future recordings: committing a real answer record by mistake
     would publish whatever the live service returned.
+
+    The failure is raised through `pytest.fail(..., pytrace=False)` rather than
+    an `assert`. At the pinned pytest 9.1.1, assertion rewriting appends
+    `assert not <re.Match ... match='...'>` and a locals line to the report, so
+    a bare `assert` would print the matched text however carefully its message
+    withheld it. A traceback-free failure prints the message alone, which is
+    what makes the withholding hold under `--showlocals` too.
     """
-    secret = re.compile(
-        r"(gh[pousr]_[A-Za-z0-9]{16,}"
-        r"|github_pat_[A-Za-z0-9_]{20,}"
-        r"|(?i:authorization)\s*:\s*\S+"
-        r"|(?i:bearer)\s+[A-Za-z0-9._-]{16,})"
-    )
     for path in sorted((FIXTURES / "answers").glob("*.jsonl")):
         text = path.read_text(encoding="utf-8")
-        found = secret.search(text)
-        # The match is withheld, not truncated: a failure message that quoted
-        # even a prefix of a `ghp_` token would copy part of the very secret
-        # this test exists to keep out of the repository, and CI logs are
-        # published. The offset and the file name are enough to locate it.
-        assert not found, (
-            f"{path.name} carries something credential-shaped at offset "
-            f"{found.start()}; the match is withheld from this output"
-        )
+        found = CREDENTIAL.search(text)
+        if found:
+            pytest.fail(credential_failure(path.name, found), pytrace=False)
+
+
+def test_the_credential_failure_message_withholds_the_match() -> None:
+    """The failure report cannot be the place a committed secret escapes.
+
+    The guard above only ever reports a match it found in a committed record,
+    so its message is read exactly when there is a real secret in the tree. A
+    message that quoted the match, or any prefix of it, would then publish part
+    of that secret to every reader of the CI log. Both halves matter: the
+    offset has to survive, because it is what locates the match by hand once
+    the text itself is withheld.
+    """
+    found = CREDENTIAL.search(
+        "token ghp_0123456789abcdefghij reserved for this test only"
+    )
+    assert found is not None, "the pattern no longer matches a shaped token"
+    message = credential_failure("answers/example.jsonl", found)
+    assert found.group(0) not in message, (
+        "the failure message quotes the match it is reporting:"
+        f" {message!r}"
+    )
+    assert str(found.start()) in message, (
+        f"the failure message drops the offset that locates the match: {message!r}"
+    )
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:

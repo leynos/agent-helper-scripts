@@ -454,7 +454,9 @@ def test_the_workflow_carries_the_requested_proof_inventory() -> None:
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
     assert candidate.ready_transitions == [HEAD], decision.reason
-    assert not candidate.is_draft
+    assert not candidate.is_draft, (
+        f"a covered proof inventory left the PR in draft: {decision.reason}"
+    )
 
 
 def test_an_incomplete_proof_inventory_keeps_the_draft_in_place() -> None:
@@ -471,10 +473,18 @@ def test_an_incomplete_proof_inventory_keeps_the_draft_in_place() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "proof-inventory-incomplete"
-    assert candidate.is_draft
-    assert candidate.ready_transitions == []
+    assert not decision.ready, "a partial proof inventory cleared the gate"
+    assert decision.reason == "proof-inventory-incomplete", (
+        f"the gate held for {decision.reason!r} rather than the partial inventory"
+    )
+    assert candidate.is_draft, (
+        "a partial proof inventory left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
+    assert candidate.ready_transitions == [], (
+        "a partial proof inventory was transitioned to ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_the_proof_request_records_the_inventory_it_asked_about() -> None:
@@ -618,6 +628,34 @@ def test_a_superseded_candidate_does_not_reuse_the_earlier_markers() -> None:
     )
     assert thread.observe(second) is None, (
         "the marker minted for the new candidate already had a reply"
+    )
+
+
+def test_a_discussion_for_another_candidate_asks_nothing() -> None:
+    """The sequence refuses a thread that describes a different candidate.
+
+    The marker a question is posted under comes from the discussion's own base
+    and head, while the revision and inventory it asks about come from the
+    pull request. Two doubles that disagree would mint a marker for one
+    candidate and bind it to a question about another, and the nearby test
+    shows what that costs: a marker says nothing about which candidate it was
+    minted for, so a reply to the second question could be read as the answer
+    to the first.
+
+    The refusal is checked on the requests as well as the exception. A
+    sequence that posted the question and only then noticed the mismatch would
+    raise the same error while spending an assessment reply on a candidate the
+    thread does not describe.
+    """
+    thread = Discussion(base=BASE, head=HEAD_SUPERSEDING)
+    thread.responses.append(reply_with(COMPLETENESS_ID))
+
+    with pytest.raises(AssertionError, match="different candidates"):
+        assess_and_maybe_mark_ready(pull(), thread, assignment=with_proof)
+
+    assert thread.requests == [], (
+        "a question was posted to a discussion for another candidate:"
+        f" {[request['kind'] for request in thread.requests]}"
     )
 
 
