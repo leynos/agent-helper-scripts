@@ -235,7 +235,7 @@ _TABLE = "| a | b |\n| --- | --- |\n| c | d |"
 #: Non-strict MD013 measures this fenced line as 101 columns: it collapses the
 #: final word to one character and counts the trailing space.
 _CODE_LINE = "code " * 20
-_CODE_BLOCK = f"```text\n{_CODE_LINE}\n```"
+_CODE_BLOCK = f"```text\n{_CODE_LINE}\n\n{_CODE_LINE}\n```"
 
 _BLOCKS = (
     "# Title",
@@ -293,10 +293,34 @@ def _content_indexes(vendor: types.ModuleType, text: str) -> list[int]:
     ]
 
 
-def _content(vendor: types.ModuleType, text: str) -> list[str]:
-    """Return the non-blank lines, without the inserted directive lines."""
-    lines = text.splitlines()
-    return [lines[index] for index in _content_indexes(vendor, text)]
+def _reconstruct(
+    vendor: types.ModuleType, lines: Sequence[str]
+) -> list[str]:
+    """Rebuild the source lines from converted lines, removing pair padding."""
+    directives = {vendor.DISABLE_MD013, vendor.ENABLE_MD013}
+    starts = dict(_regions(vendor, lines))
+    rebuilt: list[str] = []
+    index = 0
+    while index < len(lines):
+        if index in starts:
+            end = starts[index]
+            inner = lines[index + 1 : end]
+            assert inner[:1] == [""] and inner[-1:] == [""], lines
+            rebuilt.extend(inner[1:-1])
+            index = end + 1
+            continue
+        assert lines[index] not in directives, lines
+        rebuilt.append(lines[index])
+        index += 1
+    return rebuilt
+
+
+def _assert_structure_preserved(
+    vendor: types.ModuleType, document: str, converted: str
+) -> None:
+    """Assert that only directive pairs and their blank padding were added."""
+    rebuilt = _reconstruct(vendor, converted.splitlines())
+    assert rebuilt == document.splitlines(), converted
 
 
 def _is_list_item(block: str) -> bool:
@@ -414,6 +438,42 @@ def test_the_pair_invariant_rejects_merged_and_split_pairs(
         )
 
 
+def test_the_structure_check_rejects_a_removed_paragraph_separator(
+    vendor: types.ModuleType,
+) -> None:
+    """Removing the blank line between two paragraphs merges their blocks."""
+    with pytest.raises(AssertionError):
+        _assert_structure_preserved(vendor, "one\n\ntwo\n", "one\ntwo\n")
+
+
+def test_a_blank_line_inside_a_fenced_block_survives_the_pass(
+    vendor: types.ModuleType,
+) -> None:
+    """The blank padding around a pair is not the block's own blank line."""
+    document = f"# Title\n\n{_CODE_BLOCK}\n"
+    converted = vendor.insert_exemptions(
+        document, line_length=40, code_line_length=60
+    )
+
+    assert vendor.DISABLE_MD013 in converted, converted
+    _assert_structure_preserved(vendor, document, converted)
+
+
+def test_the_structure_check_rejects_a_pair_that_drops_a_block_line(
+    vendor: types.ModuleType,
+) -> None:
+    """A pair must carry every original block line, blank lines included."""
+    document = f"# Title\n\n{_CODE_BLOCK}\n"
+    converted = vendor.insert_exemptions(
+        document, line_length=40, code_line_length=60
+    )
+    damaged = converted.replace(f"{_CODE_LINE}\n\n", f"{_CODE_LINE}\n", 1)
+
+    assert damaged != converted, converted
+    with pytest.raises(AssertionError):
+        _assert_structure_preserved(vendor, document, damaged)
+
+
 @given(blocks=_block_documents(), limits=_limits())
 @settings(max_examples=60, deadline=None)
 def test_each_long_block_is_bracketed_and_the_other_lines_survive(
@@ -428,7 +488,7 @@ def test_each_long_block_is_bracketed_and_the_other_lines_survive(
         index for start, end in regions for index in range(start + 1, end)
     }
 
-    assert _content(vendor, converted) == _content(vendor, document), converted
+    _assert_structure_preserved(vendor, document, converted)
     assert vendor.insert_exemptions(converted, **limits) == converted, converted
 
     mapping = dict(
