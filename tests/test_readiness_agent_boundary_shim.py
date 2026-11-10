@@ -360,11 +360,12 @@ def recorded_rows(facts_path: Path) -> list[tuple[str, str, str]]:
     """
     facts = json.loads(facts_path.read_text(encoding="utf-8"))
     table = facts["pr_checks"]
-    return [
-        tuple(line.split("\t"))  # type: ignore[misc]
-        for line in table.splitlines()
-        if line
-    ]
+    rows = [line.split("\t") for line in table.splitlines() if line]
+    # Unpacking into three names rejects a malformed row here, where the
+    # message names the fixture, rather than letting a four- or two-field row
+    # reach a test that fails somewhere less obvious. It also lets a type
+    # checker see a fixed-width tuple instead of `tuple[str, ...]`.
+    return [(name, status, conclusion) for name, status, conclusion in rows]
 
 
 def redact(value: object) -> object:
@@ -828,7 +829,8 @@ def test_each_post_in_a_run_is_stamped_later_than_the_one_before(run: Path) -> N
     assert second.returncode == 0, second.stderr
     earlier = json.loads(first.stdout)["created_at"]
     later = json.loads(second.stdout)["created_at"]
-    assert earlier and later, "a post was served without a created_at"
+    assert earlier, "the first post was served without a created_at"
+    assert later, "the second post was served without a created_at"
     assert later > earlier, (
         f"the second post is stamped {later}, not later than the first at "
         f"{earlier}, so two posts in one run share a stamp"
@@ -2093,12 +2095,28 @@ def test_a_holding_proof_case_isolates_the_proof_assessment() -> None:
         assert needed in probe, f"the premise probe no longer asserts {needed!r}"
 
 
+#: The runs whose committed answer records hold `{argv, status}` and no
+#: `stdout`, because they were captured before the stand-in recorded the text it
+#: printed. They are listed rather than tolerated silently: a new recording that
+#: lost `stdout` is a regression, while these five are a known, stated limit of
+#: evidence gathered earlier. Removing a name here means the file gained
+#: `stdout`, which is an improvement.
+ANSWERS_WITHOUT_STDOUT = frozenset({
+    "codescene-advisory.jsonl",
+    "local-codescene-finding.jsonl",
+    "local-codescene-unavailable.jsonl",
+    "proof-only-pending.jsonl",
+    "subset-clear.jsonl",
+})
+
+
 def test_every_committed_answer_record_belongs_to_a_committed_trace() -> None:
     """An answer record is only evidence beside the trace it was produced with.
 
-    The record holds the status and stdout of each invocation, which the argv
-    trace cannot show. Committing one from a different run would answer a trace
-    that is not beside it, so the pairing is asserted rather than trusted.
+    The record holds the status and, for the later runs, the stdout of each
+    invocation, which the argv trace cannot show. Committing one from a
+    different run would answer a trace that is not beside it, so the pairing is
+    asserted rather than trusted.
     """
     answers = sorted((FIXTURES / "answers").glob("*.jsonl"))
     assert answers, "no committed answer records"
@@ -2124,6 +2142,19 @@ def test_every_committed_answer_record_belongs_to_a_committed_trace() -> None:
                 f"{path.name} answers invocation {index} with a different argv"
                 " from the trace's, so the two are not the same run"
             )
+        # A record without `stdout` can show that a call ran and how it exited,
+        # but not what the agent received. The five files that lack it are named
+        # rather than skipped, so the set cannot grow unnoticed: a new recording
+        # that loses the field fails here, and a listed file that gains it fails
+        # too, prompting its removal from the list.
+        carrying = any("stdout" in record for record in records)
+        listed = path.name in ANSWERS_WITHOUT_STDOUT
+        assert carrying is not listed, (
+            f"{path.name} {'carries' if carrying else 'lacks'} a stdout field"
+            f" but is {'named' if listed else 'not named'} in"
+            " ANSWERS_WITHOUT_STDOUT, so the list and the committed records"
+            " disagree about what this answer record evidences"
+        )
 
 
 def test_a_committed_answer_record_carries_no_credential() -> None:
@@ -2143,9 +2174,13 @@ def test_a_committed_answer_record_carries_no_credential() -> None:
     for path in sorted((FIXTURES / "answers").glob("*.jsonl")):
         text = path.read_text(encoding="utf-8")
         found = secret.search(text)
+        # The match is withheld, not truncated: a failure message that quoted
+        # even a prefix of a `ghp_` token would copy part of the very secret
+        # this test exists to keep out of the repository, and CI logs are
+        # published. The offset and the file name are enough to locate it.
         assert not found, (
-            f"{path.name} carries something credential-shaped at "
-            f"{found.start() if found else 0}: {found.group(0)[:12]!r}"
+            f"{path.name} carries something credential-shaped at offset "
+            f"{found.start()}; the match is withheld from this output"
         )
 
 

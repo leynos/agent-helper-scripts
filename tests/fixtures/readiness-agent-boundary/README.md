@@ -629,13 +629,26 @@ The answer record is committed for the same reason. The argv trace says a read
 was attempted; only the answer says whether it succeeded and what the agent
 actually received, which is what separates a usable read from one that failed
 or filtered to nothing. The runner asserts on it during the run, but a
-committed trace without it leaves a reader unable to check that assertion. Each
+committed trace without it leaves a reader unable to check that assertion. A
 record is the stand-in's own `{argv, status, stdout}`, so it carries fixture
 data only: the stand-in answers from `facts.json` and never from the live
 service, and it holds no credential because the sandbox passes none. Commit it
 only when it was produced by the same run as the trace beside it — a record
 copied from a different run would not describe that trace's answers. Runs whose
 scratch directory is gone have no record committed, and none is reconstructed.
+
+**Not every committed record carries `stdout`.** Five do not:
+`codescene-advisory`, `local-codescene-finding`, `local-codescene-unavailable`,
+`proof-only-pending` and `subset-clear`. Their records hold `{argv, status}`
+only, because they were captured before the stand-in recorded the text it
+printed. They show that each invocation ran and how it exited; they cannot show
+what the agent received, so they do not on their own evidence the "usable read"
+claim above for those runs. The pairing test checks the record count and the
+argv of each entry, which is exactly the part those five do still carry — it
+does not detect the missing `stdout`, and it is not meant to. Read them as a
+status record, not as an answer. Re-recording those five would close the gap;
+they have not been re-recorded here, and the shortfall is stated rather than
+left for a reader to discover.
 
 A scenario that posted no comment has no `submitted/` entry. Replace a trace,
 its answer record, its `cs` trace, its outcome and its submitted body together:
