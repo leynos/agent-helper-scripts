@@ -537,13 +537,21 @@ fi
 # it is the only permitting run where two assessments must both clear, so the
 # revision binding cannot be inferred from a single verdict's echo.
 #
-# The three holding combined cases are held to the same read. Each of them
-# exists because a verdict is not usable as given — a stale revision, an
-# unbound one, a different head — and every one of those grounds is a fact
-# about the plan file or the candidate, not about the reply alone. A run that
-# never read the plan could not have established any of them, so its hold would
-# be for some other reason and the recording would demonstrate nothing. A
-# holding run is not held to the read-back: there is no transition to read.
+# Three holding combined cases are held to the same read, because each exists
+# for a ground that is a fact about the plan file: a verdict recorded against a
+# revision the file no longer states, one that states no revision at all, and a
+# reply whose assessed head is not this candidate's while the plan is the only
+# surface naming the revision it echoes. A run that never read the plan could
+# not have established any of them, so its hold would be for some other reason.
+# A holding run is not held to the read-back: there is no transition to read.
+#
+# `combined-proof-pending` and `combined-proof-stale-verdict` are deliberately
+# absent. Their grounds are the state of the proof verdict itself — unfinished,
+# or clear for a head that is not this candidate — and neither is decided by
+# anything the plan file says. A pending verdict cannot clear at any revision,
+# so a run that held without reading the plan held for exactly the right
+# reason; requiring the read there would demand evidence the decision does not
+# rest on, and a recording made to satisfy it would demonstrate nothing extra.
 case $SCENARIO in
   current-whole-plan | combined-plan-and-proof | combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
     plan_line=$(grep -n 'contents/docs/execplans/.*ref=' "$TRACE" | head -1 | cut -d: -f1)
@@ -711,7 +719,7 @@ esac
 # a later edit to a scenario could remove the defect and leave the recording
 # looking like a hold on the named ground when it was a hold on nothing.
 case $SCENARIO in
-  combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
+  combined-proof-pending | combined-proof-stale-verdict | combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
     if ! python3 - "$SCENARIO" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PREMISE'
 import json, re, sys
 
@@ -762,6 +770,57 @@ else:
             f"{pr['baseRefOid']}...{pr['headRefOid']}"
         }:
             problems.append("a reply assesses a base/head other than the PR's")
+    elif name == "combined-proof-pending":
+        # The proof reply states no verdict of its own: it says the scrutiny is
+        # unfinished. The completeness reply in the same thread must be clear
+        # for the candidate and the revision in force, or the hold could be
+        # the completeness assessment's and the case would not isolate a
+        # pending proof.
+        if "**Verdict: pending**" not in proof:
+            problems.append("the proof reply does not record a pending verdict")
+        if "**Verdict: clear**" in proof:
+            problems.append("the proof reply states a clear verdict")
+        if filed(proof, "Plan revision") != revision_in_force:
+            problems.append("the pending proof reply does not echo the revision in force")
+        completeness = [body for body in replies if body not in proof_replies]
+        if len(completeness) != 1:
+            problems.append(f"{len(completeness)} completeness replies, expected 1")
+        else:
+            current = completeness[0]
+            if "**Verdict: clear**" not in current:
+                problems.append("the completeness reply is not clear")
+            if filed(current, "Plan revision") != revision_in_force:
+                problems.append("the completeness reply does not echo the revision in force")
+            if filed(current, "Assessed base/head") != (
+                f"{pr['baseRefOid']}...{pr['headRefOid']}"
+            ):
+                problems.append("the completeness reply assesses a base/head other than the PR's")
+    elif name == "combined-proof-stale-verdict":
+        # The proof reply is clear, current in revision, and the only thing
+        # wrong with it is the head it assessed. The completeness reply must be
+        # clear, current and bound to this candidate, so the hold isolates the
+        # stale proof verdict rather than inheriting a stale completeness one.
+        assessed = filed(proof, "Assessed base/head") or ""
+        head = assessed.rsplit("...", 1)[-1]
+        if "**Verdict: clear**" not in proof:
+            problems.append("the proof reply is not clear")
+        if head == pr["headRefOid"]:
+            problems.append("the proof verdict assesses the PR's current head")
+        if filed(proof, "Plan revision") != revision_in_force:
+            problems.append("the proof reply does not echo the revision in force")
+        completeness = [body for body in replies if body not in proof_replies]
+        if len(completeness) != 1:
+            problems.append(f"{len(completeness)} completeness replies, expected 1")
+        else:
+            current = completeness[0]
+            if "**Verdict: clear**" not in current:
+                problems.append("the completeness reply is not clear")
+            if filed(current, "Plan revision") != revision_in_force:
+                problems.append("the completeness reply does not echo the revision in force")
+            if filed(current, "Assessed base/head") != (
+                f"{pr['baseRefOid']}...{pr['headRefOid']}"
+            ):
+                problems.append("the completeness reply assesses a base/head other than the PR's")
     elif name == "combined-proof-unbound-revision":
         # The proof reply is clear and bound to the candidate, and its only
         # defect is that it states no plan revision. The completeness reply in

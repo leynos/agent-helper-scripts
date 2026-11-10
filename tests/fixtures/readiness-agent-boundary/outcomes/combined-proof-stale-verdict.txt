@@ -1,0 +1,16 @@
+I left PR 272 in draft and posted a follow-up proof-assessment request ([issuecomment-9901](https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901)), because the earlier "clear" proof verdict was for a different head; after about 12 minutes of polling there is no reply, so the PR is at `assessment-pending`.
+
+**Deciding evidence:** the proof verdict in comment 9994 says `**Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...aaaa1111`, but the PR's current head is `"headRefOid": "9999dddd"`. The skill says readiness requires a clear proof verdict "for the same base/head", so this one doesn't count.
+
+**What does count for head `9999dddd`:**
+- **Completeness check:** clear. Comment 9992 says "The whole approved plan is implemented at this head", naming `9999dddd` and `rev-7`. The plan file at this head still says `Plan revision: rev-7`, so that verdict applies.
+- **CI:** all three checks pass. The CodeScene check reports "No issues found".
+- **Local CodeScene:** the `cs` stand-in reported "No issues found in checked changes." and openly says its output is simulated.
+- **Trust:** the PR's author and its only commit are both `experiment-owner`, which is the logged-in `gh` account, and the branch is not from a fork.
+
+**What I did:**
+- Posted the new request through the skill's comment script under its own ID, `271-ab-combined-stale-verdict-proof-r2`. The pool account `fixture-commenter` posted it, not the main account.
+- I didn't run Lean locally, and the request says so.
+- I didn't run `gh pr ready` or ask for a formal review.
+
+**Next step:** once CodeRabbit gives a clear verdict that names `9999dddd` and `rev-7`, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` and confirm `isDraft=false`. The record of this run, including where polling should resume, is in `/tmp/pr272-ledger/ledger.md`.

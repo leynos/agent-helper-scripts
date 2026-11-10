@@ -9,7 +9,12 @@ They are **rehearsals against a controlled GitHub surface, not live GitHub
 runs**. They exercise the shipped text, not the GitHub API, not a live
 CodeRabbit reply, and not the real CodeRabbit service. Record the executable
 checks actually run in a PR's validation evidence; do not cite these files as
-proof of a live scenario.
+proof of a live scenario. They also do not judge a proof's mathematics: the
+sandbox has no Lean toolchain, so no recording here runs the verifier or builds
+`proofs/refinement/Theorem.lean`. What a permitting proof case shows is that a
+run clears the readiness gate on an assessment reply of the required shape; it
+does not show that the reply's verdict is mathematically sound, and the
+outcomes say so in their own words.
 
 ## What each scenario pins
 
@@ -19,7 +24,7 @@ the hosted check's own output, or the recorded local CodeScene result. `base` is
 `73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
 draft in each case. The two `proof-only-*` scenarios differ from the rest in
 one more respect that is part of their premise: their PR body says no ExecPlan
-applies and their diff is the proof they introduce. The four `combined-*`
+applies and their diff is the proof they introduce. The six `combined-*`
 scenarios differ in the opposite direction: their PR changes the plan file and
 a proof, so both assessments apply, and the plan and proof `contents` routes
 both serve the text a run reads at its own head.
@@ -36,6 +41,8 @@ both serve the text a run reads at its own head.
 | `proof-only-pending`                | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered                        | no            |
 | `proof-only-cleared`                | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound`              | yes           |
 | `combined-plan-and-proof`           | `3333dddd` | **clear** whole plan, `rev-7`; the plan file is changed too                  | **clear**, `refinement_sound`, `rev-7`             | yes           |
+| `combined-proof-pending`            | `8888cccc` | **clear** whole plan, `rev-7`                                                | **pending**; the scrutiny is unfinished            | no            |
+| `combined-proof-stale-verdict`      | `9999dddd` | **clear** whole plan, `rev-7`                                                | **clear**, for `…aaaa1111`, which is not this head | no            |
 | `combined-proof-stale-revision`     | `4444eeee` | clear verdict, but records `rev-7` while the plan file reads `rev-8`         | clear verdict, same stale `rev-7`                  | no            |
 | `combined-proof-unbound-revision`   | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
 | `combined-proof-candidate-mismatch` | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
@@ -68,7 +75,7 @@ stale-revision rule — the follow-up path works, and readiness still waits.
 
 ### The two-assessment cases
 
-The four `combined-*` scenarios are the cases where an ExecPlan implementation
+The six `combined-*` scenarios are the cases where an ExecPlan implementation
 also introduces a proof, so both the completeness and the proof assessment are
 applicable and both must clear. A verdict on one of them says nothing about the
 other, and the pair of requests means a run cannot infer the revision binding
@@ -81,9 +88,37 @@ echoing `rev-7` for the same base/head, which matches the plan file read at the
 head being judged. The PR changes the plan file and a Lean proof, and the run
 reads both `contents` routes before deciding.
 
-The other three hold for one distinct reason each, so that a hold in one cannot
-be explained by the defect in another:
+That run records an explicit limit on what it establishes. It had no Lean
+toolchain, so it did not build the proof, and it reports that it could not
+inspect the lemma `sound_of_refine` the proof applies or confirm that the
+theorem's starting condition can hold. It cleared on the proof assessment's
+verdict and the passing repository gates, not on a verifier run. The recording
+is therefore evidence that the readiness rule accepts an assessment reply of
+the right shape; it is not evidence that the reply's verdict is mathematically
+sound, and the outcome states the gap rather than leaving it implicit.
 
+The other five hold for one distinct reason each, so that a hold in one cannot
+be explained by the defect in another. Two of them break the proof assessment
+while the completeness assessment is clear, current, and bound to this
+candidate; the remaining three break the evidence a verdict is reconciled
+against:
+
+- `combined-proof-pending` leaves the proof assessment unfinished. The
+  completeness reply is clear for the whole plan at `rev-7` and for this
+  candidate, so nothing on that side can hold the run. The proof reply records
+  `Verdict: pending` and says why: the lemma the proof applies is not among the
+  declarations in the file, and the answer is still being decided. A pending
+  verdict is neither clear nor a finding, and cannot clear. The run polls, gets
+  no further reply, and stays draft without posting anything — there is nothing
+  yet to answer.
+- `combined-proof-stale-verdict` gives the proof a clear verdict for a head
+  that is not this candidate. The completeness reply is clear and current, and
+  the proof reply is clear and echoes `rev-7`, but its assessed head is
+  `aaaa1111` where the PR's head is `9999dddd`. The run treats the verdict as
+  inapplicable, posts a follow-up pinned to the real head, and stays draft.
+  This is the pair that isolates the proof assessment: the older
+  `combined-proof-stale-revision` has both verdicts stale, so its hold does not
+  show which assessment held it.
 - `combined-proof-stale-revision` moves the plan file under the replies. Both
   replies are clear and echo `rev-7`, and both are for the right base/head —
   but the plan at this head reads `rev-8`, because the plan file is what moved
@@ -105,6 +140,12 @@ be explained by the defect in another:
   service for that commit returns 404. A verdict recorded against another
   revision does not carry over, so the run asks again against the real head and
   stays in draft.
+
+Only the three whose hold is a fact about the plan file are held to a plan read
+by the runner. The pending and stale-verdict cases are decided by the state of
+the proof verdict alone — a pending verdict cannot clear at any revision, and a
+clear verdict for another head needs no plan read to disqualify — so requiring
+that read would demand evidence their decisions do not rest on.
 
 ## Layout
 
@@ -179,7 +220,11 @@ be explained by the defect in another:
   and a run that polls for a fresh reply filters the discussion by time. A
   comment with no stamp reads back as `created_at: null`, which two recordings
   reported as the service failing to record when an accepted comment was made.
-  A single-comment route serves any comment the recorded listing carries, so a
+  The value is derived, not the instant of the POST, which a stand-in with no
+  clock cannot know; what it reproduces is the property a poll needs, and
+  because each earlier post is folded back into the facts, a second post in the
+  same run is stamped later than the first rather than sharing its stamp. A
+  single-comment route serves any comment the recorded listing carries, so a
   read-back finds a comment the run itself did not post. The `contents` route
   serves the plan file with its blob SHA, which is what lets a follow-up name
   the plan revision instead of stopping for a value the fixture never supplied.
@@ -469,22 +514,31 @@ candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
-**Freshness of each recording.** All thirteen recordings passed their own
+**Freshness of each recording.** All fifteen recordings passed their own
 outcome assertion when they were made. They were replaced when the runner
 gained the shared `pr-ready` boundary line, the successful read-back check, the
 candidate-bound plan read and the head-commit route, and when the assignment
 began naming the stand-in as the local source; both changes reached every
 scenario, so all nine originals were redone together.
 
-The stand-in's handling of a posted comment changed last, and only the
-recordings that post were redone under it: the four `combined-*` scenarios and
+The stand-in's handling of a posted comment changed next, and the recordings
+that post were redone under it: the combined cases as they then stood and
 `superseded-revision`. Before that change a posted comment read back with
 `created_at: null` and a second post overwrote the first, and two outcomes
 reported those as defects in the service. A stand-in that mismodelled the
 record it exists to serve cannot be the evidence for how an agent reads that
-record. The eight recordings that post nothing are unaffected, because the
-change is confined to the comment the stand-in records and serves back; they
-were not re-recorded, and their provenance is the earlier refresh above.
+record. The recordings that post nothing are unaffected, because the change is
+confined to the comment the stand-in records and serves back; they were not
+re-recorded, and their provenance is the earlier refresh above.
+
+Last, `combined-proof-pending` and `combined-proof-stale-verdict` were recorded
+after the others, and they are the only two made under every current assertion:
+the premise check, the comment stamp, and the answer record. They post nothing
+and answered a follow-up respectively, which is why the stale-verdict run has a
+`submitted/` entry and the pending run does not. The answer records under
+`answers/` exist only for runs whose scratch directory still held one when the
+record was committed; a run whose scratch is gone has none, and none was
+reconstructed.
 
 A recording made before an assertion was added is still valid evidence for what
 it observed, but it has not been re-run against the assertion. The plan-read
@@ -539,6 +593,7 @@ run, where the run produced them:
 | Run directory             | Committed path           | Present when             |
 | ------------------------- | ------------------------ | ------------------------ |
 | `gh-trace.jsonl`          | `traces/<name>.jsonl`    | always                   |
+| `gh-answers.jsonl`        | `answers/<name>.jsonl`   | always                   |
 | `cs-trace.jsonl`          | `traces/<name>-cs.jsonl` | the run invoked `cs`     |
 | the agent's final message | `outcomes/<name>.txt`    | always                   |
 | `submitted.md`            | `submitted/<name>.txt`   | the run posted a comment |
@@ -549,13 +604,24 @@ boundary line the stand-in writes into it is what makes that ordering
 checkable. Copy it whenever the run produced one, and delete a stale
 `traces/<name>-cs.jsonl` when the new run produced no `cs` trace at all: a
 committed trace left behind by an earlier run would claim a consultation this
-run never made. `gh-answers.jsonl` is scratch: the runner asserts on it during
-the run, but its claim — that the read-back succeeded — is already recorded in
-the outcome it produced, and it duplicates the argv trace at twice the size.
+run never made.
+
+The answer record is committed for the same reason. The argv trace says a read
+was attempted; only the answer says whether it succeeded and what the agent
+actually received, which is what separates a usable read from one that failed
+or filtered to nothing. The runner asserts on it during the run, but a
+committed trace without it leaves a reader unable to check that assertion. Each
+record is the stand-in's own `{argv, status, stdout}`, so it carries fixture
+data only: the stand-in answers from `facts.json` and never from the live
+service, and it holds no credential because the sandbox passes none. Commit it
+only when it was produced by the same run as the trace beside it — a record
+copied from a different run would not describe that trace's answers. Runs whose
+scratch directory is gone have no record committed, and none is reconstructed.
 
 A scenario that posted no comment has no `submitted/` entry. Replace a trace,
-its `cs` trace, its outcome and its submitted body together: any one without
-the others, or the reverse, is not evidence of anything. Review a new recording
-before replacing an old one, and keep the previous recording's scope if it
-covered different evidence. A run is only a recording if it passed every
-assertion above; a run that aborted is a failed rehearsal and replaces nothing.
+its answer record, its `cs` trace, its outcome and its submitted body together:
+any one without the others, or the reverse, is not evidence of anything. Review
+a new recording before replacing an old one, and keep the previous recording's
+scope if it covered different evidence. A run is only a recording if it passed
+every assertion above; a run that aborted is a failed rehearsal and replaces
+nothing.

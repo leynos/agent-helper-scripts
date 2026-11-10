@@ -289,16 +289,20 @@ STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 def posted_at(facts: dict) -> str:
     """Return the timestamp a comment posted now would carry.
 
-    The real service stamps a POST with the instant it is accepted, and a run
-    that should poll for a fresh reply filters the discussion by time. The
-    stamp is therefore the latest time the recorded discussion names, plus a
-    minute: it is deterministic, so a replayed run records the same value, and
-    it always sorts after the thread the comment was posted into, so a
-    time-filtered poll sees the post and not a reply that predates it.
+    The real service stamps a POST with the instant it is accepted, which a
+    stand-in cannot know: it replays recorded answers and has no clock. What it
+    can reproduce is the property a polling run depends on. A run that should
+    poll for a fresh reply filters the discussion by time, so the stamp must
+    sort after every comment already in the thread.
 
-    A fixed constant that merely looked plausible would break as soon as a
-    scenario recorded a later comment, so the value is derived from the facts
-    rather than chosen.
+    It is therefore one minute past the latest time the facts record. This is
+    a derived fixture value, not the instant of the POST: it is deterministic,
+    so a replay records the same value, and it always sorts after the thread
+    the comment was posted into.
+
+    A second post in the same run also gets a later stamp, because `read_facts`
+    folds the state of earlier posts back into the facts this reads. That is
+    what keeps two posts distinguishable by time rather than sharing a stamp.
 
     Parameters
     ----------
@@ -310,10 +314,13 @@ def posted_at(facts: dict) -> str:
     str
         An RFC 3339 UTC timestamp later than everything the facts record.
     """
-    stamps = sorted(STAMP.findall(json.dumps(facts)))
+    stamps = STAMP.findall(json.dumps(facts))
     if not stamps:
         return FALLBACK_POSTED_AT
-    latest = datetime.strptime(stamps[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    latest = max(
+        datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        for stamp in stamps
+    )
     return (latest + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -348,9 +355,11 @@ def posted_comment(facts: dict, body: str, login: str, ident: int) -> dict:
         # made a posted comment read back with `created_at: null`, and a
         # recording then reported that the service had not stamped it — a
         # fixture artefact the agent cannot tell from a comment the service
-        # accepted without recording when. The stamp is the instant of the
-        # POST, as the service's is, so it sorts after the discussion it was
-        # posted to and two posts remain distinguishable by time.
+        # accepted without recording when. The stand-in has no clock, so the
+        # stamp is derived: it sorts after the discussion the comment was
+        # posted into and after any earlier post in this run, which is what a
+        # time-filtered poll needs. It is not claimed to be the instant of the
+        # POST.
         "created_at": post.get("created_at", posted_at(facts)),
         "updated_at": post.get("updated_at", posted_at(facts)),
     }
@@ -392,7 +401,9 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     Each accepted POST is appended under an id of its own. A readiness run may
     renew two assessments at once when both are invalidated, and a stand-in
     that kept only the latest would report the first as missing — a fixture
-    artefact the agent cannot tell from a service that lost it.
+    artefact the agent cannot tell from a service that lost it. Each post also
+    takes its own derived stamp, later than the one before it, so the two are
+    distinguishable by time and a time-filtered poll sees both.
     """
     login = login_for(facts)
     if login != POOL_LOGIN:

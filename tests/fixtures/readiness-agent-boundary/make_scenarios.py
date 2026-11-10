@@ -1143,6 +1143,134 @@ scenario(Case(
 ))
 
 scenario(Case(
+    name="combined-proof-pending",
+    head="8888cccc",
+    draft=True,
+    comments=[
+        comment(
+            9981,
+            "buzzybee-df12",
+            request("271-ab-combined-pending", "rev-7", "8888cccc"),
+            "2026-11-08T11:00:00Z",
+        ),
+        # Completeness is clear for the whole plan at this head and the
+        # revision in force. It is current, so nothing about it can hold the
+        # run; any hold here is the proof assessment's alone.
+        comment(
+            9982,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-pending",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "8888cccc",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T11:05:00Z",
+        ),
+        comment(
+            9983,
+            "pandalump",
+            proof_request("271-ab-combined-pending-proof", "8888cccc", "rev-7"),
+            "2026-11-08T11:10:00Z",
+        ),
+        # The proof assessment is still being decided: the reply says so in
+        # words rather than stating a verdict. A reply that is neither clear nor
+        # a finding is pending, and a pending assessment cannot clear.
+        comment(
+            9984,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-pending-proof",
+                "rev-7",
+                "8888cccc",
+                label="pending",
+                prose=(
+                    "I have not finished the proof scrutiny. The lemma"
+                    " `sound_of_refine` that `refinement_sound` applies is not"
+                    " among the declarations in the proof file, and I have not"
+                    " yet established whether its starting condition can hold."
+                    " I will answer once that is settled; treat this as pending"
+                    " rather than clear."
+                ),
+            ),
+            "2026-11-08T11:15:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    cs_mode="clean",
+))
+
+scenario(Case(
+    name="combined-proof-stale-verdict",
+    head="9999dddd",
+    draft=True,
+    comments=[
+        comment(
+            9991,
+            "buzzybee-df12",
+            request("271-ab-combined-stale-verdict", "rev-7", "9999dddd"),
+            "2026-11-08T12:00:00Z",
+        ),
+        # Completeness is clear, current, and echoes the revision in force, so
+        # the completeness side is not what holds this run. Only the proof
+        # verdict is out of date, which is what separates this case from
+        # `combined-proof-stale-revision`, where both verdicts are stale and
+        # the hold does not isolate the proof assessment.
+        comment(
+            9992,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-stale-verdict",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "9999dddd",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T12:05:00Z",
+        ),
+        comment(
+            9993,
+            "pandalump",
+            proof_request("271-ab-combined-stale-verdict-proof", "9999dddd", "rev-7"),
+            "2026-11-08T12:10:00Z",
+        ),
+        # The proof reply is clear for a head that is not this candidate. The
+        # service accepted a verdict; it simply does not apply here. A run that
+        # treats any clear proof verdict as clearing would mark ready.
+        comment(
+            9994,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-stale-verdict-proof",
+                "rev-7",
+                "aaaa1111",
+                prose=(
+                    "`refinement_sound` is substantive and non-vacuous at the"
+                    " head I was given, its preconditions are satisfiable, and"
+                    " no unresolved proof concern remains."
+                ),
+            ),
+            "2026-11-08T12:15:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    cs_mode="clean",
+))
+
+scenario(Case(
     name="combined-proof-stale-revision",
     head="4444eeee",
     draft=True,

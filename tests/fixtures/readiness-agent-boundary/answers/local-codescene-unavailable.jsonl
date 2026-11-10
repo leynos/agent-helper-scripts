@@ -1,0 +1,5 @@
+{"argv": ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", "number,title,author,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,body,commits"], "status": 0}
+{"argv": ["pr", "checks", "272", "--repo", "leynos/agent-helper-scripts"], "status": 0}
+{"argv": ["api", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments"], "status": 0}
+{"argv": ["api", "--paginate", "repos/leynos/agent-helper-scripts/pulls/272/comments"], "status": 0}
+{"argv": ["api", "--paginate", "repos/leynos/agent-helper-scripts/pulls/272/reviews"], "status": 0}

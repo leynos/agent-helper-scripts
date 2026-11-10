@@ -32,6 +32,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -772,7 +773,7 @@ def test_two_accepted_posts_are_two_readable_comments(run: Path) -> None:
 
 
 def test_a_posted_comment_is_stamped_after_the_discussion(run: Path) -> None:
-    """A posted comment carries the timestamps the real service stamps.
+    """A posted comment carries a stamp that sorts after the discussion.
 
     `gh` filters a discussion by `created_at` when it polls for a fresh reply,
     and a comment with no stamp cannot be selected by such a filter. The
@@ -782,9 +783,11 @@ def test_a_posted_comment_is_stamped_after_the_discussion(run: Path) -> None:
     omission, and an agent cannot tell one from a service that accepted a
     comment without recording when.
 
-    The stamp must also sort after the thread it was posted into, or a poll
-    that asks for comments newer than the last recorded reply would skip the
-    very comment the run had just added.
+    The value is derived — the latest stamp the facts record, plus a minute —
+    not the instant of the POST, which a stand-in with no clock cannot know.
+    The property asserted is the one a poll depends on: it sorts after the
+    thread it was posted into, so a poll asking for comments newer than the
+    last recorded reply still sees the comment the run had just added.
     """
     done = invoke(run, "api", COMMENT_ROUTE, "-f", "body=stamped", token=POOL_TOKEN)
     assert done.returncode == 0, done.stderr
@@ -807,6 +810,28 @@ def test_a_posted_comment_is_stamped_after_the_discussion(run: Path) -> None:
     assert created > discussed, (
         f"the posted comment is stamped {created}, not after the discussion's "
         f"latest entry {discussed}, so a time-filtered poll would skip it"
+    )
+
+
+def test_each_post_in_a_run_is_stamped_later_than_the_one_before(run: Path) -> None:
+    """Two follow-ups in one run are distinguishable by time.
+
+    A run that renews both assessments posts twice, and a stand-in that gave
+    both the same stamp would make a time-filtered poll unable to tell the
+    second from the first. The stand-in has no clock, so the stamp is derived
+    from the facts; the property that has to hold is not that it equals the
+    instant of the POST but that it strictly increases with each post.
+    """
+    first = invoke(run, "api", COMMENT_ROUTE, "-f", "body=first", token=POOL_TOKEN)
+    assert first.returncode == 0, first.stderr
+    second = invoke(run, "api", COMMENT_ROUTE, "-f", "body=second", token=POOL_TOKEN)
+    assert second.returncode == 0, second.stderr
+    earlier = json.loads(first.stdout)["created_at"]
+    later = json.loads(second.stdout)["created_at"]
+    assert earlier and later, "a post was served without a created_at"
+    assert later > earlier, (
+        f"the second post is stamped {later}, not later than the first at "
+        f"{earlier}, so two posts in one run share a stamp"
     )
 
 
@@ -1908,14 +1933,19 @@ def test_the_combined_scenario_is_held_to_every_permitting_check() -> None:
 
 
 def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
-    """A holding combined case must have read the plan it says it reconciled.
+    """A holding combined case decided by the plan file must have read it.
 
-    Each of the three exists because a verdict is unusable as given: a stale
+    Three of the five exist because a verdict is unusable as given: a stale
     revision, an unbound one, or a different head. Every one of those grounds
     is established from the plan file or the candidate, so a run that held
     without reading the plan would be filed as evidence for a rule it never
-    applied. The plan-read arm is selected by scenario name, so a holding case
-    left out of it is exactly the silent gap this asserts against.
+    applied.
+
+    The other two are decided by the state of the proof verdict alone, and are
+    asserted to be OUT of this arm: a pending verdict cannot clear at any
+    revision and a clear verdict for another head needs no plan read to
+    disqualify, so requiring the read would demand evidence those decisions do
+    not rest on.
     """
     runner = RUNNER.read_text()
     plan_branch = re.search(
@@ -1932,6 +1962,11 @@ def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
         assert name in plan_branch.group("names"), (
             f"{name} holds without being held to the plan read, so its hold"
             " could be for a reason the scenario does not name"
+        )
+    for name in ("combined-proof-pending", "combined-proof-stale-verdict"):
+        assert name not in plan_branch.group("names"), (
+            f"{name} is held to a plan read its verdict's state does not depend"
+            " on, which would demand evidence the decision never rests on"
         )
 
 
@@ -1975,11 +2010,138 @@ def test_a_holding_combined_case_asserts_the_defect_it_demonstrates() -> None:
     )
     assert premise, "the premise assertion is no longer recognizable"
     for name in (
+        "combined-proof-pending",
+        "combined-proof-stale-verdict",
         "combined-proof-stale-revision",
         "combined-proof-unbound-revision",
         "combined-proof-candidate-mismatch",
     ):
         assert name in premise.group("names"), f"{name} is not held to its premise"
+
+
+def test_each_holding_combined_premise_holds_for_its_recorded_facts(
+    tmp_path: Path,
+) -> None:
+    """The premise probe accepts every recorded holding case as it stands.
+
+    Reading the scenario names out of the runner shows the case is wired to a
+    check; it does not show the check passes for the facts the recording was
+    made from. Running the probe over each case's committed `facts.json` does,
+    which is what makes "held for the named reason" a property of the evidence
+    rather than of the script.
+    """
+    runner = RUNNER.read_text()
+    body = re.search(
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+if ! python3.*?"
+        r"<<'PROBE_PREMISE'\n(?P<probe>.*?)\nPROBE_PREMISE\n",
+        runner,
+        re.DOTALL,
+    )
+    assert body, "the premise assertion is no longer recognizable"
+    probe = tmp_path / "premise.py"
+    probe.write_text(body.group("probe"), encoding="utf-8")
+    names = [
+        name.strip()
+        for name in body.group("names").replace("\n", " ").split("|")
+        if name.strip()
+    ]
+    assert len(names) == 5, f"the premise arm holds {len(names)} cases, expected 5"
+    for name in names:
+        facts = FIXTURES / "scenarios" / name / "facts.json"
+        done = subprocess.run(
+            [sys.executable, str(probe), name, str(facts)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert done.returncode == 0, (
+            f"{name} no longer records the defect it exists to demonstrate: "
+            f"{done.stderr.strip()}"
+        )
+
+
+def test_a_holding_proof_case_isolates_the_proof_assessment() -> None:
+    """The two new cases must break the proof side only.
+
+    `combined-proof-stale-revision` has both verdicts stale, so its hold does
+    not show which assessment held it. The pending and stale-verdict cases
+    exist to close that gap, and each is only meaningful if the completeness
+    reply really is clear and current.
+    """
+    runner = RUNNER.read_text()
+    body = re.search(
+        r"<<'PROBE_PREMISE'\n(?P<probe>.*?)\nPROBE_PREMISE\n", runner, re.DOTALL
+    )
+    assert body, "the premise probe is no longer recognizable"
+    probe = body.group("probe")
+    assert 'name == "combined-proof-pending"' in probe, (
+        "the premise probe no longer distinguishes the pending case"
+    )
+    assert 'name == "combined-proof-stale-verdict"' in probe, (
+        "the premise probe no longer distinguishes the stale-verdict case"
+    )
+    for needed in (
+        "the proof reply does not record a pending verdict",
+        "the completeness reply is not clear",
+        "the proof verdict assesses the PR's current head",
+    ):
+        assert needed in probe, f"the premise probe no longer asserts {needed!r}"
+
+
+def test_every_committed_answer_record_belongs_to_a_committed_trace() -> None:
+    """An answer record is only evidence beside the trace it was produced with.
+
+    The record holds the status and stdout of each invocation, which the argv
+    trace cannot show. Committing one from a different run would answer a trace
+    that is not beside it, so the pairing is asserted rather than trusted.
+    """
+    answers = sorted((FIXTURES / "answers").glob("*.jsonl"))
+    assert answers, "no committed answer records"
+    for path in answers:
+        trace = FIXTURES / "traces" / path.name
+        assert trace.exists(), f"{path.name} has no committed trace beside it"
+        records = [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        trace_argv = [
+            json.loads(line)
+            for line in trace.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(records) == len(trace_argv), (
+            f"{path.name} records {len(records)} answers for {len(trace_argv)}"
+            " invocations, so one of them is from a different run"
+        )
+        for index, record in enumerate(records):
+            assert record["argv"] == trace_argv[index], (
+                f"{path.name} answers invocation {index} with a different argv"
+                " from the trace's, so the two are not the same run"
+            )
+
+
+def test_a_committed_answer_record_carries_no_credential() -> None:
+    """A committed record holds fixture answers, never a credential.
+
+    The stand-in answers from `facts.json`, and the sandbox hands it only the
+    fixture pool token, so nothing here should look like a secret. The check is
+    a guard on future recordings: committing a real answer record by mistake
+    would publish whatever the live service returned.
+    """
+    secret = re.compile(
+        r"(gh[pousr]_[A-Za-z0-9]{16,}"
+        r"|github_pat_[A-Za-z0-9_]{20,}"
+        r"|(?i:authorization)\s*:\s*\S+"
+        r"|(?i:bearer)\s+[A-Za-z0-9._-]{16,})"
+    )
+    for path in sorted((FIXTURES / "answers").glob("*.jsonl")):
+        text = path.read_text(encoding="utf-8")
+        found = secret.search(text)
+        assert not found, (
+            f"{path.name} carries something credential-shaped at "
+            f"{found.start() if found else 0}: {found.group(0)[:12]!r}"
+        )
 
 
 def test_the_assignment_names_the_stand_in_as_the_local_source() -> None:
