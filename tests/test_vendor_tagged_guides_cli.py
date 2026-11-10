@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -97,6 +98,46 @@ def test_the_command_line_reports_a_bad_formatter_without_a_traceback(
     assert result.returncode == 1, result.stdout + result.stderr
     assert message in result.stderr, result.stderr
     assert "Traceback" not in result.stderr, result.stderr
+
+
+def test_the_command_line_reports_a_formatter_that_exits_non_zero(
+    tmp_path: Path,
+) -> None:
+    """A formatter that rejects the files is a named failure, and restores."""
+    source = tmp_path / "source"
+    output = tmp_path / "docs"
+    source.mkdir()
+    output.mkdir()
+    (source / "users-guide.md").write_text(
+        "# Title\n\nBody.\n", encoding="utf-8", newline="\n"
+    )
+    previous = output / "vendored.md"
+    previous.write_text("previous\n", encoding="utf-8", newline="\n")
+    formatter = f"{sys.executable} -c 'import sys; sys.exit(3)'"
+
+    result = run_cli(
+        "--tag",
+        "v0.2.0-beta2",
+        "--repository",
+        "leynos/cuprum",
+        "--source",
+        str(source),
+        "--output",
+        str(output),
+        "--map",
+        "users-guide.md=vendored.md",
+        "--formatter",
+        formatter,
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert (
+        f"vendor_tagged_guides: error: '{sys.executable}' exited with status 3"
+        in result.stderr
+    ), result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+    assert previous.read_text(encoding="utf-8") == "previous\n", previous
 
 
 def test_the_documented_environment_variables_stand_in_for_the_options(

@@ -294,8 +294,9 @@ If the copy is a verbatim snapshot of an upstream guide:
    converter with a new `--tag` to refresh it.
 
 A copy that carries repository-specific notes is not a verbatim import and
-should not be converted: the tool refuses a file that already carries the
-canonical note. Keep such a document as repository-owned, or move its local
-notes elsewhere and vendor the upstream text separately, as the library README
-describes. Repositories that refresh by merging the library edition are
-unaffected by this change.
+should not be converted, because conversion replaces those notes. Keep such a
+document as repository-owned, or move its local notes elsewhere and vendor the
+upstream text separately, as the library README describes. The converter also
+refuses a source that already carries the canonical note outside protected
+text, so a previously vendored file cannot serve as input. Repositories that
+refresh by merging the library edition are unaffected by this change.

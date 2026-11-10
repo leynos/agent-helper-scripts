@@ -143,25 +143,43 @@ def test_an_undecodable_source_is_reported_as_a_vendor_error(
 
 
 def test_a_write_failure_is_reported_as_a_vendor_error(
-    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    vendor: types.ModuleType, tmp_path: Path
 ) -> None:
     """A read-only output directory is a one-line diagnostic, not a traceback."""
     built = make_config(vendor, tmp_path)
 
-    def failing_write_text(
-        self: Path, *_args: object, **_kwargs: object
-    ) -> int:
-        """Fail every text write as a read-only filesystem would."""
-        raise OSError("read-only file system")
+    class ReadOnlyFileSystem(vendor.LocalFileSystem):
+        """Refuse every text write as a read-only mount would."""
 
-    monkeypatch.setattr(Path, "write_text", failing_write_text)
+        def write_text(self, path: Path, text: str) -> None:
+            """Refuse the write without touching the file."""
+            raise OSError("read-only file system")
 
     with pytest.raises(vendor.VendorError, match="cannot write"):
-        vendor.vendor(built.config)
+        vendor.vendor(built.config, filesystem=ReadOnlyFileSystem())
+
+
+class FullDiskFileSystem:
+    """Boundary that fails one path's byte write and delegates the rest."""
+
+    def __init__(self, vendor: types.ModuleType, refusing: Path) -> None:
+        """Wrap the real boundary and name the path that cannot be restored."""
+        self._delegate = vendor.LocalFileSystem()
+        self._refusing = refusing
+
+    def __getattr__(self, name: str) -> object:
+        """Delegate every operation but ``write_bytes`` to the real boundary."""
+        return getattr(self._delegate, name)
+
+    def write_bytes(self, path: Path, data: bytes) -> None:
+        """Refuse the restore of one path as a full disk would."""
+        if path == self._refusing:
+            raise OSError("disk full")
+        self._delegate.write_bytes(path, data)
 
 
 def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
-    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    vendor: types.ModuleType, tmp_path: Path
 ) -> None:
     """One failed restore must not strand the other outputs in converted state."""
     built = make_config(vendor, tmp_path)
@@ -169,18 +187,13 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
     second = built.consumer / "cuprum-v0-2-0-migration-guide.md"
     first.write_text("first previous\n", encoding="utf-8", newline="\n")
     second.write_text("second previous\n", encoding="utf-8", newline="\n")
-    original_write_bytes = Path.write_bytes
-
-    def failing_write_bytes(self: Path, data: bytes) -> int:
-        """Fail the restore of the first output as a full disk would."""
-        if self == first:
-            raise OSError("disk full")
-        return original_write_bytes(self, data)
-
-    monkeypatch.setattr(Path, "write_bytes", failing_write_bytes)
 
     with pytest.raises(vendor.VendorError) as raised:
-        vendor.vendor(built.config, format_files=drifting_format)
+        vendor.vendor(
+            built.config,
+            format_files=drifting_format,
+            filesystem=FullDiskFileSystem(vendor, first),
+        )
 
     message = str(raised.value)
     assert "could not restore previous output" in message, message
@@ -189,8 +202,36 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
     assert second.read_text() == "second previous\n", second
 
 
+def test_an_interruption_is_reraised_when_a_restore_fails(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A restore failure must not replace an interruption with a VendorError."""
+    built = make_config(vendor, tmp_path)
+    first = built.consumer / "cuprum-users-guide.md"
+    second = built.consumer / "cuprum-v0-2-0-migration-guide.md"
+    first.write_text("first previous\n", encoding="utf-8", newline="\n")
+    second.write_text("second previous\n", encoding="utf-8", newline="\n")
+
+    def interrupting_format(_paths: Sequence[Path]) -> None:
+        """Interrupt once every output has been written."""
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt) as raised:
+        vendor.vendor(
+            built.config,
+            format_files=interrupting_format,
+            filesystem=FullDiskFileSystem(vendor, first),
+        )
+
+    notes = getattr(raised.value, "__notes__", [])
+    assert any(
+        "could not restore previous output" in note for note in notes
+    ), notes
+    assert second.read_text() == "second previous\n", second
+
+
 def test_a_later_mapping_without_a_heading_writes_nothing(
-    vendor: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    vendor: types.ModuleType, tmp_path: Path
 ) -> None:
     """Every source is converted before the first output is written."""
     built = make_config(
@@ -213,19 +254,17 @@ def test_a_later_mapping_without_a_heading_writes_nothing(
         for path in built.config.source_directory.iterdir()
     }
     writes: list[Path] = []
-    original_write_text = Path.write_text
 
-    def recording_write_text(
-        self: Path, *args: object, **kwargs: object
-    ) -> int:
-        """Record every text write before delegating to the real one."""
-        writes.append(self)
-        return original_write_text(self, *args, **kwargs)
+    class RecordingFileSystem(vendor.LocalFileSystem):
+        """Record every text write the pipeline attempts."""
 
-    monkeypatch.setattr(Path, "write_text", recording_write_text)
+        def write_text(self, path: Path, text: str) -> None:
+            """Record the path, then write through the real boundary."""
+            writes.append(path)
+            super().write_text(path, text)
 
     with pytest.raises(vendor.VendorError, match="level-one heading"):
-        vendor.vendor(built.config)
+        vendor.vendor(built.config, filesystem=RecordingFileSystem())
 
     assert writes == [], writes
 

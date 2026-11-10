@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .config import VendorConfig, fail, validate
 from .exemptions import insert_exemptions
+from .filesystem import DEFAULT_FILE_SYSTEM, FileSystem
 from .links import apply_replacements, link_replacements
 from .masking import masked_regions
 from .note import IMPORT_MARKER, insert_note
@@ -62,7 +63,7 @@ def convert(text: str, config: VendorConfig, source_name: str = "") -> str:
     return insert_note(rewritten, config).rstrip("\n") + "\n"
 
 
-def _write(path: Path, text: str) -> None:
+def _write(filesystem: FileSystem, path: Path, text: str) -> None:
     """Write one converted document with ``\\n`` newlines and one trailing one.
 
     Raises
@@ -72,14 +73,12 @@ def _write(path: Path, text: str) -> None:
         line rather than a traceback.
     """
     try:
-        path.write_text(
-            text.rstrip("\n") + "\n", encoding="utf-8", newline="\n"
-        )
+        filesystem.write_text(path, text.rstrip("\n") + "\n")
     except OSError as error:
         fail(f"cannot write {path}: {error}")
 
 
-def _read(path: Path) -> str:
+def _read(filesystem: FileSystem, path: Path) -> str:
     """Read one document and normalize its newlines to ``\\n``.
 
     Raises
@@ -89,7 +88,7 @@ def _read(path: Path) -> str:
         one diagnostic line rather than a traceback.
     """
     try:
-        text = path.read_text(encoding="utf-8")
+        text = filesystem.read_text(path)
     except OSError as error:
         fail(f"cannot read {path}: {error}")
     except UnicodeDecodeError as error:
@@ -111,28 +110,31 @@ def _write_and_format(
     written: Sequence[Path],
     converted: Sequence[str],
     format_files: Callable[[Sequence[Path]], None] | None,
+    filesystem: FileSystem,
 ) -> None:
     """Write the converted text, then reach the formatter's fixed point."""
     for path, text in zip(written, converted, strict=True):
-        _write(path, text)
+        _write(filesystem, path, text)
 
     if format_files is None:
         for path, text in zip(written, converted, strict=True):
-            _write(path, _exempt(text, config))
+            _write(filesystem, path, _exempt(text, config))
         return
 
     format_files(written)
-    exempted = [_exempt(_read(path), config) for path in written]
+    exempted = [_exempt(_read(filesystem, path), config) for path in written]
     for path, text in zip(written, exempted, strict=True):
-        _write(path, text)
+        _write(filesystem, path, text)
 
     format_files(written)
     for path, text in zip(written, exempted, strict=True):
-        if _read(path) != text:
+        if _read(filesystem, path) != text:
             fail(f"formatter did not reach a fixed point for {path}")
 
 
-def _previous_outputs(written: Sequence[Path]) -> dict[Path, bytes | None]:
+def _previous_outputs(
+    filesystem: FileSystem, written: Sequence[Path]
+) -> dict[Path, bytes | None]:
     """Record each output's bytes, or ``None`` when it does not exist yet.
 
     Raises
@@ -143,13 +145,19 @@ def _previous_outputs(written: Sequence[Path]) -> dict[Path, bytes | None]:
     previous: dict[Path, bytes | None] = {}
     for path in written:
         try:
-            previous[path] = path.read_bytes() if path.exists() else None
+            previous[path] = (
+                filesystem.read_bytes(path)
+                if filesystem.exists(path)
+                else None
+            )
         except OSError as error:
             fail(f"cannot read {path}: {error}")
     return previous
 
 
-def _restore(previous: dict[Path, bytes | None]) -> list[str]:
+def _restore(
+    filesystem: FileSystem, previous: dict[Path, bytes | None]
+) -> list[str]:
     """Attempt every restore and return one message per path that failed.
 
     One failed restore must not prevent the others: every output is attempted,
@@ -160,9 +168,9 @@ def _restore(previous: dict[Path, bytes | None]) -> list[str]:
     for path, content in previous.items():
         try:
             if content is None:
-                path.unlink(missing_ok=True)
+                filesystem.unlink(path)
             else:
-                path.write_bytes(content)
+                filesystem.write_bytes(path, content)
         except OSError as error:
             failures.append(f"{path}: {error}")
     return failures
@@ -172,6 +180,7 @@ def vendor(
     config: VendorConfig,
     *,
     format_files: Callable[[Sequence[Path]], None] | None = None,
+    filesystem: FileSystem = DEFAULT_FILE_SYSTEM,
 ) -> tuple[Path, ...]:
     """Convert, format, and write every mapped guide.
 
@@ -184,6 +193,10 @@ def vendor(
         Optional callable that rewrites the supplied paths in place. The front
         end supplies a cuprum-backed ``mdtablefix`` runner; tests supply a
         deterministic double.
+    filesystem
+        Boundary used for every read, write, and restore. The default reaches
+        the local machine; a caller may substitute a double that records the
+        operations or injects a failure.
 
     Returns
     -------
@@ -198,32 +211,45 @@ def vendor(
         point, or an output cannot be written. Any failure after the first
         write, including an interruption or an I/O error, attempts to restore
         the previous output files before it propagates. Restoration is best
-        effort: a restore that itself fails is reported with the original
-        failure, and the remaining outputs are still attempted.
+        effort: the remaining outputs are still attempted, and a restore that
+        fails is reported. An ordinary exception becomes a ``VendorError``
+        carrying that report; an interruption is re-raised with the report
+        attached as a note.
     """
-    validate(config)
+    validate(config, filesystem)
     converted = [
-        convert(_read(config.source_directory / source_name), config, source_name)
+        convert(
+            _read(filesystem, config.source_directory / source_name),
+            config,
+            source_name,
+        )
         for source_name, _ in config.mappings
     ]
     written = [
         config.output_directory / output_name
         for _, output_name in config.mappings
     ]
-    previous = _previous_outputs(written)
+    previous = _previous_outputs(filesystem, written)
     try:
-        _write_and_format(config, written, converted, format_files)
+        _write_and_format(config, written, converted, format_files, filesystem)
     except BaseException as error:
         # Any failure, including an interruption or an I/O error, must attempt
         # to leave the consumer's directory as it was found. Every output is
         # attempted and every restore failure is reported with the original
         # failure.
-        failures = _restore(previous)
+        failures = _restore(filesystem, previous)
         if failures:
-            fail(
-                "could not restore previous output: "
-                + "; ".join(failures)
-                + f"; original failure: {type(error).__name__}: {error}"
+            summary = "could not restore previous output: " + "; ".join(
+                failures
             )
+            # An interruption must stay an interruption. Replacing it with a
+            # VendorError would make the CLI report status 1 as if the run had
+            # merely been refused, so only an ordinary exception is converted.
+            if isinstance(error, Exception):
+                fail(
+                    f"{summary}; original failure: "
+                    f"{type(error).__name__}: {error}"
+                )
+            error.add_note(summary)
         raise
     return tuple(written)

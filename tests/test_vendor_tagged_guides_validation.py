@@ -7,7 +7,6 @@ argument class the front end must reject, and the diagnostic it reports.
 from __future__ import annotations
 
 import dataclasses
-import os
 from pathlib import Path
 import types
 
@@ -127,48 +126,72 @@ def test_an_output_that_resolves_to_a_source_is_refused(
 
 
 def test_an_inaccessible_source_directory_is_refused(
-    vendor: types.ModuleType,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    vendor: types.ModuleType, tmp_path: Path
 ) -> None:
     """A permission error while inspecting a path is a VendorError."""
     config = make_config(vendor, tmp_path).config
-    original_stat = Path.stat
 
-    def failing_stat(
-        self: Path, *, follow_symlinks: bool = True
-    ) -> os.stat_result:
-        """Raise a permission error for the source directory only."""
-        if self == config.source_directory:
-            raise PermissionError(13, "Permission denied", str(self))
-        return original_stat(self, follow_symlinks=follow_symlinks)
+    class DeniedFileSystem(vendor.LocalFileSystem):
+        """Report a permission denial for the source directory."""
 
-    monkeypatch.setattr(Path, "stat", failing_stat)
+        def stat_mode(self, path: Path) -> int | None:
+            """Refuse inspection of the source directory only."""
+            if path == config.source_directory:
+                raise PermissionError(13, "Permission denied", str(path))
+            return super().stat_mode(path)
 
     with pytest.raises(
         vendor.VendorError, match="cannot inspect the import paths"
     ):
-        vendor.validate(config)
+        vendor.validate(config, DeniedFileSystem())
 
 
 def test_a_path_resolution_failure_is_refused(
-    vendor: types.ModuleType,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    vendor: types.ModuleType, tmp_path: Path
 ) -> None:
     """An environmental error while resolving a path is a VendorError."""
     config = make_config(vendor, tmp_path).config
-    original_resolve = Path.resolve
 
-    def failing_resolve(self: Path, *, strict: bool = False) -> Path:
-        """Raise an I/O error for the mapped source file only."""
-        if self.name == "users-guide.md":
-            raise OSError("stale file handle")
-        return original_resolve(self, strict=strict)
+    class StaleFileSystem(vendor.LocalFileSystem):
+        """Fail to resolve the mapped source file only."""
 
-    monkeypatch.setattr(Path, "resolve", failing_resolve)
+        def resolve(self, path: Path) -> Path:
+            """Raise an I/O error for the mapped source file only."""
+            if path.name == "users-guide.md":
+                raise OSError("stale file handle")
+            return super().resolve(path)
 
     with pytest.raises(
         vendor.VendorError, match="cannot inspect the import paths"
     ):
-        vendor.validate(config)
+        vendor.validate(config, StaleFileSystem())
+
+
+def test_validation_never_writes_or_removes_a_file(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """Validation inspects and resolves paths, and changes nothing."""
+    config = make_config(vendor, tmp_path).config
+    mutations: list[str] = []
+
+    class MutationGuard(vendor.LocalFileSystem):
+        """Record any write or removal validation attempts."""
+
+        def write_text(self, path: Path, text: str) -> None:
+            """Record a text write, then perform it."""
+            mutations.append(f"write_text {path}")
+            super().write_text(path, text)
+
+        def write_bytes(self, path: Path, data: bytes) -> None:
+            """Record a byte write, then perform it."""
+            mutations.append(f"write_bytes {path}")
+            super().write_bytes(path, data)
+
+        def unlink(self, path: Path) -> None:
+            """Record a removal, then perform it."""
+            mutations.append(f"unlink {path}")
+            super().unlink(path)
+
+    vendor.validate(config, MutationGuard())
+
+    assert mutations == [], mutations

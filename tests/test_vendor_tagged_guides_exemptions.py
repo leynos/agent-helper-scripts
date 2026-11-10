@@ -9,6 +9,7 @@ fence still needs the pair.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import types
 
 from hypothesis import given, settings
@@ -209,6 +210,84 @@ def test_exemption_insertion_is_idempotent_with_small_limits(
     once = vendor.insert_exemptions(document, **limits)
 
     assert vendor.insert_exemptions(once, **limits) == once, once
+
+
+_LONG_PARAGRAPH = (
+    "A paragraph with a great many words that runs well past the configured "
+    "prose limit and keeps going to the end."
+)
+
+_BLOCKS = (
+    "# Title",
+    "A short paragraph.",
+    _LONG_PARAGRAPH,
+    "- a list item with a great many words that also runs past the limit",
+    "> a blockquote with a great many words that also runs past the limit",
+    "```text\n" + "code " * 20 + "\n```",
+    "| a | b |\n| --- | --- |\n| c | d |",
+    "<!-- a comment with a great many words that also runs past the limit -->",
+)
+
+#: First lines of blocks the limits leave alone, so no pair may wrap them.
+_SHORT_LINES = frozenset({"# Title", "A short paragraph."})
+
+
+@st.composite
+def _block_documents(draw: st.DrawFn) -> str:
+    """Draw a document assembled from whole Markdown blocks."""
+    blocks = draw(st.lists(st.sampled_from(_BLOCKS), min_size=1, max_size=5))
+    return "\n\n".join(blocks) + "\n"
+
+
+def _content(vendor: types.ModuleType, text: str) -> list[str]:
+    """Return the non-blank lines, without the inserted directive lines."""
+    directives = {vendor.DISABLE_MD013, vendor.ENABLE_MD013}
+    return [
+        line
+        for line in text.splitlines()
+        if line not in directives and line.strip()
+    ]
+
+
+def _regions(
+    vendor: types.ModuleType, lines: Sequence[str]
+) -> list[tuple[int, int]]:
+    """Return the line range between each disable directive and its enable."""
+    regions: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, line in enumerate(lines):
+        if line == vendor.DISABLE_MD013:
+            start = index
+        elif line == vendor.ENABLE_MD013 and start is not None:
+            regions.append((start, index))
+            start = None
+    return regions
+
+
+@given(document=_block_documents())
+@settings(max_examples=40, deadline=None)
+def test_each_long_block_is_bracketed_and_the_other_lines_survive(
+    vendor: types.ModuleType, document: str
+) -> None:
+    """Every over-long block gets one bounded pair; nothing else changes."""
+    limits = {"line_length": 40, "code_line_length": 60}
+    converted = vendor.insert_exemptions(document, **limits)
+    lines = converted.splitlines()
+
+    assert _content(vendor, converted) == _content(vendor, document), converted
+    assert vendor.insert_exemptions(converted, **limits) == converted, converted
+
+    for start, end in _regions(vendor, lines):
+        inside = lines[start + 1 : end]
+        assert any(line.strip() for line in inside), converted
+        swallowed = sorted(_SHORT_LINES.intersection(inside))
+        assert swallowed == [], (swallowed, converted)
+
+    if _LONG_PARAGRAPH in document:
+        index = lines.index(_LONG_PARAGRAPH)
+        assert any(
+            start < index < end for start, end in _regions(vendor, lines)
+        ), converted
 
 
 def test_a_hard_break_after_the_final_allowed_column_is_detected(
