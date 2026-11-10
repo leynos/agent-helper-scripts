@@ -1061,8 +1061,11 @@ use std::fs;
 // Assume the fixture directory contains files like `file1.txt`, `file2.json`
 
 #[rstest]
-#[files("tests/test_data/*.txt")] // Injects PathBuf for each.txt file
-fn process_text_file(#[files] path: PathBuf) {
+fn process_text_file(
+    // Injects a PathBuf for each matching .txt file
+    #[files("tests/test_data/*.txt")]
+    path: PathBuf,
+) {
     println!("Processing file: {:?}", path);
     let content = fs::read_to_string(path).expect("Could not read file");
     assert!(!content.is_empty());
@@ -1083,7 +1086,7 @@ The `#[files]` attribute effectively parameterizes a test over a set of files
 discovered at compile time. For each file matching the glob, `rstest` generates
 a separate test case, injecting the `PathBuf` or content into the designated
 argument. This is powerful for data-driven testing where inputs reside in
-separate files. When using `mode = "str"` or `mode = "bytes"`, `rstest` uses
+separate files. When using `#[mode = str]` or `#[mode = bytes]`, `rstest` uses
 `include_str!` or `include_bytes!` respectively. This embeds the file content
 directly into the compiled binary, which is convenient for small files, but it
 can significantly increase binary size if used with large data files.
