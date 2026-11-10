@@ -528,6 +528,35 @@ candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
+**A run that posts cannot then be answered.** The stand-in accepts a POST and
+serves it back on its own route and in the comment listing, but it is a
+recording, not a service: nothing it holds replies to a comment the run itself
+posted. Its only assessment-bot comments are the ones the facts record, and
+they answer the Assessment-IDs those facts name. A permitting run therefore
+cannot both post and receive a clear reply, which is why no permitting
+recording has a `submitted/` entry from a post it made in that run. Two probes
+of the stand-in show the bound directly: a `-f body=…` POST returns
+`…/pull/272#issuecomment-9901`, and the next listing carries it as
+`fixture-commenter` at a stamp one minute after the thread, while the only
+`coderabbitai[bot]` entries are the pre-recorded `9952` and `9954`.
+
+The recordings do show a run posting. `combined-proof-stale-verdict`,
+`combined-proof-stale-plan-revision` and `combined-proof-stale-revision` each
+renew an assessment whose verdict no longer binds, and each has a `submitted/`
+body for the request it posted; the hold that follows is the correct answer to
+an unanswered request, not a defect. What none of them shows is the agent
+clearing a gate on a reply to its own post — the reply in every permitting run
+was already in the discussion when the run started.
+
+Closing that would take a stand-in that answers a posted request by
+Assessment-ID, which is a service behaviour no recording here claims to
+reproduce. The deterministic suites cover the sequencing it would exercise:
+`test_a_reply_arriving_between_invocations_still_clears_the_question` runs the
+sequence, takes its posted questions, appends replies echoing those markers,
+and shows the second invocation transitioning without re-posting. That is the
+post-then-clear path the stand-in cannot serve, checked against doubles rather
+than against a reply no service produced.
+
 **Freshness of each recording.** All sixteen recordings passed their own
 outcome assertion when they were made. They were replaced when the runner
 gained the shared `pr-ready` boundary line, the successful read-back check, the

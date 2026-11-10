@@ -184,10 +184,18 @@ def test_a_subset_only_verdict_keeps_the_draft_in_place(
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "completeness-declared-subset-does-not-clear"
-    assert candidate.is_draft
-    assert candidate.ready_transitions == []
+    assert not decision.ready, "a declared-subset verdict cleared the gate"
+    assert decision.reason == "completeness-declared-subset-does-not-clear", (
+        f"the gate held for {decision.reason!r}, not the declared subset"
+    )
+    assert candidate.is_draft, (
+        "a declared-subset verdict left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
+    assert candidate.ready_transitions == [], (
+        "a declared-subset verdict was transitioned to ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_a_superseded_revision_keeps_the_draft_in_place() -> None:
@@ -201,10 +209,18 @@ def test_a_superseded_revision_keeps_the_draft_in_place() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "completeness-superseded-revision"
-    assert candidate.is_draft
-    assert candidate.ready_transitions == []
+    assert not decision.ready, "a superseded verdict cleared the gate"
+    assert decision.reason == "completeness-superseded-revision", (
+        f"the gate held for {decision.reason!r}, not the superseded revision"
+    )
+    assert candidate.is_draft, (
+        "a superseded verdict left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
+    assert candidate.ready_transitions == [], (
+        "a superseded verdict was transitioned to ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_a_reply_that_omits_the_revision_keeps_the_draft_in_place() -> None:
@@ -216,9 +232,14 @@ def test_a_reply_that_omits_the_revision_keeps_the_draft_in_place() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "completeness-revision-unbound"
-    assert candidate.is_draft
+    assert not decision.ready, "a revision-unbound reply cleared the gate"
+    assert decision.reason == "completeness-revision-unbound", (
+        f"the gate held for {decision.reason!r}, not the unbound revision"
+    )
+    assert candidate.is_draft, (
+        "a revision-unbound reply left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_a_pending_proof_keeps_the_draft_in_place() -> None:
@@ -229,9 +250,13 @@ def test_a_pending_proof_keeps_the_draft_in_place() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "proof-pending"
-    assert candidate.is_draft
+    assert not decision.ready, "a pending proof cleared the gate"
+    assert decision.reason == "proof-pending", (
+        f"the gate held for {decision.reason!r}, not the pending proof"
+    )
+    assert candidate.is_draft, (
+        f"a pending proof left the PR ready: {candidate.ready_transitions}"
+    )
 
 
 def test_an_unanswered_completeness_request_keeps_the_draft_in_place() -> None:
@@ -241,9 +266,14 @@ def test_an_unanswered_completeness_request_keeps_the_draft_in_place() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread)
 
-    assert not decision.ready
-    assert decision.reason == "completeness-pending"
-    assert candidate.is_draft
+    assert not decision.ready, "an unanswered request cleared the gate"
+    assert decision.reason == "completeness-pending", (
+        f"the gate held for {decision.reason!r}, not the unanswered request"
+    )
+    assert candidate.is_draft, (
+        "an unanswered request left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_a_reply_from_another_author_is_not_a_verdict() -> None:
@@ -254,9 +284,14 @@ def test_a_reply_from_another_author_is_not_a_verdict() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread)
 
-    assert not decision.ready
-    assert decision.reason == "completeness-pending"
-    assert candidate.is_draft
+    assert not decision.ready, "a reply from another author cleared the gate"
+    assert decision.reason == "completeness-pending", (
+        f"the gate held for {decision.reason!r}, not the uncorrelated reply"
+    )
+    assert candidate.is_draft, (
+        "a reply from another author left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_an_unaffected_proof_under_the_execplan_still_reaches_ready() -> None:
@@ -268,7 +303,9 @@ def test_an_unaffected_proof_under_the_execplan_still_reaches_ready() -> None:
     decision = assess_and_maybe_mark_ready(candidate, thread)
 
     assert decision.ready, decision.reason
-    assert candidate.ready_transitions == [HEAD]
+    assert candidate.ready_transitions == [HEAD], (
+        f"a justified not-applicable proof was not transitioned: {decision.reason}"
+    )
 
 
 def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
@@ -282,7 +319,9 @@ def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
     decision = assess_and_maybe_mark_ready(candidate, thread)
 
     assert decision.ready, decision.reason
-    assert candidate.ready_transitions == [HEAD]
+    assert candidate.ready_transitions == [HEAD], (
+        f"a no-ExecPlan assignment was not transitioned: {decision.reason}"
+    )
 
 
 def test_a_red_ci_candidate_never_leaves_draft() -> None:
@@ -294,9 +333,13 @@ def test_a_red_ci_candidate_never_leaves_draft() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == "ci-not-green"
-    assert candidate.is_draft
+    assert not decision.ready, "a red-CI candidate cleared the gate"
+    assert decision.reason == "ci-not-green", (
+        f"the gate held for {decision.reason!r}, not the red CI"
+    )
+    assert candidate.is_draft, (
+        f"a red-CI candidate left draft: {candidate.ready_transitions}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -316,10 +359,14 @@ def test_a_blocked_delivery_gate_asks_no_assessment_question(
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == reason
+    assert not decision.ready, f"a {reason} gate cleared the candidate"
+    assert decision.reason == reason, (
+        f"the gate held for {decision.reason!r} rather than {reason!r}"
+    )
     assert thread.requests == [], "no assessment question before the delivery gates"
-    assert candidate.is_draft
+    assert candidate.is_draft, (
+        f"a {reason} gate left the PR ready: {candidate.ready_transitions}"
+    )
 
 
 def test_a_no_execplan_proof_only_assignment_clears_without_revisions() -> None:
@@ -333,8 +380,13 @@ def test_a_no_execplan_proof_only_assignment_clears_without_revisions() -> None:
     )
 
     assert decision.ready, decision.reason
-    assert candidate.ready_transitions == [HEAD]
-    assert [request["kind"] for request in thread.requests] == ["proof"]
+    assert candidate.ready_transitions == [HEAD], (
+        f"a no-ExecPlan proof-only change was not transitioned: {decision.reason}"
+    )
+    assert [request["kind"] for request in thread.requests] == ["proof"], (
+        "the proof-only assignment posted other than its one proof question:"
+        f" {[request['kind'] for request in thread.requests]}"
+    )
 
 
 def test_a_no_execplan_proof_only_assignment_waits_for_its_reply() -> None:
@@ -346,9 +398,14 @@ def test_a_no_execplan_proof_only_assignment_waits_for_its_reply() -> None:
         candidate, thread, assignment=PROOF_ONLY
     )
 
-    assert not decision.ready
-    assert decision.reason == "proof-pending"
-    assert candidate.is_draft
+    assert not decision.ready, "an unanswered proof request cleared the gate"
+    assert decision.reason == "proof-pending", (
+        f"the gate held for {decision.reason!r}, not the unanswered request"
+    )
+    assert candidate.is_draft, (
+        "an unanswered proof request left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_the_sequence_never_returns_an_already_ready_pr_to_draft() -> None:
@@ -360,10 +417,15 @@ def test_the_sequence_never_returns_an_already_ready_pr_to_draft() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
+    assert not decision.ready, "a not-clear verdict cleared the gate"
     assert not candidate.is_draft, "a blocked gate must not redraft a ready PR"
-    assert candidate.ready_transitions == []
-    assert decision.reason == "completeness-not-clear"
+    assert candidate.ready_transitions == [], (
+        "a blocked gate transitioned an already-ready PR:"
+        f" {candidate.ready_transitions}"
+    )
+    assert decision.reason == "completeness-not-clear", (
+        f"the gate held for {decision.reason!r}, not the not-clear verdict"
+    )
 
 
 def test_the_questions_posted_carry_the_revision_in_force() -> None:
@@ -376,8 +438,14 @@ def test_the_questions_posted_carry_the_revision_in_force() -> None:
     assert [request["kind"] for request in thread.requests] == [
         "completeness",
         "proof",
-    ]
-    assert all(request["revision"] == REVISION for request in thread.requests)
+    ], (
+        "the combined assignment posted other than its two questions:"
+        f" {[request['kind'] for request in thread.requests]}"
+    )
+    assert all(request["revision"] == REVISION for request in thread.requests), (
+        "a posted request names a revision other than the one in force:"
+        f" {[request['revision'] for request in thread.requests]}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -396,9 +464,14 @@ def test_an_unsettled_proof_verdict_blocks_the_transition(
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert not decision.ready
-    assert decision.reason == reason
-    assert candidate.is_draft
+    assert not decision.ready, f"a {verdict} proof verdict cleared the gate"
+    assert decision.reason == reason, (
+        f"the gate held for {decision.reason!r} rather than {reason!r}"
+    )
+    assert candidate.is_draft, (
+        f"a {verdict} proof verdict left the PR ready:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 def test_a_justified_not_applicable_completeness_allows_readiness() -> None:
@@ -411,7 +484,9 @@ def test_a_justified_not_applicable_completeness_allows_readiness() -> None:
     )
 
     assert decision.ready, decision.reason
-    assert candidate.ready_transitions == [HEAD]
+    assert candidate.ready_transitions == [HEAD], (
+        f"a plan-authoring PR was not transitioned: {decision.reason}"
+    )
 
 
 def test_the_doubles_record_but_never_perform_the_transition() -> None:
@@ -422,8 +497,10 @@ def test_the_doubles_record_but_never_perform_the_transition() -> None:
 
     assess_and_maybe_mark_ready(candidate, thread)
 
-    assert candidate.ready_transitions == [HEAD]
-    assert not candidate.is_draft
+    assert candidate.ready_transitions == [HEAD], (
+        f"the double recorded {candidate.ready_transitions}, not one transition"
+    )
+    assert not candidate.is_draft, "the double performed the transition itself"
 
 
 def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> None:
@@ -435,7 +512,9 @@ def test_a_verdict_subject_other_than_the_reply_default_is_carried_through() -> 
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert decision.reason == "completeness-subject-unrecognized"
+    assert decision.reason == "completeness-subject-unrecognized", (
+        f"the gate held for {decision.reason!r}, not the unrecognized subject"
+    )
 
 
 def test_the_workflow_carries_the_requested_proof_inventory() -> None:
@@ -560,8 +639,13 @@ def test_both_requests_are_posted_before_the_decision() -> None:
 
     assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
-    assert len(thread.requests) == 2
-    assert candidate.is_draft
+    assert len(thread.requests) == 2, (
+        f"the sequence posted {len(thread.requests)} questions, not two"
+    )
+    assert candidate.is_draft, (
+        "the sequence left draft before either question was answered:"
+        f" {candidate.ready_transitions}"
+    )
 
 
 
