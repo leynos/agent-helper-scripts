@@ -9,7 +9,7 @@ fence still needs the pair.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import types
 
 from hypothesis import given, settings
@@ -217,19 +217,51 @@ _LONG_PARAGRAPH = (
     "prose limit and keeps going to the end."
 )
 
+_LONG_LIST_ITEM = (
+    "- a list item with a great many words that runs well past the limit and "
+    "keeps going"
+)
+_LONG_QUOTE = (
+    "> a blockquote with a great many words that runs well past the limit "
+    "and keeps going"
+)
+_LONG_COMMENT = (
+    "<!-- a comment with a great many words that runs well past the limit "
+    "and keeps going -->"
+)
+_TABLE = "| a | b |\n| --- | --- |\n| c | d |"
+
+#: Non-strict MD013 measures this fenced line as 101 columns: it collapses the
+#: final word to one character and counts the trailing space.
+_CODE_LINE = "code " * 20
+_CODE_BLOCK = f"```text\n{_CODE_LINE}\n```"
+
 _BLOCKS = (
     "# Title",
     "A short paragraph.",
     _LONG_PARAGRAPH,
-    "- a list item with a great many words that runs well past the limit and "
-    "keeps going",
-    "> a blockquote with a great many words that runs well past the limit "
-    "and keeps going",
-    "```text\n" + "code " * 20 + "\n```",
-    "| a | b |\n| --- | --- |\n| c | d |",
-    "<!-- a comment with a great many words that runs well past the limit "
-    "and keeps going -->",
+    _LONG_LIST_ITEM,
+    _LONG_QUOTE,
+    _CODE_BLOCK,
+    _TABLE,
+    _LONG_COMMENT,
 )
+
+#: Whether each block must be bracketed, given the drawn limits.
+#:
+#: This is a handwritten oracle. It deliberately does not call
+#: ``long_lines``, so a misclassification shared by detection and insertion
+#: cannot make the property pass.
+_EXPECTATIONS: dict[str, Callable[[dict[str, int]], bool]] = {
+    "# Title": lambda _limits: False,
+    "A short paragraph.": lambda _limits: False,
+    _LONG_PARAGRAPH: lambda _limits: True,
+    _LONG_LIST_ITEM: lambda _limits: True,
+    _LONG_QUOTE: lambda _limits: True,
+    _CODE_BLOCK: lambda limits: limits["code_line_length"] < 101,
+    _TABLE: lambda _limits: False,
+    _LONG_COMMENT: lambda _limits: True,
+}
 
 #: First lines of blocks the limits leave alone, so no pair may wrap them.
 _SHORT_LINES = frozenset({"# Title", "A short paragraph."})
@@ -285,15 +317,25 @@ def _groups(blocks: Sequence[str]) -> list[list[str]]:
 def _regions(
     vendor: types.ModuleType, lines: Sequence[str]
 ) -> list[tuple[int, int]]:
-    """Return the line range between each disable directive and its enable."""
+    """Return the line range between each disable directive and its enable.
+
+    The directives must be balanced and ordered: a disable that is still open
+    when another disable or the end of the document arrives, and an enable
+    without a disable, both fail the assertions.
+    """
     regions: list[tuple[int, int]] = []
     start: int | None = None
     for index, line in enumerate(lines):
         if line == vendor.DISABLE_MD013:
+            assert start is None, f"nested disable at line {index}: {lines}"
             start = index
-        elif line == vendor.ENABLE_MD013 and start is not None:
+        elif line == vendor.ENABLE_MD013:
+            assert start is not None, (
+                f"unmatched enable at line {index}: {lines}"
+            )
             regions.append((start, index))
             start = None
+    assert start is None, f"unmatched disable at line {start}: {lines}"
     return regions
 
 
@@ -329,7 +371,8 @@ def test_each_long_block_is_bracketed_and_the_other_lines_survive(
         converted_indexes = [
             mapping[index] for index in range(start, end + 1) if index in mapping
         ]
-        if vendor.long_lines(text, **limits):
+        expected = any(_EXPECTATIONS[block](limits) for block in group)
+        if expected:
             offending += 1
             assert converted_indexes, (group, converted)
             assert all(index in covered for index in converted_indexes), (
