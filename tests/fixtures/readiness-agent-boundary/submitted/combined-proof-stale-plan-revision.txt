@@ -1,0 +1,18 @@
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — `refinement_sound`) is substantive, rigorous, and well-founded?
+
+Published head: 7777dddd; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: approved plan `docs/execplans/issue-271-readiness-handoff.md` (issue #271); please confirm how `State`, `refine`, and `sound` correspond to the shipped implementation.
+Assumptions, trusted boundaries, domain, and bounds: the proof depends on `sound_of_refine`, which is not defined in this file; please check where it comes from and whether it assumes the conclusion.
+Verifier evidence: hosted `Makefile gates` passed at this head. No local Lean verifier run was performed by this supervisor; the verifier version and command are not established here.
+Non-vacuity and limitations: please check that the precondition `refine s = s` is satisfiable for interesting states and that the theorem is not vacuous. This request supersedes, for readiness purposes, the earlier proof assessment (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9995 / reply #issuecomment-9996), which was bound to plan revision rev-7; the approved revision in force at this head is rev-8.
+Plan revision: rev-8 (plan file `docs/execplans/issue-271-readiness-handoff.md` blob e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8 at this head).
+Assessment-ID: 271-proof-rev8-7777dddd.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Check substance, rigour, foundations, and correspondence to production code.
+Identify each unresolved concern or missing inspection explicitly.
+

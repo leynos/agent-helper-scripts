@@ -1332,6 +1332,75 @@ scenario(Case(
 ))
 
 scenario(Case(
+    name="combined-proof-stale-plan-revision",
+    head="7777dddd",
+    draft=True,
+    comments=[
+        comment(
+            9995,
+            "pandalump",
+            proof_request("271-ab-combined-stale-plan-proof", "7777dddd", "rev-7"),
+            "2026-11-08T12:20:00Z",
+        ),
+        # The proof reply is clear, and its head is this candidate's. What it
+        # echoes is `rev-7`, the revision in force when it was asked. Nothing
+        # about the reply was wrong at the time it was written.
+        comment(
+            9996,
+            "coderabbitai[bot]",
+            proof_reply(
+                "271-ab-combined-stale-plan-proof",
+                "rev-7",
+                "7777dddd",
+                prose=(
+                    "`refinement_sound` is substantive and non-vacuous at this"
+                    " head, its preconditions are satisfiable, and no unresolved"
+                    " proof concern remains at the plan revision this reply"
+                    " echoes."
+                ),
+            ),
+            "2026-11-08T12:25:00Z",
+        ),
+        # Then the plan moved to `rev-8`, and completeness was asked again
+        # against the revision now in force. This reply is clear, bound to the
+        # candidate, and echoes `rev-8`, so nothing on the completeness side can
+        # hold the run. The proof verdict was never re-asked and still stands at
+        # `rev-7`.
+        comment(
+            9997,
+            "buzzybee-df12",
+            request("271-ab-combined-stale-plan", "rev-8", "7777dddd"),
+            "2026-11-08T13:00:00Z",
+        ),
+        comment(
+            9998,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-combined-stale-plan",
+                "rev-8",
+                {
+                    "label": "clear",
+                    "head": "7777dddd",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-08T13:05:00Z",
+        ),
+    ],
+    paths=[PLAN_PATH, PROOF_PATH],
+    # The plan file, and only it, says the revision in force moved. The
+    # completeness reply already names the new one; the proof reply still names
+    # the old.
+    plan_revision="rev-8",
+    plan_blob=PLAN_BLOB_REV8,
+    cs_mode="clean",
+))
+
+scenario(Case(
     name="combined-proof-unbound-revision",
     head="5555ffff",
     draft=True,

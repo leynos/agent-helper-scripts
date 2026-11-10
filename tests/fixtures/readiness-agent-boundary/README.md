@@ -24,28 +24,29 @@ the hosted check's own output, or the recorded local CodeScene result. `base` is
 `73d32981c7b7e8f52590a074873e28a9f369f0f9` throughout, and the PR starts as a
 draft in each case. The two `proof-only-*` scenarios differ from the rest in
 one more respect that is part of their premise: their PR body says no ExecPlan
-applies and their diff is the proof they introduce. The six `combined-*`
+applies and their diff is the proof they introduce. The seven `combined-*`
 scenarios differ in the opposite direction: their PR changes the plan file and
 a proof, so both assessments apply, and the plan and proof `contents` routes
 both serve the text a run reads at its own head.
 
-| Scenario                            | Head       | Completeness evidence                                                        | Proof evidence                                     | `gh pr ready` |
-| ----------------------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------- |
-| `subset-only`                       | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                               | no            |
-| `subset-clear`                      | `ffff6666` | **clear**; subject is still the declared subset                              | none                                               | no            |
-| `superseded-revision`               | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                               | no            |
-| `current-whole-plan`                | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                                      | yes           |
-| `codescene-advisory`                | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
-| `local-codescene-finding`           | `1111bbbb` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
-| `local-codescene-unavailable`       | `2222cccc` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
-| `proof-only-pending`                | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered                        | no            |
-| `proof-only-cleared`                | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound`              | yes           |
-| `combined-plan-and-proof`           | `3333dddd` | **clear** whole plan, `rev-7`; the plan file is changed too                  | **clear**, `refinement_sound`, `rev-7`             | yes           |
-| `combined-proof-pending`            | `8888cccc` | **clear** whole plan, `rev-7`                                                | **pending**; the scrutiny is unfinished            | no            |
-| `combined-proof-stale-verdict`      | `9999dddd` | **clear** whole plan, `rev-7`                                                | **clear**, for `…aaaa1111`, which is not this head | no            |
-| `combined-proof-stale-revision`     | `4444eeee` | clear verdict, but records `rev-7` while the plan file reads `rev-8`         | clear verdict, same stale `rev-7`                  | no            |
-| `combined-proof-unbound-revision`   | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
-| `combined-proof-candidate-mismatch` | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
+| Scenario                             | Head       | Completeness evidence                                                        | Proof evidence                                     | `gh pr ready` |
+| ------------------------------------ | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------- |
+| `subset-only`                        | `aaaa1111` | **not clear**; subject is the declared subset (EP-M1, EP-M2)                 | none                                               | no            |
+| `subset-clear`                       | `ffff6666` | **clear**; subject is still the declared subset                              | none                                               | no            |
+| `superseded-revision`                | `bbbb2222` | **clear** whole plan, but recorded against `rev-6` while `rev-7` is in force | none                                               | no            |
+| `current-whole-plan`                 | `cccc3333` | **clear** whole plan, `rev-7`                                                | none affected                                      | yes           |
+| `codescene-advisory`                 | `9999aaaa` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `local-codescene-finding`            | `1111bbbb` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `local-codescene-unavailable`        | `2222cccc` | **clear** whole plan, `rev-7`; every check green                             | none affected                                      | no            |
+| `proof-only-pending`                 | `dddd4444` | no ExecPlan, so not applicable                                               | question posted, unanswered                        | no            |
+| `proof-only-cleared`                 | `eeee5555` | no ExecPlan, so not applicable                                               | **clear**, subject `refinement_sound`              | yes           |
+| `combined-plan-and-proof`            | `3333dddd` | **clear** whole plan, `rev-7`; the plan file is changed too                  | **clear**, `refinement_sound`, `rev-7`             | yes           |
+| `combined-proof-pending`             | `8888cccc` | **clear** whole plan, `rev-7`                                                | **pending**; the scrutiny is unfinished            | no            |
+| `combined-proof-stale-verdict`       | `9999dddd` | **clear** whole plan, `rev-7`                                                | **clear**, for `…aaaa1111`, which is not this head | no            |
+| `combined-proof-stale-plan-revision` | `7777dddd` | **clear** whole plan, `rev-8`, the revision in force                         | **clear**, for this head, but records `rev-7`      | no            |
+| `combined-proof-stale-revision`      | `4444eeee` | clear verdict, but records `rev-7` while the plan file reads `rev-8`         | clear verdict, same stale `rev-7`                  | no            |
+| `combined-proof-unbound-revision`    | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
+| `combined-proof-candidate-mismatch`  | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
 
 `codescene-advisory` isolates the CodeScene gate from every other reason to
 hold: the whole approved plan has cleared at the revision in force, and all
@@ -75,7 +76,7 @@ stale-revision rule — the follow-up path works, and readiness still waits.
 
 ### The two-assessment cases
 
-The six `combined-*` scenarios are the cases where an ExecPlan implementation
+The seven `combined-*` scenarios are the cases where an ExecPlan implementation
 also introduces a proof, so both the completeness and the proof assessment are
 applicable and both must clear. A verdict on one of them says nothing about the
 other, and the pair of requests means a run cannot infer the revision binding
@@ -97,8 +98,8 @@ is therefore evidence that the readiness rule accepts an assessment reply of
 the right shape; it is not evidence that the reply's verdict is mathematically
 sound, and the outcome states the gap rather than leaving it implicit.
 
-The other five hold for one distinct reason each, so that a hold in one cannot
-be explained by the defect in another. Two of them break the proof assessment
+The other six hold for one distinct reason each, so that a hold in one cannot
+be explained by the defect in another. Three of them break the proof assessment
 while the completeness assessment is clear, current, and bound to this
 candidate; the remaining three break the evidence a verdict is reconciled
 against:
@@ -116,9 +117,20 @@ against:
   the proof reply is clear and echoes `rev-7`, but its assessed head is
   `aaaa1111` where the PR's head is `9999dddd`. The run treats the verdict as
   inapplicable, posts a follow-up pinned to the real head, and stays draft.
-  This is the pair that isolates the proof assessment: the older
+  This is the first of the three that isolate the proof assessment: the older
   `combined-proof-stale-revision` has both verdicts stale, so its hold does not
   show which assessment held it.
+- `combined-proof-stale-plan-revision` leaves the proof verdict recorded
+  against a superseded revision and nothing else. The plan file at head
+  `7777dddd` reads `rev-8`, and the completeness reply is clear, bound to this
+  candidate and echoes `rev-8`, so that side cannot hold the run. The proof
+  reply is clear, its assessed head is this candidate's, and it echoes
+  `rev-7` — the revision in force when it was asked. It was not wrong when
+  written; it is stale now. The run holds, and rather than post a premature
+  clearance it files a renewal request for `rev-8` that names the superseded
+  verdict's comment ID. This is the case neither of the other two isolates: a
+  proof verdict whose only defect is the plan revision it was recorded against,
+  with completeness clear and current.
 - `combined-proof-stale-revision` moves the plan file under the replies. Both
   replies are clear and echo `rev-7`, and both are for the right base/head —
   but the plan at this head reads `rev-8`, because the plan file is what moved
@@ -141,7 +153,7 @@ against:
   revision does not carry over, so the run asks again against the real head and
   stays in draft.
 
-Only the three whose hold is a fact about the plan file are held to a plan read
+Only the four whose hold is a fact about the plan file are held to a plan read
 by the runner. The pending and stale-verdict cases are decided by the state of
 the proof verdict alone — a pending verdict cannot clear at any revision, and a
 clear verdict for another head needs no plan read to disqualify — so requiring
@@ -463,15 +475,17 @@ proof verdict is the only applicable assessment. `superseded-revision` reads
 `contents/docs/execplans` while naming the stale revision in a follow-up, which
 is a different use of the route from the confirmation above.
 
-The three holding `combined-*` cases each reconcile the same way, and their
-traces show it: `combined-proof-stale-revision`,
+The four holding `combined-*` cases whose ground is the plan file each
+reconcile the same way, and their traces show it:
+`combined-proof-stale-plan-revision`, `combined-proof-stale-revision`,
 `combined-proof-unbound-revision` and `combined-proof-candidate-mismatch` all
 read `contents/docs/execplans/issue-271-readiness-handoff.md` at their own head
 before deciding, so none of them holds merely because it never looked. What
-differs is what the read established. In the stale case the file reads `rev-8`
-against replies that echo `rev-7`; in the unbound case the completeness reply
-names `rev-7` and the proof reply names nothing, so the revision check cannot
-be satisfied for the proof from its own reply; in the mismatch case the
+differs is what the read established. In both stale cases the file reads
+`rev-8` against a reply that echoes `rev-7` — both replies in the older case,
+the proof reply alone in the newer one; in the unbound case the completeness
+reply names `rev-7` and the proof reply names nothing, so the revision check
+cannot be satisfied for the proof from its own reply; in the mismatch case the
 revision matches and the head does not. The permits case reads both `contents`
 routes, the plan and the proof, at the head it judges, because a combined
 assignment has two subjects to reconcile and one read would not cover both.
@@ -514,7 +528,7 @@ candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
-**Freshness of each recording.** All fifteen recordings passed their own
+**Freshness of each recording.** All sixteen recordings passed their own
 outcome assertion when they were made. They were replaced when the runner
 gained the shared `pr-ready` boundary line, the successful read-back check, the
 candidate-bound plan read and the head-commit route, and when the assignment
@@ -531,19 +545,24 @@ record. The recordings that post nothing are unaffected, because the change is
 confined to the comment the stand-in records and serves back; they were not
 re-recorded, and their provenance is the earlier refresh above.
 
-Last, `combined-proof-pending` and `combined-proof-stale-verdict` were recorded
-after the others, and they are the only two made under every current assertion:
-the premise check, the comment stamp, and the answer record. They post nothing
-and answered a follow-up respectively, which is why the stale-verdict run has a
-`submitted/` entry and the pending run does not. The answer records under
-`answers/` exist only for runs whose scratch directory still held one when the
-record was committed; a run whose scratch is gone has none, and none was
-reconstructed.
+`combined-proof-pending` and `combined-proof-stale-verdict` were recorded next,
+after the others. Last, `combined-proof-stale-plan-revision` was recorded, and
+it is the only one made under every current assertion at once: the premise
+check, the plan-read check, the comment stamp and the answer record. The three
+post differently, which is why each has a different artefact set: the pending
+run posts nothing, the stale-verdict and stale-plan-revision runs both post and
+so have `submitted/` entries. The answer records under `answers/` exist only
+for runs whose scratch directory still held one when the record was committed;
+a run whose scratch is gone has none, and none was reconstructed.
 
 A recording made before an assertion was added is still valid evidence for what
 it observed, but it has not been re-run against the assertion. The plan-read
-check now extends to the three holding `combined-*` cases, which were recorded
-after it did; no earlier recording is held to a check it was not made under.
+check now extends to the four holding `combined-*` cases whose hold is a fact
+about the plan file; the stale-plan-revision case was recorded under it, and
+the three that predate it were verified against their committed facts rather
+than assumed, which is what
+`test_each_holding_combined_premise_holds_for_its_recorded_facts` does for
+every one of the six.
 
 Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
 unmodelled third variable, and that is why all nine original scenarios, not

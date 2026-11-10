@@ -1935,11 +1935,11 @@ def test_the_combined_scenario_is_held_to_every_permitting_check() -> None:
 def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
     """A holding combined case decided by the plan file must have read it.
 
-    Three of the five exist because a verdict is unusable as given: a stale
-    revision, an unbound one, or a different head. Every one of those grounds
-    is established from the plan file or the candidate, so a run that held
-    without reading the plan would be filed as evidence for a rule it never
-    applied.
+    Four of the six exist because a verdict is unusable as given: a stale plan
+    revision (in both verdicts, or in the proof verdict alone), an unbound one,
+    or a different head. Every one of those grounds is established from the plan
+    file or the candidate, so a run that held without reading the plan would be
+    filed as evidence for a rule it never applied.
 
     The other two are decided by the state of the proof verdict alone, and are
     asserted to be OUT of this arm: a pending verdict cannot clear at any
@@ -1955,6 +1955,7 @@ def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
     )
     assert plan_branch, "the plan-read branch is no longer recognizable"
     for name in (
+        "combined-proof-stale-plan-revision",
         "combined-proof-stale-revision",
         "combined-proof-unbound-revision",
         "combined-proof-candidate-mismatch",
@@ -2012,6 +2013,7 @@ def test_a_holding_combined_case_asserts_the_defect_it_demonstrates() -> None:
     for name in (
         "combined-proof-pending",
         "combined-proof-stale-verdict",
+        "combined-proof-stale-plan-revision",
         "combined-proof-stale-revision",
         "combined-proof-unbound-revision",
         "combined-proof-candidate-mismatch",
@@ -2045,7 +2047,7 @@ def test_each_holding_combined_premise_holds_for_its_recorded_facts(
         for name in body.group("names").replace("\n", " ").split("|")
         if name.strip()
     ]
-    assert len(names) == 5, f"the premise arm holds {len(names)} cases, expected 5"
+    assert len(names) == 6, f"the premise arm holds {len(names)} cases, expected 6"
     for name in names:
         facts = FIXTURES / "scenarios" / name / "facts.json"
         done = subprocess.run(
@@ -2061,12 +2063,12 @@ def test_each_holding_combined_premise_holds_for_its_recorded_facts(
 
 
 def test_a_holding_proof_case_isolates_the_proof_assessment() -> None:
-    """The two new cases must break the proof side only.
+    """The isolated cases must break the proof side only.
 
     `combined-proof-stale-revision` has both verdicts stale, so its hold does
-    not show which assessment held it. The pending and stale-verdict cases
-    exist to close that gap, and each is only meaningful if the completeness
-    reply really is clear and current.
+    not show which assessment held it. The pending, stale-verdict and
+    stale-plan-revision cases exist to close that gap; each is only meaningful
+    if the completeness reply really is clear and current.
     """
     runner = RUNNER.read_text()
     body = re.search(
@@ -2074,16 +2076,19 @@ def test_a_holding_proof_case_isolates_the_proof_assessment() -> None:
     )
     assert body, "the premise probe is no longer recognizable"
     probe = body.group("probe")
-    assert 'name == "combined-proof-pending"' in probe, (
-        "the premise probe no longer distinguishes the pending case"
-    )
-    assert 'name == "combined-proof-stale-verdict"' in probe, (
-        "the premise probe no longer distinguishes the stale-verdict case"
-    )
+    for name in (
+        "combined-proof-pending",
+        "combined-proof-stale-verdict",
+        "combined-proof-stale-plan-revision",
+    ):
+        assert f'name == "{name}"' in probe, (
+            f"the premise probe no longer distinguishes {name}"
+        )
     for needed in (
         "the proof reply does not record a pending verdict",
         "the completeness reply is not clear",
         "the proof verdict assesses the PR's current head",
+        "the proof reply echoes the revision in force",
     ):
         assert needed in probe, f"the premise probe no longer asserts {needed!r}"
 

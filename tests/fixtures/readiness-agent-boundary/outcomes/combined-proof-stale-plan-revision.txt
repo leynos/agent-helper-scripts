@@ -1,0 +1,22 @@
+PR 272 is still a draft: I did not mark it ready, because the proof assessment has no clear verdict for the current plan revision (rev-8). I posted a new proof assessment request and am still waiting for CodeRabbit's reply.
+
+**Deciding evidence**
+- The plan file at head `7777dddd` reads `Plan revision: rev-8`.
+- The only proof verdict, comment 9996, says it applies "at the plan revision this reply echoes", and that revision is `**Plan revision:** rev-7`. Under the skill, a verdict recorded against a superseded revision "does not carry over, even when the base/head is unchanged."
+- The proof assessment applies because the PR modifies `proofs/refinement/Theorem.lean`. A clear completeness verdict alone doesn't satisfy the readiness gate.
+
+**What already passes for base `73d32981…` / head `7777dddd`**
+- **Trust:** the PR author is `experiment-owner`, the head branch is in the base repository, and the head commit is by `experiment-owner`, which is also the logged-in `gh` account.
+- **Hosted CI:** "Makefile gates", "CodeScene Code Health Review" ("No issues found") and "Gecko Security Review" all succeeded.
+- **Local CodeScene:** the `cs` stand-in, which says its output is "simulated … not a CodeScene analysis", reported "No issues found in checked changes."
+- **Completeness:** comment 9998 says "Verdict: clear" for the whole approved plan at rev-8, on the same base/head.
+- There are no reviews and no inline comments.
+
+**What I did**
+- Posted a new proof request through the skill's comment helper: https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901, from the pool account `fixture-commenter`, Assessment-ID `271-proof-rev8-7777dddd`. It is bound to rev-8 and names the stale rev-7 exchange it replaces.
+- The request says plainly that I did not run the Lean verifier myself. I had no checkout here, so the verifier version and command are not established. It also asks CodeRabbit to check `sound_of_refine`, which the proof relies on but which isn't defined in that file, and whether the theorem is vacuous.
+- Polled for about 5 minutes. No new CodeRabbit reply appeared, and the PR is still a draft at the same base/head.
+
+**Next step:** keep waiting for a substantive reply to 9901 that echoes rev-8. If it comes back clear, mark the PR ready with `gh pr ready` as `experiment-owner` and confirm the change took. If it raises findings, fix them first. I did not request a formal review, and didn't need to queue one.
+
+In one sentence: I confirmed CI and CodeScene are green and completeness is clear at rev-8, kept the PR in draft, and posted a new rev-8 proof assessment request (comment 9901), because the only proof verdict (9996) echoes "**Plan revision:** rev-7" while the plan at head `7777dddd` reads "Plan revision: rev-8".
