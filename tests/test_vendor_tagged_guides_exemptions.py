@@ -14,6 +14,7 @@ import types
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 
 def test_a_long_paragraph_is_bracketed_for_the_consumer_gate(
@@ -339,6 +340,80 @@ def _regions(
     return regions
 
 
+def _assert_pairs_match_groups(
+    groups: Sequence[Sequence[int]], regions: Sequence[tuple[int, int]]
+) -> None:
+    """Assert one pair per offending block group and no pair splitting one."""
+    for group in groups:
+        enclosing = [
+            (start, end)
+            for start, end in regions
+            if start < min(group) and max(group) < end
+        ]
+        assert len(enclosing) == 1, (group, enclosing, regions)
+        start, end = enclosing[0]
+        assert all(start < index < end for index in group), (group, regions)
+        assert not any(
+            min(group) < boundary < max(group)
+            for other in regions
+            for boundary in other
+        ), (group, regions)
+    for start, end in regions:
+        inside = [
+            group
+            for group in groups
+            if any(start < index < end for index in group)
+        ]
+        assert len(inside) == 1, (start, end, inside, regions)
+
+
+def test_the_pair_invariant_rejects_merged_and_split_pairs(
+    vendor: types.ModuleType,
+) -> None:
+    """One pair may not merge two groups, and pairs may not split one block."""
+    disable = vendor.DISABLE_MD013
+    enable = vendor.ENABLE_MD013
+    merged = [
+        disable,
+        "",
+        "one",
+        "",
+        "two",
+        "",
+        enable,
+        "",
+        disable,
+        "",
+        "three",
+        "",
+        enable,
+    ]
+    split = [
+        disable,
+        "",
+        "```text",
+        "",
+        enable,
+        "",
+        disable,
+        "",
+        "code",
+        "",
+        "```",
+        "",
+        enable,
+    ]
+
+    with pytest.raises(AssertionError):
+        _assert_pairs_match_groups(
+            [[2], [4], [10]], _regions(vendor, merged)
+        )
+    with pytest.raises(AssertionError):
+        _assert_pairs_match_groups(
+            [[2, 8, 10]], _regions(vendor, split)
+        )
+
+
 @given(blocks=_block_documents(), limits=_limits())
 @settings(max_examples=60, deadline=None)
 def test_each_long_block_is_bracketed_and_the_other_lines_survive(
@@ -364,6 +439,7 @@ def test_each_long_block_is_bracketed_and_the_other_lines_survive(
         )
     )
     offending = 0
+    offending_groups: list[list[int]] = []
     start = 0
     for group in _groups(blocks):
         text = "\n\n".join(group)
@@ -374,6 +450,7 @@ def test_each_long_block_is_bracketed_and_the_other_lines_survive(
         expected = any(_EXPECTATIONS[block](limits) for block in group)
         if expected:
             offending += 1
+            offending_groups.append(converted_indexes)
             assert converted_indexes, (group, converted)
             assert all(index in covered for index in converted_indexes), (
                 group,
@@ -387,6 +464,7 @@ def test_each_long_block_is_bracketed_and_the_other_lines_survive(
         start = end + 2
 
     assert len(regions) == offending, (regions, offending, converted)
+    _assert_pairs_match_groups(offending_groups, regions)
 
     for start, end in regions:
         inside = lines[start + 1 : end]
