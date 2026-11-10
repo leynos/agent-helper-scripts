@@ -508,7 +508,13 @@ def readiness(
     blocked = proof_request(candidate, proof_applies)
     if blocked is not None:
         return blocked
-    blocked = _settled(candidate, completeness, proof, completeness_applies, proof_applies)
+    blocked = _settled(
+        candidate,
+        completeness,
+        proof,
+        completeness_applies=completeness_applies,
+        proof_applies=proof_applies,
+    )
     if blocked is not None:
         return blocked
     blocked = _subject(completeness, completeness_applies)
@@ -521,6 +527,7 @@ def _settled(
     candidate: Candidate,
     completeness: Verdict,
     proof: Verdict,
+    *,
     completeness_applies: bool,
     proof_applies: bool,
 ) -> Readiness | None:
@@ -531,6 +538,12 @@ def _settled(
     the accepted candidate and the revision in force, and a proof verdict must
     cover the inventory the request named. An assessment established as ``not
     applicable`` has no reply to bind, so it is skipped after its disposition.
+
+    The applicability flags are keyword-only. They are two booleans of the same
+    type sitting next to each other, so a positional call site can transpose
+    them and still read as correct: the candidate would then be judged against
+    the proof's applicability and vice versa, with no error raised. Naming them
+    at every call makes that transposition impossible to write by accident.
 
     The helpers are resolved by name at call time, so a module-attribute
     override still replaces the check it names.

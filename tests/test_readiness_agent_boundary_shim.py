@@ -938,10 +938,22 @@ def test_the_simulated_cs_answers_each_mode_in_the_cli_shape(
     assert needle in done.stdout, "expected needle in done.stdout to hold"
 
 
+#: A sentinel for the case whose facts file must not be decodable as UTF-8. The
+#: parametrization carries it as text so one test can cover every unusable
+#: facts file, and the body writes raw bytes when it sees this value.
+NON_UTF8_FACTS = "non-utf8-facts-sentinel"
+
+
 @pytest.mark.parametrize(
     "setup",
-    [None, "not json", json.dumps([]), json.dumps({"cs_mode": "invented"})],
-    ids=["no-facts", "malformed", "not-an-object", "unknown-mode"],
+    [
+        None,
+        "not json",
+        json.dumps([]),
+        json.dumps({"cs_mode": "invented"}),
+        NON_UTF8_FACTS,
+    ],
+    ids=["no-facts", "malformed", "not-an-object", "unknown-mode", "undecodable"],
 )
 def test_the_simulated_cs_fails_closed_without_a_usable_mode(
     cs_run: Path, setup: str | None
@@ -950,10 +962,14 @@ def test_the_simulated_cs_fails_closed_without_a_usable_mode(
 
     The two cases are answered differently on purpose, and both are refusals:
 
-    * A facts file that was never served — missing, malformed, or not an
-      object — is a fixture fault. The stand-in cannot say the licence check
-      failed, because no recorded fact establishes that the CLI was present at
-      all. It exits 3 with its own diagnostic, and nothing reaches the trace.
+    * A facts file that was never served — missing, malformed, undecodable, or
+      not an object — is a fixture fault. The stand-in cannot say the licence
+      check failed, because no recorded fact establishes that the CLI was
+      present at all. It exits 3 with its own diagnostic, and nothing reaches
+      the trace. The undecodable case is here because `UnicodeDecodeError` is a
+      `ValueError` rather than an `OSError`: without its own clause it escaped
+      the fault boundary and exited 1, which is the `unavailable` answer, so a
+      run could not tell an unreadable fixture from a real licence failure.
     * A served file whose mode is unknown is an `unavailable` answer: the facts
       exist and record something this scenario cannot evaluate, which is the
       situation the real CLI reports with a non-zero licence failure.
@@ -963,6 +979,10 @@ def test_the_simulated_cs_fails_closed_without_a_usable_mode(
     """
     if setup is not None:
         (cs_run / "facts.json").write_text(setup, encoding="utf-8")
+    if setup == NON_UTF8_FACTS:
+        # Bytes, not text: this case exists to make `read_text` fail to decode,
+        # which `write_text(encoding="utf-8")` cannot express.
+        (cs_run / "facts.json").write_bytes(b"\xff\xfe{\x00}\x00")
     done = invoke_cs(cs_run, "delta", "base", "HEAD")
     if setup != json.dumps({"cs_mode": "invented"}):
         assert done.returncode == 3, done.stdout

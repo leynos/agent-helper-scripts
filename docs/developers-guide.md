@@ -838,7 +838,7 @@ branch, and its own refusal message must be followed by the `rc=1` that fails
 the run. Those assertions cannot pass on a probe whose refusal was moved
 outside the branch or demoted to a warning. They cover `PROBE_DELTA` and
 `PROBE_STATE` only, the two checks that are delinquent exactly when a run is
-expected to transition; the other probes have no equivalent wiring assertion,
+expected to transition; the other probes have no equivalent wiring assertion
 because the ordering checks that reach them are proved against recorded traces
 instead.
 

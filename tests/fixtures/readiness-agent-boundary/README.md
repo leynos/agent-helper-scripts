@@ -643,12 +643,15 @@ scratch directory is gone have no record committed, and none is reconstructed.
 only, because they were captured before the stand-in recorded the text it
 printed. They show that each invocation ran and how it exited; they cannot show
 what the agent received, so they do not on their own evidence the "usable read"
-claim above for those runs. The pairing test checks the record count and the
-argv of each entry, which is exactly the part those five do still carry — it
-does not detect the missing `stdout`, and it is not meant to. Read them as a
-status record, not as an answer. Re-recording those five would close the gap;
-they have not been re-recorded here, and the shortfall is stated rather than
-left for a reader to discover.
+claim above for those runs. Read them as a status record, not as an answer.
+
+The pairing test bounds the shortfall rather than ignoring it. It asserts the
+record count and each entry's argv — the part those five do still carry — and
+it also compares every file against `ANSWERS_WITHOUT_STDOUT`: a new recording
+that loses `stdout` fails, and a listed file that gains it fails until its name
+leaves the list. So the five are a stated, frozen limit on the older evidence,
+not an unnoticed one that new recordings can extend. Re-recording those five
+would close the gap; they have not been re-recorded here.
 
 A scenario that posted no comment has no `submitted/` entry. Replace a trace,
 its answer record, its `cs` trace, its outcome and its submitted body together:

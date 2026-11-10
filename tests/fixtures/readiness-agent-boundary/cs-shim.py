@@ -101,6 +101,12 @@ def read_facts() -> dict:
         text = FACTS.read_text(encoding="utf-8")
     except OSError as fault:
         raise FixtureFault(f"cannot read {FACTS.name}: {fault}") from fault
+    except UnicodeDecodeError as fault:
+        # A `ValueError`, not an `OSError`, so the clause above misses it. Left
+        # uncaught it would escape the fixture-fault boundary entirely and kill
+        # the process with status 1 — which is this CLI's `unavailable` answer,
+        # not the fault the run is supposed to be able to tell apart from it.
+        raise FixtureFault(f"{FACTS.name} is not UTF-8 text: {fault}") from fault
     try:
         facts = json.loads(text)
     except json.JSONDecodeError as fault:
