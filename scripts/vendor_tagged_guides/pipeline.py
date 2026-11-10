@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from pathlib import Path
+import stat
 
 from .config import VendorConfig, fail, validate
 from .exemptions import insert_exemptions
@@ -137,21 +138,30 @@ def _previous_outputs(
 ) -> dict[Path, bytes | None]:
     """Record each output's bytes, or ``None`` when it does not exist yet.
 
+    An output that is a symbolic link is refused before anything is written.
+    Following the link would let a write create a target outside the output
+    directory, and a later restore would remove only the link, leaving that
+    target behind. The link's own mode is inspected, so a dangling link is
+    refused too, and an inspection failure is reported rather than read as an
+    absent output.
+
     Raises
     ------
     VendorError
-        If an existing output cannot be read, so no conversion starts.
+        If an output is a symbolic link, or an existing output cannot be
+        inspected or read, so no conversion starts.
     """
     previous: dict[Path, bytes | None] = {}
     for path in written:
         try:
+            mode = filesystem.lstat_mode(path)
+            if mode is not None and stat.S_ISLNK(mode):
+                fail(f"refusing to write through the symbolic link {path}")
             previous[path] = (
-                filesystem.read_bytes(path)
-                if filesystem.exists(path)
-                else None
+                filesystem.read_bytes(path) if mode is not None else None
             )
         except OSError as error:
-            fail(f"cannot read {path}: {error}")
+            fail(f"cannot inspect or read {path}: {error}")
     return previous
 
 
@@ -207,8 +217,9 @@ def vendor(
     ------
     VendorError
         If an argument is unusable, a source cannot be read or decoded, a
-        source already carries the note, the formatter does not reach a fixed
-        point, or an output cannot be written. Any failure after the first
+        source already carries the note, an output is a symbolic link or
+        cannot be inspected, the formatter does not reach a fixed point, or an
+        output cannot be written. Any failure after the first
         write, including an interruption or an I/O error, attempts to restore
         the previous output files before it propagates. Restoration is best
         effort: the remaining outputs are still attempted, and a restore that

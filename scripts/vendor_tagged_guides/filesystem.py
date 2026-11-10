@@ -26,8 +26,8 @@ class FileSystem(Protocol):
         """Return a path's mode bits, or ``None`` when it does not exist."""
         ...
 
-    def exists(self, path: Path) -> bool:
-        """Report whether a path exists."""
+    def lstat_mode(self, path: Path) -> int | None:
+        """Return a path's own mode bits without following a symbolic link."""
         ...
 
     def read_text(self, path: Path) -> str:
@@ -75,9 +75,18 @@ class LocalFileSystem:
         except (FileNotFoundError, NotADirectoryError):
             return None
 
-    def exists(self, path: Path) -> bool:
-        """Report whether a path exists."""
-        return path.exists()
+    def lstat_mode(self, path: Path) -> int | None:
+        """Return a path's own mode bits without following a symbolic link.
+
+        ``Path.exists`` follows a link, so a dangling output symlink would read
+        as an absent file and a later write would create its target. ``lstat``
+        reports the link itself, and an inspection failure is raised rather
+        than reported as absence.
+        """
+        try:
+            return path.lstat().st_mode
+        except (FileNotFoundError, NotADirectoryError):
+            return None
 
     def read_text(self, path: Path) -> str:
         """Read one UTF-8 text file."""

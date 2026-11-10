@@ -159,6 +159,104 @@ def test_a_write_failure_is_reported_as_a_vendor_error(
         vendor.vendor(built.config, filesystem=ReadOnlyFileSystem())
 
 
+def test_a_dangling_output_symlink_is_refused_before_writing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A dangling link must not read as an absent output and be followed."""
+    built = make_config(vendor, tmp_path)
+    link = built.consumer / "cuprum-users-guide.md"
+    target = built.consumer / "missing-target.md"
+    link.symlink_to(target.name)
+
+    with pytest.raises(
+        vendor.VendorError, match="refusing to write through the symbolic link"
+    ):
+        vendor.vendor(built.config)
+
+    assert link.is_symlink(), link
+    assert not target.exists(), target
+    assert not (built.consumer / "cuprum-v0-2-0-migration-guide.md").exists()
+
+
+def test_an_output_symlink_to_an_existing_file_is_refused_before_writing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A link to a real file must not be written through and then unlinked."""
+    built = make_config(vendor, tmp_path)
+    target = built.consumer / "target.md"
+    target.write_text("keep me\n", encoding="utf-8", newline="\n")
+    link = built.consumer / "cuprum-users-guide.md"
+    link.symlink_to(target.name)
+
+    with pytest.raises(
+        vendor.VendorError, match="refusing to write through the symbolic link"
+    ):
+        vendor.vendor(built.config)
+
+    assert link.is_symlink(), link
+    assert target.read_text() == "keep me\n", target
+
+
+def test_an_output_inspection_failure_is_reported_and_writes_nothing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """An inspection error is not proof that an output is absent."""
+    built = make_config(vendor, tmp_path)
+
+    class UninspectableFileSystem(vendor.LocalFileSystem):
+        """Fail the output inspection as a stale handle would."""
+
+        def lstat_mode(self, path: Path) -> int | None:
+            """Refuse to inspect any path."""
+            raise OSError("stale file handle")
+
+    with pytest.raises(vendor.VendorError, match="cannot inspect or read"):
+        vendor.vendor(built.config, filesystem=UninspectableFileSystem())
+
+    assert list(built.consumer.iterdir()) == [], list(built.consumer.iterdir())
+
+
+def test_a_source_read_failure_is_reported_and_writes_nothing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A failing source read is a one-line diagnostic before any write."""
+    built = make_config(vendor, tmp_path)
+
+    class UnreadableFileSystem(vendor.LocalFileSystem):
+        """Fail every text read as a failing device would."""
+
+        def read_text(self, path: Path) -> str:
+            """Refuse the read."""
+            raise OSError("input/output error")
+
+    with pytest.raises(vendor.VendorError, match="cannot read"):
+        vendor.vendor(built.config, filesystem=UnreadableFileSystem())
+
+    assert list(built.consumer.iterdir()) == [], list(built.consumer.iterdir())
+
+
+def test_a_previous_output_read_failure_is_reported_and_writes_nothing(
+    vendor: types.ModuleType, tmp_path: Path
+) -> None:
+    """A failing snapshot read leaves every output as it was found."""
+    built = make_config(vendor, tmp_path)
+    kept = built.consumer / "cuprum-users-guide.md"
+    kept.write_text("previous\n", encoding="utf-8", newline="\n")
+
+    class UnreadableBytesFileSystem(vendor.LocalFileSystem):
+        """Fail the previous-output byte read."""
+
+        def read_bytes(self, path: Path) -> bytes:
+            """Refuse the read."""
+            raise OSError("input/output error")
+
+    with pytest.raises(vendor.VendorError, match="cannot inspect or read"):
+        vendor.vendor(built.config, filesystem=UnreadableBytesFileSystem())
+
+    assert kept.read_text() == "previous\n", kept
+    assert not (built.consumer / "cuprum-v0-2-0-migration-guide.md").exists()
+
+
 class FullDiskFileSystem:
     """Boundary that fails one path's byte write and delegates the rest."""
 

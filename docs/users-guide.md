@@ -408,12 +408,14 @@ vendor(config)
 given paths in place; omit it to skip the formatter, or supply a replacement
 callable instead of the default `mdtablefix` command. Both `validate` and
 `vendor` also accept a `filesystem=` keyword naming the object that performs
-reads, writes, and restores. `LocalFileSystem` is the default and uses the
-local machine; a subclass can record an operation or fail one, which is how the
-package's own tests exercise the read, write, and restore failures.
-`VendorConfig` is frozen, and `VendorError` is the only error the pipeline
-raises deliberately; `VENDOR_ERRORS` mirrors `gate_runner.GATE_ERRORS` for a
-caller that reports failures as one line. The
+inspections, reads, writes, and restores. `LocalFileSystem` is the default and
+uses the local machine; a subclass can record an operation or fail one, which
+is how the package's own tests exercise the inspection, read, write, and
+restore failures. `vendor` refuses an output path that is a symbolic link
+before anything is written, so a link cannot redirect a write outside the
+output directory. `VendorConfig` is frozen, and `VendorError` is the only error
+the pipeline raises deliberately; `VENDOR_ERRORS` mirrors
+`gate_runner.GATE_ERRORS` for a caller that reports failures as one line. The
 [reference](developers-guide.md#vendor_tagged_guides-and-vendor_tagged_guides_cli)
 describes each function.
 

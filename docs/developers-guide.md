@@ -293,8 +293,8 @@ network, or a checkout of the upstream repository. The package splits the work
 by concern: `config` validates an import, `masking` finds protected text,
 `links` rewrites destinations, `note` inserts the provenance record,
 `exemptions` adds Markdown-lint exemptions, `pipeline` composes them, and
-`filesystem` names the reads, writes, and restores they perform. The public API
-is re-exported by the package's `__init__`.
+`filesystem` names the inspections, reads, writes, and restores they perform.
+The public API is re-exported by the package's `__init__`.
 `scripts/vendor_tagged_guides_cli.py` is a PEP 723 script that adds the command
 line and the only process boundary in the tool.
 
@@ -314,13 +314,16 @@ operation through `pathlib`. A test supplies a subclass that records a write or
 fails one read, write, or restore, so a failure reaches the code under test
 through the boundary instead of replacing `Path` methods for the whole process.
 Validation only inspects and resolves paths; it never writes or removes a file.
-`convert` rewrites one document. `long_lines` and `insert_exemptions` decide
-where the consumer's Markdown gate needs a bounded MD013 exemption. `vendor`
-composes them. It validates the configuration and converts every mapping before
-it writes any output, so a source that cannot be converted leaves the
-consumer's directory untouched. It then writes each mapping, optionally runs an
-injected `format_files` callable, inserts exemptions, runs the formatter again,
-and refuses the result unless the second formatting pass changed nothing. The
+Before the first write, `vendor` records each output's previous bytes from the
+path's own mode, so an output that is a symbolic link is refused and an
+inspection failure is reported rather than read as an absent file. `convert`
+rewrites one document. `long_lines` and `insert_exemptions` decide where the
+consumer's Markdown gate needs a bounded MD013 exemption. `vendor` composes
+them. It validates the configuration and converts every mapping before it
+writes any output, so a source that cannot be converted leaves the consumer's
+directory untouched. It then writes each mapping, optionally runs an injected
+`format_files` callable, inserts exemptions, runs the formatter again, and
+refuses the result unless the second formatting pass changed nothing. The
 fixed-point check is what makes a rerun at the same tag reproducible. Once
 writing has begun, a failure attempts to restore the previous outputs, but
 restoration is best effort rather than guaranteed: every remaining output is

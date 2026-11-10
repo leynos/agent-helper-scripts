@@ -26,10 +26,10 @@ an import, :mod:`~vendor_tagged_guides.masking` finds protected text,
 :mod:`~vendor_tagged_guides.note` inserts the provenance record,
 :mod:`~vendor_tagged_guides.exemptions` adds Markdown-lint exemptions, and
 :mod:`~vendor_tagged_guides.pipeline` composes them.
-:mod:`~vendor_tagged_guides.filesystem` names the reads, writes, and restores
-those modules perform, so a caller can substitute a recording or failing
-boundary. The public API is re-exported here, so a caller imports only this
-package.
+:mod:`~vendor_tagged_guides.filesystem` names the inspections, reads, writes,
+and restores those modules perform, so a caller can substitute a recording or
+failing boundary. The public API is re-exported here, so a caller imports only
+this package.
 
 Examples
 --------

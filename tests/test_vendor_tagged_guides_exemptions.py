@@ -221,11 +221,14 @@ _BLOCKS = (
     "# Title",
     "A short paragraph.",
     _LONG_PARAGRAPH,
-    "- a list item with a great many words that also runs past the limit",
-    "> a blockquote with a great many words that also runs past the limit",
+    "- a list item with a great many words that runs well past the limit and "
+    "keeps going",
+    "> a blockquote with a great many words that runs well past the limit "
+    "and keeps going",
     "```text\n" + "code " * 20 + "\n```",
     "| a | b |\n| --- | --- |\n| c | d |",
-    "<!-- a comment with a great many words that also runs past the limit -->",
+    "<!-- a comment with a great many words that runs well past the limit "
+    "and keeps going -->",
 )
 
 #: First lines of blocks the limits leave alone, so no pair may wrap them.
@@ -233,20 +236,50 @@ _SHORT_LINES = frozenset({"# Title", "A short paragraph."})
 
 
 @st.composite
-def _block_documents(draw: st.DrawFn) -> str:
-    """Draw a document assembled from whole Markdown blocks."""
-    blocks = draw(st.lists(st.sampled_from(_BLOCKS), min_size=1, max_size=5))
-    return "\n\n".join(blocks) + "\n"
+def _block_documents(draw: st.DrawFn) -> list[str]:
+    """Draw a document as a list of whole Markdown blocks."""
+    return draw(st.lists(st.sampled_from(_BLOCKS), min_size=1, max_size=5))
+
+
+@st.composite
+def _limits(draw: st.DrawFn) -> dict[str, int]:
+    """Draw prose and code limits that classify the blocks differently."""
+    return {
+        "line_length": draw(st.sampled_from((30, 40, 60))),
+        "code_line_length": draw(st.sampled_from((40, 60, 120))),
+    }
+
+
+def _content_indexes(vendor: types.ModuleType, text: str) -> list[int]:
+    """Return the line numbers of content, without blank or directive lines."""
+    directives = {vendor.DISABLE_MD013, vendor.ENABLE_MD013}
+    return [
+        index
+        for index, line in enumerate(text.splitlines())
+        if line.strip() and line not in directives
+    ]
 
 
 def _content(vendor: types.ModuleType, text: str) -> list[str]:
     """Return the non-blank lines, without the inserted directive lines."""
-    directives = {vendor.DISABLE_MD013, vendor.ENABLE_MD013}
-    return [
-        line
-        for line in text.splitlines()
-        if line not in directives and line.strip()
-    ]
+    lines = text.splitlines()
+    return [lines[index] for index in _content_indexes(vendor, text)]
+
+
+def _is_list_item(block: str) -> bool:
+    """Say whether a block is a list item, which merges with a neighbour."""
+    return block.lstrip().startswith(("- ", "* ", "+ "))
+
+
+def _groups(blocks: Sequence[str]) -> list[list[str]]:
+    """Group blocks the way Markdown merges them: adjacent list items join."""
+    groups: list[list[str]] = []
+    for block in blocks:
+        if groups and _is_list_item(block) and _is_list_item(groups[-1][-1]):
+            groups[-1].append(block)
+        else:
+            groups.append([block])
+    return groups
 
 
 def _regions(
@@ -264,30 +297,59 @@ def _regions(
     return regions
 
 
-@given(document=_block_documents())
-@settings(max_examples=40, deadline=None)
+@given(blocks=_block_documents(), limits=_limits())
+@settings(max_examples=60, deadline=None)
 def test_each_long_block_is_bracketed_and_the_other_lines_survive(
-    vendor: types.ModuleType, document: str
+    vendor: types.ModuleType, blocks: list[str], limits: dict[str, int]
 ) -> None:
     """Every over-long block gets one bounded pair; nothing else changes."""
-    limits = {"line_length": 40, "code_line_length": 60}
+    document = "\n\n".join(blocks) + "\n"
     converted = vendor.insert_exemptions(document, **limits)
     lines = converted.splitlines()
+    regions = _regions(vendor, lines)
+    covered = {
+        index for start, end in regions for index in range(start + 1, end)
+    }
 
     assert _content(vendor, converted) == _content(vendor, document), converted
     assert vendor.insert_exemptions(converted, **limits) == converted, converted
 
-    for start, end in _regions(vendor, lines):
+    mapping = dict(
+        zip(
+            _content_indexes(vendor, document),
+            _content_indexes(vendor, converted),
+            strict=True,
+        )
+    )
+    offending = 0
+    start = 0
+    for group in _groups(blocks):
+        text = "\n\n".join(group)
+        end = start + len(text.splitlines()) - 1
+        converted_indexes = [
+            mapping[index] for index in range(start, end + 1) if index in mapping
+        ]
+        if vendor.long_lines(text, **limits):
+            offending += 1
+            assert converted_indexes, (group, converted)
+            assert all(index in covered for index in converted_indexes), (
+                group,
+                converted,
+            )
+        else:
+            assert not any(index in covered for index in converted_indexes), (
+                group,
+                converted,
+            )
+        start = end + 2
+
+    assert len(regions) == offending, (regions, offending, converted)
+
+    for start, end in regions:
         inside = lines[start + 1 : end]
         assert any(line.strip() for line in inside), converted
         swallowed = sorted(_SHORT_LINES.intersection(inside))
         assert swallowed == [], (swallowed, converted)
-
-    if _LONG_PARAGRAPH in document:
-        index = lines.index(_LONG_PARAGRAPH)
-        assert any(
-            start < index < end for start, end in _regions(vendor, lines)
-        ), converted
 
 
 def test_a_hard_break_after_the_final_allowed_column_is_detected(
