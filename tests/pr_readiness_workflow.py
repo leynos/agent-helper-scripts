@@ -84,7 +84,7 @@ class Discussion:
     base: str
     head: str
     responses: list[Reply] = field(default_factory=list)
-    requests: list[dict[str, str]] = field(default_factory=list)
+    requests: list[dict[str, object]] = field(default_factory=list)
 
     def post(
         self,
@@ -134,7 +134,7 @@ class Discussion:
 
     def _question(
         self, kind: str, plan_revision: str | None, proofs: tuple[str, ...]
-    ) -> dict[str, str]:
+    ) -> dict[str, object]:
         """Return the parts of a request that decide whether it is a new question.
 
         The candidate is part of the question: the same wording asked about a
@@ -155,17 +155,21 @@ class Discussion:
         Returns
         -------
         dict
-            The question's identity, without its marker.
+            The question's identity, without its marker. The proofs stay a
+            tuple rather than a joined string: two inventories that differ only
+            in where a comma falls would compare equal once joined, so
+            `("a", "b")` and `("a,b",)` would be one question. Keeping the
+            structure is what makes "the same question" mean the same proofs.
         """
         return {
             "kind": kind,
             "base": self.base,
             "head": self.head,
             "revision": plan_revision or "",
-            "proofs": ",".join(proofs),
+            "proofs": tuple(proofs),
         }
 
-    def _asked(self, question: dict[str, str]) -> dict[str, str] | None:
+    def _asked(self, question: dict[str, object]) -> dict[str, object] | None:
         """Return the request already recording ``question``, if there is one.
 
         The shipped instructions say to preserve an outstanding question and

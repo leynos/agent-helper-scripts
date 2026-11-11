@@ -585,10 +585,10 @@ def test_the_proof_request_records_the_inventory_it_asked_about() -> None:
 
     assert decision.ready, decision.reason
     posted = {request["kind"]: request for request in thread.requests}
-    assert posted[PROOF]["proofs"] == f"{PROOF_ONE},{PROOF_TWO}", (
+    assert posted[PROOF]["proofs"] == (PROOF_ONE, PROOF_TWO), (
         f"the proof request recorded {posted[PROOF]['proofs']!r}"
     )
-    assert posted[COMPLETENESS]["proofs"] == "", (
+    assert posted[COMPLETENESS]["proofs"] == (), (
         "only the proof question names a proof inventory"
     )
 
@@ -715,6 +715,28 @@ def test_a_superseded_candidate_does_not_reuse_the_earlier_markers() -> None:
     )
 
 
+def test_inventories_that_join_to_the_same_string_are_different_questions() -> None:
+    """A proof inventory is a list of names, not the text between commas.
+
+    Joining the names to compare questions makes `("a", "b")` and `("a,b",)`
+    the same string, so a thread that had asked about two proofs would treat a
+    question about one differently-named proof as already asked and hand it the
+    earlier marker. The reply bound to that marker would then clear an
+    inventory it never named.
+    """
+    thread = discussion()
+    first = thread.post(PROOF, PROOF_ID, REVISION, proofs=("a", "b"))
+    second = thread.post(PROOF, PROOF_ID, REVISION, proofs=("a,b",))
+
+    assert second != first, (
+        f"the two inventories shared the marker {first!r}, so they compared equal"
+    )
+    assert [request["proofs"] for request in thread.requests] == [
+        ("a", "b"),
+        ("a,b",),
+    ], f"the thread recorded {[r['proofs'] for r in thread.requests]}"
+
+
 def test_a_discussion_for_another_candidate_asks_nothing() -> None:
     """The sequence refuses a thread that describes a different candidate.
 
@@ -797,6 +819,6 @@ def test_a_narrow_proof_reply_does_not_clear_a_wider_inventory() -> None:
     )
     assert wider.is_draft, "the wider inventory left the PR ready"
     latest = thread.requests[-1]
-    assert latest["proofs"] == f"{PROOF_ONE},{PROOF_TWO}", (
+    assert latest["proofs"] == (PROOF_ONE, PROOF_TWO), (
         f"the re-ask named {latest['proofs']!r}, not the wider inventory"
     )

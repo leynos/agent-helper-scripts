@@ -706,6 +706,20 @@ readiness. A hosted green check cannot substitute for it; the ledger records
 the unavailable source, what would have evaluated it, and that readiness waits
 on it.
 
+The assessment questions are bound to what they are about, so a verdict cannot
+be reused for a question nobody asked. A completeness verdict clears the gate
+only when it covers the **whole approved plan**: a declared-subset verdict is
+evidence for its own scope and never a readiness waiver. Every verdict must
+also be bound to the current candidate and to the plan revision in force, so a
+reply that echoes an earlier head or an earlier revision is stale rather than
+clear. A managed stack gets no exception — a lower layer stays in draft until a
+whole-plan verdict covers its candidate, which leaves a stack cut from one
+undivided plan with no delivery path; that constraint is documented rather than
+worked around. See the
+[readiness and assessment contract](../skills/pr-babysitting/references/execplan-assessment.md)
+for the normative rules; this guide covers only how they are represented and
+tested.
+
 Use `comenq-coderabbit` for hosted review dispatch and recovery, `rebase` and
 `sem` for replay and semantic review, and `github-stacks` for managed stack
 operations. `weave-git-merge` is optional and applies only when Weave is
