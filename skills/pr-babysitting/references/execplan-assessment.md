@@ -212,9 +212,15 @@ part of that candidate: a verdict recorded against a revision that has since
 been superseded by a newly approved revision does not clear the gate, even when
 the base/head is unchanged. Reassess against the approved revision in force.
 Reconcile the revision a reply echoes with the revision in force; a reply that
-echoes only the base/head does not establish which revision was inspected.
-Preserve earlier evidence for its actual scope without relabelling it as a new
-review. Do not set the PR back to draft. If the assessment service explicitly
-cannot process the question, retain its response and report the specific
-blocker rather than inferring failure from automatic draft-review policy. Do
-not bypass the gate. Generic approval cannot discharge missing proof scrutiny.
+echoes only the base/head does not establish which revision was inspected. An
+applicable completeness assessment is bound to an approved plan revision. An
+assignment that requires one while recording no approved revision is a scope
+error to repair, not an assessment to read as clear on its base/head alone. A
+proof-only assignment with no ExecPlan is unaffected, because its completeness
+assessment is recorded as not applicable and its proof verdict is bound to the
+base/head, which is that candidate's whole identity. Preserve earlier evidence
+for its actual scope without relabelling it as a new review. Do not set the PR
+back to draft. If the assessment service explicitly cannot process the
+question, retain its response and report the specific blocker rather than
+inferring failure from automatic draft-review policy. Do not bypass the gate.
+Generic approval cannot discharge missing proof scrutiny.

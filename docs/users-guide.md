@@ -894,13 +894,16 @@ remaining milestones stay in scope rather than counting as known limitations.
 Its verdict belongs to an accepted base/head and to the approved plan revision
 in force, and the reply must echo that revision: a verdict recorded against a
 later-adjusted base/head, or against a revision that a newly approved plan has
-replaced, does not clear the gate even when the commit is unchanged. The same
-revision binding applies to a proof assessment under an ExecPlan. A plan
-delivered as a managed stack gets no readiness exception for its lower layers:
-a lower layer's declared-subset verdict is recorded as evidence for that
-layer's actual scope only, naming the layer's own milestones, the
-`github-stacks` parent it builds on and the milestones remaining above it, and
-that record never clears the gate. The whole-plan verdict is still required
+replaced, does not clear the gate even when the commit is unchanged. An
+implementation assignment that requires the completeness assessment while
+recording no approved revision is a scope error rather than a candidate that
+clears on its base/head, because there is no plan revision for the verdict to
+be bound to. The same revision binding applies to a proof assessment under an
+ExecPlan. A plan delivered as a managed stack gets no readiness exception for
+its lower layers: a lower layer's declared-subset verdict is recorded as
+evidence for that layer's actual scope only, naming the layer's own milestones,
+the `github-stacks` parent it builds on and the milestones remaining above it,
+and that record never clears the gate. The whole-plan verdict is still required
 before any layer's transition, and the stack does not count as delivered until
 the layer carrying the plan's remainder obtains one.
 

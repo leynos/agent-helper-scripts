@@ -140,6 +140,10 @@ REASON_CITATIONS = {
         "a reply that echoes only the base/head does not establish which"
         " revision was inspected"
     ),
+    "completeness-revision-absent": (
+        "An applicable completeness assessment is bound to an approved plan"
+        " revision."
+    ),
     "completeness-subject-unrecognized": (
         "The completeness assessment's subject is recorded as either the whole"
         " plan or the declared subset"
@@ -258,6 +262,20 @@ def _cleared() -> Readiness:
 def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readiness | None:
     """Reject a verdict that is not bound to the revision in force.
 
+    An applicable completeness assessment is a statement about an approved
+    plan, so a candidate carrying none has no revision for the verdict to be
+    bound to. That is not the ``not applicable`` case — an assignment without
+    an ExecPlan records the assessment as inapplicable and never reaches this
+    check — it is an assignment that requires the assessment while naming
+    nothing to assess it against. Reading the absence as "nothing to reconcile"
+    would clear the gate on a base/head alone, which is the rule the revision
+    binding exists to prevent.
+
+    A proof-only assignment under no ExecPlan still passes: its completeness
+    assessment is inapplicable and is skipped before this point, while its
+    proof verdict is bound to the base/head, which is that candidate's whole
+    identity.
+
     Parameters
     ----------
     verdict : Verdict
@@ -273,6 +291,8 @@ def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readin
         A draft-preserving decision, or None when the verdict is bound.
     """
     if candidate.approved_plan_revision is None:
+        if kind == COMPLETENESS:
+            return _decision("completeness-revision-absent")
         return None
     if verdict.plan_revision != candidate.approved_plan_revision:
         return _decision(f"{kind}-superseded-revision")

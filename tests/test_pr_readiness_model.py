@@ -206,21 +206,41 @@ def test_a_verdict_on_another_candidate_keeps_the_pr_in_draft(
 
 
 @pytest.mark.parametrize(
-    "candidate_state",
+    ("candidate_state", "reason"),
     [
-        pytest.param(candidate(), id="single-pr"),
-        pytest.param(candidate(revision=None), id="no-execplan"),
+        pytest.param(
+            candidate(),
+            "completeness-declared-subset-does-not-clear",
+            id="single-pr",
+        ),
+        # An applicable completeness assessment with no revision in force is
+        # refused earlier, by the revision binding, so the subset rule is not
+        # the reason a no-ExecPlan candidate holds. Asserting the subset reason
+        # here would pass only while that earlier check was missing.
+        pytest.param(
+            candidate(revision=None),
+            "completeness-revision-absent",
+            id="no-execplan",
+        ),
     ],
 )
 def test_a_declared_subset_verdict_never_clears_the_gate(
-    candidate_state: Candidate,
+    candidate_state: Candidate, reason: str
 ) -> None:
     """A subset verdict is evidence for its actual scope only, never clearance."""
     decision = readiness(
-        candidate_state, completeness(subject=DECLARED_SUBSET), proof()
+        candidate_state,
+        completeness(
+            subject=DECLARED_SUBSET,
+            bounds=bound(
+                revision=candidate_state.approved_plan_revision,
+                echoed=candidate_state.approved_plan_revision,
+            ),
+        ),
+        proof(),
     )
     assert not decision.ready
-    assert decision.reason == "completeness-declared-subset-does-not-clear"
+    assert decision.reason == reason
 
 
 @pytest.mark.parametrize(
@@ -566,6 +586,11 @@ REASON_STATES = {
     ),
     "completeness-revision-unbound": (
         candidate(), completeness(bounds=bound(echoed=None)), proof()
+    ),
+    "completeness-revision-absent": (
+        candidate(revision=None),
+        completeness(bounds=bound(revision=None, echoed=None)),
+        proof(verdict=NOT_APPLICABLE, bounds=bound(revision=None, echoed=None)),
     ),
     "completeness-subject-unrecognized": (
         candidate(), completeness(subject="declared-scope"), proof()

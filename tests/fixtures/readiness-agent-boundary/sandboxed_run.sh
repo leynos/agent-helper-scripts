@@ -1251,6 +1251,29 @@ if len(served_blobs) == 1:
                 f" {cited.group(1)}, but this head serves {served_blob}"
             )
 
+def leaves_placeholder(value):
+    """Return whether a field's value is still the template's own placeholder.
+
+    The template's placeholders are longer than their first clause:
+    `Known limitations:` is followed by `<evidential limits only: checks not
+    run, inspection not possible, proof bounds; not unimplemented plan
+    milestones>.`, and `Assessed subject:` by `<the whole approved plan>.`. An
+    earlier check tested for the shorter `<evidential limits only>`, which is
+    not a substring of what the template actually prints, so a request carrying
+    the unfilled template passed. Comparing the field's whole value against the
+    angle-bracketed form catches the real placeholder and any other, without
+    naming one exact wording that a template edit could drift from.
+
+    The template writes a full stop after the closing bracket, so a trailing
+    one is stripped before the closing bracket is looked for. A real value may
+    also end in a sentence full stop, but it does not open with `<`, so the
+    two are not confused.
+    """
+    text = value.strip()
+    if text.endswith("."):
+        text = text[:-1].rstrip()
+    return text.startswith("<") and text.endswith(">")
+
 for body in completeness:
     label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
     name = label.group(1) if label else "<unnamed>"
@@ -1260,8 +1283,19 @@ for body in completeness:
         continue
     if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
         problems.append(f"{name} states no plan file blob SHA")
-    if "<evidential limits only>" in body:
-        problems.append(f"{name} leaves the limitations placeholder unfilled")
+    # The template says "Do not post unresolved placeholders", and the seeded
+    # body is the premise a run is filed against. A field still holding its
+    # placeholder is a request the skill would not send, so every text field
+    # is checked for the angle-bracketed form rather than one of them for one
+    # particular wording.
+    for field_name, pattern in (
+        ("limitations", r"Known limitations:\s*(.+)"),
+        ("subject", r"Assessed subject:\s*(.+)"),
+        ("acceptance", r"Acceptance evidence:\s*(.+)"),
+    ):
+        stated = re.search(pattern, body)
+        if stated and leaves_placeholder(stated.group(1)):
+            problems.append(f"{name} leaves the {field_name} placeholder unfilled")
     limitations = re.search(r"Known limitations:\s*(\S.*)", body)
     if not limitations:
         problems.append(f"{name} states no known limitations")
@@ -1299,8 +1333,15 @@ for body in proofs:
         "Verifier evidence",
         "Non-vacuity and limitations",
     ):
-        if not re.search(rf"{re.escape(field)}:\s*\S", body):
+        stated = re.search(rf"{re.escape(field)}:\s*(\S.*)", body)
+        if not stated:
             problems.append(f"{name} states no {field.lower()}")
+            continue
+        # The proof template's fields are placeholders too, and a seeded body
+        # carrying one is a question nobody asked. Each is owed its own value
+        # for the same reason the completeness request's fields are.
+        if leaves_placeholder(stated.group(1)):
+            problems.append(f"{name} leaves the {field.lower()} placeholder unfilled")
     revision = re.search(r"Plan revision:\s*(\S+)", body)
     if revision and not revision.group(1).startswith("<omitted"):
         if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):

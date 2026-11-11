@@ -36,6 +36,11 @@ CS_TRACE = RUN / "cs-trace.jsonl"
 #: is what the agent could act on, so it is recorded rather than inferred from the
 #: payload the stand-in meant to serve.
 ANSWERS = RUN / "gh-answers.jsonl"
+#: The key under which `read_facts` carries the state it observed, so a step
+#: that needs it again reads that observation rather than the file a second
+#: time. A premise that happened to use this name would be overwritten by the
+#: observation, which is intended: the file is the authority once it exists.
+STATE_OBSERVATION = "state"
 
 
 def record(argv: list[str]) -> None:
@@ -158,6 +163,13 @@ class StateFault(Exception):
 def read_facts() -> dict:
     """Return this run's facts, with any post-transition state applied.
 
+    The state this returns is the one observation of `state.json` the
+    invocation makes. A later step that needs the state again reads it from
+    the facts rather than opening the file a second time, because two reads
+    can disagree: a file removed between them would take the earlier
+    observation with it, and a POST that continued from the second read would
+    restart its comment numbering and drop the comments the first read saw.
+
     Raises
     ------
     StateFault
@@ -181,6 +193,11 @@ def read_facts() -> dict:
         facts.update(
             {key: value for key, value in state.items() if key not in facts["pr"]}
         )
+        # The same state is carried under its own key, so a step that needs it
+        # reads what this observation saw. Taking it from the facts rather than
+        # from the file is what keeps a POST from losing the comments a first
+        # read recorded when the file is gone by the time it looks again.
+        facts[STATE_OBSERVATION] = state
     return facts
 
 
@@ -429,6 +446,12 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     artefact the agent cannot tell from a service that lost it. Each post also
     takes its own derived stamp, later than the one before it, so the two are
     distinguishable by time and a time-filtered poll sees both.
+
+    The prior comments come from the state `read_facts` already observed, not
+    from a second read of the file. A POST that reopened `state.json` would
+    find a file deleted in between indistinguishable from never having posted,
+    and would then reuse the first comment id and report the run's earlier
+    comments as absent — a lost write answered as a first one.
     """
     login = login_for(facts)
     if login != POOL_LOGIN:
@@ -439,7 +462,8 @@ def handle_post(facts: dict, argv: list[str]) -> int:
         # The refusal happens before `state.json` is written, so a request the
         # service would reject leaves the record exactly as it was.
         return fail(refused.message, refused.status)
-    prior = state_value("posted") or []
+    observed = facts.get(STATE_OBSERVATION) or {}
+    prior = observed.get("posted") or []
     posted = posted_comment(facts, body, login, POSTED_ID + len(prior))
     state = {
         "isDraft": facts["pr"].get("isDraft", True),
@@ -456,31 +480,12 @@ def handle_post(facts: dict, argv: list[str]) -> int:
 POSTED_ID = 9901
 
 
-def state_value(key: str) -> object:
-    """Return `key` from the state a previous invocation recorded, if any.
+# `state_value` used to sit here and re-open `state.json` for the POST. Two
+# reads of one file can disagree — a file removed between them reads as "never
+# posted" — so the POST now takes the state `read_facts` observed. The helper
+# is gone rather than left unused, because a second read path is the defect.
 
-    The stand-in is one process per invocation, so anything a later call has to
-    see must be read back from `state.json`. A missing file returns None, which
-    keeps a first invocation — which has no state at all — from needing a
-    separate branch.
 
-    Raises
-    ------
-    StateFault
-        Raised when the file exists but is not a readable JSON object. Falling
-        back to None there would answer a POST as though nothing had been
-        posted yet, silently reusing the first comment id and stranding the
-        comments this run had already written.
-    """
-    if not STATE.exists():
-        return None
-    try:
-        state = json.loads(STATE.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as fault:
-        raise StateFault(f"cannot read {STATE.name}: {fault}") from fault
-    if not isinstance(state, dict):
-        raise StateFault(f"{STATE.name} is not a JSON object")
-    return state.get(key)
 
 
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")

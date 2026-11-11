@@ -248,6 +248,28 @@ def _assessment_breaks(kind: str, *, subject: bool) -> tuple[Break, ...]:
             lambda s: s.with_assessment(kind, echoed_revision=None),
             f"{kind}-revision-unbound",
         ),
+        # The completeness assessment is a statement about an approved plan, so
+        # an assignment that requires one while recording no approved revision
+        # has nothing to bind the verdict to. This is deliberately not written
+        # as another revision-break on the verdict: the verdict here is clear
+        # and echoes whatever it echoed, and the condition broken is the
+        # candidate's own missing revision. A proof-only assignment is exempt,
+        # because it records its completeness assessment as not applicable.
+        *(
+            (
+                Break(
+                    f"{kind}-revision-absent",
+                    lambda s: (
+                        s.completeness_applies
+                        and s.completeness.verdict != NOT_APPLICABLE
+                    ),
+                    lambda s: replace(s, revision=None),
+                    f"{kind}-revision-absent",
+                ),
+            )
+            if kind == COMPLETENESS
+            else ()
+        ),
         Break(
             f"{kind}-not-applicable-undefended",
             blank,
@@ -327,9 +349,18 @@ def _perturbed_states(draw: st.DrawFn) -> tuple[State, frozenset[str]]:
     states vanishingly rare against this vocabulary, and they are the states
     that decide whether each branch works at all.
     """
+    # A settled state is coherent before any break is applied: an applicable
+    # completeness assessment is about an approved plan, so the revision is
+    # drawn only where such an assessment applies. A proof-only assignment
+    # may sit under an ExecPlan or with none, which is why its revision stays
+    # free.
+    completeness_applies = draw(st.booleans())
+    revision = (
+        draw(st.sampled_from([REVISION])) if completeness_applies else draw(REVISIONS)
+    )
     state = _settled(
-        revision=draw(REVISIONS),
-        completeness_applies=draw(st.booleans()),
+        revision=revision,
+        completeness_applies=completeness_applies,
         proof_applies=draw(st.booleans()),
     )
     applicable = tuple(b.key for b in BREAKS if b.applies(state))
@@ -346,7 +377,12 @@ def _perturbed_states(draw: st.DrawFn) -> tuple[State, frozenset[str]]:
 
 
 def _assessment_holds(
-    verdict: Verdict, candidate: Candidate, *, applies: bool, inventory: bool = False
+    verdict: Verdict,
+    candidate: Candidate,
+    *,
+    applies: bool,
+    inventory: bool = False,
+    needs_revision: bool = False,
 ) -> bool:
     """Return whether one assessment satisfies the documented condition.
 
@@ -355,6 +391,12 @@ def _assessment_holds(
     record and echo the revision in force. A proof verdict additionally has to
     cover the inventory the request named: clearing the proof gate without
     saying which proofs were assessed does not establish that they are sound.
+
+    ``needs_revision`` is how the oracle states the completeness binding: an
+    applicable completeness assessment is about an approved plan, so a
+    candidate that records no approved revision has nothing for the verdict to
+    be bound to. The proof assessment is exempt, because a proof-only
+    assignment under no ExecPlan keeps the base/head as its whole candidate.
     """
     if verdict.verdict == NOT_APPLICABLE:
         return not applies and bool(verdict.justification.strip())
@@ -367,7 +409,7 @@ def _assessment_holds(
     ):
         return False
     if candidate.approved_plan_revision is None:
-        return True
+        return not needs_revision
     return (
         verdict.plan_revision == candidate.approved_plan_revision
         and verdict.echoed_revision == candidate.approved_plan_revision
@@ -397,7 +439,10 @@ def _holds(state: State) -> bool:
         state.ci_green
         and state.codescene_clear
         and _assessment_holds(
-            state.completeness, candidate, applies=state.completeness_applies
+            state.completeness,
+            candidate,
+            applies=state.completeness_applies,
+            needs_revision=True,
         )
         and _assessment_holds(
             state.proof, candidate, applies=state.proof_applies, inventory=True

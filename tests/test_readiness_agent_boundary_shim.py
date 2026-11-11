@@ -26,6 +26,8 @@ others have no equivalent wiring assertion.
 
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -33,6 +35,7 @@ import re
 import shutil
 import subprocess
 import sys
+from types import ModuleType
 
 import pytest
 
@@ -1857,6 +1860,17 @@ PROOF_TEXT = (
 #: it is not a read of the proof the assessment is about.
 PROOF_HEADER = "theorem refinement_sound :\n"
 
+#: The `Known limitations:` placeholder exactly as `execplan-assessment.md`
+#: prints it. A shorter fragment is not a substring of this text, which is how
+#: an earlier control came to pass on a request that carried the whole
+#: unfilled template: it searched for `<evidential limits only>` alone, and
+#: the template continues past that phrase. The control substitutes this, so
+#: it exercises the placeholder a real run would actually leave in place.
+LIMITATIONS_PLACEHOLDER = (
+    "<evidential limits only: checks not run, inspection not possible,"
+    " proof bounds; not unimplemented plan milestones>."
+)
+
 
 @pytest.fixture
 def combined_facts(tmp_path: Path) -> Path:
@@ -2984,14 +2998,30 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
         (
             "limitations",
             lambda body: re.sub(
-                r"Known limitations:[^\n]*", "Known limitations: <evidential limits only>.", body
+                r"Known limitations:[^\n]*", "Known limitations: " + LIMITATIONS_PLACEHOLDER, body
             ),
             "leaves the limitations placeholder unfilled",
+        ),
+        (
+            "subject",
+            lambda body: re.sub(
+                r"Assessed subject:[^\n]*", "Assessed subject: <the whole approved plan>.", body
+            ),
+            "leaves the subject placeholder unfilled",
         ),
         (
             "acceptance",
             lambda body: re.sub(r"Acceptance evidence:[^\n]*\n", "", body),
             "states no acceptance evidence",
+        ),
+        (
+            "acceptance-placeholder",
+            lambda body: re.sub(
+                r"Acceptance evidence:[^\n]*",
+                "Acceptance evidence: <commands, results, and evidence links>.",
+                body,
+            ),
+            "leaves the acceptance placeholder unfilled",
         ),
         (
             "proof-blob",
@@ -3037,7 +3067,9 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
         "blob",
         "revision",
         "limitations",
+        "subject",
         "acceptance",
+        "acceptance-placeholder",
         "proof-blob",
         "inventory",
         "proof-inventory",
@@ -3072,6 +3104,57 @@ def test_the_request_probe_refuses_a_question_missing_a_required_field(
     done = run_probe("PROBE_REQUESTS", str(mutated))
     assert done.returncode != 0, f"removing the {field} field was not detected"
     assert expected in done.stderr, done.stderr
+
+
+#: Each proof-template field with its placeholder exactly as
+#: `execplan-assessment.md` prints it. The probe is checked against these
+#: texts rather than against a shortened form, because a fragment that is not
+#: a substring of the template cannot be left in place by a real run.
+PROOF_PLACEHOLDERS = (
+    ("inventory", "Proof inventory and claims", "<paths, qualified names, and propositions>."),
+    ("correspondence", "Production correspondence", "<implementation paths and relevant requirements>."),
+    ("assumptions", "Assumptions, trusted boundaries, domain, and bounds", "<specific evidence>."),
+    ("verifier", "Verifier evidence", "<versions, commands, configuration, and per-proof outcomes>."),
+    ("non-vacuity", "Non-vacuity and limitations", "<witnesses, negative controls, and residual gaps>."),
+)
+
+
+@pytest.mark.parametrize(("slug", "field", "placeholder"), PROOF_PLACEHOLDERS)
+def test_each_proof_field_placeholder_is_refused_on_its_own(
+    slug: str, field: str, placeholder: str, tmp_path: Path
+) -> None:
+    """A proof request carrying a template placeholder is a question nobody asked.
+
+    The template says not to post unresolved placeholders, and each of the
+    proof request's five fields has one. A probe that only refused unfilled
+    completeness fields would accept a proof question whose inventory,
+    correspondence, boundaries, verifier evidence and non-vacuity were never
+    stated, and the verdict that followed would cover a subject that was never
+    put to it.
+
+    Each case substitutes exactly one field's placeholder and requires the
+    probe to name that field, so a control cannot pass on a sibling's defect.
+    """
+    combined = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+
+    def leave_that_field_unfilled(body: str) -> str:
+        """Replace one proof field's value with the template's placeholder."""
+        if "are you satisfied that the introduced proof" not in body:
+            return body
+        return re.sub(
+            rf"{re.escape(field)}:[^\n]*", f"{field}: {placeholder}", body
+        )
+
+    facts = facts_with_bodies(
+        json.loads(combined.read_text(encoding="utf-8")), leave_that_field_unfilled
+    )
+    mutated = tmp_path / "facts.json"
+    mutated.write_text(json.dumps(facts), encoding="utf-8")
+    done = run_probe("PROBE_REQUESTS", str(mutated))
+    assert done.returncode != 0, (
+        f"the {slug} placeholder was accepted as a stated value"
+    )
+    assert f"leaves the {field.lower()} placeholder unfilled" in done.stderr, done.stderr
 
 
 def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
@@ -3201,6 +3284,73 @@ def test_a_post_that_cannot_read_its_prior_state_faults(run: Path) -> None:
     assert (run / "state.json").read_text(encoding="utf-8") == "{not json", (
         "the faulting POST overwrote the state it could not read"
     )
+
+
+def load_shim(directory: Path) -> ModuleType:
+    """Load the `gh` stand-in beside `directory` as an in-process module.
+
+    The stand-in derives its run directory from its own location, so the copy
+    in `directory` points at that directory's facts and state. Loading it as a
+    module rather than running it as a subprocess lets a test act *between* its
+    reads, which is the only way to reproduce a file that disappears after the
+    first read and before the second.
+
+    The copy is named `gh` with no extension, so the loader is named rather
+    than inferred from a suffix that is not there.
+    """
+    path = directory / "gh"
+    loader = importlib.machinery.SourceFileLoader("gh_shim_under_test", str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def test_a_state_file_removed_after_the_first_read_does_not_lose_the_history(
+    run: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The POST continues from the state the invocation already observed.
+
+    The stand-in used to load `state.json` in `read_facts` and then reopen it
+    through `state_value`, so a file deleted between those two reads was
+    indistinguishable from one that had never existed: the POST restarted the
+    comment ids at 9901 and wrote a history holding only the new comment, and
+    the run's earlier comments were reported as absent. A deletion between the
+    reads is a lost observation, not a first post, and the write that follows
+    one must not discard what was already read.
+
+    The file is removed after the first read by replacing `Path.read_text`,
+    which is the only path the first read takes. Both invocations run in this
+    process, so the second one is the one whose POST finds the file gone.
+    """
+    shim = load_shim(run)
+    monkeypatch.setenv("GH_TOKEN", POOL_TOKEN)
+    first = shim.main(["api", COMMENT_ROUTE, "-f", "body=first"])
+    assert first == 0, "the first POST was refused"
+    before = posted(run)
+    state = run / "state.json"
+
+    real_read_text = Path.read_text
+
+    def read_then_remove(path: Path, *args: object, **kwargs: object) -> str:
+        """Return the state's text, deleting the file after that one read."""
+        text = real_read_text(path, *args, **kwargs)  # type: ignore[arg-type]
+        if path == state:
+            path.unlink()
+        return text
+
+    monkeypatch.setattr(Path, "read_text", read_then_remove)
+    second = shim.main(["api", COMMENT_ROUTE, "-f", "body=second"])
+    monkeypatch.undo()
+
+    assert second == 0, "the POST after the lost state file was refused"
+    history = posted(run)
+    assert history[: len(before)] == before, (
+        "the POST lost the comment the first read observed:"
+        f" {history} does not start with {before}"
+    )
+    assert last_posted(run)["body"] == "second", last_posted(run)
 
 
 @pytest.mark.parametrize(("name", "argv"), READS, ids=[name for name, _ in READS])

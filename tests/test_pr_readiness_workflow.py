@@ -165,22 +165,20 @@ def test_a_current_verdict_marks_the_draft_ready() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "candidate_state",
-    [
-        pytest.param("with-revision", id="single-pr"),
-        pytest.param("no-revision", id="no-execplan"),
-    ],
-)
-def test_a_subset_only_verdict_keeps_the_draft_in_place(
-    candidate_state: str,
-) -> None:
-    """A declared-subset verdict is evidence for its scope, not readiness."""
+def test_a_subset_only_verdict_keeps_the_draft_in_place() -> None:
+    """A declared-subset verdict is evidence for its scope, not readiness.
+
+    The candidate carries an approved revision, because a subset verdict is
+    only meaningful against the plan whose scope it narrows. The earlier
+    ``no-execplan`` variant of this case asserted the same reason for a
+    candidate with no approved revision at all; that state is refused earlier
+    by the revision binding, so the variant would now be passing on a reason it
+    never reached.
+    """
     thread = discussion()
     thread.responses.append(reply_with(COMPLETENESS_ID, subject=DECLARED_SUBSET))
     thread.responses.append(reply_with(PROOF_ID))
-    revision = REVISION if candidate_state == "with-revision" else None
-    candidate = pull(revision=revision)
+    candidate = pull()
 
     decision = assess_and_maybe_mark_ready(candidate, thread, assignment=with_proof)
 
@@ -308,8 +306,20 @@ def test_an_unaffected_proof_under_the_execplan_still_reaches_ready() -> None:
     )
 
 
-def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
-    """With no ExecPlan the base/head is the whole candidate."""
+def test_an_applicable_completeness_with_no_approved_revision_keeps_the_draft() -> None:
+    """A whole-plan verdict needs a plan revision to be bound to.
+
+    This case used to clear: the model read the candidate's missing revision as
+    "nothing to reconcile" and transitioned the PR on a base/head alone, which
+    is exactly the defect the revision binding exists to prevent. An
+    implementation assignment requires a completeness assessment against an
+    approved plan, so an assignment recording no approved revision is a scope
+    error to repair rather than a candidate to clear.
+
+    The reply is the shape a run would file if the omission went unnoticed: it
+    says ``clear``, it is candidate-bound, and it echoes no revision because
+    the request named none.
+    """
     thread = discussion()
     thread.responses.append(
         reply_with(COMPLETENESS_ID, revision=None, echoed=None)
@@ -318,9 +328,40 @@ def test_a_no_execplan_assignment_needs_no_revision_echo() -> None:
 
     decision = assess_and_maybe_mark_ready(candidate, thread)
 
+    assert not decision.ready, (
+        "an applicable completeness assessment cleared with no approved revision"
+    )
+    assert decision.reason == "completeness-revision-absent", (
+        f"the gate held for {decision.reason!r}, not the missing revision"
+    )
+    assert candidate.is_draft, (
+        f"a revision-less implementation assignment left draft:"
+        f" {candidate.ready_transitions}"
+    )
+
+
+def test_a_no_execplan_assignment_records_completeness_not_applicable() -> None:
+    """With no ExecPlan the completeness assessment is inapplicable, not clear.
+
+    This is the shape the previous test's claim belongs to. A plan-authoring
+    change is not an implementation assignment, so it records a justified
+    ``not applicable`` and has no revision to echo. Each applicable
+    assessment still has to be settled: nothing here is skipped by omission.
+    """
+    thread = discussion()
+    candidate = pull(revision=None)
+
+    decision = assess_and_maybe_mark_ready(
+        candidate, thread, assignment=NOTHING_APPLIES
+    )
+
     assert decision.ready, decision.reason
     assert candidate.ready_transitions == [HEAD], (
-        f"a no-ExecPlan assignment was not transitioned: {decision.reason}"
+        f"a no-ExecPlan change was not transitioned: {decision.reason}"
+    )
+    assert [request["kind"] for request in thread.requests] == [], (
+        "an inapplicable assessment was asked as a question:"
+        f" {[r['kind'] for r in thread.requests]}"
     )
 
 
