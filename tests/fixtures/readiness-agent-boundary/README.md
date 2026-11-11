@@ -504,7 +504,12 @@ routes, the plan and the proof, at the head it judges, because a combined
 assignment has two subjects to reconcile and one read would not cover both.
 That second read is asserted rather than described: earlier recordings read the
 plan alone while this paragraph claimed both, because nothing checked it. The
-proof request now states the template's inventory, correspondence, assumptions,
+assertion is the same one the plan read gets, applied to the proof — a read of
+the assessed file's `contents` route at the candidate head, ordered before the
+transition, whose answer record shows status `0` and non-empty text. A run that
+merely mentions the route, reads another ref, reads another proof, reads
+nothing back or reads after it has already transitioned is refused. The proof
+request now states the template's inventory, correspondence, assumptions,
 verifier evidence and non-vacuity fields, and the run reads the proof to answer
 the question it was asked.
 

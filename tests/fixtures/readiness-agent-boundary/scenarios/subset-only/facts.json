@@ -261,5 +261,6 @@
     "pull_request": 272
   },
   "cs_mode": "clean",
+  "proof_path": "proofs/refinement/Theorem.lean",
   "cs_finding": ""
 }

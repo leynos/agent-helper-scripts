@@ -860,6 +860,11 @@ def scenario(case: Case) -> None:
         # It lives beside the GitHub facts because it is one more recorded
         # input the agent reads, and the runner writes it into the sandbox.
         "cs_mode": case.cs_mode,
+        # The proof a combined run is asked about, so the proof-read assertion
+        # names the assessed file rather than accepting any `contents/proofs/`
+        # route. A run that read some other proof, or read this one at another
+        # ref, has not inspected the subject its verdict covers.
+        "proof_path": PROOF_PATH,
         # The finding text accompanies the mode, so the size the local result
         # reports is derived from the same file the `contents` route serves. A
         # finding written twice could disagree with the code it describes, and

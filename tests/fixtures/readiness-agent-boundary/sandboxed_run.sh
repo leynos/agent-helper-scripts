@@ -676,10 +676,84 @@ esac
 # second read, so the claim drifted from the recording it described. A run that
 # assessed the proof from its request's inventory alone never looked at the
 # proof, and its clear verdict would rest on a paraphrase rather than the file.
+#
+# The read has to be the one that could answer the question. A bare search for a
+# proof route accepts a read of some other ref, a read that failed, and a read
+# after the transition — none of which is evidence that the assessed proof was
+# inspected. This requires the same three properties the plan read is held to,
+# against the proof path rather than the plan path.
 case $SCENARIO in
   combined-plan-and-proof)
-    if ! grep -q 'contents/proofs/.*ref=' "$TRACE"; then
-      echo "abort: '$SCENARIO' cleared a proof it never read" >&2
+    if ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PROOF_READ'
+import json, sys
+
+trace_path, answers_path, facts_path = sys.argv[1:4]
+facts = json.load(open(facts_path, encoding="utf-8"))
+pr = facts["pr"]
+proof_path = facts["proof_path"]
+candidate_refs = {str(pr.get("headRefOid", "")), str(pr.get("headRefName", ""))} - {""}
+
+def load(path):
+    """Return one parsed entry per line, skipping blank and malformed lines."""
+    entries = []
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            entries.append(None)
+    return entries
+
+trace = load(trace_path)
+# The trace and the answer record are appended in the same order by the same
+# process, so their indices name the same invocation.
+answers = load(answers_path)
+ready = next(
+    (index for index, argv in enumerate(trace)
+     if isinstance(argv, list) and argv[:2] == ["pr", "ready"]),
+    None,
+)
+if ready is None:
+    print("the permitting run has no transition to order the proof read against",
+          file=sys.stderr)
+    raise SystemExit(1)
+if len(answers) != len(trace):
+    print("the answer record and the trace disagree in length", file=sys.stderr)
+    raise SystemExit(1)
+problems = []
+for index, argv in enumerate(trace[:ready]):
+    if not isinstance(argv, list) or argv[:1] != ["api"]:
+        continue
+    if not any(f"contents/{proof_path}" in str(arg) for arg in argv):
+        continue
+    refs = {
+        str(arg).split("ref=", 1)[1].split("&", 1)[0]
+        for arg in argv
+        if "ref=" in str(arg)
+    }
+    if not refs & candidate_refs:
+        continue
+    # A read the agent could not use is not the read it judged. The answer
+    # record holds the status and the text, so both are required. A failed or
+    # empty attempt is reported and the scan continues, so one unusable call
+    # does not hide a later one that establishes the rule.
+    answer = answers[index] or {}
+    if answer.get("status") != 0:
+        problems.append(f"candidate-bound proof read failed: {answer.get('status')}")
+        continue
+    served = str(answer.get("stdout", ""))
+    if not served.strip():
+        problems.append("candidate-bound proof read returned nothing")
+        continue
+    raise SystemExit(0)
+for problem in problems:
+    print(problem, file=sys.stderr)
+print("no usable candidate-bound proof read before the transition", file=sys.stderr)
+raise SystemExit(1)
+PROBE_PROOF_READ
+    then
+      echo "abort: '$SCENARIO' cleared a proof it never read at the head it judged" >&2
       rc=1
     else
       echo "outcome: proof read at the candidate head, before 'pr ready'"

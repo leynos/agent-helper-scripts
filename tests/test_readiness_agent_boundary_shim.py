@@ -1554,6 +1554,187 @@ def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
     assert "disagree in length" in done.stderr, "expected 'disagree in length' in done.stderr"
 
 
+def proof_read(ref: str, path: str = "proofs/refinement/Theorem.lean") -> list[str]:
+    """Return the argv of a read of the assessed proof at one ref."""
+    return [
+        "api",
+        "-H",
+        "Accept: application/vnd.github.raw",
+        f"repos/leynos/agent-helper-scripts/contents/{path}?ref={ref}",
+    ]
+
+
+#: What a usable read of the assessed proof returns. The probe requires text
+#: rather than a particular one: what the theorem says is the assessed subject,
+#: and the read is evidence that the agent saw it.
+PROOF_TEXT = (
+    "theorem refinement_sound : forall (s : State), refine s = s -> sound s := by\n"
+    "  intro s h\n"
+    "  exact sound_of_refine s h\n"
+)
+
+
+@pytest.fixture
+def combined_facts(tmp_path: Path) -> Path:
+    """Return the recorded facts for the combined scenario, which has a proof."""
+    source = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+    facts = tmp_path / "facts.json"
+    facts.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    return facts
+
+
+def proof_answer(argv: list[str], status: int = 0, stdout: str = PROOF_TEXT) -> dict:
+    """Return one answer-record line for a proof read."""
+    return {"argv": argv, "status": status, "stdout": stdout}
+
+
+def test_the_proof_read_probe_accepts_a_candidate_read_before_the_transition(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """The probe must pass the read it was written for, or it proves nothing.
+
+    Without this, the controls below would pass against a probe that refuses
+    everything, which is a broken gate reported as a strict one.
+    """
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(
+        tmp_path / "trace.jsonl",
+        [*reads, READY_INVOCATION],
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0]), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode == 0, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_read_of_another_ref(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A read of some other ref is not the read that judged this candidate.
+
+    The first version of this check searched the trace for any proof route with
+    a `ref`, so a read of the base branch satisfied it and the claim that the
+    run inspected the proof at head was never tested.
+    """
+    reads = [proof_read("main")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0]), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a read at another ref was accepted"
+    assert "no usable candidate-bound proof read" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_read_of_another_proof(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """The assessed subject is named. A neighbouring proof file is not it.
+
+    The route is served by a wildcard, so a probe that accepted any
+    `contents/proofs/` read would clear a run that inspected a different file
+    than the one its verdict covers.
+    """
+    reads = [proof_read("3333dddd", "proofs/refinement/Other.lean")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0]), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a read of another proof file was accepted"
+    assert "no usable candidate-bound proof read" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_failed_read(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A read the agent could not use is not the read it judged.
+
+    The trace records the attempt whether or not it succeeded, so accepting the
+    route alone would clear a run whose proof read was a 404.
+    """
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0], 1, ""), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a failed proof read was accepted"
+    assert "candidate-bound proof read failed" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_an_empty_read(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A 200 with no text established nothing about the proof."""
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0], 0, ""), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "an empty proof read was accepted"
+    assert "returned nothing" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_read_after_the_transition(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A read after `pr ready` cannot have informed the decision.
+
+    The permitting run clears the candidate and then reads the proof; the
+    verdict was reached on something else.
+    """
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [READY_INVOCATION, *reads])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(READY_INVOCATION, 0, ""), proof_answer(reads[0])],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a proof read after the transition was accepted"
+    assert "no usable candidate-bound proof read" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_holding_run(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """This check is scoped to the run that transitions, and says so.
+
+    A holding run has no transition to order a read against; applying the arm
+    to one would abort it for having nothing to order, which is the defect the
+    plan-read arm already had to correct.
+    """
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", reads)
+    answers = write_lines(tmp_path / "answers.jsonl", [proof_answer(reads[0])])
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a run with no transition was accepted"
+    assert "no transition to order the proof read against" in done.stderr, (
+        done.stderr
+    )
+
+
 READ_BACK = ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts",
              "--json", "isDraft,headRefOid,baseRefOid"]
 
@@ -2073,11 +2254,13 @@ def test_a_holding_combined_case_asserts_the_defect_it_demonstrates() -> None:
     the run would hold on nothing and still be filed under the scenario's name.
     """
     runner = RUNNER.read_text()
+    # The heredoc marker is on the `if ! python3` line, so the match must not
+    # run past it: a lax `.*?` would skip over the intervening `esac` and bind
+    # whichever earlier case arm happened to precede the premise probe.
     premise = re.search(
         r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+if ! python3"
-        r".*?<<'PROBE_PREMISE'",
+        r"[^\n]*<<'PROBE_PREMISE'",
         runner,
-        re.DOTALL,
     )
     assert premise, "the premise assertion is no longer recognizable"
     for name in (
@@ -2104,8 +2287,8 @@ def test_each_holding_combined_premise_holds_for_its_recorded_facts(
     """
     runner = RUNNER.read_text()
     body = re.search(
-        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+if ! python3.*?"
-        r"<<'PROBE_PREMISE'\n(?P<probe>.*?)\nPROBE_PREMISE\n",
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+if ! python3"
+        r"[^\n]*<<'PROBE_PREMISE'\n(?P<probe>.*?)\nPROBE_PREMISE\n",
         runner,
         re.DOTALL,
     )
@@ -2441,8 +2624,13 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
         ),
         (
             "proof-blob",
-            lambda body: re.sub(
-                r" plan file blob SHA at this head: [0-9a-f]{40}", "", body
+            # Scoped to the proof request. Removing the blob from both requests
+            # would fail on the completeness one and leave the proof rule
+            # untested, which is what the earlier control did.
+            lambda body: (
+                re.sub(r" plan file blob SHA at this head: [0-9a-f]{40}", "", body)
+                if "are you satisfied that the introduced proof" in body
+                else body
             ),
             "states no plan file blob SHA",
         ),
@@ -2455,6 +2643,24 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
             ),
             "says no proof is affected but the run asks for a proof assessment",
         ),
+        *(
+            (
+                f"proof-{slug}",
+                lambda body, _field=field: (
+                    re.sub(rf"{re.escape(_field)}:[^\n]*\n", "", body)
+                    if "are you satisfied that the introduced proof" in body
+                    else body
+                ),
+                f"states no {field.lower()}",
+            )
+            for slug, field in (
+                ("inventory", "Proof inventory and claims"),
+                ("correspondence", "Production correspondence"),
+                ("assumptions", "Assumptions, trusted boundaries, domain, and bounds"),
+                ("verifier", "Verifier evidence"),
+                ("non-vacuity", "Non-vacuity and limitations"),
+            )
+        ),
     ],
     ids=[
         "blob",
@@ -2463,6 +2669,11 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
         "acceptance",
         "proof-blob",
         "inventory",
+        "proof-inventory",
+        "proof-correspondence",
+        "proof-assumptions",
+        "proof-verifier",
+        "proof-non-vacuity",
     ],
 )
 def test_the_request_probe_refuses_a_question_missing_a_required_field(
@@ -2474,6 +2685,12 @@ def test_the_request_probe_refuses_a_question_missing_a_required_field(
     is also what a probe accepting everything would report. Each case here
     removes exactly one field from the combined scenario, which carries both
     question kinds, and requires the probe to name that field.
+
+    The five `proof-*` rows remove a field from the proof request alone. An
+    earlier `proof-blob` row removed the blob from both requests, so it failed
+    on the completeness request and never exercised the proof rule it was named
+    for; scoping the mutation to the proof body is what makes each row test the
+    field in its own name.
     """
     combined = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
     facts = facts_with_bodies(
