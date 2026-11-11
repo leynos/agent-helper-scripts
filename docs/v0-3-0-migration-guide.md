@@ -290,8 +290,9 @@ If the copy is a verbatim snapshot of an upstream guide:
    [users' guide](users-guide.md#vendoring-a-guide-from-the-command-line); the
    [library README](../documentation-library/README.md#importing-a-guide-at-a-pinned-tag)
    states the hand-edit policy.
-3. Commit the generated file. Do not edit it by hand afterwards; rerun the
-   converter with a new `--tag` to refresh it.
+3. Commit the generated file. Do not edit it by hand afterwards. To refresh
+   it, check out the upstream repository at the new tag and rerun the converter
+   with that `--tag`; the converter does not verify the checkout against it.
 
 A copy that carries repository-specific notes is not a verbatim import and
 should not be converted, because conversion replaces those notes. Keep such a
