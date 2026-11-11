@@ -540,13 +540,16 @@ of the stand-in show the bound directly: a `-f body=…` POST returns
 `fixture-commenter` at a stamp one minute after the thread, while the only
 `coderabbitai[bot]` entries are the pre-recorded `9952` and `9954`.
 
-The recordings do show a run posting. `combined-proof-stale-verdict`,
-`combined-proof-stale-plan-revision` and `combined-proof-stale-revision` each
-renew an assessment whose verdict no longer binds, and each has a `submitted/`
-body for the request it posted; the hold that follows is the correct answer to
-an unanswered request, not a defect. What none of them shows is the agent
-clearing a gate on a reply to its own post — the reply in every permitting run
-was already in the discussion when the run started.
+Six recordings post a comment, and `submitted/` is the complete list of them:
+`combined-proof-candidate-mismatch`, `combined-proof-stale-plan-revision`,
+`combined-proof-stale-revision`, `combined-proof-stale-verdict`,
+`combined-proof-unbound-revision` and `superseded-revision`. Each renews or
+challenges an assessment whose verdict does not bind, and each has a
+`submitted/` body for the request it posted; the hold that follows is the
+correct answer to an unanswered request, not a defect. None of the six shows
+the agent clearing a gate on a reply to a post the run made — in every
+permitting recording the reply was already in the discussion when the run
+started.
 
 Closing that would take a stand-in that answers a posted request by
 Assessment-ID, which is a service behaviour no recording here claims to
