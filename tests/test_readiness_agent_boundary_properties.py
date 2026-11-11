@@ -222,7 +222,14 @@ def test_the_code_scene_probe_accepts_exactly_a_delta_before_the_transition(
 # The plan probe: a usable candidate-bound read on the required side.
 # --------------------------------------------------------------------------
 
-PLAN_ROUTE = "repos/leynos/agent-helper-scripts/contents/docs/execplans/271-plan.md"
+#: The approved plan's own route. Built from the recorded facts rather than a
+#: literal, because the probe binds the read to the approved path: a generated
+#: read of any other ExecPlan is refused however good its evidence is, and a
+#: literal that drifted from the label would make every permitting example
+#: refuse for a reason the property is not about.
+PLAN_ROUTE = (
+    "repos/leynos/agent-helper-scripts/contents/" + FACTS["plan_path"]
+)
 
 #: The bodies a plan read can return, by kind. The plan file is the surface that
 #: states the revision in force, so a successful read of it is only usable

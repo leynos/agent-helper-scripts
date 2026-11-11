@@ -241,6 +241,7 @@
     "pull_request": 272
   },
   "cs_mode": "clean",
+  "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
   "proof_path": "proofs/refinement/Theorem.lean",
   "cs_finding": ""
 }

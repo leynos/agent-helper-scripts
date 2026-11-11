@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import re
 
 OUT = Path(__file__).resolve().parent / "scenarios"
 BASE = "73d32981c7b7e8f52590a074873e28a9f369f0f9"
@@ -669,15 +670,18 @@ def content_routes(case: Case, plan_route: bool) -> dict[str, object]:
         # unavailable rather than as read.
         r"/contents/skills/[^?#]+(?:[?#]|$)": flagged_contents(),
         # The plan file itself, which a run reads to confirm the approved
-        # revision is still the one in force. The path below `execplans/` is
-        # the plan, and `?ref=` carries the head being checked; anchoring on
+        # revision is still the one in force. The route names the approved
+        # path rather than any file below `execplans/`: a wildcard served the
+        # approved payload for a request naming some other plan, so a run
+        # could report the approved plan inspected when it had asked for a
+        # different one. `?ref=` carries the head being checked; anchoring on
         # the directory alone left the file unreadable, so a run could not
         # confirm a revision before readiness. A proof-only scenario has no
         # plan, so the route is absent there and answers 404, rather than
         # serving a plan its premise says does not apply.
         **(
             {
-                r"/contents/docs/execplans/[^/?#]+(?:[?#]|$)": plan_contents(case),
+                rf"/contents/{re.escape(PLAN_PATH)}(?:[?#]|$)": plan_contents(case),
                 # The same directory without a file name, for a run that lists
                 # the plans rather than reading one.
                 r"/contents/docs/execplans(?:[?#]|$)": [plan_contents(case)],
@@ -860,6 +864,12 @@ def scenario(case: Case) -> None:
         # It lives beside the GitHub facts because it is one more recorded
         # input the agent reads, and the runner writes it into the sandbox.
         "cs_mode": case.cs_mode,
+        # The plan a permitting run reconciles the revision against, so the
+        # plan-read assertion names the approved file rather than accepting any
+        # `contents/docs/execplans/` route. A read of another ExecPlan that
+        # carried the approved payload would otherwise clear the check whose
+        # subject is the revision in force in this file.
+        "plan_path": PLAN_PATH,
         # The proof a combined run is asked about, so the proof-read assertion
         # names the assessed file rather than accepting any `contents/proofs/`
         # route. A run that read some other proof, or read this one at another
@@ -1399,10 +1409,20 @@ scenario(Case(
     head="4444eeee",
     draft=True,
     comments=[
+        # The head does not change in this case, and neither does the plan file
+        # at it: the transition is the approval, rev-7 to rev-8, recorded out
+        # of band. So both earlier requests were asked against the revision
+        # approved at the time and cite the blob the file has at this head,
+        # which is the rev-8 blob — the template asks for the file's blob at
+        # the published head, not for the approved revision's. Quoting the
+        # rev-7 blob here would describe a file this head never served, which
+        # is a contradiction in the premise rather than the stale approval the
+        # case exists to rehearse.
         comment(
             9961,
             "buzzybee-df12",
             request("271-ab-combined-stale", "rev-7", "4444eeee",
+                blob=PLAN_BLOB_REV8,
                 proof_inventory=COMBINED_INVENTORY
             ),
             "2026-11-08T09:20:00Z",
@@ -1428,7 +1448,12 @@ scenario(Case(
         comment(
             9963,
             "pandalump",
-            proof_request("271-ab-combined-stale-proof", "4444eeee", "rev-7"),
+            proof_request(
+                "271-ab-combined-stale-proof",
+                "4444eeee",
+                "rev-7",
+                blob=PLAN_BLOB_REV8,
+            ),
             "2026-11-08T09:30:00Z",
         ),
         comment(
@@ -1462,10 +1487,21 @@ scenario(Case(
     head="7777dddd",
     draft=True,
     comments=[
+        # Asked while `rev-7` was the approved revision, at the head that was
+        # already published and already carried the rev-8 text. The template
+        # asks for the file's blob at this head, so the request quotes the
+        # rev-8 blob beside the rev-7 approval — the pairing an approval
+        # transition at a fixed head produces. Quoting the rev-7 blob here
+        # would name a file this head never served.
         comment(
             9995,
             "pandalump",
-            proof_request("271-ab-combined-stale-plan-proof", "7777dddd", "rev-7"),
+            proof_request(
+                "271-ab-combined-stale-plan-proof",
+                "7777dddd",
+                "rev-7",
+                blob=PLAN_BLOB_REV8,
+            ),
             "2026-11-08T12:20:00Z",
         ),
         # The proof reply is clear, and its head is this candidate's. What it

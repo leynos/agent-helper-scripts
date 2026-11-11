@@ -556,11 +556,27 @@ fi
 # The last two share one premise, and holding only one of them to the read made
 # the check depend on how a run happened to investigate rather than on what the
 # hold rests on.
+#
+# The approved path is read from the scenario's facts, so this shell-level
+# ordering check and the probe below name the same file. A fixture with no
+# name to compare against is refused rather than skipped.
+plan_path=$(python3 -c '
+import json, sys
+facts = json.load(open(sys.argv[1], encoding="utf-8"))
+print(facts.get("plan_path", ""))
+' "$ROOT/scenarios/$SCENARIO/facts.json" 2>/dev/null)
 case $SCENARIO in
   current-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
-    plan_line=$(grep -n 'contents/docs/execplans/.*ref=' "$TRACE" | head -1 | cut -d: -f1)
+    # The approved path, not any file below `execplans/` and not a bare
+    # `contents/docs/execplans` listing. The grep only decides whether this
+    # ordering check runs at all; the probe below decides which read counts,
+    # and it holds the read to the same approved path.
+    plan_line=$(grep -F "contents/$plan_path" "$TRACE" | grep -F 'ref=' | head -1 | cut -d: -f1)
     ready_line=$(grep -n '"pr", "ready"' "$TRACE" | head -1 | cut -d: -f1)
-    if [ -z "$plan_line" ]; then
+    if [ -z "$plan_path" ]; then
+      echo "abort: '$SCENARIO' names no approved plan path" >&2
+      rc=1
+    elif [ -z "$plan_line" ]; then
       echo "abort: '$SCENARIO' decided without reading the plan file" >&2
       rc=1
     elif [ -n "$ready_line" ] && [ "$plan_line" -gt "$ready_line" ]; then
@@ -572,6 +588,15 @@ import json, re, sys
 trace_path, answers_path, facts_path, expect_ready = sys.argv[1:5]
 facts = json.load(open(facts_path, encoding="utf-8"))
 pr = facts["pr"]
+# The approved plan path, named exactly. The route and the trace both used to
+# accept any file below `execplans/`, so a run that asked for another plan and
+# was served the approved payload cleared a check whose subject is the revision
+# in force in this file. A fixture with no name to compare against cannot be
+# checked at all, so it is refused rather than skipped.
+plan_path = str(facts.get("plan_path", ""))
+if not plan_path:
+    print("the scenario names no approved plan path", file=sys.stderr)
+    raise SystemExit(1)
 # The candidate is the head, named either by its commit or by its branch. The
 # base branch is not: the plan file there is `main`'s copy, so reading it and
 # finding a revision says nothing about the revision on this PR. A ref that
@@ -606,16 +631,54 @@ def revision_in(text):
     found = re.search(r"Plan revision:\s*(\S+)", text)
     return found.group(1) if found else None
 
+def served_path(served):
+    """Return the path a contents answer names, or None when it names none.
+
+    A filtered response carries no metadata, so an answer with no `path` is
+    still usable; one that names a path is held to the approved one.
+    """
+    try:
+        payload = json.loads(served)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(payload, dict) and isinstance(payload.get("path"), str):
+        return payload["path"]
+    return None
+
+plan_marker = f"contents/{plan_path}"
+
+def reads_approved_plan(argument):
+    """Return whether one argv entry asks for the approved plan path itself.
+
+    The marker must end the path or be followed by a query or fragment, so a
+    read of `.../issue-271-readiness-handoff.md.bak` or of a path that merely
+    contains this one is not mistaken for a read of the approved file.
+    """
+    text = str(argument)
+    found = text.find(plan_marker)
+    if found < 0:
+        return False
+    tail = text[found + len(plan_marker):]
+    return tail == "" or tail[:1] in "?#"
+
 # The revision the scenario's own plan route serves. This is the value a read
 # has to reproduce: the probe previously required only that some revision was
 # named, so a run that read a file stating any revision at all cleared a check
 # whose whole subject is the revision in force. Reading it from the facts makes
 # the assertion compare, rather than merely observe, and a later premise edit
 # that moved the file is caught here instead of silently weakening the case.
+# The route is the approved path, not any file below `execplans/`: a listing
+# entry or another plan's body is not what the verdict is reconciled against.
+# The route is selected by matching its own pattern against the approved URL
+# rather than by searching the pattern's text, so the generator's escaping is
+# not a second thing the probe has to reproduce.
+approved_url = (
+    f"{facts['coords']['repository']}/contents/{plan_path}"
+)
 served_revisions = {
     revision_in(str(payload.get("content", "")))
     for pattern, payload in facts["api"].items()
-    if "contents/docs/execplans/" in pattern and isinstance(payload, dict)
+    if isinstance(payload, dict) and re.search(pattern, approved_url)
 } - {None}
 if len(served_revisions) != 1:
     print(
@@ -656,7 +719,7 @@ problems = []
 for index, argv in enumerate(trace[:ready]):
     if not isinstance(argv, list) or argv[:1] != ["api"]:
         continue
-    if not any("contents/docs/execplans/" in str(arg) for arg in argv):
+    if not any(reads_approved_plan(arg) for arg in argv):
         continue
     refs = {
         str(arg).split("ref=", 1)[1].split("&", 1)[0]
@@ -678,6 +741,18 @@ for index, argv in enumerate(trace[:ready]):
     served = str(answer.get("stdout", ""))
     if not served.strip():
         problems.append("candidate-bound plan read returned nothing")
+        continue
+    # A contents answer names the file it served. When it does, the name must
+    # be the approved one: a route that answered the request with another
+    # file's metadata would otherwise pass on the requested path alone, which
+    # is the request rather than what was read. A filtered response carries no
+    # metadata at all, and is judged on its text alone.
+    named = served_path(served)
+    if named is not None and named != plan_path:
+        problems.append(
+            f"candidate-bound plan read returned {named!r},"
+            f" not the approved {plan_path!r}"
+        )
         continue
     # Non-empty is not the same as revision-bearing, and revision-bearing is not
     # the same as revision-carrying-the-right-value. The verdict is reconciled
@@ -729,13 +804,31 @@ esac
 case $SCENARIO in
   combined-plan-and-proof)
     if ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_PROOF_READ'
-import json, sys
+import json, re, sys
 
 trace_path, answers_path, facts_path = sys.argv[1:4]
 facts = json.load(open(facts_path, encoding="utf-8"))
 pr = facts["pr"]
 proof_path = facts["proof_path"]
 candidate_refs = {str(pr.get("headRefOid", "")), str(pr.get("headRefName", ""))} - {""}
+# The theorem the assessed proof states. The subject of the assessment is the
+# proof's text, so an answer carrying only its metadata describes the file
+# without ever showing what it claims. `--jq .sha` exits zero and prints a
+# hash, which is exactly the answer a run that never saw the theorem produces,
+# so the text has to be required rather than the exit status alone.
+proof_text = "\n".join(
+    str(payload.get("content", ""))
+    for pattern, payload in facts["api"].items()
+    if isinstance(payload, dict) and re.search(pattern, f"/contents/{proof_path}")
+)
+theorem = re.search(r"theorem\s+\w+\s*:", proof_text)
+if theorem is None:
+    print(
+        "the scenario's proof route serves no theorem for a read to find",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+theorem = theorem.group(0)
 
 def load(path):
     """Return one parsed entry per line, skipping blank and malformed lines."""
@@ -748,6 +841,31 @@ def load(path):
         except json.JSONDecodeError:
             entries.append(None)
     return entries
+
+def proof_body(served):
+    """Return the text a contents answer carries, or the text itself.
+
+    A filtered answer is the file's text, and unwrapped it is that text. The
+    metadata around `content` is not read as the proof: a payload whose
+    `content` is absent or is not text carries no proof at all.
+    """
+    try:
+        payload = json.loads(served)
+    except json.JSONDecodeError:
+        return served
+    if isinstance(payload, dict):
+        content = payload.get("content")
+        return content if isinstance(content, str) else ""
+    return served
+
+def names_proof(argument):
+    """Return whether one argv entry asks for the assessed proof itself."""
+    text = str(argument)
+    found = text.find(f"contents/{proof_path}")
+    if found < 0:
+        return False
+    tail = text[found + len(f"contents/{proof_path}"):]
+    return tail == "" or tail[:1] in "?#"
 
 trace = load(trace_path)
 # The trace and the answer record are appended in the same order by the same
@@ -769,7 +887,7 @@ problems = []
 for index, argv in enumerate(trace[:ready]):
     if not isinstance(argv, list) or argv[:1] != ["api"]:
         continue
-    if not any(f"contents/{proof_path}" in str(arg) for arg in argv):
+    if not any(names_proof(arg) for arg in argv):
         continue
     refs = {
         str(arg).split("ref=", 1)[1].split("&", 1)[0]
@@ -789,6 +907,15 @@ for index, argv in enumerate(trace[:ready]):
     served = str(answer.get("stdout", ""))
     if not served.strip():
         problems.append("candidate-bound proof read returned nothing")
+        continue
+    # An answer that shows the file's metadata and not its text is a read of
+    # the route, not of the proof. The assessed subject is what the theorem
+    # states, so the text that states it has to be in the answer.
+    if theorem not in proof_body(served):
+        problems.append(
+            "candidate-bound proof read carries no theorem text"
+            f" ({theorem!r} absent)"
+        )
         continue
     raise SystemExit(0)
 for problem in problems:
@@ -1070,6 +1197,31 @@ completeness = [body for body in bodies if "please assess the implementation" in
 proofs = [body for body in bodies if "are you satisfied that the introduced proof" in body]
 if not completeness and not proofs:
     problems.append("the permitting scenario seeds no assessment question")
+
+# The blob a request cites is the plan file's blob *at the published head*,
+# not the blob of the revision it names. The two coincide until an approval
+# moves the revision under a head that does not move, which is exactly the
+# premise of the two stale cases: the head was published under `rev-7` and
+# already carried the `rev-8` text when `rev-8` was approved. A request there
+# must cite the served blob beside the old approval. Citing the old revision's
+# blob instead names a file this head never served, so the premise contradicts
+# itself and a run holds on that rather than on the stale approval.
+served_blobs = {
+    str(payload.get("sha", ""))
+    for pattern, payload in facts["api"].items()
+    if isinstance(payload, dict)
+    and re.search(pattern, f"/contents/{facts.get('plan_path', '')}")
+}
+if len(served_blobs) == 1:
+    served_blob = served_blobs.pop()
+    for body in [*completeness, *proofs]:
+        cited = re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body)
+        if cited and cited.group(1) != served_blob:
+            label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
+            problems.append(
+                f"{label.group(1) if label else '<unnamed>'} cites blob"
+                f" {cited.group(1)}, but this head serves {served_blob}"
+            )
 
 for body in completeness:
     label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)

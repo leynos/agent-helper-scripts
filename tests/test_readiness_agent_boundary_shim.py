@@ -1236,7 +1236,9 @@ def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
     saw, which is the superseded-revision defect the rule exists to prevent.
     """
     runner = RUNNER.read_text()
-    assert "contents/docs/execplans/.*ref=" in runner, "expected 'contents/docs/execplans/.*ref=' in runner"
+    assert 'grep -F "contents/$plan_path" "$TRACE"' in runner, (
+        "the shell-level ordering check no longer names the approved path"
+    )
     assert "read the plan after the transition, not before it" in runner
 
 
@@ -1336,12 +1338,23 @@ def test_the_runner_requires_the_plan_read_at_the_candidate_head() -> None:
     assert 'pr.get("headRefOid", "")' in runner
 
 
-PLAN_ROUTE = "repos/leynos/agent-helper-scripts/contents/docs/execplans/271-plan.md"
+#: The approved plan's own route. The probe binds a read to this path, so a
+#: literal that differed from the recorded `plan_path` would make every case
+#: here refuse for the wrong reason — including the permitting one that exists
+#: to show the probe is not simply rejecting everything.
+PLAN_ROUTE = (
+    "repos/leynos/agent-helper-scripts/contents/"
+    + json.loads(SCENARIO.read_text(encoding="utf-8"))["plan_path"]
+)
+
+#: Another ExecPlan in the same directory. A read of it is not a read of the
+#: approved file, and the fixture route does not serve it.
+OTHER_PLAN_ROUTE = "repos/leynos/agent-helper-scripts/contents/docs/execplans/271-plan.md"
 
 
-def plan_read(ref: str) -> list[str]:
+def plan_read(ref: str, route: str = PLAN_ROUTE) -> list[str]:
     """Return the argv of a plan read at one ref."""
-    return ["api", "-H", "Accept: application/vnd.github.raw", f"{PLAN_ROUTE}?ref={ref}"]
+    return ["api", "-H", "Accept: application/vnd.github.raw", f"{route}?ref={ref}"]
 
 
 #: What a revision-bearing plan read returns. The plan file is the surface that
@@ -1569,8 +1582,8 @@ def test_the_plan_probe_reads_the_revision_out_of_a_contents_payload(
     """
     served = json.dumps(
         {
-            "name": "271-plan.md",
-            "path": "docs/execplans/271-plan.md",
+            "name": "issue-271-readiness-handoff.md",
+            "path": json.loads(SCENARIO.read_text(encoding="utf-8"))["plan_path"],
             "encoding": "utf-8",
             "content": PLAN_TEXT,
         }
@@ -1586,6 +1599,86 @@ def test_the_plan_probe_reads_the_revision_out_of_a_contents_payload(
     assert done.returncode == 0, done.stderr
 
 
+def test_the_plan_probe_refuses_a_read_of_another_execplan(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The approved plan is named. A sibling ExecPlan is not it.
+
+    The route and the probe both accepted any file below `execplans/`, so a
+    run that asked for another plan and was served the approved payload
+    cleared a check whose subject is the revision in force in the approved
+    file. Its revision would then have been reconciled against a file it never
+    asked for, which is the claim the check is supposed to make false.
+    """
+    trace = write_lines(
+        tmp_path / "trace.jsonl",
+        [plan_read("cccc3333", OTHER_PLAN_ROUTE), READY_INVOCATION],
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [
+            answer(plan_read("cccc3333", OTHER_PLAN_ROUTE)),
+            answer(READY_INVOCATION, 0, ""),
+        ],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes")
+    assert done.returncode != 0, "a read of another ExecPlan was accepted"
+    assert "no usable candidate-bound plan read" in done.stderr, done.stderr
+
+
+def test_the_plan_probe_refuses_an_answer_naming_another_path(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The request and the answer are two different claims.
+
+    The trace shows the approved path was asked for; the answer says which file
+    was served. A route that answered the request with another file's metadata
+    would pass on the request alone, and the revision read would then be the
+    wrong file's. The name is checked when the answer carries one.
+    """
+    served = json.dumps(
+        {
+            "name": "271-plan.md",
+            "path": "docs/execplans/271-plan.md",
+            "encoding": "utf-8",
+            "content": PLAN_TEXT,
+        }
+    )
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333"), 0, served), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes")
+    assert done.returncode != 0, "an answer naming another file was accepted"
+    assert "not the approved" in done.stderr, done.stderr
+
+
+def test_a_scenario_without_a_named_plan_path_is_refused(tmp_path: Path) -> None:
+    """The approved path is the premise the read is judged against.
+
+    A fixture that names none leaves nothing to bind the read to, and a probe
+    that skipped the binding there would accept any `execplans/` read in
+    exactly the scenarios whose premise was edited last. It is refused instead.
+    """
+    facts = json.loads(SCENARIO.read_text(encoding="utf-8"))
+    del facts["plan_path"]
+    bare = tmp_path / "facts.json"
+    bare.write_text(json.dumps(facts), encoding="utf-8")
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333")), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(bare), "yes")
+    assert done.returncode != 0, "a scenario naming no approved path was accepted"
+    assert "names no approved plan path" in done.stderr, done.stderr
+
+
 def test_the_plan_probe_names_the_revision_the_route_serves(
     tmp_path: Path,
 ) -> None:
@@ -1597,8 +1690,11 @@ def test_the_plan_probe_names_the_revision_the_route_serves(
     read — the gap this rule closes, reintroduced through the facts.
     """
     facts = json.loads(SCENARIO.read_text(encoding="utf-8"))
+    route = (
+        "repos/leynos/agent-helper-scripts/contents/" + facts["plan_path"]
+    )
     for pattern, payload in facts["api"].items():
-        if "contents/docs/execplans/" in pattern and isinstance(payload, dict):
+        if re.search(pattern, route) and isinstance(payload, dict):
             payload["content"] = "# Readiness handoff\n"
     bare = tmp_path / "facts.json"
     bare.write_text(json.dumps(facts), encoding="utf-8")
@@ -1792,6 +1888,69 @@ def test_the_proof_read_probe_refuses_a_read_after_the_transition(
     )
     assert done.returncode != 0, "a proof read after the transition was accepted"
     assert "no usable candidate-bound proof read" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_metadata_only_answer(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A hash is not the theorem.
+
+    `--jq .sha` exits zero and prints the file's hash, which is what a run
+    that located the route without reading it produces. Accepting any
+    non-empty answer made that indistinguishable from a read of the proof, and
+    the clear verdict it was evidence for would rest on the route having been
+    named rather than the theorem having been seen.
+    """
+    sha = json.loads(
+        (
+            FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+        ).read_text(encoding="utf-8")
+    )
+    metadata = next(
+        str(payload["sha"])
+        for pattern, payload in sha["api"].items()
+        if "proofs" in pattern and isinstance(payload, dict)
+    )
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0], 0, metadata), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a hash-only proof read was accepted"
+    assert "carries no theorem text" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_reads_the_proof_out_of_a_contents_payload(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """A wrapped answer is the file's text inside its metadata.
+
+    The stand-in normally serves the bare text, and a run that asks for the
+    contents payload receives `content` instead. Both are a read of the proof,
+    so both are accepted; only an answer carrying neither is refused.
+    """
+    served = json.dumps(
+        {
+            "name": "Theorem.lean",
+            "path": "proofs/refinement/Theorem.lean",
+            "encoding": "utf-8",
+            "content": PROOF_TEXT,
+        }
+    )
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0], 0, served), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode == 0, done.stderr
 
 
 def test_the_proof_read_probe_refuses_a_holding_run(
@@ -2248,7 +2407,7 @@ def test_the_combined_scenario_is_held_to_every_permitting_check() -> None:
     # search spans from the first `case $SCENARIO in` in the file and the
     # assertion passes whatever the plan-read branch actually says.
     plan_branch = re.search(
-        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+plan_line=",
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n(?:\s*#[^\n]*\n)*\s*plan_line=",
         runner,
         re.DOTALL,
     )
@@ -2277,7 +2436,7 @@ def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
     """
     runner = RUNNER.read_text()
     plan_branch = re.search(
-        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n\s+plan_line=",
+        r"case \$SCENARIO in\n(?P<names>(?:(?!esac).)*?)\)\n(?:\s*#[^\n]*\n)*\s*plan_line=",
         runner,
         re.DOTALL,
     )
@@ -2815,6 +2974,43 @@ def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
     refused = run_probe("PROBE_REQUESTS", str(scratch))
     assert refused.returncode != 0, "a revision without its blob was accepted"
     assert "states no plan file blob SHA" in refused.stderr, refused.stderr
+
+
+def test_a_request_citing_a_blob_the_head_does_not_serve_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The cited blob is the file's at the head, not the named revision's.
+
+    The template asks for ``the plan file's blob SHA at this head``, so a
+    request cites whichever file the published head serves, beside whatever
+    revision was approved at the time. The two coincide until an approval moves
+    under a fixed head, which is the premise of the two stale cases: there a
+    request has to cite the served blob beside the older approval.
+
+    Citing the older revision's own blob instead describes a file that head
+    never carried. That is a contradiction in the premise rather than the stale
+    approval the case exists to rehearse, and a run reading it holds on the
+    contradiction. The control substitutes such a blob into the combined
+    scenario, whose head serves a single file.
+    """
+    source = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+    facts = json.loads(source.read_text(encoding="utf-8"))
+
+    def cite_an_unserved_blob(body: str) -> str:
+        """Replace the cited served blob with one no route answers."""
+        return re.sub(
+            r" blob SHA at this head: [0-9a-f]{40}",
+            " blob SHA at this head: " + "0" * 40,
+            body,
+        )
+
+    mutated = facts_with_bodies(facts, cite_an_unserved_blob)
+    assert mutated != facts, "the scenario's requests cite no served blob"
+    scratch = tmp_path / "facts.json"
+    scratch.write_text(json.dumps(mutated), encoding="utf-8")
+    refused = run_probe("PROBE_REQUESTS", str(scratch))
+    assert refused.returncode != 0, "a blob the head does not serve was accepted"
+    assert "but this head serves" in refused.stderr, refused.stderr
 
 
 #: The read-only invocations a readiness run makes, each of which must appear

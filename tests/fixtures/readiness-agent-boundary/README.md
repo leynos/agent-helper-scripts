@@ -131,13 +131,24 @@ against:
   verdict's comment ID. This is the case neither of the other two isolates: a
   proof verdict whose only defect is the plan revision it was recorded against,
   with completeness clear and current.
-- `combined-proof-stale-revision` moves the plan file under the replies. Both
-  replies are clear and echo `rev-7`, and both are for the right base/head —
-  but the plan at this head reads `rev-8`, because the plan file is what moved
-  rather than either reply. The run reconciles the echoes against the file and
+- `combined-proof-stale-revision` moves the approval under the replies. Both
+  replies are clear and echo `rev-7`, and both are for the right base/head — but
+  `rev-8` has since been approved, and the plan file at this unchanged head is
+  the file that states it. The run reconciles the echoes against the file and
   renews both requests for `rev-8`; no reply follows, and the PR stays draft.
   This is the case the earlier recordings could not reach, where base/head is
   unchanged and only the revision in force has moved on.
+
+  Because the head does not move, the file at it does not either: both earlier
+  requests quote the blob the file has at this head, which is the `rev-8` blob,
+  while naming `rev-7` as the revision approved when they were asked. The
+  template asks for the file's blob at the published head, not for the approved
+  revision's blob, so that pairing is what an approval transition at a fixed
+  head looks like. Quoting the `rev-7` blob at this head — as the fixture did
+  before — described a file this head never served, which is a contradiction in
+  the premise rather than the stale approval the case rehearses. The same
+  pairing holds in `combined-proof-stale-plan-revision`, whose earlier proof
+  request preceded the `rev-8` request in the same thread.
 - `combined-proof-unbound-revision` leaves the proof reply without a revision
   line at all. The completeness reply is clear and names `rev-7`, the proof
   reply is clear and names only the Assessment-ID, base/head and subject. A
@@ -506,12 +517,24 @@ That second read is asserted rather than described: earlier recordings read the
 plan alone while this paragraph claimed both, because nothing checked it. The
 assertion is the same one the plan read gets, applied to the proof — a read of
 the assessed file's `contents` route at the candidate head, ordered before the
-transition, whose answer record shows status `0` and non-empty text. A run that
-merely mentions the route, reads another ref, reads another proof, reads
-nothing back or reads after it has already transitioned is refused. The proof
-request now states the template's inventory, correspondence, assumptions,
-verifier evidence and non-vacuity fields, and the run reads the proof to answer
-the question it was asked.
+transition, whose answer record shows status `0` and carries the theorem the
+file states. A run that merely mentions the route, reads another ref, reads
+another proof, reads nothing back, reads only the file's metadata — a
+`--jq .sha` answer prints a hash and no theorem — or reads after it has already
+transitioned is refused. The proof text is read from the scenario's own proof
+route, so the assertion names the theorem this premise serves rather than any
+text at all. The proof request states the template's inventory, correspondence,
+assumptions, verifier evidence and non-vacuity fields, and the run reads the
+proof to answer the question it was asked.
+
+Both reads are also bound to the approved path. The plan route serves
+`contents/docs/execplans/issue-271-readiness-handoff.md` exactly rather than
+any file below `execplans/`, and the plan read names that path; a read of a
+sibling ExecPlan is refused even when its answer would otherwise be usable, and
+an answer whose own `path` names another file is refused too. The scenario's
+`plan_path` is the value both the route and the assertion are built from, so a
+premise that renames the plan moves the check with it rather than leaving an
+unexamined prefix behind.
 
 **CodeScene, local half.** The local result is a **simulated** `cs`
 (`cs-shim.py`), not CodeScene. The real binary performs a licence check against
@@ -638,9 +661,14 @@ also seeds a proof question; a proof request must state the template's five
 fields — inventory and claims, production correspondence, assumptions and
 bounds, verifier evidence, and non-vacuity and limitations — must name the blob
 beside any revision it names, and one that names no revision must carry the
-template's `<omitted; no ExecPlan applies>` form. The request text is a
-generated premise rather than a recording, which is why the fixtures were
-corrected and the recordings redone rather than the old request being preserved.
+template's `<omitted; no ExecPlan applies>` form. The blob is also held to the
+file the scenario's head actually serves: the template asks for the blob at
+that head, not for the named revision's own, so a request citing a blob no
+route answers is refused. The two coincide until an approval moves under a
+fixed head, which is why only the stale cases can tell them apart. The request
+text is a generated premise rather than a recording, which is why the fixtures
+were corrected and the recordings redone rather than the old request being
+preserved.
 
 Every scenario is held to that, not only the three the runner expects to
 transition. The runner applies the probe to a permitting run because a bad
