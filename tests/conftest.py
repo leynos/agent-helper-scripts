@@ -11,6 +11,7 @@ importing the support module's other contents.
 """
 
 from gate_runner_test_support import gate_fixture
+from vendor_tagged_guides_test_support import vendor_fixture
 
 pytest_plugins = ("cmd_mox.pytest_plugin",)
-__all__ = ("gate_fixture",)
+__all__ = ("gate_fixture", "vendor_fixture")
