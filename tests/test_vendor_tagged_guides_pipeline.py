@@ -9,8 +9,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
+import tempfile
 import types
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
 import pytest
 
 from vendor_tagged_guides_test_support import make_config
@@ -24,7 +27,20 @@ def test_vendor_writes_in_mapping_order_and_is_reproducible(
         ("v0-2-0-migration-guide.md", "zzz-migration.md"),
         ("users-guide.md", "aaa-users.md"),
     )
-    config = make_config(vendor, tmp_path, mappings=mappings).config
+    sources = {
+        "v0-2-0-migration-guide.md": (
+            "# Migration guide\n\n"
+            "See the [users' guide](users-guide.md#program-catalogue).\n"
+        ),
+        "users-guide.md": (
+            "# Users' guide\n\n"
+            "See the [migration guide](v0-2-0-migration-guide.md#moving)\n"
+            "and the [developers' guide](developers-guide.md).\n"
+        ),
+    }
+    config = make_config(
+        vendor, tmp_path, sources=sources, mappings=mappings
+    ).config
 
     def deterministic_format(paths: Sequence[Path]) -> None:
         """Rewrite every file with its own content, changing nothing."""
@@ -41,6 +57,16 @@ def test_vendor_writes_in_mapping_order_and_is_reproducible(
         "aaa-users.md",
     ], first
     assert first_bytes == second_bytes, (first_bytes, second_bytes)
+
+    texts = {name: data.decode("utf-8") for name, data in first_bytes.items()}
+    for name, text in texts.items():
+        assert vendor.IMPORT_MARKER in text, (name, text)
+    assert "aaa-users.md" in texts["zzz-migration.md"], texts
+    assert "zzz-migration.md" in texts["aaa-users.md"], texts
+    assert (
+        "https://github.com/leynos/cuprum/blob/v0.2.0-beta2/docs/"
+        "developers-guide.md"
+    ) in texts["aaa-users.md"], texts
 
 
 def test_the_configured_line_limits_control_exemptions(
@@ -329,6 +355,97 @@ def test_an_interruption_is_reraised_when_a_restore_fails(
         "could not restore previous output" in note for note in notes
     ), notes
     assert second.read_text(encoding="utf-8") == "second previous\n", second
+
+
+@settings(max_examples=25, deadline=None)
+@given(
+    cases=st.lists(
+        st.tuples(
+            st.one_of(st.none(), st.text(alphabet="abc \n", max_size=16)),
+            st.booleans(),
+        ),
+        min_size=1,
+        max_size=4,
+    )
+)
+def test_a_failed_run_restores_every_previous_output_or_reports_it(
+    vendor: types.ModuleType,
+    cases: list[tuple[str | None, bool]],
+) -> None:
+    """Every previous output is restored, or named in the one-line report."""
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        sources = {
+            f"guide-{index}.md": f"# Guide {index}\n\nText.\n"
+            for index in range(len(cases))
+        }
+        mappings = tuple(
+            (f"guide-{index}.md", f"out-{index}.md")
+            for index in range(len(cases))
+        )
+        built = make_config(vendor, root, sources=sources, mappings=mappings)
+        restricted: set[Path] = set()
+        for index, (content, refuse) in enumerate(cases):
+            path = built.consumer / f"out-{index}.md"
+            if content is not None:
+                path.write_text(content, encoding="utf-8", newline="\n")
+                if refuse:
+                    restricted.add(path)
+
+        class RestoreFailingFileSystem:
+            """Boundary that refuses writes once the formatter has failed."""
+
+            def __init__(self) -> None:
+                """Wrap the real boundary with no refusal yet."""
+                self._delegate = vendor.LocalFileSystem()
+                self.failing = False
+
+            def __getattr__(self, name: str) -> object:
+                """Delegate every operation but ``write_bytes``."""
+                return getattr(self._delegate, name)
+
+            def write_bytes(self, path: Path, data: bytes) -> None:
+                """Refuse a restore after the formatter has failed."""
+                if self.failing and path in restricted:
+                    raise OSError("disk full")
+                self._delegate.write_bytes(path, data)
+
+        filesystem = RestoreFailingFileSystem()
+
+        def failing_format(_paths: Sequence[Path]) -> None:
+            """Fail the run after every output has been written."""
+            filesystem.failing = True
+            raise RuntimeError("formatter exploded")
+
+        with pytest.raises(Exception) as raised:
+            vendor.vendor(
+                built.config,
+                format_files=failing_format,
+                filesystem=filesystem,
+            )
+
+        error = raised.value
+        if restricted:
+            assert isinstance(error, vendor.VendorError), error
+            message = str(error)
+            assert "could not restore previous output" in message, message
+            assert (
+                "original failure: RuntimeError: formatter exploded"
+                in message
+            ), message
+            for path in restricted:
+                assert str(path) in message, message
+        else:
+            assert isinstance(error, RuntimeError), error
+
+        for index, (content, _) in enumerate(cases):
+            path = built.consumer / f"out-{index}.md"
+            if path in restricted:
+                continue
+            if content is None:
+                assert not path.exists(), path
+            else:
+                assert path.read_text(encoding="utf-8") == content, path
 
 
 def test_a_later_mapping_without_a_heading_writes_nothing(

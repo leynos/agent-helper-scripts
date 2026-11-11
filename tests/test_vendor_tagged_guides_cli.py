@@ -307,6 +307,10 @@ def test_the_real_command_line_and_markdown_gates_reach_a_fixed_point(
 
     invoke()
     written = sorted((consumer / "docs").glob("*.md"))
+    assert [path.name for path in written] == [
+        "cuprum-users-guide.md",
+        "cuprum-v0-2-0-migration-guide.md",
+    ], written
     first = {path.name: path.read_bytes() for path in written}
     invoke()
     second = {path.name: path.read_bytes() for path in written}

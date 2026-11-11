@@ -549,6 +549,22 @@ def test_a_hard_break_after_the_final_allowed_column_is_detected(
     assert "<!-- markdownlint-disable MD013 -->" in converted, converted
 
 
+def test_a_trailing_hard_break_at_the_final_allowed_column_is_detected(
+    vendor: types.ModuleType,
+) -> None:
+    """Two trailing spaces still count, so a break just past the limit is bracketed."""
+    paragraph = "x" * 79 + "  "
+    document = f"# Title\n\n{paragraph}\n"
+
+    assert len(paragraph) == 81, len(paragraph)
+    assert vendor.long_lines(document) == (2,), vendor.long_lines(document)
+
+    converted = vendor.insert_exemptions(document)
+
+    assert vendor.long_lines(converted) == (), converted
+    assert "<!-- markdownlint-disable MD013 -->" in converted, converted
+
+
 def test_trailing_whitespace_counts_but_an_unbreakable_word_stays_exempt(
     vendor: types.ModuleType,
 ) -> None:
