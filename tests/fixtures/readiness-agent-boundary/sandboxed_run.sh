@@ -537,24 +537,27 @@ fi
 # it is the only permitting run where two assessments must both clear, so the
 # revision binding cannot be inferred from a single verdict's echo.
 #
-# Four holding combined cases are held to the same read, because each exists
+# Three holding combined cases are held to the same read, because each exists
 # for a ground that is a fact about the plan file: a verdict recorded against a
-# revision the file no longer states (both verdicts, or the proof one alone), one
-# that states no revision at all, and a reply whose assessed head is not this
-# candidate's while the plan is the only surface naming the revision it echoes. A
-# run that never read the plan could not have established any of them, so its
-# hold would be for some other reason. A holding run is not held to the
-# read-back: there is no transition to read.
+# revision the file no longer states (both verdicts, or the proof one alone) or
+# one that states no revision at all. A run that never read the plan could not
+# have established any of them, so its hold would be for some other reason. A
+# holding run is not held to the read-back: there is no transition to read.
 #
-# `combined-proof-pending` and `combined-proof-stale-verdict` are deliberately
-# absent. Their grounds are the state of the proof verdict itself — unfinished,
-# or clear for a head that is not this candidate — and neither is decided by
-# anything the plan file says. A pending verdict cannot clear at any revision,
-# so a run that held without reading the plan held for exactly the right
+# `combined-proof-pending`, `combined-proof-stale-verdict` and
+# `combined-proof-candidate-mismatch` are deliberately absent. Their grounds are
+# the state of the proof verdict itself — unfinished, clear for a head that is
+# not this candidate, and clear for a head the repository does not serve — and
+# none is decided by anything the plan file says. A pending verdict cannot clear
+# at any revision, and a verdict naming another head is disqualified by the head
+# alone, so a run that held without reading the plan held for exactly the right
 # reason; requiring the read there would demand evidence the decision does not
 # rest on, and a recording made to satisfy it would demonstrate nothing extra.
+# The last two share one premise, and holding only one of them to the read made
+# the check depend on how a run happened to investigate rather than on what the
+# hold rests on.
 case $SCENARIO in
-  current-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision | combined-proof-candidate-mismatch)
+  current-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
     plan_line=$(grep -n 'contents/docs/execplans/.*ref=' "$TRACE" | head -1 | cut -d: -f1)
     ready_line=$(grep -n '"pr", "ready"' "$TRACE" | head -1 | cut -d: -f1)
     if [ -z "$plan_line" ]; then
@@ -896,6 +899,98 @@ raise SystemExit(0)
 PROBE_PREMISE
     then
       echo "abort: '$SCENARIO' does not record the defect it exists to demonstrate" >&2
+      rc=1
+    fi
+    ;;
+esac
+# A permitting run is evidence that the gate clears only if the questions it
+# cleared were the ones the skill posts. The seeded question is a premise, not
+# a recording: a fixture that seeds a request omitting the plan file's blob SHA
+# or carrying an unfilled placeholder rehearses a request the skill would not
+# send, and the run then clears a question nobody asked. This accepts a
+# permitting scenario only when every assessment question it seeds states the
+# fields the templates require.
+case $SCENARIO in
+  current-whole-plan | proof-only-cleared | combined-plan-and-proof)
+    if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_REQUESTS'
+import json, re, sys
+
+# The completeness template requires a plan revision carrying the plan file's
+# blob SHA, and `Known limitations:` filled with an evidential limit rather
+# than the template's own placeholder. The proof template requires the
+# inventory, correspondence, assumptions, verifier evidence and non-vacuity
+# sections. Only the completeness request states a revision here: a proof-only
+# candidate has no ExecPlan, so asking it for one would demand a value that
+# does not exist.
+facts = json.load(open(sys.argv[1], encoding="utf-8"))
+bodies = [
+    str(entry.get("body", ""))
+    for entry in facts["api"][r"/issues/\d+/comments"]
+    if "Assessment-ID:" in str(entry.get("body", ""))
+    and "@coderabbitai" in str(entry.get("body", ""))
+]
+problems = []
+completeness = [body for body in bodies if "please assess the implementation" in body]
+proofs = [body for body in bodies if "are you satisfied that the introduced proof" in body]
+if not completeness and not proofs:
+    problems.append("the permitting scenario seeds no assessment question")
+
+for body in completeness:
+    label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
+    name = label.group(1) if label else "<unnamed>"
+    revision = re.search(r"Plan revision:\s*(\S+)", body)
+    if not revision:
+        problems.append(f"{name} states no plan revision")
+        continue
+    if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
+        problems.append(f"{name} states no plan file blob SHA")
+    if "<evidential limits only>" in body:
+        problems.append(f"{name} leaves the limitations placeholder unfilled")
+    limitations = re.search(r"Known limitations:\s*(\S.*)", body)
+    if not limitations:
+        problems.append(f"{name} states no known limitations")
+    if not re.search(r"Acceptance evidence:\s*\S", body):
+        problems.append(f"{name} states no acceptance evidence")
+    # "none affected" is a claim about the candidate, not a formality. A
+    # completeness request that says no proof is affected, in a run that also
+    # asks for a proof assessment and changes a proof file, states two things
+    # the run cannot both believe. A reader has no way to tell which is right,
+    # and the run then holds on the contradiction instead of on the rule.
+    inventory = re.search(r"Proof inventory:\s*(.+)", body)
+    if not inventory:
+        problems.append(f"{name} states no proof inventory")
+    elif "none affected" in inventory.group(1) and proofs:
+        problems.append(
+            f"{name} says no proof is affected but the run asks for a proof assessment"
+        )
+
+for body in proofs:
+    label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
+    name = label.group(1) if label else "<unnamed>"
+    # The proof question is checked for the field this rule is about, not for
+    # the whole proof template. Requiring the full inventory here would change
+    # what the scenario asks: the seeded proof file states its theorem only by
+    # applying an undefined lemma, so a request that demands verifier evidence
+    # and non-vacuity makes a "clear" verdict indefensible. That is a real
+    # defect in the permitting proof fixture, but it is a different finding
+    # with its own recordings, and silently turning every proof scenario into a
+    # hold would be a worse fixture than the one this change is fixing.
+    #
+    # A proof-only candidate states no revision, and the template's own
+    # `<omitted; ...>` form is the correct answer there. Requiring the blob
+    # for it would make the no-ExecPlan case impossible to record.
+    revision = re.search(r"Plan revision:\s*(\S+)", body)
+    if revision and not revision.group(1).startswith("<omitted"):
+        if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
+            problems.append(f"{name} states no plan file blob SHA")
+for problem in problems:
+    print(problem, file=sys.stderr)
+if problems:
+    raise SystemExit(1)
+raise SystemExit(0)
+PROBE_REQUESTS
+    then
+      echo "abort: '$SCENARIO' seeds an assessment question the skill would not post" >&2
       rc=1
     fi
     ;;

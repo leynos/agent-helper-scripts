@@ -1,12 +1,14 @@
-@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — `refinement_sound`) is substantive, rigorous, and well-founded?
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean#refinement_sound`) is substantive, rigorous, and well-founded?
+
+This is a candidate-bound follow-up to the proof request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9983 and its reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9984. That reply echoed assessed head `7777bbbb`, but the request and the live PR head are `6666aaaa`, and `7777bbbb` is not a commit of this PR. So the verdict can't be bound to the current candidate.
 
 Published head: 6666aaaa; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
-Production correspondence: the approved ExecPlan `docs/execplans/issue-271-readiness-handoff.md` (issue #271, binding the draft-to-ready gate to the implementation handoff); please identify which production transition `refine`/`sound` model and whether that link is established at this head.
-Assumptions, trusted boundaries, domain, and bounds: the proof depends entirely on the lemma `sound_of_refine`, which is not defined in this file; please check where it is defined and whether it is proven or assumed (axiom/`sorry`), and whether the fixed-point precondition `refine s = s` is satisfiable.
-Verifier evidence: the hosted `Makefile gates` check passed at 6666aaaa; no local Lean/Lake run has been recorded for this candidate, and I have not confirmed that the gates build this file. Treat verifier coverage as unconfirmed.
-Non-vacuity and limitations: no witness or negative control has been recorded yet; please assess non-vacuity explicitly.
-Plan revision: rev-7 (plan file blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head).
+Proof inventory and claims: `proofs/refinement/Theorem.lean`, theorem `refinement_sound` (modified in this PR, +12 lines).
+Production correspondence: the readiness-handoff behaviour delivered against `docs/execplans/issue-271-readiness-handoff.md`; please identify the production code `refinement_sound` corresponds to, if any.
+Assumptions, trusted boundaries, domain, and bounds: not yet recorded in the delivery ledger; please identify any assumptions, axioms, or `sorry` the proof depends on.
+Verifier evidence: no local Lean verifier run is recorded for this head; hosted checks for this head are `Makefile gates`, `CodeScene Code Health Review`, and `Gecko Security Review`, all successful.
+Non-vacuity and limitations: no negative control is recorded; please assess whether the hypotheses are satisfiable and the statement non-vacuous.
+Plan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.
 Assessment-ID: 271-ab-combined-mismatch-proof-r2.
 
 Please echo the Assessment-ID, assessed base/head, and plan revision in your
@@ -15,6 +17,4 @@ This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.
 Identify each unresolved concern or missing inspection explicitly.
-
-Context: this follows up https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9983. The reply at https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9984 echoed head `7777bbbb`, which is not this PR's published head (`6666aaaa`), so its verdict cannot be bound to the current candidate.
 

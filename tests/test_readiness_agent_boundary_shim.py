@@ -2000,17 +2000,19 @@ def test_the_combined_scenario_is_held_to_every_permitting_check() -> None:
 def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
     """A holding combined case decided by the plan file must have read it.
 
-    Four of the six exist because a verdict is unusable as given: a stale plan
-    revision (in both verdicts, or in the proof verdict alone), an unbound one,
-    or a different head. Every one of those grounds is established from the plan
-    file or the candidate, so a run that held without reading the plan would be
-    filed as evidence for a rule it never applied.
+    Three of the six exist because a verdict is unusable as given for a reason
+    the plan file records: a stale plan revision (in both verdicts, or in the
+    proof verdict alone) or an unbound one. Every one of those grounds is
+    established from the plan file, so a run that held without reading the plan
+    would be filed as evidence for a rule it never applied.
 
-    The other two are decided by the state of the proof verdict alone, and are
+    The other three are decided by the state of the proof verdict alone, and are
     asserted to be OUT of this arm: a pending verdict cannot clear at any
-    revision and a clear verdict for another head needs no plan read to
-    disqualify, so requiring the read would demand evidence those decisions do
-    not rest on.
+    revision, and a clear verdict assessed against a head that is not this
+    candidate's is disqualified by the assessed head itself. Requiring the read
+    there would demand evidence those decisions do not rest on. The last two
+    share that premise, so admitting one and not the other would make the check
+    a property of how a run investigated rather than of what its hold rests on.
     """
     runner = RUNNER.read_text()
     plan_branch = re.search(
@@ -2023,13 +2025,16 @@ def test_a_holding_combined_case_is_held_to_the_plan_read_it_claims() -> None:
         "combined-proof-stale-plan-revision",
         "combined-proof-stale-revision",
         "combined-proof-unbound-revision",
-        "combined-proof-candidate-mismatch",
     ):
         assert name in plan_branch.group("names"), (
             f"{name} holds without being held to the plan read, so its hold"
             " could be for a reason the scenario does not name"
         )
-    for name in ("combined-proof-pending", "combined-proof-stale-verdict"):
+    for name in (
+        "combined-proof-pending",
+        "combined-proof-stale-verdict",
+        "combined-proof-candidate-mismatch",
+    ):
         assert name not in plan_branch.group("names"), (
             f"{name} is held to a plan read its verdict's state does not depend"
             " on, which would demand evidence the decision never rests on"
@@ -2350,6 +2355,148 @@ def test_a_permitting_scenario_cannot_carry_an_unusable_local_mode() -> None:
     runner = RUNNER.read_text()
     for mode in ("unavailable", "finding"):
         assert f'"$CS_MODE" = {mode}' in runner, "expected f'\"$CS_MODE\" = {mode}' in runner to hold"
+
+
+PERMITTING = ("current-whole-plan", "proof-only-cleared", "combined-plan-and-proof")
+
+
+def facts_with_bodies(facts: dict, mutate: object) -> dict:
+    """Return `facts` with each discussion body passed through `mutate`."""
+    changed = json.loads(json.dumps(facts))
+    for entry in changed["api"][r"/issues/\d+/comments"]:
+        entry["body"] = mutate(entry["body"])
+    return changed
+
+
+@pytest.mark.parametrize("name", PERMITTING)
+def test_each_permitting_scenario_seeds_the_question_the_skill_posts(
+    name: str,
+) -> None:
+    """A permitting run may only clear a question the skill would actually send.
+
+    The seeded question is a premise rather than a recording, so it is the one
+    part of the fixture that can be corrected. What it must not be is a
+    shorthand: a request naming a revision but not the plan file's blob SHA, or
+    carrying the template's own placeholder for `Known limitations`, is a
+    question the skill does not post. A run that cleared it would then be
+    evidence about a question nobody asked `—` and the recordings made from it
+    would inherit that, because a recording is verbatim and cannot be edited
+    afterwards.
+    """
+    facts = json.loads(
+        (FIXTURES / "scenarios" / name / "facts.json").read_text(encoding="utf-8")
+    )
+    done = run_probe("PROBE_REQUESTS", str(FIXTURES / "scenarios" / name / "facts.json"))
+    assert done.returncode == 0, f"{name} seeds an incomplete question: {done.stderr}"
+    assert facts["api"][r"/issues/\d+/comments"], f"{name} records no discussion"
+
+
+@pytest.mark.parametrize(
+    ("field", "mutate", "expected"),
+    [
+        (
+            "blob",
+            lambda body: re.sub(
+                r" plan file blob SHA at this head: [0-9a-f]{40}", "", body
+            ),
+            "states no plan file blob SHA",
+        ),
+        (
+            "revision",
+            lambda body: re.sub(r"Plan revision: rev-7[^\n]*\n", "", body),
+            "states no plan revision",
+        ),
+        (
+            "limitations",
+            lambda body: re.sub(
+                r"Known limitations:[^\n]*", "Known limitations: <evidential limits only>.", body
+            ),
+            "leaves the limitations placeholder unfilled",
+        ),
+        (
+            "acceptance",
+            lambda body: re.sub(r"Acceptance evidence:[^\n]*\n", "", body),
+            "states no acceptance evidence",
+        ),
+        (
+            "proof-blob",
+            lambda body: re.sub(
+                r" plan file blob SHA at this head: [0-9a-f]{40}", "", body
+            ),
+            "states no plan file blob SHA",
+        ),
+        (
+            "inventory",
+            lambda body: re.sub(
+                r"Proof inventory:[^\n]*",
+                "Proof inventory: none affected.",
+                body,
+            ),
+            "says no proof is affected but the run asks for a proof assessment",
+        ),
+    ],
+    ids=[
+        "blob",
+        "revision",
+        "limitations",
+        "acceptance",
+        "proof-blob",
+        "inventory",
+    ],
+)
+def test_the_request_probe_refuses_a_question_missing_a_required_field(
+    field: str, mutate: object, expected: str, tmp_path: Path
+) -> None:
+    """Every required field has a control that removes it and is caught.
+
+    The positive test above shows the recorded requests pass; on its own that
+    is also what a probe accepting everything would report. Each case here
+    removes exactly one field from the combined scenario, which carries both
+    question kinds, and requires the probe to name that field.
+    """
+    combined = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+    facts = facts_with_bodies(
+        json.loads(combined.read_text(encoding="utf-8")), mutate
+    )
+    mutated = tmp_path / "facts.json"
+    mutated.write_text(json.dumps(facts), encoding="utf-8")
+    done = run_probe("PROBE_REQUESTS", str(mutated))
+    assert done.returncode != 0, f"removing the {field} field was not detected"
+    assert expected in done.stderr, done.stderr
+
+
+def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
+    tmp_path: Path,
+) -> None:
+    """The no-ExecPlan case must stay recordable.
+
+    A proof-only candidate has no approved revision, and its question says so
+    rather than naming one. Requiring a blob there would make the one shape the
+    skill describes for that case impossible to record, and a probe that did so
+    would be wrong about the template rather than strict about it.
+    """
+    source = FIXTURES / "scenarios" / "proof-only-cleared" / "facts.json"
+    facts = json.loads(source.read_text(encoding="utf-8"))
+    done = run_probe("PROBE_REQUESTS", str(source))
+    assert done.returncode == 0, done.stderr
+    bodies = " ".join(str(entry["body"]) for entry in facts["api"][r"/issues/\d+/comments"])
+    assert "no ExecPlan applies" in bodies, "the proof-only question claims a revision"
+
+    # And the control: give it a revision without a blob and the probe must
+    # object, so the exemption above is the omitted form and not silence.
+    def claim_revision(body: str, revision: str = "rev-7") -> str:
+        """Replace the omitted-revision line with a bare revision claim."""
+        return body.replace(
+            "Plan revision: <omitted; no ExecPlan applies>.", f"Plan revision: {revision}."
+        )
+
+    mutated = facts_with_bodies(facts, claim_revision)
+    assert mutated != facts, "the proof-only question does not use the omitted form"
+    scratch = tmp_path / "facts.json"
+    scratch.write_text(json.dumps(mutated), encoding="utf-8")
+    refused = run_probe("PROBE_REQUESTS", str(scratch))
+    assert refused.returncode != 0, "a revision without its blob was accepted"
+    assert "states no plan file blob SHA" in refused.stderr, refused.stderr
 
 
 #: The read-only invocations a readiness run makes, each of which must appear

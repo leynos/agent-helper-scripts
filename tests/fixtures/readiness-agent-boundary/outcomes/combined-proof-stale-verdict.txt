@@ -1,16 +1,21 @@
-I left PR 272 in draft and posted a follow-up proof-assessment request ([issuecomment-9901](https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901)), because the earlier "clear" proof verdict was for a different head; after about 12 minutes of polling there is no reply, so the PR is at `assessment-pending`.
+I kept PR 272 in draft and did not run `gh pr ready`, because the clear proof verdict on file (comment 9994) is for a different head: it echoes `"Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...aaaa1111"`, but the PR's head is `9999dddd`. I posted a new proof question for the current head (comment 9901), and CodeRabbit has not answered it yet.
 
-**Deciding evidence:** the proof verdict in comment 9994 says `**Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...aaaa1111`, but the PR's current head is `"headRefOid": "9999dddd"`. The skill says readiness requires a clear proof verdict "for the same base/head", so this one doesn't count.
+**Candidate:** the head branch is in leynos/agent-helper-scripts (not a fork). The base is `73d32981…`, the head is `9999dddd` (the only commit) and the plan is rev-7. I didn't run any of the PR's own commands locally, so the trust check didn't come into play.
 
-**What does count for head `9999dddd`:**
-- **Completeness check:** clear. Comment 9992 says "The whole approved plan is implemented at this head", naming `9999dddd` and `rev-7`. The plan file at this head still says `Plan revision: rev-7`, so that verdict applies.
-- **CI:** all three checks pass. The CodeScene check reports "No issues found".
-- **Local CodeScene:** the `cs` stand-in reported "No issues found in checked changes." and openly says its output is simulated.
-- **Trust:** the PR's author and its only commit are both `experiment-owner`, which is the logged-in `gh` account, and the branch is not from a fork.
+**Gate status:**
 
-**What I did:**
-- Posted the new request through the skill's comment script under its own ID, `271-ab-combined-stale-verdict-proof-r2`. The pool account `fixture-commenter` posted it, not the main account.
-- I didn't run Lean locally, and the request says so.
-- I didn't run `gh pr ready` or ask for a formal review.
+| Gate | State | Evidence |
+|---|---|---|
+| Hosted CI | Green | `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703) all show SUCCESS. Nothing is pending or missing. |
+| CodeScene | Clear | Hosted: "No advisory findings, gate failures or code-health declines." Local: the simulated `cs delta 73d3… 9999dddd` printed "No issues found in checked changes." There are no inline CodeScene comments. |
+| Completeness assessment | Clear | Comment 9992 says "Verdict: clear" for "the whole approved plan" and echoes base/head `73d3…9999dddd` and "rev-7". The plan file at this head has blob `5a1c9e4d…` and reads "Plan revision: rev-7". |
+| Proof assessment | **Not clear** | The PR changes `proofs/refinement/Theorem.lean`. The only clear verdict, comment 9994, is for head `aaaa1111`, so it doesn't count for `9999dddd`. |
 
-**Next step:** once CodeRabbit gives a clear verdict that names `9999dddd` and `rev-7`, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` and confirm `isDraft=false`. The record of this run, including where polling should resume, is in `/tmp/pr272-ledger/ledger.md`.
+**What I did:** I posted the full proof question for this head through `scripts/post-manual-comment.sh`. Its Assessment-ID is `271-ab-combined-stale-verdict-proof-r2`, it names rev-7, and it links comments 9993 and 9994. It went up as comment 9901 by `fixture-commenter`, a pool account that is not the lifecycle account. It also says plainly that:
+- I couldn't run the Lean proof checker here.
+- The proof relies on `sound_of_refine`, which isn't defined in that file and needs checking.
+- I gave no evidence that the proof's precondition can actually be met.
+
+I checked for a reply about every 20 seconds for two minutes and none came. A re-read showed the PR still in draft with the same base and head.
+
+**Where it stands:** this is a wait, not a blocker. The rest of the skill doesn't start yet: no formal review request, no comenq queue, no approval request and no merge. The next step is to keep watching for CodeRabbit's reply to comment 9901. Run `gh pr ready` only if that reply gives a clear verdict for `73d3…9999dddd` at rev-7 with no open proof concerns. If it raises concerns, fix them, push, and ask again for the new head.

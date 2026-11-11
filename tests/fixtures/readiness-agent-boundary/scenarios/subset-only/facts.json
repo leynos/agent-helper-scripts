@@ -145,7 +145,7 @@
         },
         "created_at": "2026-11-07T20:00:00Z",
         "updated_at": "2026-11-07T20:00:00Z",
-        "body": "@coderabbitai please assess the implementation in this PR for\ncompleteness and correctness against the execplan:\n\nRepository: leynos/agent-helper-scripts\nPull request: 272\nAssessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...aaaa1111\nAssessed subject: the whole approved plan.\nPlan revision: rev-7.\nKnown limitations: <evidential limits only>.\nProof inventory: none affected.\nAssessment-ID: 271-ab-subset.",
+        "body": "@coderabbitai please assess the implementation in this PR for\ncompleteness and correctness against the execplan:\n\n> `docs/execplans/issue-271-readiness-handoff.md`\n\nAssessed subject: the whole approved plan.\nPublished head: aaaa1111; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.\nPlan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.\nAcceptance evidence: the hosted checks recorded for this head, and the local `cs delta` result where the run consulted one.\nKnown limitations: the local CodeScene result is the rehearsal stand-in's, which discloses in its own output that it is simulated rather than a CodeScene analysis.\nProof inventory: none affected.\nAssessment-ID: 271-ab-subset.\n\nPlease echo the Assessment-ID, assessed base/head, and plan revision in\nyour substantive reply.\nThis is an assessment conversation, not a request to start a formal PR\nreview.",
         "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9001"
       },
       {

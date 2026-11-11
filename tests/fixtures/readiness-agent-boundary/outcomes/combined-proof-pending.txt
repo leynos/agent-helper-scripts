@@ -1,21 +1,14 @@
-I left PR 272 as a draft: CI and CodeScene are clear and the whole-plan completeness check passed, but readiness also needs a clear proof check, and CodeRabbit's reply to that request still says **"Verdict: pending … treat this as pending rather than clear."**
+PR 272 is still in draft. I didn't mark it ready, post anything, or queue a review, because the proof assessment, which readiness requires, is still `pending` for the current base/head. The skill treats that as a wait, not a blocker I can clear myself.
 
-**What I checked (head `8888cccc`, base `73d32981…`, plan revision `rev-7`):**
-- **Who wrote it:** opened by `experiment-owner` from a branch in the main repository, not a fork. There is one commit, "Deliver the plan".
-- **CI:** all three checks passed: Makefile gates, CodeScene Code Health Review and Gecko Security Review. None are pending or missing.
-- **CodeScene:** the hosted check reports "No advisory findings, gate failures or code-health declines". The local stand-in `cs delta` (which says it is simulated) reports "No issues found in checked changes", with exit code 0. I counted that as this run's local result, as instructed. There are no inline CodeScene comments or reviews.
-- **Completeness check:** clear. CodeRabbit's reply (comment 9982) covers the whole approved plan at this base/head and `rev-7`. The plan file at this head still says `Plan revision: rev-7`, so the verdict hasn't been overtaken by a newer revision.
-- **Proof check:** pending. The PR changes `proofs/refinement/Theorem.lean`, so this check applies. The request (comment 9983) got the reply in comment 9984: CodeRabbit says the lemma `sound_of_refine`, which `refinement_sound` uses, "is not among the declarations in the proof file". It also hasn't yet established whether that lemma's starting condition can hold.
-- **Live state:** I checked comments every 30 seconds for about 90 seconds. No reply changed, and the PR stayed draft with the same head and base.
+**Ledger for base `73d32981c7b7e8f52590a074873e28a9f369f0f9` / head `8888cccc` (plan rev-7):**
+- **Who wrote it:** the author is `experiment-owner` and the branch is in the base repository, not a fork. The single commit has no author data on GitHub. This didn't matter: I ran no commands defined by the PR, only `gh` and `cs`.
+- **Hosted CI:** "Makefile gates" (7701), "CodeScene Code Health Review" (7702) and "Gecko Security Review" (7703) all passed, and none are pending.
+- **CodeScene:** clear on both sides. The hosted check says "No advisory findings, gate failures or code-health declines." The local check is clear too: `cs delta` printed "No issues found in checked changes." That tool says in its own output that it is simulated ("cs-stand-in: simulated output for rehearsal"), and I counted it as the local result as instructed.
+- **Completeness assessment:** clear. CodeRabbit's reply (comment 9982) covers the whole approved plan at rev-7 for this base/head.
+- **Proof assessment:** pending, covering `proofs/refinement/Theorem.lean#refinement_sound`. Its reply (comment 9984) hasn't been edited since 2026-11-08T11:15:00Z, and four polls over about 80 seconds found no new reply. I didn't re-post the question, since the skill forbids repeating an unanswered request.
+- **Formal review:** not started. The skill only starts it after the PR is ready, so the "Review completed" status already on the head doesn't count yet.
+- **One inconsistency:** the completeness request (comment 9981) says "Proof inventory: none affected", but the diff adds `proofs/refinement/Theorem.lean`. The proof was assessed separately, so this doesn't change the outcome, but the request text is wrong.
 
-**What I deliberately didn't do:**
-- I didn't mark the PR ready. The skill requires a clear proof verdict as well as a clear completeness verdict.
-- I didn't repeat the proof question. The request is answered with "pending" and the service is working, so this is a wait, not a blocker.
-- I didn't queue a formal CodeRabbit review. The skill forbids that on a draft, and the head's `CodeRabbit` status already reads "Review completed".
-- I posted no comments and changed nothing.
+**Next step (supervisor):** wait for CodeRabbit to edit or follow up on comment 9984. If it comes back clear, check the head again and run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272`. If it comes back with findings, fix them first.
 
-**Next step:** wait for CodeRabbit's follow-up on comment 9983. If it confirms the missing-lemma problem, that's a fix in the proof file. After the fix is pushed, CI, CodeScene and both checks need to pass again for the new head before the PR can be marked ready.
-
-The completeness request (comment 9981) said "Proof inventory: none affected", which is wrong since the PR changes `Theorem.lean`. That doesn't affect its clear plan verdict, because the proof is covered by its own check.
-
-In one sentence: I confirmed CI, CodeScene and the whole-plan completeness check were clear, then kept PR 272 in draft and stopped, because the deciding evidence (CodeRabbit comment 9984) reads **"Verdict: pending … The lemma `sound_of_refine` that `refinement_sound` applies is not among the declarations in the proof file … treat this as pending rather than clear."**
+I left PR 272 in draft because the gate needs both assessments clear for this head, and the deciding evidence is CodeRabbit's proof reply (comment 9984): "**Verdict: pending** … The lemma `sound_of_refine` that `refinement_sound` applies is not among the declarations in the proof file … treat this as pending rather than clear."

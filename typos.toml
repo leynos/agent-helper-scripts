@@ -40,6 +40,7 @@ extend-ignore-re = [
     "HashiCorp",
     "How to organise your Rust tests",
     "RUST_ANALYZER(?:_PRECHECK)?",
+    "\\*\\*Assessed ba\\b",
     "\\b(?:background|theme)_color\\b",
     "\\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\\b",
     "\\bAppFactory<Ser\\b",

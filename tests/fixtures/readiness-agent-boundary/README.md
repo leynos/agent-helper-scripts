@@ -432,6 +432,12 @@ The gate assertions are specific rather than aggregate:
 - A scenario whose recorded local result is `finding` or `unavailable` may not
   be written as one that permits a transition; the two facts contradict each
   other, and the runner refuses the contradiction rather than recording it.
+- The question a permitting run clears must be the one the skill posts. The
+  seeded request is a premise, so a fixture could seed a shorthand the skill
+  never sends and the run would then clear a question nobody asked. The request
+  probe requires the completeness fields the template names — revision, the
+  plan file's blob SHA at that head, acceptance evidence and filled limitations
+  — and the blob beside any revision a proof request names.
 
 The stand-in's own authorization is proved the same way. Before the agent
 starts, the runner posts a comment against a copy of the stand-in: with no
@@ -589,12 +595,33 @@ a run whose scratch is gone has none, and none was reconstructed.
 
 A recording made before an assertion was added is still valid evidence for what
 it observed, but it has not been re-run against the assertion. The plan-read
-check now extends to the four holding `combined-*` cases whose hold is a fact
+check now extends to the three holding `combined-*` cases whose hold is a fact
 about the plan file; the stale-plan-revision case was recorded under it, and
-the three that predate it were verified against their committed facts rather
-than assumed, which is what
-`test_each_holding_combined_premise_holds_for_its_recorded_facts` does for
-every one of the six.
+the rest were verified against their committed facts rather than assumed, which
+is what `test_each_holding_combined_premise_holds_for_its_recorded_facts` does
+for every one of the six.
+
+The plan-read arm stops at those three. `combined-proof-pending`,
+`combined-proof-stale-verdict` and `combined-proof-candidate-mismatch` are
+decided by the state of the proof verdict alone — unfinished, or clear for a
+head that is not this candidate's — and neither ground is a fact about the plan
+file. Holding the last two to a read they have no use for made the check depend
+on how a run chose to investigate rather than on what its hold rests on, and it
+aborted a run that held for exactly the right reason: the mismatch case was
+re-run and passed once the arm was corrected, and all seven recordings that
+were affected by the request change were redone from actual runs against the
+corrected runner.
+
+The seeded assessment requests are probed too. `PROBE_REQUESTS` reads each
+permitting scenario's `facts.json` and refuses a question the skill would not
+post: a completeness request must state the plan revision, a 40-hex blob SHA
+for the plan file at that head, `Acceptance evidence:` and a filled
+`Known limitations:`, and must not claim no proof is affected in a run that
+also seeds a proof question; a proof request that names a revision must name
+the blob beside it, and one that names neither must carry the template's
+`<omitted; no ExecPlan applies>` line. The request text is a generated premise
+rather than a recording, which is why the fixtures were corrected and the
+recordings redone rather than the old request being preserved.
 
 Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
 unmodelled third variable, and that is why all nine original scenarios, not

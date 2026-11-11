@@ -80,24 +80,85 @@ def comment(ident: int, login: str, body: str, created: str) -> dict[str, object
 
 
 def request(
-    assessment_id: str, revision: str | None, head: str, subject: str = WHOLE_PLAN
+    assessment_id: str,
+    revision: str | None,
+    head: str,
+    subject: str = WHOLE_PLAN,
+    blob: str = PLAN_BLOB,
+    proof_inventory: str = "Proof inventory: none affected.",
 ) -> str:
-    """Return the assessment question the workflow posted for this candidate."""
+    """Return the assessment question the workflow posted for this candidate.
+
+    The body is the one `execplan-assessment.md` specifies, not a shorthand of
+    it. Two fields were missing here and the gap mattered: a request naming only
+    the revision leaves base/head and a label to identify which file was
+    inspected, and `Known limitations:` with an unfilled placeholder reads as a
+    request that never stated its evidential limits. A run could only reach the
+    same conclusion by treating the missing values as unimportant, so a fixture
+    that seeded them was rehearsing a request the skill would not post.
+
+    The blob SHA is the plan file's at this head, which is why it is a
+    parameter: `combined-proof-stale-plan-revision` serves a superseding
+    revision, and a request naming `rev-8` with the `rev-7` blob would describe
+    a file the fixture never served.
+
+    Parameters
+    ----------
+    assessment_id : str
+        The unique request marker the reply is expected to echo.
+    revision : str or None
+        The approved revision in force, or None when no ExecPlan applies.
+    head : str
+        The candidate head the question was posted for.
+    subject : str, optional
+        The assessed subject; the whole approved plan unless a case declares a
+        subset.
+    blob : str, optional
+        The plan file's blob SHA at `head`.
+    proof_inventory : str, optional
+        The inventory line. It defaults to "none affected", which is true of
+        every plan-only case and false of a candidate that changes a proof: a
+        request that says otherwise contradicts the PR it is about, and a run
+        reading both cannot tell which statement to believe.
+
+    Returns
+    -------
+    str
+        The request body as the workflow posts it.
+    """
     lines = [
         "@coderabbitai please assess the implementation in this PR for",
         "completeness and correctness against the execplan:",
         "",
-        "Repository: leynos/agent-helper-scripts",
-        f"Pull request: {PR}",
-        f"Assessed base/head: {BASE}...{head}",
+        f"> `{PLAN_PATH}`",
+        "",
         f"Assessed subject: {subject}.",
+        f"Published head: {head}; comparison base: {BASE}.",
     ]
     if revision:
-        lines.append(f"Plan revision: {revision}.")
+        lines.append(
+            f"Plan revision: {revision} (approved revision in force);"
+            f" plan file blob SHA at this head: {blob}."
+        )
+    else:
+        lines.append("Plan revision: <omitted; no ExecPlan applies>.")
     lines += [
-        "Known limitations: <evidential limits only>.",
-        "Proof inventory: none affected.",
+        (
+            "Acceptance evidence: the hosted checks recorded for this head,"
+            " and the local `cs delta` result where the run consulted one."
+        ),
+        (
+            "Known limitations: the local CodeScene result is the rehearsal"
+            " stand-in's, which discloses in its own output that it is"
+            " simulated rather than a CodeScene analysis."
+        ),
+        proof_inventory,
         f"Assessment-ID: {assessment_id}.",
+        "",
+        "Please echo the Assessment-ID, assessed base/head, and plan revision in",
+        "your substantive reply.",
+        "This is an assessment conversation, not a request to start a formal PR",
+        "review.",
     ]
     return "\n".join(lines)
 
@@ -117,7 +178,12 @@ def reply(assessment_id: str, revision: str | None, verdict: dict[str, str]) -> 
     return "\n".join(lines)
 
 
-def proof_request(assessment_id: str, head: str, revision: str | None) -> str:
+def proof_request(
+    assessment_id: str,
+    head: str,
+    revision: str | None,
+    blob: str = PLAN_BLOB,
+) -> str:
     """Return the proof scrutiny question the workflow posted for this candidate.
 
     The request names the plan revision only when an ExecPlan applies. A
@@ -134,6 +200,9 @@ def proof_request(assessment_id: str, head: str, revision: str | None) -> str:
         The candidate head the question was posted for.
     revision : str or None
         The approved revision in force, or None when no ExecPlan applies.
+    blob : str, optional
+        The plan file's blob SHA at `head`. A revision alone cannot identify
+        which file was inspected, and the template asks for both.
     """
     return "\n".join(
         [
@@ -145,7 +214,8 @@ def proof_request(assessment_id: str, head: str, revision: str | None) -> str:
             f"Pull request: {PR}",
             f"Assessed base/head: {BASE}...{head}",
             (
-                f"Plan revision: {revision}."
+                f"Plan revision: {revision} (approved revision in force);"
+                f" plan file blob SHA at this head: {blob}."
                 if revision
                 else "Plan revision: <omitted; no ExecPlan applies>."
             ),
@@ -1084,7 +1154,16 @@ scenario(Case(
         comment(
             9951,
             "buzzybee-df12",
-            request("271-ab-combined", "rev-7", "3333dddd"),
+            request(
+                "271-ab-combined",
+                "rev-7",
+                "3333dddd",
+                proof_inventory=(
+                    "Proof inventory: `proofs/refinement/Theorem.lean`"
+                    " (`refinement_sound`), covered by the separate proof"
+                    " assessment."
+                ),
+            ),
             "2026-11-08T09:00:00Z",
         ),
         comment(
@@ -1369,7 +1448,9 @@ scenario(Case(
         comment(
             9997,
             "buzzybee-df12",
-            request("271-ab-combined-stale-plan", "rev-8", "7777dddd"),
+            request(
+                "271-ab-combined-stale-plan", "rev-8", "7777dddd", blob=PLAN_BLOB_REV8
+            ),
             "2026-11-08T13:00:00Z",
         ),
         comment(

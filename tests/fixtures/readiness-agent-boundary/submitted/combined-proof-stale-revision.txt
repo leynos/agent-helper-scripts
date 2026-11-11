@@ -5,10 +5,10 @@
 
 Assessed subject: the whole approved plan.
 Published head: 4444eeee; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Plan revision: rev-8 (plan file blob e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8 at this head).
-Acceptance evidence: hosted checks on this head: `Makefile gates` success, `CodeScene Code Health Review` success ("No advisory findings, gate failures or code-health declines"), `Gecko Security Review` success; local `cs delta 73d32981...4444eeee` reported no issues.
-Known limitations: the earlier clear verdict (Assessment-ID 271-ab-combined-stale, https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9962) was given against plan revision rev-7, which the plan file at this head has superseded with rev-8; base/head are unchanged. This request renews the assessment against rev-8.
-Assessment-ID: 271-renew-completeness-rev8.
+Plan revision: rev-8 (the revision recorded in the plan file at this head); plan file blob SHA at this head: e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8.
+Acceptance evidence: hosted checks at this head: `Makefile gates` success, `CodeScene Code Health Review` success ("No advisory findings, gate failures or code-health declines."), `Gecko Security Review` success; local `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 4444eeee` reported "No issues found in checked changes."
+Known limitations: the local `cs` is a rehearsal stand-in that discloses its output is simulated, not a CodeScene analysis. The earlier assessment (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9962) was bound to plan revision rev-7 (blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15), which the plan file at this head supersedes; this request supersedes it for the same base/head.
+Assessment-ID: 271-ab-rev8-completeness.
 
 Please echo the Assessment-ID, assessed base/head, and plan revision in your
 substantive reply.
@@ -18,16 +18,16 @@ Identify remaining in-scope omissions or correctness defects and any access
 or inspection limitations. Assess the implementation, not just the plan text.
 
 --- posted comment 2 of 2 ---
-@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean`: `refinement_sound`) is substantive, rigorous, and well-founded?
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean`, theorem `refinement_sound`) is substantive, rigorous, and well-founded?
 
 Published head: 4444eeee; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
-Production correspondence: not independently established by the supervisor; please identify the production `refine`/`sound` definitions this theorem corresponds to and any gap.
-Assumptions, trusted boundaries, domain, and bounds: the proof depends on the lemma `sound_of_refine`; its source and any axioms it rests on have not been inspected by the supervisor.
-Verifier evidence: no Lean verifier run was recorded by the supervisor for this head; hosted `Makefile gates` succeeded.
-Non-vacuity and limitations: please check that the hypothesis `refine s = s` is satisfiable for interesting `State` values and that the conclusion is not assumed through `sound_of_refine`. Earlier verdict (Assessment-ID 271-ab-combined-stale-proof, https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9964) was bound to plan revision rev-7, now superseded.
-Plan revision: rev-8 (plan file blob e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8 at this head).
-Assessment-ID: 271-renew-proof-rev8.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: the readiness-handoff behaviour described in `docs/execplans/issue-271-readiness-handoff.md`; please confirm how `State`, `refine`, and `sound` correspond to the shipped implementation.
+Assumptions, trusted boundaries, domain, and bounds: the proof depends entirely on the lemma `sound_of_refine`, whose definition and assumptions are outside this file; please check whether it is proven, axiomatised, or circular.
+Verifier evidence: no local Lean run was performed by this supervisor; the hosted `Makefile gates` check succeeded at this head, but its coverage of the Lean build is not established here.
+Non-vacuity and limitations: no witness or negative control has been established for the hypothesis `refine s = s`; please identify whether it is satisfiable and non-trivial.
+Plan revision: rev-8; plan file blob SHA at this head: e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8. The earlier proof verdict (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9964) was bound to superseded rev-7.
+Assessment-ID: 271-ab-rev8-proof.
 
 Please echo the Assessment-ID, assessed base/head, and plan revision in your
 substantive reply; echo the plan revision only when this request names one.

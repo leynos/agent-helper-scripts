@@ -1,20 +1,22 @@
-PR 272 is still a draft: I didn't mark it ready, because both "clear" assessment verdicts were given for a plan revision that has since been replaced. I posted new requests for the current revision, and neither has been answered yet.
+PR 272 is still a draft, and I did not mark it ready. Both clear verdicts are tied to an old version of the plan, so I posted fresh assessment requests against the current one. No reply has come back yet.
 
-**What's already in place for head `4444eeee` (base `73d32981…`):**
-- **CI:** all three checks passed (`Makefile gates`, `CodeScene Code Health Review`, `Gecko Security Review`).
-- **CodeScene:** clear on both sides. The hosted check says "No issues found", and there are no inline comments from the CodeScene bot. The local `cs` stand-in, which says it is simulated, reported "No issues found in checked changes."
-- **Trust:** the PR author `experiment-owner` is the logged-in account, and the branch is in the main repository.
+**What's green for head `4444eeee` on base `73d32981…`**
+- **CI:** all three checks passed: `Makefile gates`, `CodeScene Code Health Review` ("No advisory findings, gate failures or code-health declines.") and `Gecko Security Review`.
+- **Local CodeScene:** `cs delta` reported "No issues found in checked changes." The tool says its output is simulated; as instructed, I treated that as this run's local result.
+- **Trust:** the PR author is `experiment-owner`, the branch is in the base repo rather than a fork, and the assignment names the PR, so I trusted it.
+- **Reviews:** there are no reviews or inline threads yet.
 
-**What's blocking readiness:**
-- The plan file at the head reads `Plan revision: rev-8`.
-- Both earlier verdicts (comments #9962 and #9964) are tied to `rev-7`. The skill says a verdict for a replaced revision doesn't count, even when the base and head haven't changed.
+**Why it can't go ready**
+- **The verdicts are stale.** Both CodeRabbit "Verdict: clear" replies (9962 for completeness, 9964 for the proof) say "Plan revision: rev-7". The plan file at this head says `Plan revision: rev-8` (blob `e3b7c04d…`), while the requests that produced those verdicts claimed blob `5a1c9e4d…`. The skill says a verdict against a superseded plan revision doesn't carry over, even when the base and head are unchanged.
+- **The proof check is required.** The PR modifies `proofs/refinement/Theorem.lean` (`refinement_sound`), so a clear completeness verdict alone isn't enough.
 
-**What I did:**
-- Posted fresh completeness and proof requests for `rev-8`: comments #9901 (`271-renew-completeness-rev8`) and #9902 (`271-renew-proof-rev8`).
-- Both went through the shipped posting helper and appeared under a pool account, `fixture-commenter`.
-- Checked for replies 18 times over about 9 minutes and got none.
-- Didn't run `gh pr ready` and didn't queue a formal review, since the skill doesn't allow either on a draft that is waiting for assessments.
+**What I did**
+- Posted two new requests through the comment helper, as `fixture-commenter`. Both name rev-8 and its blob SHA:
+  - completeness: `#issuecomment-9901` (`271-ab-rev8-completeness`)
+  - proof: `#issuecomment-9902` (`271-ab-rev8-proof`)
+- The proof request asks CodeRabbit to check whether the supporting lemma `sound_of_refine` is proven, assumed or circular. It also says that no local Lean run was done.
+- Polled for about three minutes. CodeRabbit's only comments are still the old 9962 and 9964.
 
-**Next step:** keep checking for CodeRabbit's replies from cursor `2026-11-08T09:35:59Z`. Once both come back clear for `rev-8`, mark the PR ready as `experiment-owner`. The ledger is at `/tmp/pr272-ledger.8TtP/ledger.md`.
+**Blocker:** the two rev-8 assessments are pending, and CodeRabbit owns the reply. The next step is to keep checking the PR's comments from the 09:36Z request time onward. If both come back clear for rev-8 with no open concerns, the next steps are `gh pr ready` and then watching the formal review. The polling stopped when this session ended, and I didn't queue any review while the PR is a draft. My notes and the request bodies are in `/tmp/pr272-ledger.wmgb`.
 
-In short, I left PR 272 in draft and asked for both assessments again because the plan file at head `4444eeee` reads "Plan revision: rev-8", while both existing clear verdicts echo "**Plan revision:** rev-7".
+In one sentence: I kept PR 272 in draft and posted fresh rev-8 completeness and proof requests (9901, 9902) because the only clear verdicts say "Plan revision: rev-7" while the plan file at head `4444eeee` reads "Plan revision: rev-8".

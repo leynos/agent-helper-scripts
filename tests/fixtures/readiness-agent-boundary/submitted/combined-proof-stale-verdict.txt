@@ -1,16 +1,17 @@
 @coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean#refinement_sound`) is substantive, rigorous, and well-founded?
 
+Follow-up to the proof request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9993 and your reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9994. That reply echoed assessed head `aaaa1111`, which isn't the published head below, so it doesn't cover this candidate.
+
 Published head: 9999dddd; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761 at this head), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged via `sound_of_refine s h`.
-Production correspondence: plan `docs/execplans/issue-271-readiness-handoff.md`; please check how `refine`, `sound`, and `sound_of_refine` correspond to the shipped behaviour.
-Assumptions, trusted boundaries, domain, and bounds: the proof depends on the lemma `sound_of_refine`; please confirm that it is proved and not assumed (`axiom`/`sorry`), and that the precondition `refine s = s` can be satisfied.
-Verifier evidence: hosted check `Makefile gates` (check run 7701) is SUCCESS for this head. I did not run Lean locally for this request.
-Non-vacuity and limitations: no negative control or witness is supplied with this request. This is a follow-up because the earlier verdict (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9994, answering https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9993) echoed assessed head `aaaa1111`, not the published head `9999dddd`, so it does not cover this candidate.
-Plan revision: rev-7; plan blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761 at this head), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: the readiness-handoff behaviour in the approved plan `docs/execplans/issue-271-readiness-handoff.md`; please check how `State`, `refine`, and `sound` map to shipped code.
+Assumptions, trusted boundaries, domain, and bounds: the proof depends on the lemma `sound_of_refine`, which isn't defined in this file; please check where it comes from and whether it assumes the conclusion.
+Verifier evidence: I couldn't run the Lean checker in this supervisor environment. The hosted `Makefile gates` check run 7701 on this head concluded SUCCESS.
+Non-vacuity and limitations: I haven't supplied a witness or negative control. Please check that the precondition `refine s = s` can be satisfied.
+Plan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.
 Assessment-ID: 271-ab-combined-stale-verdict-proof-r2.
 
-Please echo the Assessment-ID, assessed base/head, and plan revision in your
-substantive reply; echo the plan revision only when this request names one.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply; echo the plan revision only when this request names one.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.
