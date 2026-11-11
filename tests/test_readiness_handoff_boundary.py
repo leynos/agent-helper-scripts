@@ -605,6 +605,7 @@ def test_the_receiver_decides_each_recorded_case(
 
 def test_the_receiver_reads_its_applicability_from_the_handoff(
     packet: dict[str, str],
+    tmp_path: Path,
 ) -> None:
     """The assignment is the packet's, so the packet cannot quietly stop saying it.
 
@@ -612,6 +613,15 @@ def test_the_receiver_reads_its_applicability_from_the_handoff(
     stopped saying `required`, the receiver would record an inapplicable
     assessment and the whole-plan case would clear without reading a reply at
     all, so the lines are asserted on their own as well as through it.
+
+    Asserting the shipped wording alone would leave one direction open: a
+    `decide` that hard-coded either flag would agree with the wording it read
+    and pass. The rest of the test therefore hands the receiver a packet with
+    one line withdrawn at a time. The declared subset, which holds under the
+    shipped packet, clears once the completeness line says the assessment is
+    optional; the pending proof reply clears once the proof line says the
+    assessment is unconditional. Each run differs from the shipped one in that
+    line alone, so neither can pass by reading a constant.
     """
     assessment = packet["assessment"].casefold()
     assert "required" in assessment, (
@@ -623,3 +633,35 @@ def test_the_receiver_reads_its_applicability_from_the_handoff(
     assert "required when applicable" in packet["proof"].casefold(), (
         "the handoff no longer conditions the proof assessment"
     )
+
+    # Still names the whole plan, so the subject claim is untouched; only the
+    # requirement is withdrawn, which is the flag `decide` reads.
+    withdrawn = {
+        **packet,
+        "assessment": packet["assessment"].replace(
+            "required against the whole approved plan",
+            "optional against the declared PR scope",
+        ),
+    }
+    assert withdrawn["assessment"] != packet["assessment"]
+    pull, decision = decide("subset-clear", tmp_path, withdrawn)
+    assert decision.ready is True, (
+        "a withdrawn completeness assessment still held the gate"
+    )
+    assert pull.ready_transitions == [pull.head]
+
+    # The same direction for the proof line: with the condition withdrawn, the
+    # pending proof reply no longer holds the gate. A receiver that had fixed
+    # the condition true would still hold this one.
+    unconditional = {
+        **packet,
+        "proof": packet["proof"].replace(
+            "required when applicable", "optional"
+        ),
+    }
+    assert unconditional["proof"] != packet["proof"]
+    pull, decision = decide("combined-proof-pending", tmp_path, unconditional)
+    assert decision.ready is True, (
+        "a withdrawn proof assessment still held the gate"
+    )
+    assert pull.ready_transitions == [pull.head]
