@@ -273,6 +273,58 @@ def test_an_unbound_plan_revision_keeps_the_pr_in_draft(
     assert decision.reason == reason
 
 
+@pytest.mark.parametrize(
+    ("revision", "echoed", "approved", "reason"),
+    [
+        # Whitespace around an identifier is not part of it.
+        (" rev-2026-11-01 ", "rev-2026-11-01", REVISION, "ready"),
+        (REVISION, "rev-2026-11-01\n", REVISION, "ready"),
+        # A blank field identifies no revision. Read as an ordinary value it
+        # would be a revision every reply could echo, binding a verdict to
+        # nothing; it is the absent case instead, and so lands on the rule for
+        # a verdict that names no revision in force.
+        ("   ", "   ", REVISION, "completeness-superseded-revision"),
+        (REVISION, "", REVISION, "completeness-revision-unbound"),
+        (REVISION, REVISION, "", "completeness-revision-absent"),
+        (REVISION, REVISION, " \t", "completeness-revision-absent"),
+    ],
+    ids=[
+        "padded-revision-in-force",
+        "padded-echo",
+        "blank-revision-and-echo",
+        "blank-echo",
+        "blank-approval",
+        "whitespace-approval",
+    ],
+)
+def test_a_blank_revision_identifies_nothing(
+    revision: str,
+    echoed: str | None,
+    approved: str | None,
+    reason: str,
+) -> None:
+    """An identifier's whitespace is not part of it, and a blank one is absent.
+
+    The revision reaches this check through a comment body, a field parser and
+    a ledger, and each of those can leave a trailing newline or a space around
+    it. A comparison on the raw strings would then hold a verdict whose only
+    difference is the whitespace its carrier added, which is not a difference
+    in what the candidate was approved against.
+
+    The blank cases are the other direction: `"   "` is a value every reply
+    could echo, so treating it as an ordinary revision would bind verdicts to
+    an approval that never named one. It is read as absent, which is the rule
+    for a candidate with no approved revision at all.
+    """
+    decision = readiness(
+        candidate(revision=approved),
+        completeness(bounds=bound(revision=revision, echoed=echoed)),
+        proof(),
+    )
+    assert decision.reason == reason
+    assert decision.ready is (reason == "ready")
+
+
 def test_a_proof_verdict_on_a_superseded_revision_keeps_the_pr_in_draft() -> None:
     """The revision binding applies to whichever assessment is in scope."""
     decision = readiness(

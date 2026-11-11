@@ -61,6 +61,11 @@ extend-ignore-re = [
     "`hand-written`",
     "`var\\.iamge_id` instead of `var\\.image_id`",
     "currentColor",
+    "tooluse_0xV8HLJAhVh2GY1Sh8ZSbY",
+    "tooluse_FUvNO0Kn8uWKdbW8DK7uVN",
+    "tooluse_IY11x2l71pqIMxeaR4JyvF",
+    "tooluse_bWFxNa8f5Vt7MvaLk2xNto",
+    "tooluse_f9poVOtW8tkrdUMFeETGwX",
 ]
 
 [default.extend-words]

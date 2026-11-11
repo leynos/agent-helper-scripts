@@ -290,15 +290,44 @@ def _revision_bound(verdict: Verdict, candidate: Candidate, kind: str) -> Readin
     Readiness or None
         A draft-preserving decision, or None when the verdict is bound.
     """
-    if candidate.approved_plan_revision is None:
+    in_force = _revision_identity(candidate.approved_plan_revision)
+    if in_force is None:
         if kind == COMPLETENESS:
             return _decision("completeness-revision-absent")
         return None
-    if verdict.plan_revision != candidate.approved_plan_revision:
+    if _revision_identity(verdict.plan_revision) != in_force:
         return _decision(f"{kind}-superseded-revision")
-    if verdict.echoed_revision != candidate.approved_plan_revision:
+    if _revision_identity(verdict.echoed_revision) != in_force:
         return _decision(f"{kind}-revision-unbound")
     return None
+
+
+def _revision_identity(revision: str | None) -> str | None:
+    """Return the revision a field identifies, or None when it identifies none.
+
+    A revision is an identifier, and whitespace around it is not part of one.
+    Stripping it is what makes ``" rev-7"`` and ``"rev-7`` the same revision
+    rather than two, which matters because the value is copied through a
+    comment body, a field parser and a ledger before it reaches this check.
+
+    A value that is only whitespace identifies nothing, so it is read as
+    absent. Without that, an assignment approved against ``"   "`` would let
+    every verdict echo the same blank string and bind to it, which is not a
+    revision any plan could have been approved against.
+
+    Parameters
+    ----------
+    revision : str or None
+        The revision as the candidate or the verdict records it.
+
+    Returns
+    -------
+    str or None
+        The identifier, or None when the field identifies no revision.
+    """
+    if revision is None:
+        return None
+    return revision.strip() or None
 
 
 #: The two verdicts that leave an assessment unsettled, keyed to the reason

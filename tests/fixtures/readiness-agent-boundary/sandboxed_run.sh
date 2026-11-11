@@ -489,13 +489,16 @@ open(outcome_path, "w", encoding="utf-8").write(final + "\n")
 print("--- agent final message ---")
 print(final)
 PROBE_OUTCOME
-# A crossing run's ordering evidence is the position of the packet relative to
-# the transition, and that position lives in the event stream, which is far
-# too large to commit. What matters is each assistant message's text and its
-# calls; tool results, usage counters, and session bookkeeping are not
-# evidence about the handoff and are dropped here. The reduced transcript
-# keeps the event shape the handoff probe reads, so the committed evidence is
-# checked by the same probe the run used rather than by a second reader.
+# A crossing run's ordering evidence is what it did and in what order, and that
+# lives in the event stream, which is far too large to commit. What matters is
+# each assistant message's parts in the order it emitted them, and whether each
+# call it made succeeded — a `cat` that failed printed no manifest, so a
+# recording that dropped the outcome could not tell a read from an attempt.
+# Usage counters, session bookkeeping and the *contents* of each result are
+# dropped: the probe reads the outcome, and committing a skill's text would
+# bloat the evidence without adding anything to it. The reduced transcript keeps
+# the event shape the handoff probe reads, so the committed evidence is checked
+# by the same probe the run used rather than by a second reader.
 TRANSCRIPT=$RUN/transcript.jsonl
 python3 - "$EVENTS" "$TRANSCRIPT" <<'PROBE_TRANSCRIPT'
 import json, sys
@@ -514,20 +517,42 @@ for line in stream:
         event = json.loads(line)
     except json.JSONDecodeError:
         continue
-    if event.get("type") != "assistant":
+    if event.get("type") not in ("assistant", "user"):
         continue
     parts = [
         part
         for part in event.get("message", {}).get("content", [])
         if isinstance(part, dict)
     ]
+    if event["type"] == "user":
+        # A call's result is kept as its outcome alone. `is_error` is absent on
+        # a successful result from some tools, so only a truthy flag is a
+        # failure; writing the normalized flag keeps that difference out of
+        # every reader of the recording.
+        kept = [
+            {
+                "type": "tool_result",
+                "tool_use_id": str(part.get("tool_use_id", "")),
+                "is_error": bool(part.get("is_error")),
+            }
+            for part in parts
+            if part.get("type") == "tool_result"
+        ]
+        if kept:
+            messages.append({"type": "user", "message": {"content": kept}})
+        continue
     kept = [
         {"type": "text", "text": part.get("text", "")}
         for part in parts
         if part.get("type") == "text" and part.get("text")
     ]
     kept += [
-        {"type": "tool_use", "name": part.get("name", ""), "input": part.get("input", {})}
+        {
+            "type": "tool_use",
+            "id": str(part.get("id", "")),
+            "name": part.get("name", ""),
+            "input": part.get("input", {}),
+        }
         for part in parts
         if part.get("type") == "tool_use"
     ]
@@ -536,7 +561,17 @@ for line in stream:
 with open(transcript_path, "w", encoding="utf-8") as out:
     for message in messages:
         out.write(json.dumps(message) + "\n")
-print(f"transcript: {len(messages)} assistant messages from {events_path}")
+calls = sum(
+    len(message["message"]["content"])
+    for message in messages
+    if message["type"] == "assistant"
+)
+results = sum(
+    len(message["message"]["content"])
+    for message in messages
+    if message["type"] == "user"
+)
+print(f"transcript: {calls} assistant parts, {results} tool results from {events_path}")
 PROBE_TRANSCRIPT
 echo "--- gh invocations ---"
 cat "$TRACE"
@@ -720,6 +755,15 @@ fi
 # the check depend on how a run happened to investigate rather than on what the
 # hold rests on.
 #
+# `posted-then-answered` is the opposite case, and its absence was the
+# dangerous one: it is a permitting run, so a transition taken without a
+# candidate-bound read would be a cleared gate on a revision the run never
+# established. It asks the question itself rather than being handed one, but
+# the reply it receives echoes the revision its own request named, so the
+# echo alone cannot show the revision was checked against the file. The read is
+# required here for the same reason it is required of the other permitting
+# cases.
+#
 # The approved path is read from the scenario's facts, so this shell-level
 # ordering check and the probe below name the same file. A fixture with no
 # name to compare against is refused rather than skipped.
@@ -729,7 +773,7 @@ facts = json.load(open(sys.argv[1], encoding="utf-8"))
 print(facts.get("plan_path", ""))
 ' "$ROOT/scenarios/$SCENARIO/facts.json" 2>/dev/null)
 case $SCENARIO in
-  current-whole-plan | crossing-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
+  current-whole-plan | crossing-whole-plan | posted-then-answered | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
     # The approved path, not any file below `execplans/` and not a bare
     # `contents/docs/execplans` listing. The grep only decides whether this
     # ordering check runs at all; the probe below decides which read counts,
@@ -1366,7 +1410,8 @@ esac
 # holds on the contradiction instead of on the defect it exists to demonstrate:
 # the six `combined-*` cases answered a proof question while their completeness
 # request claimed no proof was affected, and each is a premise this refuses.
-if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_REQUESTS'
+if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" "$RUN/state.json" \
+  "$SCENARIO" <<'PROBE_REQUESTS'
 import json, re, sys
 
 # The completeness template requires a plan revision carrying the plan file's
@@ -1376,23 +1421,70 @@ import json, re, sys
 # sections. Only the completeness request states a revision here: a proof-only
 # candidate has no ExecPlan, so asking it for one would demand a value that
 # does not exist.
+#
+# Two of them are checked rather than one, because a scenario can be filed
+# against a question the run asks instead of one it was handed. The seeded
+# requests are the premise; the `posted` comments are what the run itself wrote
+# while the rehearsal was going on. Checking only the premise leaves the
+# posted-then-answered case with nothing to check at all — its whole point is
+# that the initial thread holds no question — and the request a run composes is
+# exactly where a missing field would go unnoticed, since the recording beside
+# it is written from the same body.
+if len(sys.argv) < 4:
+    raise SystemExit("usage: PROBE_REQUESTS <facts.json> <run-state.json> <scenario>")
 facts = json.load(open(sys.argv[1], encoding="utf-8"))
-bodies = [
+state_path, scenario = sys.argv[2], sys.argv[3]
+seeded = [
     str(entry.get("body", ""))
     for entry in facts["api"][r"/issues/\d+/comments"]
     if "Assessment-ID:" in str(entry.get("body", ""))
     and "@coderabbitai" in str(entry.get("body", ""))
 ]
+try:
+    state = json.load(open(state_path, encoding="utf-8"))
+except FileNotFoundError:
+    state = {}
+posted = [
+    str(entry.get("body", ""))
+    for entry in state.get("posted") or []
+    if "Assessment-ID:" in str(entry.get("body", ""))
+    and "@coderabbitai" in str(entry.get("body", ""))
+]
+# The two sets are checked separately as well as together. A run's own request
+# is held to the same template as a seeded one, but the proofs question a run
+# posts is answered by the stand-in rather than by the fixture's thread, so the
+# contradiction rule below has to see both kinds together to fire.
+bodies = seeded + posted
 problems = []
 completeness = [body for body in bodies if "please assess the implementation" in body]
 proofs = [body for body in bodies if "are you satisfied that the introduced proof" in body]
+# Whether the candidate touches the proof this fixture names. A request that
+# says no proof is affected is checked against the candidate, not only against
+# the sibling question: a run whose diff includes the proof file contradicts
+# its own "none affected" whether or not anything asked a proof question.
+changed = {
+    str(entry.get("filename", ""))
+    for entry in facts["api"][r"/pulls/\d+/files(?:[?#]|$)"]
+    if isinstance(entry, dict)
+}
+changes_a_proof = str(facts.get("proof_path", "")) in changed
 # A scenario that scripts an answer exists to be asked in the run itself, so it
 # deliberately seeds no question: seeding one would answer a request the run
 # never made and make the case a duplicate of the recorded ones. The exemption
 # is tied to the script, not to the scenario name, so it cannot be borrowed to
-# excuse an ordinary case that merely forgot its premise.
+# excuse an ordinary case that merely forgot its premise. Its request is not
+# exempt from the field checks below: the posted body is checked when the run
+# wrote one, and a scripted case that posted nothing has already failed the
+# runner's posted-count check.
 if not completeness and not proofs and not facts.get("scripted_replies"):
     problems.append("the permitting scenario seeds no assessment question")
+if facts.get("scripted_replies") and not posted:
+    # The script exists so a run asks; a run that asked nothing is not evidence
+    # for the template, and its exemption would otherwise be an unexamined gap.
+    # The message names the scenario so the refusal is actionable.
+    problems.append(
+        f"{scenario}: scripts an answer but the run posted no assessment question"
+    )
 
 # The blob a request cites is the plan file's blob *at the published head*,
 # not the blob of the revision it names. The two coincide until an approval
@@ -1408,15 +1500,38 @@ served_blobs = {
     if isinstance(payload, dict)
     and re.search(pattern, f"/contents/{facts.get('plan_path', '')}")
 }
+# A run's own request cites a blob it read at the served head, so the same
+# rule applies to it. Its citation is checked against the same served file
+# rather than skipped for having been written during the run: a request the
+# template would not accept is not made acceptable by who wrote it.
+SERVED_BLOB = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
+
+def cited_blob(body):
+    """Return the plan-file blob SHA a request cites, or `None`.
+
+    The template asks for "the plan file's blob SHA at this head" and says
+    nothing about how the request must word it. A run writes the citation in
+    its own words — one recorded run posted `Plan revision: rev-7 (plan file
+    blob 5a1c9e4d… at this head).` — so the value is read as the 40-hex SHA in
+    the request's `Plan revision:` line rather than as one exact phrase. An
+    earlier version matched `blob SHA at this head: <sha>` and refused that
+    recorded request, which is a request the skill does post.
+    """
+    revision = re.search(r"Plan revision:[^\n]*", body)
+    if not revision:
+        return None
+    found = SERVED_BLOB.search(revision.group(0))
+    return found.group(0) if found else None
+
 if len(served_blobs) == 1:
     served_blob = served_blobs.pop()
     for body in [*completeness, *proofs]:
-        cited = re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body)
-        if cited and cited.group(1) != served_blob:
+        cited = cited_blob(body)
+        if cited is not None and cited != served_blob:
             label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
             problems.append(
                 f"{label.group(1) if label else '<unnamed>'} cites blob"
-                f" {cited.group(1)}, but this head serves {served_blob}"
+                f" {cited}, but this head serves {served_blob}"
             )
 
 def leaves_placeholder(value):
@@ -1449,7 +1564,7 @@ for body in completeness:
     if not revision:
         problems.append(f"{name} states no plan revision")
         continue
-    if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
+    if cited_blob(body) is None:
         problems.append(f"{name} states no plan file blob SHA")
     # The template says "Do not post unresolved placeholders", and the seeded
     # body is the premise a run is filed against. A field still holding its
@@ -1474,12 +1589,22 @@ for body in completeness:
     # asks for a proof assessment and changes a proof file, states two things
     # the run cannot both believe. A reader has no way to tell which is right,
     # and the run then holds on the contradiction instead of on the rule.
+    #
+    # The inventory line is read when a request states one and not demanded of
+    # every request. The shipped completeness template states no proof
+    # inventory: it names the plan, the revision, the acceptance evidence and
+    # the limitations, and a candidate that affects no proof records the
+    # assessment as not applicable instead of writing "none affected" into a
+    # completeness request. Requiring the line rejected a request the template
+    # itself produces, which is exactly the request the posted-then-answered
+    # run writes, and the recording beside it is that request.
     inventory = re.search(r"Proof inventory:\s*(.+)", body)
-    if not inventory:
-        problems.append(f"{name} states no proof inventory")
-    elif "none affected" in inventory.group(1) and proofs:
+    if inventory and "none affected" in inventory.group(1) and (
+        proofs or changes_a_proof
+    ):
         problems.append(
-            f"{name} says no proof is affected but the run asks for a proof assessment"
+            f"{name} says no proof is affected but the run asks for a proof"
+            " assessment or changes a proof file"
         )
 
 for body in proofs:
@@ -1512,7 +1637,7 @@ for body in proofs:
             problems.append(f"{name} leaves the {field.lower()} placeholder unfilled")
     revision = re.search(r"Plan revision:\s*(\S+)", body)
     if revision and not revision.group(1).startswith("<omitted"):
-        if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
+        if cited_blob(body) is None:
             problems.append(f"{name} states no plan file blob SHA")
 for problem in problems:
     print(problem, file=sys.stderr)
@@ -1709,10 +1834,20 @@ except FileNotFoundError:
     raise SystemExit(1)
 
 # The event stream is read as a sequence of assistant messages, each with the
-# text it spoke and the calls it made. The handoff is a message of its own —
-# the one that hands delivery over — so its position and the transition's are
-# compared as message positions, not as offsets in one final string.
+# text it spoke and the calls it made, together with the outcome of each call.
+# The handoff is a message of its own — the one that hands delivery over — so
+# its position and the transition's are compared as message positions, not as
+# offsets in one final string.
+#
+# A call's outcome is what separates reading a manifest from trying to. The
+# preserved `crossing-whole-plan` run contains a `cat pr-babysitting/SKILL.md`
+# that failed with "No such file or directory", and the run opened the receiver
+# successfully a moment later; crediting the failed attempt would let a run
+# that never read the skill pass on an attempt that printed nothing. A call
+# with no recorded result is not credited either: the evidence that it printed
+# the file is the result, and an absent one establishes nothing.
 messages = []
+results = {}
 for line in open(events_path, encoding="utf-8"):
     if not line.strip():
         continue
@@ -1720,25 +1855,39 @@ for line in open(events_path, encoding="utf-8"):
         event = json.loads(line)
     except json.JSONDecodeError:
         continue
-    if event.get("type") != "assistant":
-        continue
     parts = [
         part
         for part in event.get("message", {}).get("content", [])
         if isinstance(part, dict)
     ]
+    if event.get("type") == "user":
+        for part in parts:
+            if part.get("type") == "tool_result":
+                results[str(part.get("tool_use_id", ""))] = not part.get("is_error")
+        continue
+    if event.get("type") != "assistant":
+        continue
     messages.append(
         {
             "text": "\n".join(
                 part.get("text", "") for part in parts if part.get("type") == "text"
             ),
             "calls": [
-                {"name": part.get("name", ""), "input": part.get("input", {})}
+                {
+                    "id": str(part.get("id", "")),
+                    "name": part.get("name", ""),
+                    "input": part.get("input", {}),
+                }
                 for part in parts
                 if part.get("type") == "tool_use"
             ],
         }
     )
+
+
+def succeeded(call):
+    """Return whether this call's recorded result shows it ran successfully."""
+    return results.get(call["id"], False)
 
 # The shipped packet, as the sender states it: one `Label: rule` line per
 # field, inside the section that hands delivery over. Reading the labels from
@@ -1760,41 +1909,126 @@ if not shipped:
 
 # Opening each skill is a call that reads it: a `Read` names the path, a Bash
 # call runs a reader such as `cat` on it. A path that merely appears in a call
-# is not an open — a note written to a ledger, a prompt quoted into a file —
-# so the call's shape is checked rather than only its text. The reading words
-# are the ordinary ones a supervisor uses on a skill file; a run that opens
-# the manifest some other way is refused rather than silently credited.
+# is not an open — a note written to a ledger, a prompt quoted into a file, a
+# `Glob` pattern that would match it — so the call's shape is checked rather
+# than only its text. The reading words are the ordinary ones a supervisor
+# uses on a skill file; a run that opens the manifest some other way is
+# refused rather than silently credited.
+#
+# Each reader is recorded with how many leading operands it consumes as
+# something *other* than a file. `grep -rn sdlc-implementation/SKILL.md notes/`
+# names the manifest as the pattern to search for and reads `notes/`;
+# `sed sdlc-implementation/SKILL.md/replace/ notes.txt` names it inside the
+# script. Crediting those as opens would let a run that never read the skill
+# pass the ordering check on a string it typed. `tr` reads no files at all, so
+# it is absent: every one of its operands is a character set.
 READER_COMMANDS = {
-    "awk", "bat", "cat", "cut", "grep", "head", "less", "more", "nl", "od",
-    "sed", "tail", "tr",
+    "awk": 1,   # the program text
+    "bat": 0,
+    "cat": 0,
+    "cut": 0,
+    "grep": 1,  # the pattern
+    "head": 0,
+    "less": 0,
+    "more": 0,
+    "nl": 0,
+    "od": 0,
+    "sed": 1,   # the script, unless -e or -f supplies it
+    "tail": 0,
 }
 
-def reads_a_file(payload, name):
-    """Return whether this call opens a file whose basename is `name`.
+def command_segments(payload):
+    """Return this call's simple commands, in the order the shell runs them.
 
-    A `Read` states its path. A Bash command is split at its shell operators,
-    and each simple command is checked for a reader in first position whose
-    arguments name the file. Splitting matters because one recorded run put
-    the read behind a `cd` (`cd pr-babysitting; cat SKILL.md`), and the file
-    is then named only by its basename.
+    A Bash command is split at its shell operators. One recorded run put a
+    read behind a `cd` (`cd pr-babysitting; cat SKILL.md`), and the file is
+    then named only by its basename, which is why the split is at the operator
+    rather than at whitespace. A `Read` is one command of its own.
+
+    Splitting is what makes a single call's order readable at all: a call that
+    runs the transition and then reads a manifest contains both facts, and the
+    call's index alone cannot say which came first.
+
+    Parameters
+    ----------
+    payload : dict
+        One call, with its tool name and input.
+
+    Returns
+    -------
+    list
+        One entry per simple command. An entry is the command's words, already
+        stripped of quoting and redirection syntax.
     """
-    tool = payload["name"]
-    inputs = payload["input"]
-    if tool == "Read":
-        path = str(inputs.get("file_path", "")).rstrip("/")
-        return path.rsplit("/", 1)[-1] == name
-    if tool != "Bash":
-        return False
-    for segment in re.split(r"[;&|\n]+", str(inputs.get("command", ""))):
-        words = [word.strip("\"'`()<>") for word in segment.split()]
-        if not words or words[0] not in READER_COMMANDS:
-            continue
-        if any(word.rstrip("/").rsplit("/", 1)[-1] == name for word in words[1:]):
-            return True
-    return False
+    if payload["name"] == "Read":
+        return [[str(payload["input"].get("file_path", ""))]]
+    if payload["name"] != "Bash":
+        return []
+    return [
+        [word.strip("\"'`()<>") for word in segment.split()]
+        for segment in re.split(r"[;&|\n]+", str(payload["input"].get("command", "")))
+        if segment.split()
+    ]
+
+
+#: The options that supply `sed`'s script instead of its first operand, so the
+#: first operand is a file after all. A joined form such as `-es/x/y/` or
+#: `-fscript.sed` carries the script in the same word.
+SED_SCRIPT_OPTIONS = {"-e", "-f", "--expression", "--file"}
+
+
+def supplies_sed_script(words):
+    """Return whether a `sed` command was given its script as an option."""
+    return any(
+        word in SED_SCRIPT_OPTIONS
+        or word.startswith(("--expression=", "--file="))
+        or (len(word) > 2 and word.startswith(("-e", "-f")))
+        for word in words
+    )
+
+
+def read_files(payload, words):
+    """Return the files this simple command reads.
+
+    Only a reader's own file operands count. A call is also a piece of prose —
+    a heredoc writing notes, a variable assigned a path, a `gh api` URL naming
+    `contents/docs/execplans/SKILL.md` — and none of those opened anything,
+    whatever words appear in them, which is why the command's first word has
+    to be a reader at all. A `Read` call is the tool reading one file, and
+    `command_segments` gives it that file as its only word.
+
+    A reader's operands are read the way that reader reads them. Options begin
+    with `-` and are not files, and the leading operands recorded in
+    `READER_COMMANDS` are the pattern, program or script the reader consumes
+    before it reaches a file. Without that, `grep -rn
+    sdlc-implementation/SKILL.md notes/` would count as opening the manifest
+    when it only searched for that string.
+
+    Parameters
+    ----------
+    payload : dict
+        One call, with its tool name and input.
+    words : list of str
+        One of this call's simple commands.
+
+    Returns
+    -------
+    list of str
+        The files the command names, or an empty list when it reads none.
+    """
+    if payload["name"] == "Read":
+        return words
+    if not words or words[0] not in READER_COMMANDS:
+        return []
+    leading = READER_COMMANDS[words[0]]
+    if words[0] == "sed" and supplies_sed_script(words[1:]):
+        leading = 0
+    operands = [word for word in words[1:] if not word.startswith("-")]
+    return operands[leading:]
+
 
 def first_opened(skill):
-    """Return the message index of the first call that read `skill`'s manifest.
+    """Return the position of the first command that read `skill`'s manifest.
 
     A mention of the skill is not a read of it: a follow-up note, a prompt
     quotation, or a pre-written ledger can name the path without opening it,
@@ -1802,13 +2036,45 @@ def first_opened(skill):
     skill pass an ordering check. The file must have been opened and the
     skill's own name must appear in the call, so a read of some other
     `SKILL.md` cannot stand in for this one.
+
+    The call must also have succeeded. An attempt that failed printed no
+    manifest, and the preserved `crossing-whole-plan` recording holds exactly
+    that: a `cat pr-babysitting/SKILL.md` that exited 1 because the path was
+    wrong, followed by a successful open of the same file. Crediting the first
+    would report the receiver as opened before the decision even where it was
+    opened only after.
+
+    The position is `(message, call, command)`. A message may carry several
+    calls and a call several commands, and comparing only the message would
+    make everything in one turn simultaneous: a single
+    `gh pr ready 272; cat <skills>` would then count as reading the rules
+    before applying them. Pairing each read with the command it belongs to
+    makes "before" mean before the command that read the file.
+
+    Returns
+    -------
+    tuple or None
+        `(message, call, command)` of the first successful read, or None if
+        the run never read the manifest.
     """
     for index, message in enumerate(messages):
-        if any(
-            reads_a_file(payload, "SKILL.md") and skill in json.dumps(payload["input"])
-            for payload in message["calls"]
-        ):
-            return index
+        for call_index, payload in enumerate(message["calls"]):
+            if not succeeded(payload):
+                continue
+            # The skill's own name has to appear somewhere in the call, so a
+            # read of a different `SKILL.md` cannot stand in for this one. A
+            # recorded run opened the receiver as `cd pr-babysitting; cat
+            # SKILL.md`, where the name is in the `cd` and the file is read by
+            # its basename; requiring the name on the reader's own command line
+            # would refuse the one form a run actually used.
+            if skill not in json.dumps(payload["input"]):
+                continue
+            for command_index, words in enumerate(command_segments(payload)):
+                if any(
+                    word.rstrip("/").rsplit("/", 1)[-1] == "SKILL.md"
+                    for word in read_files(payload, words)
+                ):
+                    return index, call_index, command_index
     return None
 
 # The transition is what the handoff is for, so the decision is the call that
@@ -1839,7 +2105,7 @@ def recorded_ready_calls():
     return recorded
 
 def ready_position():
-    """Return the message index of the first call that ran a recorded `gh pr ready`.
+    """Return the position of the first command that ran a recorded `gh pr ready`.
 
     The trace decides whether a transition happened; the event stream decides
     where in the run it was issued. Both are needed: the trace alone cannot
@@ -1848,25 +2114,31 @@ def ready_position():
     being described. Only a Bash argument list is searched, because a tool
     call's JSON also carries the tool's name and description: a `Read` of a
     path containing `pr ready` is not a transition.
+
+    The position is `(message, call, command)`, the same shape the opens are
+    reported in, so the two are ordered against each other rather than against
+    the turn they happened to share. A call must also have succeeded, on the
+    same ground the opens are: a `pr ready` the service refused did not
+    transition the PR, and it cannot be the decision a packet informs.
+
+    Returns
+    -------
+    tuple or None
+        `(message, call, command)` of the first recorded transition, or None
+        when the run issued none.
     """
     if not recorded_ready_calls():
         return None
     for index, message in enumerate(messages):
-        for payload in message["calls"]:
-            if payload["name"] != "Bash":
+        for call_index, payload in enumerate(message["calls"]):
+            if payload["name"] != "Bash" or not succeeded(payload):
                 continue
-            arguments = payload["input"].get("command")
-            if isinstance(arguments, str) and arguments:
-                words = arguments.split()
-            elif isinstance(arguments, list):
-                words = [str(word) for word in arguments]
-            else:
-                continue
-            if any(
-                words[position] == "pr" and words[position + 1] == "ready"
-                for position in range(len(words) - 1)
-            ):
-                return index
+            for command_index, words in enumerate(command_segments(payload)):
+                if any(
+                    words[position] == "pr" and words[position + 1] == "ready"
+                    for position in range(len(words) - 1)
+                ):
+                    return index, call_index, command_index
     return None
 
 # The packet is a titled block in a message. Titles and fields may be
@@ -1939,6 +2211,11 @@ if receiver is None:
 # first without that meaning anything was carried, so the two opens are not
 # ordered against each other; each is ordered against the decision it is
 # supposed to inform.
+#
+# The comparison is between command positions, not message positions, so a
+# single call that ran the transition and then read the manifest is refused:
+# `gh pr ready 272; cat sdlc-implementation/SKILL.md` is one message, one call
+# and two commands, and the readiness rules were read after they were applied.
 if sender is not None and decision is not None and sender > decision:
     problems.append(
         "the run decided before opening sdlc-implementation, so the packet"
@@ -1951,8 +2228,8 @@ if receiver is not None and decision is not None and receiver > decision:
     )
 if decision is None and recorded_ready_calls():
     problems.append(
-        "the stand-in recorded a 'pr ready' call that no tool call in the"
-        " event stream ran"
+        "the stand-in recorded a 'pr ready' call that no successful tool call"
+        " in the event stream ran"
     )
 if packet_at is None:
     problems.append("the run printed no 'HANDOFF PACKET' block")
@@ -1980,7 +2257,7 @@ else:
     # The packet is the handoff, so the decision it informs has to follow it.
     # A message that prints the packet after the transition is describing the
     # handoff retrospectively, and the receiver cannot have applied it.
-    if decision is not None and packet_at > decision:
+    if decision is not None and packet_at > decision[0]:
         problems.append(
             "the run printed the handoff packet after the decision it is"
             " supposed to inform"

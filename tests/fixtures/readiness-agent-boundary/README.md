@@ -91,6 +91,21 @@ and `subset-clear` — same head, same discussion, same checks — with
 `start_skill` set so the run begins at the sender. The crossing is the only
 difference, so a divergence in outcome is attributable to it.
 
+The receiver's applicability is read from the candidate's affected-proof
+inventory, not from whether a proof question was posted. The completeness
+request's `Proof inventory:` line is the sender's statement of what the
+candidate affects, and it is there whether or not the question went out; the
+question is the assessment, not the condition. Deriving the condition from the
+question made a missing required question look like an inapplicable assessment,
+so a proof-changing candidate whose proof question was never posted cleared on
+the completeness reply alone. The inventory now says a proof is affected and
+the unanswered proof assessment holds the gate, which is
+`test_the_receiver_reads_applicability_from_the_inventory_not_the_question`.
+That test removes the question from `combined-plan-and-proof` and serves the
+altered facts, and its control removes nothing from a scenario whose inventory
+says `none affected` and still clears, so the case is about the inventory
+rather than about deleting a comment.
+
 The runner enforces five things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:
 
@@ -101,6 +116,24 @@ readiness decision is exactly what a receiver-only run already does:
   `cat > notes.md` that mentions both skills is a write, and is refused. The
   read has to be a `Read` of the file or a shell reader — `cat`, `sed`, `head`
   and the like — with the file as its argument.
+
+  The argument has to be the one the reader opens. A reader's leading operands
+  are the pattern, program or script it consumes, not files:
+  `grep -rn sdlc-implementation/SKILL.md notes/` searches `notes/` for that
+  string, and `sed sdlc-implementation/SKILL.md/x/ notes.txt` rewrites
+  `notes.txt` with the path as its script. An earlier version credited any word
+  whose basename was `SKILL.md`, so a run that only quoted the path into a
+  search was recorded as having followed the skill. Options are not files
+  either, and `tr` is not a reader at all — every operand it takes is a
+  character set — so it is absent from the table. The table records how many
+  leading operands each reader consumes before its first file, and `sed` is the
+  one whose table entry the command can override: `-e` or `-f` supplies the
+  script, which makes the first operand a file.
+  `test_the_handoff_probe_refuses_a_mention_that_read_something_else` covers
+  the pattern and script shapes, and
+  `test_the_handoff_probe_keeps_an_open_by_a_reader_with_options` covers the
+  real opens with options, one parametrized case per shape so that no shape is
+  carried by a call the probe credits for another reason.
 - It did not decide before opening either skill. The two opens are not ordered
   against each other, because an agent may explore either file first without
   that meaning anything was carried. The decision is what orders them, and it
@@ -146,10 +179,16 @@ CodeScene half is a stand-in, and neither outcome presents it as a real
 analysis.
 
 Each run also commits `traces/<name>-transcript.jsonl`: every assistant
-message's text and tool calls, with the tool results and session bookkeeping
-removed. The full event stream is several hundred kilobytes per run and carries
-nothing else about the handoff, while the ordering evidence — which message
-held the packet, and which held the transition — is in the transcript alone.
+message's text and tool calls, together with each call's success or failure,
+and nothing else. The full event stream is several hundred kilobytes per run
+and carries nothing else about the handoff, while the ordering evidence — which
+message held the packet, which call read each manifest and whether it
+succeeded, and which command ran the transition — is in the transcript alone.
+The result *contents* are dropped, because the probe reads the outcome and
+committing a skill's text would add bulk rather than evidence. Both facts
+matter: the permitting run contains a `cat pr-babysitting/SKILL.md` that failed
+before the same file was successfully opened, and a recording that kept only
+the calls could not tell the two apart.
 `test_the_committed_crossing_recordings_retain_the_handoff_evidence` runs the
 probe over those committed files, so the evidence a reviewer reads is checked
 by the same code the run itself ran.
@@ -785,23 +824,45 @@ re-run and passed once the arm was corrected, and all seven recordings that
 were affected by the request change were redone from actual runs against the
 corrected runner.
 
-The seeded assessment requests are probed too. `PROBE_REQUESTS` reads a
-scenario's `facts.json` and refuses a question the skill would not post: a
-completeness request must state the plan revision, a 40-hex blob SHA for the
-plan file at that head, `Acceptance evidence:` and a filled
-`Known limitations:`, and must not claim no proof is affected in a run that
-also seeds a proof question; a proof request must state the template's five
-fields — inventory and claims, production correspondence, assumptions and
-bounds, verifier evidence, and non-vacuity and limitations — must name the blob
-beside any revision it names, and one that names no revision must carry the
-template's `<omitted; no ExecPlan applies>` form. The blob is also held to the
-file the scenario's head actually serves: the template asks for the blob at
-that head, not for the named revision's own, so a request citing a blob no
-route answers is refused. The two coincide until an approval moves under a
-fixed head, which is why only the stale cases can tell them apart. The request
-text is a generated premise rather than a recording, which is why the fixtures
-were corrected and the recordings redone rather than the old request being
-preserved.
+The assessment requests are probed too. `PROBE_REQUESTS` reads a scenario's
+`facts.json` and the run's own `state.json`, and refuses a question the skill
+would not post: a completeness request must state the plan revision, a 40-hex
+blob SHA for the plan file at that head, `Acceptance evidence:` and a filled
+`Known limitations:`, and must not claim no proof is affected where that is
+contradicted — by a proof question in the same discussion, or by a diff that
+changes the proof file; a proof request must state the template's five fields —
+inventory and claims, production correspondence, assumptions and bounds,
+verifier evidence, and non-vacuity and limitations — must name the blob beside
+any revision it names, and one that names no revision must carry the template's
+`<omitted; no ExecPlan applies>` form. The blob is also held to the file the
+scenario's head actually serves: the template asks for the blob at that head,
+not for the named revision's own, so a request citing a blob no route answers
+is refused. The two coincide until an approval moves under a fixed head, which
+is why only the stale cases can tell them apart. The request text is a
+generated premise rather than a recording, which is why the fixtures were
+corrected and the recordings redone rather than the old request being preserved.
+
+Both kinds of request are checked: the seeded question, and the comments the
+run itself posted, read from the `posted` list the `gh` stand-in persists in
+the run's `state.json`. `posted-then-answered` is why. It seeds no question at
+all, so before the probe read the run's own posts there was nothing to check
+there, and the one request the whole case turns on went unexamined. Its
+recorded body is now checked like any other, and
+`test_each_recorded_request_passes_the_checks_the_runner_applies` holds every
+`submitted/` body to the template.
+
+The blob is read as a value, not as one sentence. The template asks for "the
+plan file's blob SHA at this head" and does not fix the wording, and the
+agent's own request says
+`Plan revision: rev-7 (plan file blob 5a1c9e4d… at this head).` A first version
+of the posted-body check matched `blob SHA at this head: <sha>` and so refused
+that recorded request — a request the skill does post. The probe now reads the
+40-hex SHA from the `Plan revision:` line, which is where the template puts it.
+
+A scenario whose facts carry a `scripted_replies` map is exempt from the "seeds
+a question" rule, because its question is meant to be posted by the run. The
+exemption is not silence: with no run behind it the probe refuses, naming the
+scenario, and the runner separately refuses a scripted run that posted nothing.
 
 Every scenario is held to that, not only the four the runner expects to
 transition. The runner applies the probe to a permitting run because a bad
@@ -822,9 +883,11 @@ A premise and the recording made from it can now drift apart silently, which is
 what happened here: the generator was shared across scenarios, so completing
 one request rewrote nine premises while only the run being re-recorded was
 updated. `test_each_scenario_seeds_the_question_the_skill_posts` covers every
-scenario that seeds one, which is all of them but `posted-then-answered`, and
-the installed recordings were compared against the bodies their `facts.json`
-now serves before this was committed.
+scenario that seeds one, which is all of them but `posted-then-answered`; that
+one's request is covered instead by
+`test_each_recorded_request_passes_the_checks_the_runner_applies`, which reads
+the body its run posted. The installed recordings were compared against the
+bodies their `facts.json` now serves before this was committed.
 
 Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
 unmodelled third variable, and that is why all nine original scenarios, not

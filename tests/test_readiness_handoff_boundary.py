@@ -262,11 +262,52 @@ def completeness_request(listing: list[dict]) -> dict:
     return asked[0]
 
 
+#: The opening the shipped proof template preserves.
+PROOF_OPENING = "are you satisfied that the introduced proof"
+
+
 def proof_request(listing: list[dict]) -> dict | None:
     """Return the tagged proof request, or None when the candidate has none."""
-    asked = tagged_requests(listing, "are you satisfied that the introduced proof")
+    asked = tagged_requests(listing, PROOF_OPENING)
     assert len(asked) <= 1, f"the discussion holds {len(asked)} proof requests"
     return asked[0] if asked else None
+
+
+#: The line the completeness request records its affected-proof inventory on.
+#: The shipped template asks the sender for it, and `none affected` is the
+#: recorded form of an empty inventory.
+PROOF_INVENTORY = re.compile(r"^Proof inventory:[^\n]*", re.MULTILINE)
+
+
+def affects_a_proof(body: str) -> bool:
+    """Return whether a completeness request says the candidate affects a proof.
+
+    The sender records the candidate's affected-proof inventory on the
+    `Proof inventory:` line, which is the handoff's own statement of what the
+    proof assessment would be about. An inventory that says `none affected` is
+    empty; one that names proofs is not. A request carrying no such line
+    establishes nothing, and is read as neither.
+
+    The proof question is a different fact from this one. It says the
+    assessment was asked for, not whether it applies: a candidate that changes
+    a proof and never has its question posted is a candidate with a missing
+    assessment. Reading applicability from the question alone made that state
+    look inapplicable, which cleared the gate on the completeness reply.
+
+    Parameters
+    ----------
+    body : str
+        The completeness request's recorded body.
+
+    Returns
+    -------
+    bool
+        Whether the recorded inventory names at least one affected proof.
+    """
+    stated = PROOF_INVENTORY.search(body)
+    if stated is None:
+        return False
+    return "none affected" not in stated.group(0).casefold()
 
 
 def field_in(body: str, label: str) -> str:
@@ -367,17 +408,51 @@ def proof_reference(entry: str) -> str:
     return entry.rsplit("#", 1)[-1].strip()
 
 
-def proof_inventory(proof_ask: dict | None) -> tuple[str, ...]:
-    """Return the named references the recorded proof question asked about.
+def proof_inventory(
+    proof_ask: dict | None, completeness_body: str
+) -> tuple[str, ...]:
+    """Return the named proof references this candidate's inventory holds.
 
-    The question's opening is the shipped template's
-    `(proof file paths with named proof references)`, filled with the proofs
-    the request asks about. That opening is the inventory the request put to
-    the assessor, and it is what the reply's subject is compared against. The
-    completeness request's `Proof inventory:` line says what the candidate
-    affects, which is the same list in another form; reading the question
-    keeps one source.
+    The completeness request's `Proof inventory:` line is the sender's own
+    statement of what the candidate affects, and it is available whether or
+    not the proof question was ever posted. A missing question is a missing
+    assessment, not a missing inventory, so the line is what a pending proof
+    assessment is pending *about*. Reading the question alone made the two
+    facts the same one: a proof-changing candidate with no question had no
+    inventory either, and the gate then held on `proof-inventory-empty`
+    rather than on the unanswered assessment.
+
+    A proof-only assignment has no completeness request to carry that line, so
+    its inventory comes from the question's opening, which is the shipped
+    template's `(proof file paths with named proof references)`, filled with
+    the proofs the request asks about.
+
+    Parameters
+    ----------
+    proof_ask : dict or None
+        The recorded proof question, when the discussion has one.
+    completeness_body : str
+        The completeness request's body, whose `Proof inventory:` line names
+        the affected proofs.
+
+    Returns
+    -------
+    tuple of str
+        The named references the reply's subject is compared against.
     """
+    stated = PROOF_INVENTORY.search(completeness_body)
+    if stated is not None:
+        listed = stated.group(0)
+        if "none affected" in listed.casefold():
+            return ()
+        # Each entry is a backticked path and a backticked reference; the path
+        # contains a separator and the reference does not, so the references
+        # are the backticked names without one.
+        named = tuple(
+            name for name in re.findall(r"`([^`]+)`", listed) if "/" not in name
+        )
+        if named:
+            return named
     if proof_ask is None:
         return ()
     opening = re.search(
@@ -480,7 +555,10 @@ def observed_reply(
 
 
 def decide(
-    scenario: str, tmp_path: Path, packet: dict[str, str]
+    scenario: str,
+    tmp_path: Path,
+    packet: dict[str, str],
+    served: dict | None = None,
 ) -> tuple[workflow.PullRequest, workflow.Readiness]:
     """Run the receiver over one recorded scenario, end to end.
 
@@ -498,6 +576,11 @@ def decide(
         Directory the run copy and its stand-in are placed in.
     packet : dict
         The shipped handoff packet, whose lines state the applicability rules.
+    served : dict, optional
+        Facts to serve instead of the scenario's own, for a case that removes
+        one premise from a recording. They are written before the stand-in
+        reads anything, so the receiver sees the altered premise rather than
+        the file it was altered from.
 
     Returns
     -------
@@ -505,13 +588,17 @@ def decide(
         The PR double after the sequence, and its readiness decision.
     """
     shim = stage(tmp_path, scenario)
+    if served is not None:
+        (tmp_path / "facts.json").write_text(
+            json.dumps(served), encoding="utf-8"
+        )
     listing = discussion(shim)
+    proof_ask = proof_request(listing)
     request = completeness_request(listing)
     body = str(request["body"])
     marker = SHIM_MODULE.ASSESSMENT_ID.search(body).group(1)
     quoted = re.search(r"^> `([^`]+)`$", body, re.MULTILINE)
     assert quoted, f"{scenario} names no approved plan path"
-    proof_ask = proof_request(listing)
 
     pr = pr_state(shim)
     head = str(pr["headRefOid"])
@@ -519,12 +606,17 @@ def decide(
     revision = SHIM_MODULE.PLAN_REVISION.search(content)
     assert revision, f"{scenario} serves no plan revision at {head}"
 
-    # The packet conditions the proof assessment; a tagged proof question is
-    # the recorded evidence that the assessment was asked for this candidate.
-    # Both are needed: the packet says when the assessment applies, and the
-    # thread says whether that is now.
+    # The packet conditions the proof assessment, and the candidate's
+    # affected-proof inventory says whether the condition is met: the packet
+    # states when the assessment applies, and the inventory states what this
+    # candidate affects. A tagged proof question is not applicability evidence.
+    # It says the question was posted, so reading applicability from it made a
+    # proof-changing candidate with no question look inapplicable, and the
+    # completeness reply alone then cleared the gate. A missing required
+    # question is a pending assessment: the inventory still says a proof is
+    # affected, and the model holds on the unanswered proof reply.
     conditional = "required when applicable" in packet["proof"].casefold()
-    applied = proof_ask is not None
+    affected = affects_a_proof(body)
     pull = workflow.PullRequest(
         base=str(pr["baseRefOid"]),
         head=head,
@@ -532,7 +624,7 @@ def decide(
         ci_green=all(state == "SUCCESS" for state in checks(pr).values()),
         codescene_clear=codescene_clear(pr),
         approved_plan_revision=revision.group(1),
-        required_proofs=proof_inventory(proof_ask),
+        required_proofs=proof_inventory(proof_ask, body),
     )
     proof_marker = (
         SHIM_MODULE.ASSESSMENT_ID.search(str(proof_ask["body"])).group(1)
@@ -543,7 +635,7 @@ def decide(
         completeness_id=marker,
         proof_id=proof_marker,
         completeness_applies="required" in packet["assessment"].casefold(),
-        proof_applies=conditional and applied,
+        proof_applies=conditional and affected,
     )
 
     in_force = pull.approved_plan_revision
@@ -665,3 +757,62 @@ def test_the_receiver_reads_its_applicability_from_the_handoff(
         "a withdrawn proof assessment still held the gate"
     )
     assert pull.ready_transitions == [pull.head]
+
+
+def test_the_receiver_reads_applicability_from_the_inventory_not_the_question(
+    tmp_path: Path,
+    packet: dict[str, str],
+) -> None:
+    """A required question that was never posted is pending, not inapplicable.
+
+    `combined-plan-and-proof` clears with both questions answered. Remove the
+    proof question from its discussion and the candidate is unchanged: the same
+    proof file is in the diff and the completeness request still records it on
+    its `Proof inventory:` line. Applicability cannot come from the question's
+    presence, because that would make the missing assessment the reason the
+    assessment does not apply — the gate would open on the completeness reply
+    alone, which is exactly the state the proof gate exists to refuse.
+
+    The control is the negative case: the same removal from a scenario whose
+    inventory says `none affected` still clears, so the test is about the
+    inventory and not about deleting a comment.
+    """
+    # A proof-changing candidate whose proof question was never posted.
+    asked = tmp_path / "asked"
+    asked.mkdir()
+    shim = stage(asked, "combined-plan-and-proof")
+    comments = listing_comments(asked)
+    without_question = [
+        entry for entry in comments if not proof_request([entry])
+    ]
+    assert len(without_question) < len(comments), "the scenario asks no proof question"
+    facts = json.loads((asked / "facts.json").read_text(encoding="utf-8"))
+    facts["api"][r"/issues/\d+/comments"] = without_question
+    assert affects_a_proof(str(completeness_request(without_question)["body"])), (
+        "the inventory no longer records an affected proof"
+    )
+    pull, decision = decide("combined-plan-and-proof", asked, packet, facts)
+    assert decision.reason == "proof-pending", (
+        f"a missing required proof question decided {decision.reason!r}"
+    )
+    assert pull.ready_transitions == []
+
+    # The control: the same removal where the inventory says none affected.
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    stage(empty, "current-whole-plan")
+    empty_facts = json.loads((empty / "facts.json").read_text(encoding="utf-8"))
+    assert not affects_a_proof(
+        str(completeness_request(empty_facts["api"][r"/issues/\d+/comments"])["body"])
+    ), "the control scenario no longer records an empty inventory"
+    pull, decision = decide("current-whole-plan", empty, packet)
+    assert decision.ready is True, (
+        "an empty inventory did not clear without a proof question"
+    )
+    assert pull.ready_transitions == [pull.head]
+
+
+def listing_comments(directory: Path) -> list[dict]:
+    """Return the discussion the scenario's own facts record, unfiltered."""
+    facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
+    return list(facts["api"][r"/issues/\d+/comments"])

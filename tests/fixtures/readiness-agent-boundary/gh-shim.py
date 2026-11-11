@@ -491,11 +491,16 @@ def scripted_reply(facts: dict, request: dict) -> dict | None:
     prose = scripted.get("prose")
     if prose:
         echoed += ["", prose]
-    # The reply takes the id after its request and a stamp after it too. The
-    # real service assigns both in the order the comments were created, and a
-    # polling run filters by time: an answer stamped no later than its own
-    # question would be invisible to the very filter that looks for it.
-    ident_value = int(request["id"]) + 1
+    # The reply takes an id above its request, from the sequence every comment
+    # in this run shares. Taking it as `request id + 1` alone put the answer at
+    # `9902` and left the next ordinary POST numbered from `posted` only, so a
+    # second request was also `9902`: two comments shared one id, and an id read
+    # returned whichever of them the listing reached first.
+    #
+    # A stamp after the question is what a polling run filters on. An answer
+    # stamped no later than its own request would be invisible to the very
+    # filter that looks for it.
+    ident_value = max(next_comment_id(facts), int(request["id"]) + 1)
     stamp = posted_at(facts, request.get("created_at", ""))
     return {
         "id": ident_value,
@@ -567,7 +572,7 @@ def handle_post(facts: dict, argv: list[str]) -> int:
         return fail(refused.message, refused.status)
     observed = facts.get(STATE_OBSERVATION) or {}
     prior = observed.get("posted") or []
-    posted = posted_comment(facts, body, login, POSTED_ID + len(prior))
+    posted = posted_comment(facts, body, login, next_comment_id(facts))
     # A scenario may script an answer to the question the run is about to post,
     # and the answer joins the discussion in the same step. It is kept apart
     # from `posted` because the two are different facts: `posted` is what the
@@ -578,16 +583,57 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     state = {
         "isDraft": facts["pr"].get("isDraft", True),
         "posted": [*prior, posted],
+        # The replies already observed are carried forward on every POST, not
+        # only on one the stand-in answers. A later ordinary comment produces
+        # no answer, and a state written without this key would drop the
+        # earlier replies from the listing and from every id-based read — a
+        # history truncated by the act of adding to it.
+        "scripted": [
+            *(observed.get("scripted") or []),
+            *([answer] if answer else []),
+        ],
     }
-    if answer:
-        state["scripted"] = [*(observed.get("scripted") or []), answer]
     STATE.write_text(json.dumps(state), encoding="utf-8")
     # The response is the created comment, so a `--jq .html_url` filter applies
     # to it exactly as it would against the real service.
     return emit(posted, jq=jq_expression(argv))
 
 
-#: The id the first accepted POST is assigned. Successive posts take the ids
+def next_comment_id(facts: dict) -> int:
+    """Return the id the next comment in this run takes.
+
+    The service numbers every comment from one sequence, whatever created it.
+    A scripted reply is a comment, so a request posted after one must be
+    numbered above it: counting only `posted` gave the second request the id
+    the scripted answer already held, and two comments sharing an id is a
+    listing an id-based read cannot resolve.
+
+    The observation is the state `read_facts` already made, for the same reason
+    the POST and transition use it: a second read can disagree with the first,
+    and the numbering would then restart over comments this run had recorded.
+
+    Parameters
+    ----------
+    facts : dict
+        The run's recorded facts, carrying the observed state.
+
+    Returns
+    -------
+    int
+        One above every id the observed state holds, or `POSTED_ID` when it
+        holds none.
+    """
+    observed = facts.get(STATE_OBSERVATION) or {}
+    taken = [
+        int(entry["id"])
+        for key in ("posted", "scripted")
+        for entry in (observed.get(key) or [])
+        if isinstance(entry, dict) and str(entry.get("id", "")).isdigit()
+    ]
+    return max(taken, default=POSTED_ID - 1) + 1
+
+
+#: The id the first accepted POST is assigned. Successive comments take the ids
 #: above it, so two follow-ups in one run are two distinct comments.
 POSTED_ID = 9901
 

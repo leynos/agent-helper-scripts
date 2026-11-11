@@ -2972,8 +2972,57 @@ def facts_with_bodies(facts: dict, mutate: object) -> dict:
     return changed
 
 
+SUBMITTED = FIXTURES / "submitted"
+
+#: Every recorded posted body, one file per posting run. These are the requests
+#: a run actually composed, so they are the closest thing the fixture has to a
+#: question the skill sends without the fixture having written it first.
+RECORDED_REQUESTS = tuple(sorted(SUBMITTED.glob("*.txt")))
+
+
+def recorded_posts(path: Path) -> list[str]:
+    """Return each comment body a recorded `submitted/` file holds, in order.
+
+    The runner writes one bare body for a single-post run and a
+    `--- posted comment N of M ---` header before each body when a run posted
+    more than once, so the separator is what splits them. Splitting on the
+    header keeps a body that merely mentions "posted comment" intact.
+    """
+    parts = re.split(
+        r"^--- posted comment \d+ of \d+ ---\n",
+        path.read_text(encoding="utf-8"),
+        flags=re.MULTILINE,
+    )
+    return [part.rstrip("\n") for part in parts if part.strip()]
+
+
+def request_state(tmp_path: Path, bodies: list[str]) -> Path:
+    """Write the state a run that posted `bodies` leaves behind, and return it.
+
+    The probe reads the run's persisted `posted` comments from this file in the
+    shape the `gh` stand-in writes it, so a control here exercises the same
+    path the runner does after a real run.
+    """
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "isDraft": False,
+                "posted": [
+                    {"id": index, "body": body}
+                    for index, body in enumerate(bodies, start=1)
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return state
+
+
 @pytest.mark.parametrize("name", ALL_SCENARIOS)
-def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
+def test_each_scenario_seeds_the_question_the_skill_posts(
+    name: str, tmp_path: Path
+) -> None:
     """No run may be filed against a question the skill would not actually send.
 
     The seeded question is a premise rather than a recording, so it is the one
@@ -2997,9 +3046,105 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
     facts = json.loads(
         (FIXTURES / "scenarios" / name / "facts.json").read_text(encoding="utf-8")
     )
-    done = run_probe("PROBE_REQUESTS", str(FIXTURES / "scenarios" / name / "facts.json"))
+    state = tmp_path / "state.json"
+    done = run_probe(
+        "PROBE_REQUESTS",
+        str(FIXTURES / "scenarios" / name / "facts.json"),
+        str(state),
+        name,
+    )
+    if facts.get("scripted_replies"):
+        # This case seeds no question on purpose, so the runner has nothing to
+        # check until a run posts one. What it does check is that the exemption
+        # is not silence: with no run behind it, the probe refuses, and the
+        # refusal names the scenario. The request a real run posts is covered
+        # by `test_each_recorded_request_passes_the_checks_the_runner_applies`.
+        assert done.returncode != 0, f"{name} seeded no question and was accepted"
+        assert (
+            f"{name}: scripts an answer but the run posted no assessment question"
+            in done.stderr
+        ), done.stderr
+        return
     assert done.returncode == 0, f"{name} seeds an incomplete question: {done.stderr}"
     assert facts["api"][r"/issues/\d+/comments"], f"{name} records no discussion"
+
+
+@pytest.mark.parametrize("path", RECORDED_REQUESTS, ids=lambda path: path.stem)
+def test_each_recorded_request_passes_the_checks_the_runner_applies(
+    path: Path, tmp_path: Path
+) -> None:
+    """A run's own request is held to the template, and the recorded ones pass.
+
+    The probe applies the same field checks to the comments a run posted that
+    it applies to the question a scenario seeded, because the request a run
+    composes is exactly where a missing field would go unnoticed: the
+    recording beside it is written from the same body, so it cannot contradict
+    it. The bodies under `submitted/` are those requests, verbatim.
+
+    `posted-then-answered` is the case this check exists for. Its scenario
+    seeds no question at all, so before the probe read the run's own posts
+    there was nothing to check there, and the one request the whole case turns
+    on went unexamined.
+
+    The first form of this check was too strict about wording rather than
+    content: it matched `blob SHA at this head: <sha>` and so refused the
+    recorded `posted-then-answered` request, which cites the same value as
+    `plan file blob <sha> at this head`. The template asks for the blob, not
+    for a sentence, so the probe now reads the SHA from the request's
+    `Plan revision:` line.
+    """
+    name = path.stem
+    facts = FIXTURES / "scenarios" / name / "facts.json"
+    assert facts.exists(), f"{name} has a recorded post but no scenario"
+    state = request_state(tmp_path, recorded_posts(path))
+    done = run_probe("PROBE_REQUESTS", str(facts), str(state), name)
+    assert done.returncode == 0, f"{name} posted an incomplete request: {done.stderr}"
+
+
+def test_a_recorded_request_missing_a_field_is_refused_on_its_own_post(
+    tmp_path: Path,
+) -> None:
+    """The posted-body check refuses a defect that is only in the run's post.
+
+    `superseded-revision` seeds a complete question and its run posted a
+    second, follow-up one. That makes it the case where a defect in the posted
+    body cannot be blamed on the seed: the seeded request still passes, so a
+    probe that only checked the premise would accept the run. Each control
+    damages one field of the posted body alone and requires the probe to name
+    it.
+    """
+    facts = FIXTURES / "scenarios" / "superseded-revision" / "facts.json"
+    body = recorded_posts(SUBMITTED / "superseded-revision.txt")[0]
+
+    def without_blob(text: str) -> str:
+        """Drop the cited SHA, leaving the revision with no blob beside it."""
+        return re.sub(r"Plan revision:[^\n]*", "Plan revision: rev-7.", text)
+
+    def with_a_placeholder(text: str) -> str:
+        """Leave `Known limitations:` holding the template's placeholder."""
+        return re.sub(
+            r"Known limitations:[^\n]*",
+            "Known limitations: " + LIMITATIONS_PLACEHOLDER,
+            text,
+        )
+
+    def with_an_unserved_blob(text: str) -> str:
+        """Cite a blob the scenario's head never served."""
+        return re.sub(r"[0-9a-f]{40}", "0" * 40, text)
+
+    for mutate, expected in (
+        (without_blob, "states no plan file blob SHA"),
+        (with_a_placeholder, "leaves the limitations placeholder unfilled"),
+        (with_an_unserved_blob, "but this head serves"),
+    ):
+        posted = mutate(body)
+        assert posted != body, "the control did not change the recorded request"
+        state = request_state(tmp_path, [posted])
+        done = run_probe(
+            "PROBE_REQUESTS", str(facts), str(state), "superseded-revision"
+        )
+        assert done.returncode != 0, f"a posted request {expected} was accepted"
+        assert expected in done.stderr, done.stderr
 
 
 @pytest.mark.parametrize(
@@ -3125,7 +3270,15 @@ def test_the_request_probe_refuses_a_question_missing_a_required_field(
     )
     mutated = tmp_path / "facts.json"
     mutated.write_text(json.dumps(facts), encoding="utf-8")
-    done = run_probe("PROBE_REQUESTS", str(mutated))
+    # The scenario is not one that scripts an answer, so it has no run state
+    # and the probe's posted list is empty; the field checks it exercises are
+    # the ones applied to the seeded requests.
+    done = run_probe(
+        "PROBE_REQUESTS",
+        str(mutated),
+        str(tmp_path / "state.json"),
+        "combined-plan-and-proof",
+    )
     assert done.returncode != 0, f"removing the {field} field was not detected"
     assert expected in done.stderr, done.stderr
 
@@ -3177,7 +3330,12 @@ def test_each_proof_field_placeholder_is_refused_on_its_own(
     )
     mutated = tmp_path / "facts.json"
     mutated.write_text(json.dumps(facts), encoding="utf-8")
-    done = run_probe("PROBE_REQUESTS", str(mutated))
+    done = run_probe(
+        "PROBE_REQUESTS",
+        str(mutated),
+        str(tmp_path / "state.json"),
+        "combined-plan-and-proof",
+    )
     assert done.returncode != 0, (
         f"the {slug} placeholder was accepted as a stated value"
     )
@@ -3221,6 +3379,61 @@ def test_the_controls_hold_the_placeholders_the_template_actually_prints() -> No
         )
 
 
+def test_the_none_affected_claim_is_checked_against_the_candidate(
+    tmp_path: Path,
+) -> None:
+    """"none affected" is contradicted by the diff, not only by a sibling ask.
+
+    The combined cases trigger the contradiction through their proof question
+    as well, so a probe that only compared the claim with the sibling request
+    would pass every one of them. A candidate that changes the proof file
+    contradicts the claim on its own: there is no question to point at, and
+    the diff still shows the proof in it. This control rewrites the
+    completeness request to claim no proof is affected, removes the proof
+    question, and leaves the diff as the only fact that disagrees: the
+    candidate still changes `proofs/refinement/Theorem.lean`.
+    """
+    source = FIXTURES / "scenarios" / "combined-plan-and-proof" / "facts.json"
+    facts = json.loads(source.read_text(encoding="utf-8"))
+    discussion = facts["api"][r"/issues/\d+/comments"]
+    kept = [
+        {
+            **entry,
+            "body": re.sub(
+                r"Proof inventory:[^\n]*",
+                "Proof inventory: none affected.",
+                str(entry.get("body", "")),
+            ),
+        }
+        for entry in discussion
+        if "are you satisfied that the introduced proof"
+        not in str(entry.get("body", ""))
+    ]
+    assert len(kept) < len(discussion), "the scenario asks no proof question"
+    assert any(
+        "Proof inventory: none affected." in str(entry["body"]) for entry in kept
+    ), "the completeness request states no proof inventory to rewrite"
+    facts["api"][r"/issues/\d+/comments"] = kept
+    changed = {
+        str(entry.get("filename", ""))
+        for entry in facts["api"][r"/pulls/\d+/files(?:[?#]|$)"]
+        if isinstance(entry, dict)
+    }
+    assert str(facts.get("proof_path", "")) in changed, (
+        "the scenario changes no proof, so the diff cannot contradict the claim"
+    )
+    scratch = tmp_path / "facts.json"
+    scratch.write_text(json.dumps(facts), encoding="utf-8")
+    refused = run_probe(
+        "PROBE_REQUESTS",
+        str(scratch),
+        str(tmp_path / "state.json"),
+        "combined-plan-and-proof",
+    )
+    assert refused.returncode != 0, "a claim the diff contradicts was accepted"
+    assert "says no proof is affected" in refused.stderr, refused.stderr
+
+
 def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
     tmp_path: Path,
 ) -> None:
@@ -3233,7 +3446,8 @@ def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
     """
     source = FIXTURES / "scenarios" / "proof-only-cleared" / "facts.json"
     facts = json.loads(source.read_text(encoding="utf-8"))
-    done = run_probe("PROBE_REQUESTS", str(source))
+    state = tmp_path / "state.json"
+    done = run_probe("PROBE_REQUESTS", str(source), str(state), "proof-only-cleared")
     assert done.returncode == 0, done.stderr
     bodies = " ".join(str(entry["body"]) for entry in facts["api"][r"/issues/\d+/comments"])
     assert "no ExecPlan applies" in bodies, "the proof-only question claims a revision"
@@ -3250,7 +3464,9 @@ def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
     assert mutated != facts, "the proof-only question does not use the omitted form"
     scratch = tmp_path / "facts.json"
     scratch.write_text(json.dumps(mutated), encoding="utf-8")
-    refused = run_probe("PROBE_REQUESTS", str(scratch))
+    refused = run_probe(
+        "PROBE_REQUESTS", str(scratch), str(state), "proof-only-cleared"
+    )
     assert refused.returncode != 0, "a revision without its blob was accepted"
     assert "states no plan file blob SHA" in refused.stderr, refused.stderr
 
@@ -3287,7 +3503,12 @@ def test_a_request_citing_a_blob_the_head_does_not_serve_is_refused(
     assert mutated != facts, "the scenario's requests cite no served blob"
     scratch = tmp_path / "facts.json"
     scratch.write_text(json.dumps(mutated), encoding="utf-8")
-    refused = run_probe("PROBE_REQUESTS", str(scratch))
+    refused = run_probe(
+        "PROBE_REQUESTS",
+        str(scratch),
+        str(tmp_path / "state.json"),
+        "combined-plan-and-proof",
+    )
     assert refused.returncode != 0, "a blob the head does not serve was accepted"
     assert "but this head serves" in refused.stderr, refused.stderr
 
@@ -3691,8 +3912,104 @@ def test_an_unscripted_scenario_still_answers_no_question_it_did_not_record(
     )
     assert done.returncode == 0, done.stderr
     state = json.loads((run / "state.json").read_text(encoding="utf-8"))
-    assert "scripted" not in state, state
+    # The key is always written now, so that a POST which answers nothing
+    # cannot drop an answer an earlier one recorded. What this case pins is
+    # that the list stays empty: an invented verdict is the defect.
+    assert state.get("scripted") == [], state
     assert len(state["posted"]) == 1, state
+
+
+def test_a_request_posted_after_a_scripted_reply_takes_a_new_id(
+    tmp_path: Path,
+) -> None:
+    """Every comment in the discussion has its own id, whatever created it.
+
+    The stand-in numbered requests from `posted` alone and gave each scripted
+    reply `request id + 1`. Once an answer exists, the two sequences overlap:
+    the next request is assigned the id the answer already holds, the listing
+    carries two different comments under one id, and an id-based read returns
+    whichever of them it reaches first. The real service numbers comments from
+    one sequence, so the stand-in has to as well.
+    """
+    run = scripted_scenario(tmp_path)
+    assert post_scripted(run).returncode == 0
+    second = invoke(
+        run,
+        "api",
+        "--method",
+        "POST",
+        COMMENT_ROUTE,
+        "-f",
+        "body=An ordinary comment with no Assessment-ID.",
+        token=POOL_TOKEN,
+    )
+    assert second.returncode == 0, second.stderr
+    state = json.loads((run / "state.json").read_text(encoding="utf-8"))
+    ids = [entry["id"] for entry in state["posted"]]
+    ids += [entry["id"] for entry in state.get("scripted") or []]
+    assert len(ids) == len(set(ids)), f"two comments share an id: {ids}"
+
+    listed = json.loads(
+        invoke(
+            run, "api", "repos/leynos/agent-helper-scripts/issues/272/comments"
+        ).stdout
+    )
+    listed_ids = [entry["id"] for entry in listed]
+    assert len(listed_ids) == len(set(listed_ids)), (
+        f"the listing repeats an id: {listed_ids}"
+    )
+    # An id-based read has to return the comment it names. The second request
+    # is the one that collided, so it is the read that exposes the defect.
+    answered = json.loads(second.stdout)
+    fetched = invoke(
+        run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{answered['id']}"
+    )
+    assert fetched.returncode == 0, fetched.stderr
+    assert "no Assessment-ID" in json.loads(fetched.stdout)["body"], (
+        "the id read returned the scripted reply instead of the request"
+    )
+
+
+def test_a_later_post_keeps_the_scripted_replies_the_run_already_has(
+    tmp_path: Path,
+) -> None:
+    """Adding to the discussion must not truncate it.
+
+    A scenario's scripted answer is written into `state.json` when the request
+    is posted. A later comment that the stand-in does not answer produced no
+    new reply, and the state was written without a `scripted` key at all, so
+    the answer the run had already received disappeared from the listing and
+    from every id-based read. The reply is a comment in the discussion; a post
+    that is not an answer to it does not remove it.
+    """
+    run = scripted_scenario(tmp_path)
+    assert post_scripted(run).returncode == 0
+    reply = json.loads((run / "state.json").read_text(encoding="utf-8"))[
+        "scripted"
+    ][0]
+    later = invoke(
+        run,
+        "api",
+        "--method",
+        "POST",
+        COMMENT_ROUTE,
+        "-f",
+        "body=A remark that asks no assessment question.",
+        token=POOL_TOKEN,
+    )
+    assert later.returncode == 0, later.stderr
+    state = json.loads((run / "state.json").read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in state.get("scripted") or []] == [reply["id"]], (
+        f"the later post dropped the scripted reply: {state}"
+    )
+    listed = json.loads(
+        invoke(
+            run, "api", "repos/leynos/agent-helper-scripts/issues/272/comments"
+        ).stdout
+    )
+    assert reply["id"] in [entry["id"] for entry in listed], (
+        f"the listing no longer carries the scripted reply: {listed}"
+    )
 
 
 #: The scenarios that rehearse the implementation handoff: the run starts at
@@ -3878,13 +4195,81 @@ CLASSIFYING_CALL = {
 
 
 def tool_call(name: str, payload: dict) -> dict:
-    """Return one assistant event carrying a single tool call."""
+    """Return one assistant event carrying a single tool call.
+
+    The call has no id yet. A run's calls are identified and answered by
+    `recorded`, which is the only place that knows a call's position in the
+    run; stamping an id here would give two identical calls one identity and
+    let a result stand for a call that was never recorded.
+    """
     return {
         "type": "assistant",
         "message": {
             "content": [{"type": "tool_use", "name": name, "input": payload}]
         },
     }
+
+
+def recorded(
+    events: list[dict], outcomes: dict[int, bool | None] | None = None
+) -> list[dict]:
+    """Return the run's events with each call identified and answered.
+
+    The handoff probe reads a call's outcome from the result carrying its id,
+    so a constructed run has to look like the CLI's: every `tool_use` has an
+    id, and the `tool_result` that answered it follows as a user message of
+    its own. Pairing them here keeps the tests describing a run rather than
+    repeating the bookkeeping in every case.
+
+    A call with no entry in `outcomes` succeeded, which is the ordinary case.
+    `False` is a call that exited non-zero — a `cat` with the wrong path — and
+    `None` leaves the call without a result at all. Both are needed: the probe
+    has to be able to refuse a run whose only open failed, and one whose
+    transition was never recorded.
+
+    Parameters
+    ----------
+    events : list of dict
+        The run's assistant messages, in the order they were emitted.
+    outcomes : dict, optional
+        Call index, counted across the whole run, mapped to its result.
+
+    Returns
+    -------
+    list of dict
+        The same messages, with ids, interleaved with their results.
+    """
+    answers = {} if outcomes is None else outcomes
+    stream: list[dict] = []
+    index = 0
+    for event in events:
+        content = event["message"]["content"]
+        calls = [part for part in content if part.get("type") == "tool_use"]
+        if not calls:
+            stream.append(event)
+            continue
+        stamped: list[dict] = []
+        results: list[dict] = []
+        for part in content:
+            if part.get("type") != "tool_use":
+                stamped.append(part)
+                continue
+            call_id = f"toolu_{index:03d}"
+            answered = answers.get(index, True)
+            index += 1
+            stamped.append({**part, "id": call_id})
+            if answered is not None:
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": call_id,
+                        "is_error": not answered,
+                    }
+                )
+        stream.append({"type": "assistant", "message": {"content": stamped}})
+        if results:
+            stream.append({"type": "user", "message": {"content": results}})
+    return stream
 
 
 def handoff_message(text: str) -> dict:
@@ -3903,6 +4288,7 @@ def handoff_run(
     decide: bool = True,
     packet: str | None = None,
     packet_after_decision: bool = False,
+    outcomes: dict[int, bool | None] | None = None,
 ) -> Path:
     """Write one crossing run's skill, outcome, event stream and trace.
 
@@ -3913,7 +4299,9 @@ def handoff_run(
     the transition, as the prompt asks; `packet_after_decision` places it
     after the transition instead, which is the negative control for the
     ordering check. `trace` is the stand-in's record of what `gh` actually
-    ran, which is what the decision has to match.
+    ran, which is what the decision has to match. `outcomes` answers the calls
+    by index as `recorded` does, so a case can make an open fail or leave the
+    transition unanswered; every call succeeds by default.
     """
     skill = tmp_path / "SKILL.md"
     shutil.copy2(IMPLEMENTATION_SKILL, skill)
@@ -3936,7 +4324,7 @@ def handoff_run(
         )
     if packet_after_decision:
         events.append(handoff_message(packet))
-    write_lines(tmp_path / "events.jsonl", events)
+    write_lines(tmp_path / "events.jsonl", recorded(events, outcomes))
     write_lines(tmp_path / "trace.jsonl", trace or [])
     return tmp_path
 
@@ -4112,7 +4500,7 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened
         ),
         tool_call("Read", {"file_path": "/run/work/sdlc-implementation/SKILL.md"}),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4144,7 +4532,7 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_receiver_was_open
         ),
         tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4183,7 +4571,7 @@ def test_the_handoff_probe_takes_a_mention_of_the_command_as_no_decision(
         tool_call("Read", {"file_path": "/run/work/sdlc-implementation/SKILL.md"}),
         handoff_message(handoff_packet()),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4224,7 +4612,7 @@ def test_the_handoff_probe_reads_the_transition_from_a_command_not_a_path(
             "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
         ),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4261,7 +4649,7 @@ def test_the_handoff_probe_refuses_a_trace_transition_no_call_ran(
         str(run / "handoff.txt"),
     )
     assert done.returncode != 0
-    assert "no tool call in the event stream ran" in done.stderr, done.stderr
+    assert "no successful tool call in the event stream ran" in done.stderr, done.stderr
 
 
 def test_the_handoff_probe_requires_the_receiver_to_be_opened_too(
@@ -4322,7 +4710,7 @@ def test_the_handoff_probe_refuses_a_path_that_was_written_not_read(
             "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
         ),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4363,7 +4751,7 @@ def test_the_handoff_probe_keeps_the_read_it_can_still_recognize(
             "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
         ),
     ]
-    write_lines(run / "events.jsonl", events)
+    write_lines(run / "events.jsonl", recorded(events))
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
@@ -4375,6 +4763,342 @@ def test_the_handoff_probe_keeps_the_read_it_can_still_recognize(
     assert done.returncode == 0, done.stdout + done.stderr
 
 
+@pytest.mark.parametrize(
+    ("label", "template"),
+    [
+        ("glob", None),
+        ("echo", "echo {skill}/SKILL.md"),
+        ("grep-pattern", "grep -rn {skill}/SKILL.md notes/"),
+        ("sed-script", "sed {skill}/SKILL.md/replace/ notes.txt"),
+    ],
+)
+def test_the_handoff_probe_refuses_a_mention_that_read_something_else(
+    label: str, template: str | None, tmp_path: Path
+) -> None:
+    """A reader whose file operand is somewhere else did not open the skill.
+
+    A reader's leading operands are not files. `grep -rn <skill>/SKILL.md
+    notes/` searches `notes/` for that string, and `sed <skill>/SKILL.md/x/
+    notes.txt` rewrites `notes.txt` with it as the script; the manifest is the
+    text they are told to use, not the file they open. Crediting any word that
+    basename-matches `SKILL.md` accepted both, so a run that only quoted the
+    path into a search could be recorded as having followed the skill.
+
+    A `Glob` is the same mistake in tool form: its pattern names a file it
+    would match without reading one.
+    """
+    commands = tuple(
+        "Glob" if template is None else template.format(skill=skill)
+        for skill in ("sdlc-implementation", "pr-babysitting")
+    )
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        *(
+            tool_call("Glob", {"pattern": "**/SKILL.md"})
+            if command == "Glob"
+            else tool_call("Bash", {"command": command})
+            for command in commands
+        ),
+        CLASSIFYING_CALL,
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0, f"{label}: a mention was accepted as an open"
+    assert "never opened sdlc-implementation" in done.stderr, done.stderr
+    assert "never opened pr-babysitting" in done.stderr, done.stderr
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "cut -d/ -f1 {skill}/SKILL.md",
+        "grep -c Revision {skill}/SKILL.md",
+        "sed -n s/x/y/p {skill}/SKILL.md",
+        "sed -es/x/y/p {skill}/SKILL.md",
+    ],
+)
+def test_the_handoff_probe_keeps_an_open_by_a_reader_with_options(
+    template: str, tmp_path: Path
+) -> None:
+    """The refusal above must not be a reader refusing every reader.
+
+    `cut -d/ -f1 <path>` opens the file and `grep -c Revision <path>` searches
+    it; a `sed` either takes its script as the first operand, leaving the path
+    as the file, or is given the script by `-e` or `-f`, in which case the
+    first operand is a file after all. Each is a real open, and a probe that
+    stopped at the option and leading-operand rules would reject runs that did
+    follow the skill's rules.
+
+    The shapes are separate cases rather than one run because one run can be
+    carried by whichever call the probe still credits: only a case whose every
+    open uses the shape under test fails when that shape is mishandled.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        tool_call(
+            "Bash", {"command": template.format(skill="sdlc-implementation")}
+        ),
+        tool_call("Bash", {"command": template.format(skill="pr-babysitting")}),
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_handoff_probe_refuses_an_open_that_failed(tmp_path: Path) -> None:
+    """Trying to read a manifest is not opening it.
+
+    The preserved `crossing-whole-plan` stream contains a `cat
+    pr-babysitting/SKILL.md` that exited 1 on a wrong path before the same
+    file was opened successfully, so a run's attempts are not interchangeable
+    with its reads. A probe that credited any call naming the file would
+    accept this run, which never read the receiver at all.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+        trace=[READY_INVOCATION],
+        # The receiver's open failed; the sender's and the transition's ran.
+        outcomes={1: False},
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0
+    assert "never opened pr-babysitting" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_transition_taken_before_a_read_in_its_call(
+    tmp_path: Path,
+) -> None:
+    """One call is not one instant, and the shell runs its commands in order.
+
+    `gh pr ready 272; cat <both manifests>` is a single message carrying a
+    single call, so comparing message positions would place both the reads and
+    the transition at the same point and call it satisfied. The commands are
+    what order the call's own actions, and in this one the rules were read
+    after they were applied.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash",
+            {
+                "command": (
+                    "gh pr ready 272 --repo leynos/agent-helper-scripts;"
+                    " cat sdlc-implementation/SKILL.md pr-babysitting/SKILL.md"
+                )
+            },
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0
+    assert "decided before opening sdlc-implementation" in done.stderr, done.stderr
+    assert "decided before opening pr-babysitting" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_accepts_a_read_before_the_transition_in_its_call(
+    tmp_path: Path,
+) -> None:
+    """The refusal above is about the order, not about the compound call.
+
+    A shell call that reads both manifests and then transitions is honest
+    evidence that the rules were read first, and refusing it would report the
+    single-call form as unusable rather than ordering it. Without this the
+    test above would pass against a probe that rejected every compound call.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash",
+            {
+                "command": (
+                    "cat sdlc-implementation/SKILL.md pr-babysitting/SKILL.md;"
+                    " gh pr ready 272 --repo leynos/agent-helper-scripts"
+                )
+            },
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_handoff_probe_refuses_a_transition_that_failed(tmp_path: Path) -> None:
+    """A `pr ready` the service refused did not transition the PR.
+
+    The trace records the invocation whether or not it worked, so the trace
+    alone cannot establish a decision. Only a call whose result shows it
+    succeeded can be the decision a packet informs.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+        trace=[READY_INVOCATION],
+        outcomes={3: False},
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0
+    assert "no successful tool call in the event stream ran" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_transition_with_no_recorded_result(
+    tmp_path: Path,
+) -> None:
+    """An unanswered call establishes nothing, not even that it ran.
+
+    A result is what shows a call completed. Leaving one out is a recording
+    with a gap, and the probe must read that gap as missing evidence rather
+    than as a successful transition that happened to print nothing.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+        trace=[READY_INVOCATION],
+        outcomes={3: None},
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0
+    assert "no successful tool call in the event stream ran" in done.stderr, done.stderr
+
+
+def test_the_transcript_probe_keeps_each_call_outcome(tmp_path: Path) -> None:
+    """The committed transcript has to record whether a call worked.
+
+    The probe reads a call's success from the result carrying its id, so a
+    reduction that dropped results, ids or the error flag would leave the
+    committed evidence unable to distinguish a read from an attempt — the one
+    distinction the preserved runs turn on. The result's *contents* are
+    dropped, since committing a skill's text would bloat the evidence without
+    adding to it.
+    """
+    # The stream is the CLI's own shape, not the reduced form: results carry
+    # their contents, and the run ends with bookkeeping events. The reduction
+    # is what has to drop those, so feeding it already-reduced input would
+    # prove nothing.
+    call = tool_call("Bash", {"command": "cat pr-babysitting/SKILL.md"})
+    call["message"]["content"][0]["id"] = "toolu_000"
+    read = tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"})
+    read["message"]["content"][0]["id"] = "toolu_001"
+    events = [
+        {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Reading the receiver."},
+            call["message"]["content"][0],
+        ]}},
+        {
+            "type": "user",
+            "message": {"content": [{
+                "type": "tool_result",
+                "tool_use_id": "toolu_000",
+                "is_error": True,
+                "content": "cat: pr-babysitting/SKILL.md: No such file or directory",
+            }]},
+        },
+        read,
+        {
+            "type": "user",
+            "message": {"content": [{
+                "type": "tool_result",
+                "tool_use_id": "toolu_001",
+                "content": "# pr-babysitting\n...",
+            }]},
+        },
+        {"type": "result", "result": "done", "usage": {"tokens": 10}},
+    ]
+    write_lines(tmp_path / "events.jsonl", events)
+    done = run_probe(
+        "PROBE_TRANSCRIPT",
+        str(tmp_path / "events.jsonl"),
+        str(tmp_path / "transcript.jsonl"),
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    reduced = [
+        json.loads(line)
+        for line in (tmp_path / "transcript.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert reduced == [
+        {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Reading the receiver."},
+            {"type": "tool_use", "id": "toolu_000", "name": "Bash",
+             "input": {"command": "cat pr-babysitting/SKILL.md"}},
+        ]}},
+        {"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "toolu_000", "is_error": True},
+        ]}},
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "toolu_001", "name": "Read",
+             "input": {"file_path": "/run/work/pr-babysitting/SKILL.md"}},
+        ]}},
+        {"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "toolu_001", "is_error": False},
+        ]}},
+    ], reduced
+
+
 def test_the_committed_crossing_recordings_retain_the_handoff_evidence(
     tmp_path: Path,
 ) -> None:
@@ -4383,9 +5107,11 @@ def test_the_committed_crossing_recordings_retain_the_handoff_evidence(
     A trace shows the reads and a decision shows the verdict; neither shows the
     packet that crossed or where it sat relative to the transition. Both runs
     therefore commit a reduced transcript — each assistant message's text and
-    calls, without the tool results and bookkeeping that carry none of the
-    handoff — and the committed evidence is checked by the same probe the run
-    ran, rather than by a second reader that could drift from it.
+    calls, together with whether each call succeeded, and nothing else — and
+    the committed evidence is checked by the same probe the run ran, rather
+    than by a second reader that could drift from it. The outcomes matter
+    because one preserved run's first attempt at the receiver failed; a
+    recording without them would credit an attempt as a read.
 
     Each outcome still has to attribute its local CodeScene result to the
     stand-in, because a reader cannot tell a simulated clearance from a real

@@ -50,6 +50,16 @@ ignore = [
   # repaired without inventing bytes; this matches the two-character stub only
   # where a markdown field label was truncated, and nowhere else.
   '\*\*Assessed ba\b',
+  # Tool-call ids in the preserved rehearsal transcripts. A recording is
+  # verbatim evidence of a run that happened, so an id that happens to contain
+  # a spelling error cannot be repaired without inventing bytes. These match
+  # the complete id, which keeps the allowance off the fragments themselves
+  # and off any other identifier that merely contains one.
+  'tooluse_IY11x2l71pqIMxeaR4JyvF',
+  'tooluse_f9poVOtW8tkrdUMFeETGwX',
+  'tooluse_FUvNO0Kn8uWKdbW8DK7uVN',
+  'tooluse_0xV8HLJAhVh2GY1Sh8ZSbY',
+  'tooluse_bWFxNa8f5Vt7MvaLk2xNto',
 ]
 
 [files]
