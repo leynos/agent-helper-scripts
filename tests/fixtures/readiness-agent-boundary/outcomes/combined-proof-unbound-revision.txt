@@ -1,12 +1,15 @@
-I left PR 272 in draft because CodeRabbit's proof verdict isn't tied to the approved plan revision, and I posted a follow-up asking it to confirm the verdict against rev-7 (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901). No reply came in about 3 minutes of polling, so the proof check is still pending and I did not run `gh pr ready`.
+I ran six polls over three minutes against a fixed `since` cursor (2026-11-08T09:55:59Z). None showed a new or edited CodeRabbit comment, and base/head stayed the same. The served state isn't changing, so I'm stopping here with the proof assessment still pending.
 
-**What's cleared** (base `73d32981…`, head `5555ffff`):
-- **Hosted CI:** Makefile gates, CodeScene Code Health Review and Gecko Security Review all passed. The CodeScene check reports "No advisory findings, gate failures or code-health declines."
-- **Local CodeScene:** the `cs` stand-in (which says in its output that it's simulated) returned "No issues found in checked changes." for the delta. A check of `proofs/refinement/Theorem.lean` also found no issues.
-- **Completeness check:** CodeRabbit's reply (comment 9972) is clear, covers the whole plan, and repeats the base/head and "Plan revision: rev-7".
+## Outcome
 
-**What blocks readiness:** the proof request (comment 9973) named "rev-7 (approved revision in force)". CodeRabbit's answer (comment 9974) says "`refinement_sound` is substantive and non-vacuous" but only repeats "Assessed base/head: 73d32981…5555ffff" and never mentions the plan revision. Under the skill, a reply that repeats only the base/head doesn't tie the verdict to an approved revision, so the proof check isn't clear yet.
+I posted a follow-up asking CodeRabbit to bind its proof verdict to plan revision rev-7, left PR 272 as a draft, and did not mark it ready. The deciding evidence is that proof reply 9974 lists only "**Assessment-ID:** `271-ab-combined-unbound-proof` / **Assessed base/head:** 73d32981…5555ffff / **Assessed subject:** `refinement_sound`". It has no plan-revision line, even though its request (9973) named "Plan revision: rev-7". Under the skill, a reply that echoes only the base/head doesn't bind the verdict to the approved revision, so the proof gate stays open.
 
-**Next step:** wait for CodeRabbit to answer comment 9901 with a clear verdict naming rev-7. Then run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` and confirm the PR shows as not draft with the same base/head. The run's notes are in `/tmp/pr272-ledger/ledger.md`.
+**Current state (base `73d32981…`, head `5555ffff`, draft):**
+- **Trust:** The PR author and committer are `experiment-owner`, the stored lifecycle login, and the head branch is in the base repository, so I trusted the candidate.
+- **CI:** `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review` all passed, with nothing pending or missing.
+- **CodeScene:** Hosted check reports "No issues found" and there are no `codescene-access[bot]` comments. The local `cs delta` (the simulated stand-in) reports "No issues found in checked changes."
+- **Completeness assessment:** Clear. Reply 9972 covers the whole approved plan, echoes rev-7 and the base/head, and rev-7 is still the plan in force (blob `5a1c9e4d…` at this head).
+- **Proof assessment:** Pending, because the verdict isn't bound to rev-7. My follow-up is issuecomment-9901, posted as pool account `fixture-commenter` through the shipped helper, with Assessment-ID `271-ab-combined-unbound-proof-rev7`. It also asks CodeRabbit to say whether the missing Lean build log and non-vacuity witness leave any proof concern open.
+- **Not done, on purpose:** I didn't run `gh pr ready` or send any formal review or `comenq` request, because those come after readiness.
 
-In one sentence: I kept PR 272 in draft and posted a follow-up asking CodeRabbit to bind its proof verdict to rev-7, because the request named "Plan revision: rev-7 (approved revision in force)" but the reply 9974 repeats only "Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...5555ffff", even though CI is green and both CodeScene sources report no issues.
+**Next step:** Whoever resumes this needs to keep polling issue comments from `since=2026-11-08T09:55:59Z`, comparing against the saved baseline in `../ledger/comments-before.json`. Once a substantive CodeRabbit reply echoes rev-7 and a clear proof verdict for this base/head, the next step is `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272`, then reading back that it's no longer a draft and observing the formal review.

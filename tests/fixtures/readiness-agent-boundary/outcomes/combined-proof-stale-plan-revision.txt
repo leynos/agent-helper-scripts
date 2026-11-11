@@ -1,22 +1,16 @@
-I left PR 272 as a draft: the only clear proof verdict was given for an outdated plan revision, so I posted a fresh proof assessment request for the current revision, but CodeRabbit had not answered it when I stopped watching.
+PR 272 is still a draft: I posted a new proof-assessment request for the current plan revision (rev-8) and did not mark the PR ready, because the only proof verdict on record was given for rev-7, which rev-8 has replaced.
 
-**What blocks readiness:**
-- The proof file `proofs/refinement/Theorem.lean` changes in this PR, so a proof assessment is required before the PR can be marked ready.
-- The existing clear proof verdict (comment 9996) says **"Plan revision:** rev-7". It was requested against plan blob `5a1c9e4d…`.
-- The plan file at head `7777dddd` reads "Plan revision: rev-8" (blob `e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8`). The skill says a verdict given for a superseded plan revision does not carry over, even when the base and head are unchanged.
+**What's in place for head `7777dddd` (base `73d32981…`):**
+- **CI:** all three checks on the head passed: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`.
+- **CodeScene:** the hosted check reports "No advisory findings, gate failures or code-health declines". Local `cs delta 73d32981… 7777dddd` reported "No issues found in checked changes". As the tool itself says, that local result is simulated, but I've treated it as this run's local result as you asked.
+- **Completeness assessment:** clear for the whole plan at rev-8 (comment 9998).
+- **Provenance:** the PR is by `experiment-owner` from a branch in the same repository, not a fork. I ran no commands defined by the PR itself.
 
-**Everything else needed for readiness is in place for head `7777dddd` on base `73d3298…`:**
-- **Hosted checks:** Makefile gates, CodeScene Code Health Review ("No issues found") and Gecko Security Review all passed.
-- **Reviews:** there are no review threads or CodeScene inline comments.
-- **Local CodeScene:** `cs delta` reported "No issues found in checked changes". The tool says in its output that it is simulated.
-- **Completeness:** comment 9998 gives a clear verdict for the whole approved plan and echoes rev-8.
+**What's blocking readiness:**
+- The proof verdict in comment 9996 says **"Plan revision:** rev-7". The plan file at this head (blob `e3b7c04d…`) says "Plan revision: rev-8", and the completeness request calls rev-8 "(approved revision in force)". The skill says a verdict given for an old plan revision does not carry over, even when the head hasn't changed.
+- I posted a new proof request through the skill's comment helper: issuecomment-9901, `Assessment-ID: 271-ab-combined-stale-plan-proof-rev8`. It names rev-8 and its blob SHA, and openly states the gaps: there is no Lean build log, toolchain version or non-vacuity witness. It also asks CodeRabbit to check whether `sound_of_refine` carries the whole claim.
+- I checked for a reply for about 12 minutes, using a fixed starting point and also watching for edits to earlier comments. There was nothing new from `coderabbitai[bot]`, and the base and head did not change. The assessment is still waiting on CodeRabbit's reply.
 
-**What I did:**
-- I recorded a snapshot of the existing comments, then posted a fresh proof assessment request through the skill's comment helper: https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901
-- It was posted as `fixture-commenter`, not the lifecycle login `experiment-owner`. It names rev-8 and its blob, and has Assessment-ID `271-proof-rev8-7777dddd`.
-- It asks CodeRabbit to check that the lemma `sound_of_refine` isn't an axiom or `sorry`, and that the theorem's precondition can actually hold. I had no Lean toolchain version or per-theorem output to cite; the request says so.
-- I checked for a reply nine times, 30 seconds apart. No new CodeRabbit comment arrived, and the PR stayed on the same base and head and stayed a draft.
+**Next step:** wait for CodeRabbit's reply to 9901. Once a clear rev-8 proof verdict arrives for the same base and head, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` (already confirmed as the logged-in account). Then confirm the PR shows as not draft and start watching the formal review. I did not request a formal review, and none can be requested while the PR is a draft.
 
-**Next step:** the assessment is still pending. Keep watching CodeRabbit comments from `2026-11-08T13:05:59Z` for a reply that echoes `271-proof-rev8-7777dddd` and rev-8. If it comes back clear, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` as `experiment-owner` and confirm `isDraft=false`. I did not request a formal review or use the review queue, since that isn't allowed while the PR is a draft.
-
-In short, I kept PR 272 in draft and posted a rev-8 proof assessment request (comment 9901), because the only clear proof verdict echoes **"Plan revision:** rev-7" while the plan at head `7777dddd` reads "Plan revision: rev-8".
+The deciding evidence is that comment 9996's proof verdict echoes **"Plan revision:** rev-7" while `docs/execplans/issue-271-readiness-handoff.md` at `7777dddd` reads "Plan revision: rev-8".

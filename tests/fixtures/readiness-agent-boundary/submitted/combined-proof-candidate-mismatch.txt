@@ -1,18 +1,17 @@
-@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean#refinement_sound`) is substantive, rigorous, and well-founded?
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean`, theorem `refinement_sound`) is substantive, rigorous, and well-founded?
 
-This is a candidate-bound follow-up to the proof request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9983 and its reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9984. That reply echoed assessed head `7777bbbb`, but the request and the live PR head are `6666aaaa`, and `7777bbbb` is not a commit of this PR. So the verdict can't be bound to the current candidate.
+This is a candidate-bound follow-up to the proof request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9983. Your reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9984 echoed assessed base/head `73d32981c7b7e8f52590a074873e28a9f369f0f9...7777bbbb`, but this PR's published head is `6666aaaa`, and `7777bbbb` is not a commit in this PR. That verdict therefore cannot be bound to this candidate.
 
 Published head: 6666aaaa; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Proof inventory and claims: `proofs/refinement/Theorem.lean`, theorem `refinement_sound` (modified in this PR, +12 lines).
-Production correspondence: the readiness-handoff behaviour delivered against `docs/execplans/issue-271-readiness-handoff.md`; please identify the production code `refinement_sound` corresponds to, if any.
-Assumptions, trusted boundaries, domain, and bounds: not yet recorded in the delivery ledger; please identify any assumptions, axioms, or `sorry` the proof depends on.
-Verifier evidence: no local Lean verifier run is recorded for this head; hosted checks for this head are `Makefile gates`, `CodeScene Code Health Review`, and `Gecko Security Review`, all successful.
-Non-vacuity and limitations: no negative control is recorded; please assess whether the hypotheses are satisfiable and the statement non-vacuous.
+Proof inventory and claims: `proofs/refinement/Theorem.lean`, theorem `refinement_sound : forall (s : State), refine s = s -> sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: the theorem states that a state is sound whenever refining it returns it unchanged; the refinement transition it constrains is the implementation this candidate ships.
+Assumptions, trusted boundaries, domain, and bounds: the candidate states no axioms, stubs, or trusted boundaries of its own beyond the names the file uses; no tool, backend, or version is recorded for it.
+Verifier evidence: the hosted `Makefile gates` check (check run 7701) passed for this head; it is the only verifier surface recorded. No Lean build log, command, or per-obligation outcome is available, and none is claimed.
+Non-vacuity and limitations: no witness, negative control, or counterexample is recorded for the claim; please treat that as a limitation to assess, not as evidence of non-vacuity.
 Plan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.
 Assessment-ID: 271-ab-combined-mismatch-proof-r2.
 
-Please echo the Assessment-ID, assessed base/head, and plan revision in your
-substantive reply; echo the plan revision only when this request names one.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply; echo the plan revision only when this request names one.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.

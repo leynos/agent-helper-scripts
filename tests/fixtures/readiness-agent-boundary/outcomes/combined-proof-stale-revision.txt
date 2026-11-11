@@ -1,22 +1,23 @@
-PR 272 is still a draft, and I did not mark it ready. Both clear verdicts are tied to an old version of the plan, so I posted fresh assessment requests against the current one. No reply has come back yet.
+I left PR 272 in draft and posted new completeness and proof assessment requests for plan revision rev-8, because both "clear" verdicts on the PR are for rev-7 and the plan file at the head now says rev-8.
 
-**What's green for head `4444eeee` on base `73d32981…`**
-- **CI:** all three checks passed: `Makefile gates`, `CodeScene Code Health Review` ("No advisory findings, gate failures or code-health declines.") and `Gecko Security Review`.
-- **Local CodeScene:** `cs delta` reported "No issues found in checked changes." The tool says its output is simulated; as instructed, I treated that as this run's local result.
-- **Trust:** the PR author is `experiment-owner`, the branch is in the base repo rather than a fork, and the assignment names the PR, so I trusted it.
-- **Reviews:** there are no reviews or inline threads yet.
+**Deciding evidence:** the plan file `docs/execplans/issue-271-readiness-handoff.md` at head `4444eeee` reads `"Plan revision: rev-8"` and its blob SHA is `e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8`. The two existing verdicts (comment 9962 for completeness, 9964 for the proof `refinement_sound`) each echo `"**Plan revision:** rev-7"`. The original request also gave a blob SHA (`5a1c9e4d…`) that doesn't match the file at this head. The skill says a verdict for a superseded plan revision doesn't carry over even when the base/head is unchanged, so neither verdict clears the readiness gate.
 
-**Why it can't go ready**
-- **The verdicts are stale.** Both CodeRabbit "Verdict: clear" replies (9962 for completeness, 9964 for the proof) say "Plan revision: rev-7". The plan file at this head says `Plan revision: rev-8` (blob `e3b7c04d…`), while the requests that produced those verdicts claimed blob `5a1c9e4d…`. The skill says a verdict against a superseded plan revision doesn't carry over, even when the base and head are unchanged.
-- **The proof check is required.** The PR modifies `proofs/refinement/Theorem.lean` (`refinement_sound`), so a clear completeness verdict alone isn't enough.
+**Everything else needed for readiness passed:**
+- **CI:** all three checks on head `4444eeee` succeeded (`Makefile gates`, `CodeScene Code Health Review` reporting "No issues found", `Gecko Security Review`).
+- **Local CodeScene:** `cs delta 73d32981…f9 4444eeee` returned "No issues found in checked changes." It is the simulated stand-in, which says so in its output; I counted it as the local result as instructed.
+- **Trust:** the author and the only commit are `experiment-owner`, and the branch lives in the base repo.
+- **Identity:** the normal login is `experiment-owner`, which is not one of the comment-pool accounts.
 
-**What I did**
-- Posted two new requests through the comment helper, as `fixture-commenter`. Both name rev-8 and its blob SHA:
-  - completeness: `#issuecomment-9901` (`271-ab-rev8-completeness`)
-  - proof: `#issuecomment-9902` (`271-ab-rev8-proof`)
-- The proof request asks CodeRabbit to check whether the supporting lemma `sound_of_refine` is proven, assumed or circular. It also says that no local Lean run was done.
-- Polled for about three minutes. CodeRabbit's only comments are still the old 9962 and 9964.
+**What I posted:** two top-level comments through the shipped posting helper, which used the comment-token pool:
+- #issuecomment-9901, completeness, Assessment-ID `271-ab-combined-rev8`
+- #issuecomment-9902, proof, Assessment-ID `271-ab-combined-rev8-proof`
 
-**Blocker:** the two rev-8 assessments are pending, and CodeRabbit owns the reply. The next step is to keep checking the PR's comments from the 09:36Z request time onward. If both come back clear for rev-8 with no open concerns, the next steps are `gh pr ready` and then watching the formal review. The polling stopped when this session ended, and I didn't queue any review while the PR is a draft. My notes and the request bodies are in `/tmp/pr272-ledger.wmgb`.
+Each links back to the stale request and verdict, names rev-8 with blob `e3b7c04d…`, and asks CodeRabbit to echo the ID, base/head and revision. The read-back shows both were posted by `fixture-commenter`, a pool account, not the lifecycle account.
 
-In one sentence: I kept PR 272 in draft and posted fresh rev-8 completeness and proof requests (9901, 9902) because the only clear verdicts say "Plan revision: rev-7" while the plan file at head `4444eeee` reads "Plan revision: rev-8".
+**Where it stands:** after about 10 minutes of polling there is still no reply to either request. The PR is still draft at head `4444eeee` on base `73d32981…`. I did not run `gh pr ready` and did not queue a review through comenq, because the skill only allows formal review after the PR is ready.
+
+One thing I couldn't confirm: the only evidence that rev-8 is the approved revision is the plan file itself. `gh` here couldn't read issue #271, so I found no separate approval record. If rev-8 isn't actually approved, the plan author needs to settle which revision applies.
+
+**Next step:** wait for CodeRabbit's answers to 9901 and 9902. If both come back clear and echo rev-8 and `73d32981…f9...4444eeee`, run `env -u GH_TOKEN -u GITHUB_TOKEN gh pr ready 272` and check that `isDraft=false`.
+
+In one sentence: I confirmed CI and CodeScene are clear but kept PR 272 in draft and asked for both assessments again against rev-8, because the plan file at head reads `"Plan revision: rev-8"` (blob `e3b7c04d…`) while both clear verdicts echo `"Plan revision: rev-7"`.

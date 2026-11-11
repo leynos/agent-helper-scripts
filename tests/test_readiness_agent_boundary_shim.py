@@ -2360,6 +2360,20 @@ def test_a_permitting_scenario_cannot_carry_an_unusable_local_mode() -> None:
 PERMITTING = ("current-whole-plan", "proof-only-cleared", "combined-plan-and-proof")
 
 
+def _scenario_names() -> tuple[str, ...]:
+    """Return every scenario the fixture serves, in a stable order."""
+    return tuple(
+        path.parent.name
+        for path in sorted(FIXTURES.glob("scenarios/*/facts.json"))
+    )
+
+
+#: Every scenario, because the request text is a premise for a holding run as
+#: much as for a permitting one: a hold has to rest on the defect the case
+#: names, not on a question that contradicts itself.
+ALL_SCENARIOS = _scenario_names()
+
+
 def facts_with_bodies(facts: dict, mutate: object) -> dict:
     """Return `facts` with each discussion body passed through `mutate`."""
     changed = json.loads(json.dumps(facts))
@@ -2368,11 +2382,9 @@ def facts_with_bodies(facts: dict, mutate: object) -> dict:
     return changed
 
 
-@pytest.mark.parametrize("name", PERMITTING)
-def test_each_permitting_scenario_seeds_the_question_the_skill_posts(
-    name: str,
-) -> None:
-    """A permitting run may only clear a question the skill would actually send.
+@pytest.mark.parametrize("name", ALL_SCENARIOS)
+def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
+    """No run may be filed against a question the skill would not actually send.
 
     The seeded question is a premise rather than a recording, so it is the one
     part of the fixture that can be corrected. What it must not be is a
@@ -2382,6 +2394,15 @@ def test_each_permitting_scenario_seeds_the_question_the_skill_posts(
     evidence about a question nobody asked `—` and the recordings made from it
     would inherit that, because a recording is verbatim and cannot be edited
     afterwards.
+
+    Every scenario is checked, not only the permitting three. The runner applies
+    the probe to the runs it expects to transition, because for those a bad
+    question changes the verdict. A holding run is evidence too, and its
+    question has to be one the skill would send for the same reason: the six
+    holding `combined-*` cases all ask a proof question while their sibling
+    completeness request claimed no proof was affected, and a run reading both
+    held on that contradiction rather than on the defect the case exists to
+    demonstrate. The probe was right about that and simply never reached them.
     """
     facts = json.loads(
         (FIXTURES / "scenarios" / name / "facts.json").read_text(encoding="utf-8")

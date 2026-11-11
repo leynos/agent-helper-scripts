@@ -1,15 +1,18 @@
-@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — `refinement_sound`) is substantive, rigorous, and well-founded?
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean` — theorem `refinement_sound`) is substantive, rigorous, and well-founded?
 
 Published head: 7777dddd; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761 at this head), theorem `refinement_sound : ∀ (s : State), refine s = s → sound s`, discharged by `sound_of_refine s h`.
-Production correspondence: as stated by the approved plan `docs/execplans/issue-271-readiness-handoff.md` at rev-8; please check whether `State`, `refine`, and `sound` correspond to the shipped behaviour.
-Assumptions, trusted boundaries, domain, and bounds: the proof relies entirely on the lemma `sound_of_refine`, whose definition is not in this diff; please check it is not an axiom, `sorry`, or otherwise assumes the conclusion.
-Verifier evidence: hosted check `Makefile gates` (check run 7701) succeeded at this head; I have no separate Lean toolchain version or per-theorem output to cite, so treat verifier evidence as limited to that check.
-Non-vacuity and limitations: please confirm the hypothesis `refine s = s` is satisfiable for some reachable `State`. A prior clear verdict (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9996) echoed plan revision rev-7, which has been superseded by rev-8, so it does not cover the current candidate.
+Proof inventory and claims: `proofs/refinement/Theorem.lean` (blob c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761), theorem `refinement_sound : forall (s : State), refine s = s → sound s`, discharged by `intro s h; exact sound_of_refine s h`.
+Production correspondence: the theorem says that any state left unchanged by `refine` is `sound`. It constrains the refinement transition that this candidate ships under the approved plan `docs/execplans/issue-271-readiness-handoff.md`.
+Assumptions, trusted boundaries, domain, and bounds: the file declares no axioms or stubs. It depends on `State`, `refine`, `sound` and the lemma `sound_of_refine`, which are defined outside this file. Please check whether `sound_of_refine` carries the whole claim (that is, whether the theorem is just a restatement of it).
+Verifier evidence: the hosted `Makefile gates` check (run 7701) passed for this head. No Lean build log, toolchain version, command or per-obligation outcome is available, and none is claimed here.
+Non-vacuity and limitations: no witness, negative control or counterexample is recorded yet. Please treat that as an open gap, not as evidence.
 Plan revision: rev-8 (approved revision in force); plan file blob SHA at this head: e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8.
-Assessment-ID: 271-proof-rev8-7777dddd.
+Assessment-ID: 271-ab-combined-stale-plan-proof-rev8.
 
-Please echo the Assessment-ID, assessed base/head, and plan revision in your substantive reply; echo the plan revision only when this request names one.
+This renews the earlier proof assessment (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9995, answered in #issuecomment-9996). That verdict was given against plan revision rev-7, which rev-8 has since replaced, so it does not carry over even though the head has not changed.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.

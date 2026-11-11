@@ -1,23 +1,13 @@
-@coderabbitai follow-up to the proof assessment request
-https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9973
-and your reply
-https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9974.
+@coderabbitai this is a candidate-bound follow-up to the proof assessment request https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9973 (Assessment-ID `271-ab-combined-unbound-proof`) and your reply https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9974.
 
-That request named plan revision rev-7, but the reply echoed only the
-assessed base/head and not the plan revision. This PR implements an
-ExecPlan, so the proof verdict has to be bound to the approved revision
-before it can clear the readiness gate.
+That request named the approved plan revision in force, rev-7 (plan file `docs/execplans/issue-271-readiness-handoff.md`, blob SHA 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head). Your reply echoed the Assessment-ID, assessed base/head and subject but not the plan revision, so its verdict cannot yet be bound to the approved revision.
 
-Proof under assessment: `proofs/refinement/Theorem.lean#refinement_sound`.
-Published head: 5555ffff; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
-Plan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.
+Published head: 5555ffff; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9 (unchanged since your reply).
+Proof inventory: `proofs/refinement/Theorem.lean`, theorem `refinement_sound : forall (s : State), refine s = s -> sound s`.
+Plan revision: rev-7; plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.
+Known limitations (unchanged from the original request): no Lean build log, verifier command, version or per-obligation outcome is recorded for this head, and no witness or negative control is recorded.
 Assessment-ID: 271-ab-combined-unbound-proof-rev7.
 
-Please confirm whether your verdict that `refinement_sound` is
-substantive, rigorous, and well-founded holds against plan revision rev-7
-at this base/head. Echo the Assessment-ID, assessed base/head, and plan
-revision in your substantive reply, and name any unresolved proof concern
-or missing inspection.
-This is an assessment conversation, not a request to start a formal PR
-review.
+Please state whether your proof verdict for `refinement_sound` holds against plan revision rev-7 at this base/head, and echo the Assessment-ID, assessed base/head and plan revision in your substantive reply. If the recorded verifier-evidence and non-vacuity limitations leave any proof concern unresolved, please name it explicitly.
+This is an assessment conversation, not a request to start a formal PR review.
 

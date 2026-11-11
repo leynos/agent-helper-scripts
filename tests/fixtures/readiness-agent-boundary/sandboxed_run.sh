@@ -670,6 +670,22 @@ PROBE_PLAN
     fi
     ;;
 esac
+# The combined permitting run judges two subjects, so a recording of it is
+# evidence for the plan read only if it also read the proof. The README said it
+# read both routes while the trace read the plan alone: nothing asserted the
+# second read, so the claim drifted from the recording it described. A run that
+# assessed the proof from its request's inventory alone never looked at the
+# proof, and its clear verdict would rest on a paraphrase rather than the file.
+case $SCENARIO in
+  combined-plan-and-proof)
+    if ! grep -q 'contents/proofs/.*ref=' "$TRACE"; then
+      echo "abort: '$SCENARIO' cleared a proof it never read" >&2
+      rc=1
+    else
+      echo "outcome: proof read at the candidate head, before 'pr ready'"
+    fi
+    ;;
+esac
 # A refusing run whose whole purpose is the local gate must have read it too,
 # or its hold could be for an unrelated reason.
 case $SCENARIO in
@@ -903,16 +919,18 @@ PROBE_PREMISE
     fi
     ;;
 esac
-# A permitting run is evidence that the gate clears only if the questions it
-# cleared were the ones the skill posts. The seeded question is a premise, not
-# a recording: a fixture that seeds a request omitting the plan file's blob SHA
-# or carrying an unfilled placeholder rehearses a request the skill would not
-# send, and the run then clears a question nobody asked. This accepts a
-# permitting scenario only when every assessment question it seeds states the
-# fields the templates require.
-case $SCENARIO in
-  current-whole-plan | proof-only-cleared | combined-plan-and-proof)
-    if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_REQUESTS'
+# A run is evidence for a rule only if the questions it was given were the ones
+# the skill posts. The seeded question is a premise, not a recording: a fixture
+# that seeds a request omitting the plan file's blob SHA or carrying an
+# unfilled placeholder rehearses a request the skill would not send, and a run
+# that reached a verdict on it decided a question nobody asked.
+#
+# Every scenario is held to this, not only the permitting three. A hold is
+# evidence too, and a holding case whose two questions contradict each other
+# holds on the contradiction instead of on the defect it exists to demonstrate:
+# the six `combined-*` cases answered a proof question while their completeness
+# request claimed no proof was affected, and each is a premise this refuses.
+if ! python3 - "$ROOT/scenarios/$SCENARIO/facts.json" <<'PROBE_REQUESTS'
 import json, re, sys
 
 # The completeness template requires a plan revision carrying the plan file's
@@ -967,18 +985,24 @@ for body in completeness:
 for body in proofs:
     label = re.search(r"Assessment-ID:\s*([^\s.]+)", body)
     name = label.group(1) if label else "<unnamed>"
-    # The proof question is checked for the field this rule is about, not for
-    # the whole proof template. Requiring the full inventory here would change
-    # what the scenario asks: the seeded proof file states its theorem only by
-    # applying an undefined lemma, so a request that demands verifier evidence
-    # and non-vacuity makes a "clear" verdict indefensible. That is a real
-    # defect in the permitting proof fixture, but it is a different finding
-    # with its own recordings, and silently turning every proof scenario into a
-    # hold would be a worse fixture than the one this change is fixing.
+    # The proof template names five fields, and a request that omits them asks
+    # a narrower question than the skill asks: the verdict then covers a
+    # subject whose correspondence, trusted boundaries and non-vacuity were
+    # never put to it. The request states the limits it has rather than
+    # claiming evidence the fixture never records, so each field is owed.
     #
     # A proof-only candidate states no revision, and the template's own
     # `<omitted; ...>` form is the correct answer there. Requiring the blob
     # for it would make the no-ExecPlan case impossible to record.
+    for field in (
+        "Proof inventory and claims",
+        "Production correspondence",
+        "Assumptions, trusted boundaries, domain, and bounds",
+        "Verifier evidence",
+        "Non-vacuity and limitations",
+    ):
+        if not re.search(rf"{re.escape(field)}:\s*\S", body):
+            problems.append(f"{name} states no {field.lower()}")
     revision = re.search(r"Plan revision:\s*(\S+)", body)
     if revision and not revision.group(1).startswith("<omitted"):
         if not re.search(r"blob SHA at this head:\s*([0-9a-f]{40})", body):
@@ -989,12 +1013,10 @@ if problems:
     raise SystemExit(1)
 raise SystemExit(0)
 PROBE_REQUESTS
-    then
-      echo "abort: '$SCENARIO' seeds an assessment question the skill would not post" >&2
-      rc=1
-    fi
-    ;;
-esac
+then
+  echo "abort: '$SCENARIO' seeds an assessment question the skill would not post" >&2
+  rc=1
+fi
 ready_calls=$(grep -c '"pr", "ready"' "$TRACE" 2>/dev/null || true)
 if [ "$EXPECT_READY" = yes ] && [ "$ready_calls" -eq 0 ]; then
   echo "abort: '$SCENARIO' should mark the PR ready, but no 'pr ready' was issued" >&2

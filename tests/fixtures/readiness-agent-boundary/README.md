@@ -437,7 +437,14 @@ The gate assertions are specific rather than aggregate:
   never sends and the run would then clear a question nobody asked. The request
   probe requires the completeness fields the template names — revision, the
   plan file's blob SHA at that head, acceptance evidence and filled limitations
-  — and the blob beside any revision a proof request names.
+  — and, for a proof request, its inventory, correspondence, assumptions,
+  verifier evidence and non-vacuity fields, plus the blob beside any revision
+  it names. The proof fields state the limits the fixture actually has — it
+  records no Lean build log — rather than claiming evidence that was never
+  served.
+- The combined permitting run judges two subjects. It must read the proof as
+  well as the plan at the head it judges, or its clear proof verdict would rest
+  on the request's own inventory rather than on the file.
 
 The stand-in's own authorization is proved the same way. Before the agent
 starts, the runner posts a comment against a copy of the stand-in: with no
@@ -495,6 +502,11 @@ cannot be satisfied for the proof from its own reply; in the mismatch case the
 revision matches and the head does not. The permits case reads both `contents`
 routes, the plan and the proof, at the head it judges, because a combined
 assignment has two subjects to reconcile and one read would not cover both.
+That second read is asserted rather than described: earlier recordings read the
+plan alone while this paragraph claimed both, because nothing checked it. The
+proof request now states the template's inventory, correspondence, assumptions,
+verifier evidence and non-vacuity fields, and the run reads the proof to answer
+the question it was asked.
 
 **CodeScene, local half.** The local result is a **simulated** `cs`
 (`cs-shim.py`), not CodeScene. The real binary performs a licence check against
@@ -612,16 +624,40 @@ re-run and passed once the arm was corrected, and all seven recordings that
 were affected by the request change were redone from actual runs against the
 corrected runner.
 
-The seeded assessment requests are probed too. `PROBE_REQUESTS` reads each
-permitting scenario's `facts.json` and refuses a question the skill would not
-post: a completeness request must state the plan revision, a 40-hex blob SHA
-for the plan file at that head, `Acceptance evidence:` and a filled
+The seeded assessment requests are probed too. `PROBE_REQUESTS` reads a
+scenario's `facts.json` and refuses a question the skill would not post: a
+completeness request must state the plan revision, a 40-hex blob SHA for the
+plan file at that head, `Acceptance evidence:` and a filled
 `Known limitations:`, and must not claim no proof is affected in a run that
-also seeds a proof question; a proof request that names a revision must name
-the blob beside it, and one that names neither must carry the template's
-`<omitted; no ExecPlan applies>` line. The request text is a generated premise
-rather than a recording, which is why the fixtures were corrected and the
-recordings redone rather than the old request being preserved.
+also seeds a proof question; a proof request must state the template's five
+fields — inventory and claims, production correspondence, assumptions and
+bounds, verifier evidence, and non-vacuity and limitations — must name the blob
+beside any revision it names, and one that names no revision must carry the
+template's `<omitted; no ExecPlan applies>` form. The request text is a
+generated premise rather than a recording, which is why the fixtures were
+corrected and the recordings redone rather than the old request being preserved.
+
+Every scenario is held to that, not only the three the runner expects to
+transition. The runner applies the probe to a permitting run because a bad
+question changes its verdict; a holding run is evidence as well, and the six
+holding `combined-*` cases failed the same check. Each asks a proof question
+about `proofs/refinement/Theorem.lean` while its sibling completeness request
+said `Proof inventory: none affected`, so a run reading both faced two
+statements it could not both believe and held on that contradiction rather than
+on the stale, pending, unbound or mismatched verdict the case exists to
+demonstrate. The proof request was also a shorthand: it named the proof file
+and a revision, but none of the five fields the template requires, so the
+verdict it asked for covered a subject whose correspondence and limits were
+never put to it. Both are premise defects, fixed in `make_scenarios.py`; all
+six runs were then redone against the corrected premise and every recording
+replaced with what those runs produced.
+
+A premise and the recording made from it can now drift apart silently, which is
+what happened here: the generator was shared across scenarios, so completing
+one request rewrote nine premises while only the run being re-recorded was
+updated. `test_each_scenario_seeds_the_question_the_skill_posts` covers all
+sixteen, and the installed recordings were compared against the bodies their
+`facts.json` now serves before this was committed.
 
 Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
 unmodelled third variable, and that is why all nine original scenarios, not

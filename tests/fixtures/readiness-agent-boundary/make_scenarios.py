@@ -43,6 +43,15 @@ PLAN_BLOB_REV8 = "e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8"
 # The proof the two `proof-only-*` scenarios introduce. It is the subject of
 # their proof assessment, and the only changed file in those runs.
 PROOF_PATH = "proofs/refinement/Theorem.lean"
+# The inventory line for a candidate that changes this proof and asks a proof
+# question about it. Every `combined-*` scenario is one, so none of them may
+# say "none affected": that sentence and the sibling proof request state two
+# things the run cannot both believe, and a run reading both then holds on the
+# contradiction instead of on the rule the case exists to demonstrate.
+COMBINED_INVENTORY = (
+    "Proof inventory: `proofs/refinement/Theorem.lean` (`refinement_sound`),"
+    " covered by the separate proof assessment."
+)
 # The file an advisory finding names, and the code it names within it. A
 # finding about this candidate has to be about a change this candidate makes.
 FLAGGED_PATH = "skills/pr-babysitting/scripts/readiness_gate.py"
@@ -119,7 +128,9 @@ def request(
         The inventory line. It defaults to "none affected", which is true of
         every plan-only case and false of a candidate that changes a proof: a
         request that says otherwise contradicts the PR it is about, and a run
-        reading both cannot tell which statement to believe.
+        reading both cannot tell which statement to believe. Every
+        `combined-*` case therefore passes `COMBINED_INVENTORY` explicitly,
+        because each changes a proof and asks a proof question about it.
 
     Returns
     -------
@@ -213,6 +224,35 @@ def proof_request(
             "Repository: leynos/agent-helper-scripts",
             f"Pull request: {PR}",
             f"Assessed base/head: {BASE}...{head}",
+            (
+                "Proof inventory and claims: `proofs/refinement/Theorem.lean`,"
+                " theorem `refinement_sound : forall (s : State), refine s = s"
+                " -> sound s`, discharged by `sound_of_refine s h`."
+            ),
+            (
+                "Production correspondence: the theorem states that a state is"
+                " sound whenever refining it returns it unchanged; the"
+                " refinement transition it constrains is the implementation"
+                " this candidate ships."
+            ),
+            (
+                "Assumptions, trusted boundaries, domain, and bounds: the"
+                " candidate states no axioms, stubs or trusted boundaries of"
+                " its own beyond the names the file uses, and no tool, backend"
+                " or version is recorded for it in this fixture."
+            ),
+            (
+                "Verifier evidence: the hosted `Makefile gates` check is the"
+                " only verifier surface this fixture records for the head; no"
+                " Lean build log, command or per-obligation outcome is served,"
+                " and none is claimed here."
+            ),
+            (
+                "Non-vacuity and limitations: the fixture records no witness,"
+                " negative control or counterexample for the claim, and states"
+                " that limitation rather than presenting a finite example as an"
+                " unbounded proof."
+            ),
             (
                 f"Plan revision: {revision} (approved revision in force);"
                 f" plan file blob SHA at this head: {blob}."
@@ -1158,11 +1198,7 @@ scenario(Case(
                 "271-ab-combined",
                 "rev-7",
                 "3333dddd",
-                proof_inventory=(
-                    "Proof inventory: `proofs/refinement/Theorem.lean`"
-                    " (`refinement_sound`), covered by the separate proof"
-                    " assessment."
-                ),
+                proof_inventory=COMBINED_INVENTORY,
             ),
             "2026-11-08T09:00:00Z",
         ),
@@ -1229,7 +1265,9 @@ scenario(Case(
         comment(
             9981,
             "buzzybee-df12",
-            request("271-ab-combined-pending", "rev-7", "8888cccc"),
+            request("271-ab-combined-pending", "rev-7", "8888cccc",
+                proof_inventory=COMBINED_INVENTORY
+            ),
             "2026-11-08T11:00:00Z",
         ),
         # Completeness is clear for the whole plan at this head and the
@@ -1294,7 +1332,9 @@ scenario(Case(
         comment(
             9991,
             "buzzybee-df12",
-            request("271-ab-combined-stale-verdict", "rev-7", "9999dddd"),
+            request("271-ab-combined-stale-verdict", "rev-7", "9999dddd",
+                proof_inventory=COMBINED_INVENTORY
+            ),
             "2026-11-08T12:00:00Z",
         ),
         # Completeness is clear, current, and echoes the revision in force, so
@@ -1357,7 +1397,9 @@ scenario(Case(
         comment(
             9961,
             "buzzybee-df12",
-            request("271-ab-combined-stale", "rev-7", "4444eeee"),
+            request("271-ab-combined-stale", "rev-7", "4444eeee",
+                proof_inventory=COMBINED_INVENTORY
+            ),
             "2026-11-08T09:20:00Z",
         ),
         comment(
@@ -1449,7 +1491,11 @@ scenario(Case(
             9997,
             "buzzybee-df12",
             request(
-                "271-ab-combined-stale-plan", "rev-8", "7777dddd", blob=PLAN_BLOB_REV8
+                "271-ab-combined-stale-plan",
+                "rev-8",
+                "7777dddd",
+                blob=PLAN_BLOB_REV8,
+                proof_inventory=COMBINED_INVENTORY,
             ),
             "2026-11-08T13:00:00Z",
         ),
@@ -1489,7 +1535,9 @@ scenario(Case(
         comment(
             9971,
             "buzzybee-df12",
-            request("271-ab-combined-unbound", "rev-7", "5555ffff"),
+            request("271-ab-combined-unbound", "rev-7", "5555ffff",
+                proof_inventory=COMBINED_INVENTORY
+            ),
             "2026-11-08T09:40:00Z",
         ),
         comment(
@@ -1552,7 +1600,9 @@ scenario(Case(
         comment(
             9981,
             "buzzybee-df12",
-            request("271-ab-combined-mismatch", "rev-7", "6666aaaa"),
+            request("271-ab-combined-mismatch", "rev-7", "6666aaaa",
+                proof_inventory=COMBINED_INVENTORY
+            ),
             "2026-11-08T10:00:00Z",
         ),
         comment(
