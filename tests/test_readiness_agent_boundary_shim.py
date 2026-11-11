@@ -3813,28 +3813,63 @@ def handoff_outcome(**overrides: object) -> str:
     return "\n".join(lines)
 
 
-def handoff_run(tmp_path: Path, outcome: str, opens: tuple[str, ...] = ()) -> Path:
-    """Write one crossing run's skill, outcome and event stream."""
+CLASSIFYING_CALL = {
+    "type": "assistant",
+    "message": {
+        "content": [
+            {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {"command": "python3 classify.py --readiness"},
+            }
+        ]
+    },
+}
+
+
+def tool_call(name: str, payload: dict) -> dict:
+    """Return one assistant event carrying a single tool call."""
+    return {
+        "type": "assistant",
+        "message": {
+            "content": [{"type": "tool_use", "name": name, "input": payload}]
+        },
+    }
+
+
+def handoff_run(
+    tmp_path: Path,
+    outcome: str,
+    opens: tuple[str, ...] = (),
+    trace: list[object] | None = None,
+    decide: bool = True,
+) -> Path:
+    """Write one crossing run's skill, outcome, event stream and trace.
+
+    `opens` are calls that read a skill's manifest. A classifying call follows
+    them, so a run has a tool call that is not the transition and the decision
+    check has something to be wrong about, and, when `decide` is set, the run
+    ends by running the transition. `trace` is the stand-in's record of what
+    `gh` actually ran, which is what the decision has to match.
+    """
     skill = tmp_path / "SKILL.md"
     shutil.copy2(IMPLEMENTATION_SKILL, skill)
     message = tmp_path / "outcome.txt"
     message.write_text(outcome + "\n", encoding="utf-8")
     events = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "Read",
-                        "input": {"file_path": f"/run/work/{name}"},
-                    }
-                ]
-            },
-        }
-        for name in opens
+        tool_call("Read", {"file_path": f"/run/work/{name}"}) for name in opens
     ]
+    if events:
+        events.append(CLASSIFYING_CALL)
+    if decide:
+        events.append(
+            tool_call(
+                "Bash",
+                {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"},
+            )
+        )
     write_lines(tmp_path / "events.jsonl", events)
+    write_lines(tmp_path / "trace.jsonl", trace or [])
     return tmp_path
 
 
@@ -3849,12 +3884,14 @@ def test_the_handoff_probe_accepts_a_run_that_crossed(tmp_path: Path) -> None:
         tmp_path,
         handoff_outcome(),
         opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+        trace=[READY_INVOCATION],
     )
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode == 0, done.stdout + done.stderr
     assert "10 shipped fields" in done.stdout, done.stdout
@@ -3869,12 +3906,18 @@ def test_the_handoff_probe_refuses_a_run_that_never_opened_the_sender(
     check would accept it as a crossing. The event stream is what separates
     them.
     """
-    run = handoff_run(tmp_path, handoff_outcome(), opens=("pr-babysitting/SKILL.md",))
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("pr-babysitting/SKILL.md",),
+        decide=False,
+    )
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "never opened sdlc-implementation" in done.stderr, done.stderr
@@ -3901,6 +3944,7 @@ def test_the_handoff_probe_refuses_a_packet_missing_a_shipped_field(
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "Proof-specific assessment" in done.stderr, done.stderr
@@ -3930,6 +3974,7 @@ def test_the_handoff_probe_refuses_a_completeness_line_without_the_subject(
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "whole approved plan" in done.stderr, done.stderr
@@ -3956,6 +4001,7 @@ def test_the_handoff_probe_refuses_a_packet_printed_after_the_decision(
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "no decision after the packet" in done.stderr, done.stderr
@@ -3976,7 +4022,7 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened
     # supposed to inform. A run that merely failed to open the sender would be
     # refused by the coverage check instead, and this case would pass without
     # testing the ordering it is named for.
-    run = handoff_run(tmp_path, handoff_outcome())
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
     events = [
         {
             "type": "assistant",
@@ -3984,8 +4030,8 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened
                 "content": [
                     {
                         "type": "tool_use",
-                        "name": "Read",
-                        "input": {"file_path": "/run/work/pr-babysitting/SKILL.md"},
+                        "name": "Bash",
+                        "input": {"command": "gh pr ready 272 --repo r"},
                     }
                 ]
             },
@@ -3996,8 +4042,8 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened
                 "content": [
                     {
                         "type": "tool_use",
-                        "name": "Bash",
-                        "input": {"command": "gh pr ready 272 --repo r"},
+                        "name": "Read",
+                        "input": {"file_path": "/run/work/pr-babysitting/SKILL.md"},
                     }
                 ]
             },
@@ -4021,9 +4067,105 @@ def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "decided before opening sdlc-implementation" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_decision_taken_before_the_receiver_was_opened(
+    tmp_path: Path,
+) -> None:
+    """The readiness rules have to be read before the transition is taken.
+
+    A run may explore the receiver early, so the two opens are not ordered
+    against each other. The decision is what orders them: a transition issued
+    before `pr-babysitting` was opened was not taken under the rules it
+    carries, even though the sender's packet was read first.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        tool_call("Read", {"file_path": "/run/work/sdlc-implementation/SKILL.md"}),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+        tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
+    ]
+    write_lines(run / "events.jsonl", events)
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "decided before opening pr-babysitting" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_takes_a_mention_of_the_command_as_no_decision(
+    tmp_path: Path,
+) -> None:
+    """A ledger line describing a command the run declined is not that command.
+
+    A refusing run records its decision in prose: "do not run gh pr ready; PR
+    stays draft". When the decision was found by searching the event stream for
+    that text, the record was read as the invocation, and the ordering check
+    then compared the skills against a transition that never happened. The
+    stand-in's trace is what distinguishes the two.
+    """
+    # The quoted command is spelled exactly as a run would issue it, so a
+    # check that searched the event stream's text would find the invocation
+    # here. Only the stand-in's trace shows that nothing ran.
+    ledger = (
+        "mkdir -p ~/.local/state/pr272 && cat > ~/.local/state/pr272/ledger.md"
+        " <<'EOF'\nDecision: do not run gh pr ready 272 --repo"
+        " leynos/agent-helper-scripts; PR stays draft.\nEOF"
+    )
+    run = handoff_run(tmp_path, handoff_outcome(), decide=False)
+    events = [
+        tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
+        tool_call("Bash", {"command": ledger}),
+        tool_call("Read", {"file_path": "/run/work/sdlc-implementation/SKILL.md"}),
+    ]
+    write_lines(run / "events.jsonl", events)
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+    )
+    # The sender is read after the line that mentions the command, so a probe
+    # that mistook the mention for the transition would refuse this run.
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_handoff_probe_refuses_a_trace_transition_no_call_ran(
+    tmp_path: Path,
+) -> None:
+    """The trace and the event stream have to describe the same run.
+
+    A trace recording a transition that no tool call in the event stream ran is
+    either a mismatched artefact pair or a run whose calls were not recorded;
+    in both cases the ordering evidence is missing, not satisfied.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+        trace=[READY_INVOCATION],
+        decide=False,
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "no tool call in the event stream ran" in done.stderr, done.stderr
 
 
 def test_the_handoff_probe_requires_the_receiver_to_be_opened_too(
@@ -4040,12 +4182,14 @@ def test_the_handoff_probe_requires_the_receiver_to_be_opened_too(
         tmp_path,
         handoff_outcome(),
         opens=("sdlc-implementation/SKILL.md",),
+        trace=[READY_INVOCATION],
     )
     done = run_probe(
         "PROBE_HANDOFF",
         str(run / "SKILL.md"),
         str(run / "outcome.txt"),
         str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
     )
     assert done.returncode != 0
     assert "never opened pr-babysitting" in done.stderr, done.stderr

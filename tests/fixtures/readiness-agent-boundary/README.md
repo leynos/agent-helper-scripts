@@ -91,13 +91,21 @@ and `subset-clear` — same head, same discussion, same checks — with
 `start_skill` set so the run begins at the sender. The crossing is the only
 difference, so a divergence in outcome is attributable to it.
 
-The runner enforces three things about such a run, because reaching the right
+The runner enforces four things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:
 
-- It opened `sdlc-implementation/SKILL.md`, opened `pr-babysitting/SKILL.md`,
-  and did not decide before opening the sender. A `cd <skill>; cat SKILL.md`
-  counts as an open, which is the form a real run used; matching only the
-  joined path missed it and failed a run that had in fact crossed.
+- It opened `sdlc-implementation/SKILL.md` and `pr-babysitting/SKILL.md`. A
+  `cd <skill>; cat SKILL.md` counts as an open, which is the form a real run
+  used; matching only the joined path missed it and failed a run that had in
+  fact crossed.
+- It did not decide before opening either skill. The two opens are not ordered
+  against each other, because an agent may explore either file first without
+  that meaning anything was carried. The decision is what orders them, and it
+  is found through the stand-in's trace: a call is a `gh pr ready` only when
+  the trace recorded that invocation. A ledger entry that describes the command
+  it declined to run is not the command — the first version of this check
+  searched the event stream for the text, and the subset run's own "do not run
+  gh pr ready" line would have been read as its transition.
 - Its final message carries a `HANDOFF PACKET` block whose fields are the ones
   the candidate's own skill states, in that order. The labels are read from the
   staged `sdlc-implementation`, so a packet that dropped or reordered a line is
@@ -106,6 +114,9 @@ readiness decision is exactly what a receiver-only run already does:
   whole approved plan. That line is what the subset case turns on: if the
   packet stopped stating it, the subset run would hold for a reason its own
   handoff no longer gave.
+
+Every condition is mutation-checked: a test withdraws the behaviour the probe
+relies on, and the probe has to fail for the named reason.
 
 That last condition is why the packet is checked for content and not merely for
 presence. It is also why the two cases reuse recorded evidence rather than

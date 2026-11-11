@@ -1635,10 +1635,10 @@ echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
 # leave the receiver holding a subset for a reason its own handoff no longer
 # stated.
 if [ "$START_SKILL" = sdlc-implementation ]; then
-  if ! python3 - "$RUN/work/sdlc-implementation/SKILL.md" "$OUTCOME" "$EVENTS" <<'PROBE_HANDOFF'
+  if ! python3 - "$RUN/work/sdlc-implementation/SKILL.md" "$OUTCOME" "$EVENTS" "$TRACE" <<'PROBE_HANDOFF'
 import json, re, sys
 
-skill_path, outcome_path, events_path = sys.argv[1:4]
+skill_path, outcome_path, events_path, trace_path = sys.argv[1:5]
 skill = open(skill_path, encoding="utf-8").read()
 try:
     outcome = open(outcome_path, encoding="utf-8").read()
@@ -1701,30 +1701,84 @@ def first_opened(skill):
             return index
     return None
 
-def first_call(marker):
-    """Return the index of the first tool call whose input names `marker`."""
+# The transition is what the handoff is for, so the decision is the call that
+# ran `gh pr ready`, not the first call whose text mentions it. A ledger entry
+# may quote the command it declined to run ("Decision: do not run gh pr
+# ready; PR stays draft"), and a text search cannot tell that record from the
+# invocation. The stand-in's trace is the record of what ran, so a mention is
+# a decision only when the trace recorded a `pr ready` invocation at all, and
+# the call that carries it is the one whose words contain `pr ready` as the
+# adjacent pair a command line would have.
+def recorded_ready_calls():
+    """Return the `pr ready` argument vectors the stand-in's trace recorded."""
+    try:
+        trace = open(trace_path, encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    recorded = []
+    for line in trace:
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        argv = entry.get("argv") if isinstance(entry, dict) else entry
+        if isinstance(argv, list) and [str(p) for p in argv[:2]] == ["pr", "ready"]:
+            recorded.append([str(part) for part in argv])
+    return recorded
+
+def ready_position():
+    """Return the index of the first call that ran a recorded `gh pr ready`.
+
+    The trace decides whether a transition happened; the event stream decides
+    where in the run it was issued. Both are needed: the trace alone cannot
+    say that the call came after the skills were read, and the text alone
+    cannot say that the command ran rather than being described.
+    """
+    if not recorded_ready_calls():
+        return None
     for index, payload in enumerate(tool_inputs()):
-        if marker in json.dumps(payload):
+        words = json.dumps(payload).split()
+        if any(
+            words[position] == "pr" and words[position + 1] == "ready"
+            for position in range(len(words) - 1)
+        ):
             return index
     return None
 
 sender = first_opened("sdlc-implementation")
 receiver = first_opened("pr-babysitting")
-decision = first_call("pr ready")
+decision = ready_position()
 problems = []
 if sender is None:
     problems.append("the run never opened sdlc-implementation/SKILL.md")
 if receiver is None:
     problems.append("the run never opened pr-babysitting/SKILL.md")
 # The lifecycle order this checks is the one the skills state: the handoff is
-# produced before delivery is carried. An exploration call may mention the
-# receiver first without that meaning anything was carried, so the two opens
-# are not ordered against each other; the sender is ordered against the
-# decision it is supposed to inform.
+# produced before delivery is carried, and the readiness rules are read before
+# a readiness transition is taken. An exploration call may mention either skill
+# first without that meaning anything was carried, so the two opens are not
+# ordered against each other; each is ordered against the decision it is
+# supposed to inform.
 if sender is not None and decision is not None and sender > decision:
     problems.append(
         "the run decided before opening sdlc-implementation, so the packet"
         " cannot have informed the transition"
+    )
+# The receiver is ordered against the decision for the same reason the sender
+# is: a transition issued before the readiness rules were read was not taken
+# under them. Checking only the sender would accept a run that decided
+# between the two opens.
+if receiver is not None and decision is not None and receiver > decision:
+    problems.append(
+        "the run decided before opening pr-babysitting, so the readiness"
+        " rules cannot have informed the transition"
+    )
+if decision is None and recorded_ready_calls():
+    problems.append(
+        "the stand-in recorded a 'pr ready' call that no tool call in the"
+        " event stream ran"
     )
 
 # The packet is a titled block in the message. Titles and fields may be
