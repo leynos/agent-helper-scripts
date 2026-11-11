@@ -353,6 +353,11 @@ uv run --script ../agent-helper-scripts/scripts/vendor_tagged_guides_cli.py \
     --map users-guide.md=cuprum-users-guide.md
 ```
 
+The `--source` directory is read as it stands: the converter does not check
+that the checkout is at `--tag`. Check out the upstream repository at the tag
+being vendored before running the command, and check out the new tag before
+rerunning it to refresh the guide.
+
 The script pins relative links outside protected regions to the tag, rewrites
 links between the guides being vendored into local links, and inserts a
 provenance note that must not be edited by hand. The note is exactly this text,

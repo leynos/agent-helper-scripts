@@ -256,11 +256,13 @@ def vendor(
             # An interruption must stay an interruption. Replacing it with a
             # VendorError would make the CLI report status 1 as if the run had
             # merely been refused, so only an ordinary exception is converted.
-            if isinstance(error, Exception):
-                fail(
-                    f"{summary}; original failure: "
-                    f"{type(error).__name__}: {error}"
-                )
-            error.add_note(summary)
+            match error:
+                case Exception():
+                    fail(
+                        f"{summary}; original failure: "
+                        f"{type(error).__name__}: {error}"
+                    )
+                case _:
+                    error.add_note(summary)
         raise
     return tuple(written)

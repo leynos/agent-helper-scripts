@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -113,7 +114,9 @@ def test_the_command_line_reports_a_formatter_that_exits_non_zero(
     )
     previous = output / "vendored.md"
     previous.write_text("previous\n", encoding="utf-8", newline="\n")
-    formatter = f"{sys.executable} -c 'import sys; sys.exit(3)'"
+    formatter = shlex.join(
+        (sys.executable, "-c", "import sys; sys.exit(3)")
+    )
 
     result = run_cli(
         "--tag",

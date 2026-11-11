@@ -100,10 +100,12 @@ The exact note text is quoted in the
 The note is the file's provenance record, and the rest of the file is
 generated. Do not edit the note, the imported text, its links, or any Markdown
 lint exemption by hand: all of them are script output, and a hand edit is lost
-the next time the script runs. To move to a newer upstream revision, rerun the
-same command with the new `--tag`; do not patch the vendored file. Regenerate
-from the upstream checkout rather than from the vendored copy, because the
-script refuses a file that already carries the note.
+the next time the script runs. To move to a newer upstream revision, check out
+the upstream repository at the new tag and rerun the same command with that
+`--tag`; do not patch the vendored file. The converter does not verify that the
+`--source` checkout matches `--tag`, so the checkout is the caller's
+responsibility. Regenerate from the upstream checkout rather than from the
+vendored copy, because the script refuses a file that already carries the note.
 
 ## Catalogue
 

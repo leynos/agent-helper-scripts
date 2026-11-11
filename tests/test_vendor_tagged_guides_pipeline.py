@@ -58,7 +58,10 @@ def test_the_configured_line_limits_control_exemptions(
 
     written = vendor.vendor(config)
 
-    assert "markdownlint-disable MD013" in written[0].read_text(), written
+    assert (
+        "markdownlint-disable MD013"
+        in written[0].read_text(encoding="utf-8")
+    ), written
 
 
 def drifting_format(paths: Sequence[Path]) -> None:
@@ -80,7 +83,7 @@ def test_a_failed_formatting_run_restores_previous_outputs(
     with pytest.raises(vendor.VendorError, match="did not reach a fixed point"):
         vendor.vendor(built.config, format_files=drifting_format)
 
-    assert kept.read_text() == "previous contents\n", kept
+    assert kept.read_text(encoding="utf-8") == "previous contents\n", kept
     assert not absent.exists(), absent
 
 
@@ -194,7 +197,7 @@ def test_an_output_symlink_to_an_existing_file_is_refused_before_writing(
         vendor.vendor(built.config)
 
     assert link.is_symlink(), link
-    assert target.read_text() == "keep me\n", target
+    assert target.read_text(encoding="utf-8") == "keep me\n", target
 
 
 def test_an_output_inspection_failure_is_reported_and_writes_nothing(
@@ -253,7 +256,7 @@ def test_a_previous_output_read_failure_is_reported_and_writes_nothing(
     with pytest.raises(vendor.VendorError, match="cannot inspect or read"):
         vendor.vendor(built.config, filesystem=UnreadableBytesFileSystem())
 
-    assert kept.read_text() == "previous\n", kept
+    assert kept.read_text(encoding="utf-8") == "previous\n", kept
     assert not (built.consumer / "cuprum-v0-2-0-migration-guide.md").exists()
 
 
@@ -297,7 +300,7 @@ def test_a_failed_restore_is_reported_and_the_remaining_outputs_are_restored(
     assert "could not restore previous output" in message, message
     assert str(first) in message, message
     assert "original failure: VendorError" in message, message
-    assert second.read_text() == "second previous\n", second
+    assert second.read_text(encoding="utf-8") == "second previous\n", second
 
 
 def test_an_interruption_is_reraised_when_a_restore_fails(
@@ -325,7 +328,7 @@ def test_an_interruption_is_reraised_when_a_restore_fails(
     assert any(
         "could not restore previous output" in note for note in notes
     ), notes
-    assert second.read_text() == "second previous\n", second
+    assert second.read_text(encoding="utf-8") == "second previous\n", second
 
 
 def test_a_later_mapping_without_a_heading_writes_nothing(

@@ -305,7 +305,8 @@ def _reconstruct(
         if index in starts:
             end = starts[index]
             inner = lines[index + 1 : end]
-            assert inner[:1] == [""] and inner[-1:] == [""], lines
+            assert inner[:1] == [""], lines
+            assert inner[-1:] == [""], lines
             rebuilt.extend(inner[1:-1])
             index = end + 1
             continue
