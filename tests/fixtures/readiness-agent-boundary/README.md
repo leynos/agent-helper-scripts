@@ -47,6 +47,7 @@ both serve the text a run reads at its own head.
 | `combined-proof-stale-revision`      | `4444eeee` | clear verdict, but records `rev-7` while the plan file reads `rev-8`         | clear verdict, same stale `rev-7`                  | no            |
 | `combined-proof-unbound-revision`    | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
 | `combined-proof-candidate-mismatch`  | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
+| `posted-then-answered`               | `eeee6666` | none seeded; the run posts the question and a scripted reply answers it      | none                                               | yes           |
 
 `codescene-advisory` isolates the CodeScene gate from every other reason to
 hold: the whole approved plan has cleared at the revision in force, and all
@@ -574,39 +575,58 @@ candidate in a real worktree, reported in the PR's validation evidence. A live
 run is the only place the genuine result exists, and a stand-in that fabricated
 one would be recording an answer no service produced.
 
-**A run that posts cannot then be answered.** The stand-in accepts a POST and
-serves it back on its own route and in the comment listing, but it is a
-recording, not a service: nothing it holds replies to a comment the run itself
-posted. Its only assessment-bot comments are the ones the facts record, and
+**A run that posts cannot then be answered, unless the scenario scripts it.**
+The stand-in accepts a POST and serves it back on its own route and in the
+comment listing. On its own it never replies to a comment the run itself
+posted: its only assessment-bot comments are the ones the facts record, and
 they answer the Assessment-IDs those facts name. A permitting run therefore
-cannot both post and receive a clear reply, which is why no permitting
-recording has a `submitted/` entry from a post it made in that run. Two probes
-of the stand-in show the bound directly: a `-f body=…` POST returns
-`…/pull/272#issuecomment-9901`, and the next listing carries it as
-`fixture-commenter` at a stamp one minute after the thread, while the only
-`coderabbitai[bot]` entries are the pre-recorded `9952` and `9954`.
+cannot both post and receive a clear reply, which is why most permitting
+recordings have no `submitted/` entry from a post made in that run.
 
-Six recordings post a comment, and `submitted/` is the complete list of them:
-`combined-proof-candidate-mismatch`, `combined-proof-stale-plan-revision`,
+`posted-then-answered` is the one case that does. Its facts carry a
+`scripted_replies` map keyed by question kind (`completeness` or `proof`). When
+the run posts a tagged request naming an Assessment-ID, the stand-in answers by
+that kind, echoes the marker the run minted, stamps the answer after its
+request, adds it to the discussion, and serves it on its own comment route. The
+answer's text opens with
+`gh-stand-in: scripted reply for rehearsal; not a CodeRabbit answer`
+(`SCRIPTED_PREFIX`), so the recording says in its own words what answered it
+and no reader has to consult this file. The runner refuses a scripted reply
+lacking that line, and refuses a scripted scenario whose run posted nothing or
+was served nothing.
+
+The scenario seeds no question of its own. Seeding one would answer a request
+the run never made and make the case a duplicate of the recorded ones, so
+`PROBE_REQUESTS` exempts a scenario only when its facts carry a script and no
+question; the exemption is tied to the script rather than to the scenario name,
+so it cannot be borrowed to excuse an ordinary case that forgot its premise.
+
+Six further recordings post a comment, and `submitted/` is the complete list of
+them: `combined-proof-candidate-mismatch`, `combined-proof-stale-plan-revision`,
 `combined-proof-stale-revision`, `combined-proof-stale-verdict`,
 `combined-proof-unbound-revision` and `superseded-revision`. Each renews or
 challenges an assessment whose verdict does not bind, and each has a
 `submitted/` body for the request it posted; the hold that follows is the
 correct answer to an unanswered request, not a defect. None of the six shows
-the agent clearing a gate on a reply to a post the run made — in every
-permitting recording the reply was already in the discussion when the run
+the agent clearing a gate on a reply to a post the run made — in those
+permitting recordings the reply was already in the discussion when the run
 started.
 
-Closing that would take a stand-in that answers a posted request by
-Assessment-ID, which is a service behaviour no recording here claims to
-reproduce. The deterministic suites cover the sequencing it would exercise:
+The deterministic suites cover the same sequencing against doubles, for the
+shapes a single run does not exercise:
 `test_a_reply_arriving_between_invocations_still_clears_the_question` runs the
 sequence, takes its posted questions, appends replies echoing those markers,
-and shows the second invocation transitioning without re-posting. That is the
-post-then-clear path the stand-in cannot serve, checked against doubles rather
-than against a reply no service produced.
+and shows the second invocation transitioning without re-posting.
 
-**Freshness of each recording.** All sixteen recordings passed their own
+**What the scripted reply is not.** It is not a CodeRabbit verdict, and its
+recording is not evidence that the service would answer a posted question
+favourably, or at all. What `posted-then-answered` establishes is narrower and
+is what the finding against this harness asked for: that the agent, when it
+posts the question itself, finds the answer in the discussion it polls,
+correlates it by the marker it minted, and clears the gate on that correlation
+rather than on the act of posting.
+
+**Freshness of each recording.** All seventeen recordings passed their own
 outcome assertion when they were made. They were replaced when the runner
 gained the shared `pr-ready` boundary line, the successful read-back check, the
 candidate-bound plan read and the head-commit route, and when the assignment
@@ -680,7 +700,7 @@ text is a generated premise rather than a recording, which is why the fixtures
 were corrected and the recordings redone rather than the old request being
 preserved.
 
-Every scenario is held to that, not only the three the runner expects to
+Every scenario is held to that, not only the four the runner expects to
 transition. The runner applies the probe to a permitting run because a bad
 question changes its verdict; a holding run is evidence as well, and the six
 holding `combined-*` cases failed the same check. Each asks a proof question
@@ -698,9 +718,10 @@ replaced with what those runs produced.
 A premise and the recording made from it can now drift apart silently, which is
 what happened here: the generator was shared across scenarios, so completing
 one request rewrote nine premises while only the run being re-recorded was
-updated. `test_each_scenario_seeds_the_question_the_skill_posts` covers all
-sixteen, and the installed recordings were compared against the bodies their
-`facts.json` now serves before this was committed.
+updated. `test_each_scenario_seeds_the_question_the_skill_posts` covers every
+scenario that seeds one, which is all of them but `posted-then-answered`, and
+the installed recordings were compared against the bodies their `facts.json`
+now serves before this was committed.
 
 Earlier still, the stand-in's own "not a CodeScene analysis" disclosure was an
 unmodelled third variable, and that is why all nine original scenarios, not
@@ -732,13 +753,14 @@ completeness assessment instead of deciding the proof one.
 
 ## Recorded artefacts contain no live mutations
 
-The traces show reads, `pr ready` in the three permitting scenarios, and POSTs
-in the runs that renew an assessment, all against the stand-in. No trace
-contains a merge or a review request. Nothing here was captured from a live PR,
-no real CodeScene command was run, and no credential appears in any file: the
-only token any run could reach is the fixture token, which real GitHub rejects.
-Every posted body names the plan revision and the base/head it was posted for,
-and carries no credential.
+The traces show reads, `pr ready` in the four permitting scenarios, and POSTs
+in the runs that renew an assessment or post the one question a scripted case
+answers, all against the stand-in. No trace contains a merge or a review
+request. Nothing here was captured from a live PR, no real CodeScene command
+was run, and no credential appears in any file: the only token any run could
+reach is the fixture token, which real GitHub rejects. Every posted body names
+the plan revision and the base/head it was posted for, and carries no
+credential.
 
 ## Refreshing
 

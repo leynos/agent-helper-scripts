@@ -1860,16 +1860,38 @@ PROOF_TEXT = (
 #: it is not a read of the proof the assessment is about.
 PROOF_HEADER = "theorem refinement_sound :\n"
 
-#: The `Known limitations:` placeholder exactly as `execplan-assessment.md`
-#: prints it. A shorter fragment is not a substring of this text, which is how
-#: an earlier control came to pass on a request that carried the whole
-#: unfilled template: it searched for `<evidential limits only>` alone, and
-#: the template continues past that phrase. The control substitutes this, so
-#: it exercises the placeholder a real run would actually leave in place.
-LIMITATIONS_PLACEHOLDER = (
-    "<evidential limits only: checks not run, inspection not possible,"
-    " proof bounds; not unimplemented plan milestones>."
+#: The shipped assessment template, read rather than copied. Every placeholder
+#: the controls use is extracted from this text, so a template edit reaches the
+#: controls instead of leaving them asserting against a wording the skill no
+#: longer sends. An earlier revision hard-coded the strings and drifted: it
+#: checked `<evidential limits only>`, a fragment the template's own line does
+#: not contain, so a request carrying the whole unfilled template passed.
+TEMPLATE = (
+    FIXTURES.parent.parent.parent / "skills" / "pr-babysitting" / "references"
+    / "execplan-assessment.md"
 )
+
+
+def template_field(label: str) -> str:
+    """Return the value the shipped template gives one labelled field.
+
+    The field runs to the end of its line. A template that stops naming the
+    field raises here rather than letting a control substitute an empty string
+    that the probe would accept, which is the drift this extraction prevents.
+    """
+    stated = re.search(rf"^{re.escape(label)}:[^\n]*", TEMPLATE.read_text(encoding="utf-8"), re.MULTILINE)
+    assert stated, f"the shipped template no longer names {label!r}"
+    return stated.group(0).removeprefix(f"{label}:").strip()
+
+
+#: The `Known limitations:` placeholder exactly as the shipped template prints
+#: it. A shorter fragment is not a substring of this text, which is how an
+#: earlier control came to pass on a request that carried the whole unfilled
+#: template: it searched for `<evidential limits only>` alone, and the template
+#: continues past that phrase. The control substitutes the extracted value, so
+#: it exercises the placeholder a real run would actually leave in place.
+LIMITATIONS_PLACEHOLDER = template_field("Known limitations")
+
 
 
 @pytest.fixture
@@ -3005,7 +3027,9 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
         (
             "subject",
             lambda body: re.sub(
-                r"Assessed subject:[^\n]*", "Assessed subject: <the whole approved plan>.", body
+                r"Assessed subject:[^\n]*",
+                "Assessed subject: " + template_field("Assessed subject"),
+                body,
             ),
             "leaves the subject placeholder unfilled",
         ),
@@ -3018,7 +3042,7 @@ def test_each_scenario_seeds_the_question_the_skill_posts(name: str) -> None:
             "acceptance-placeholder",
             lambda body: re.sub(
                 r"Acceptance evidence:[^\n]*",
-                "Acceptance evidence: <commands, results, and evidence links>.",
+                "Acceptance evidence: " + template_field("Acceptance evidence"),
                 body,
             ),
             "leaves the acceptance placeholder unfilled",
@@ -3106,16 +3130,19 @@ def test_the_request_probe_refuses_a_question_missing_a_required_field(
     assert expected in done.stderr, done.stderr
 
 
-#: Each proof-template field with its placeholder exactly as
-#: `execplan-assessment.md` prints it. The probe is checked against these
-#: texts rather than against a shortened form, because a fragment that is not
-#: a substring of the template cannot be left in place by a real run.
-PROOF_PLACEHOLDERS = (
-    ("inventory", "Proof inventory and claims", "<paths, qualified names, and propositions>."),
-    ("correspondence", "Production correspondence", "<implementation paths and relevant requirements>."),
-    ("assumptions", "Assumptions, trusted boundaries, domain, and bounds", "<specific evidence>."),
-    ("verifier", "Verifier evidence", "<versions, commands, configuration, and per-proof outcomes>."),
-    ("non-vacuity", "Non-vacuity and limitations", "<witnesses, negative controls, and residual gaps>."),
+#: Each proof-template field with the placeholder the shipped template prints
+#: for it. Both halves are extracted rather than copied: a template edit that
+#: rewords a placeholder or renames a field then changes these controls, and
+#: a control cannot pass by asserting against a wording nothing sends.
+PROOF_PLACEHOLDERS = tuple(
+    (slug, field, template_field(field))
+    for slug, field in (
+        ("inventory", "Proof inventory and claims"),
+        ("correspondence", "Production correspondence"),
+        ("assumptions", "Assumptions, trusted boundaries, domain, and bounds"),
+        ("verifier", "Verifier evidence"),
+        ("non-vacuity", "Non-vacuity and limitations"),
+    )
 )
 
 
@@ -3155,6 +3182,43 @@ def test_each_proof_field_placeholder_is_refused_on_its_own(
         f"the {slug} placeholder was accepted as a stated value"
     )
     assert f"leaves the {field.lower()} placeholder unfilled" in done.stderr, done.stderr
+
+
+def test_the_controls_hold_the_placeholders_the_template_actually_prints() -> None:
+    """The controls and the template cannot drift apart.
+
+    Every other case here substitutes a placeholder this module extracted from
+    `execplan-assessment.md`, so those cases follow the template wherever it
+    goes. This one pins the extraction itself: it requires each extracted value
+    to be the angle-bracketed form the probe refuses, so a template edit that
+    drops the brackets, empties a field or renames a label fails here by name
+    instead of quietly making a control substitute a value that proves nothing.
+
+    The template opening is checked separately. It carries
+    `<proof file paths with named proof references>` in its first line, and a
+    request that pasted the template through would leave that one unfilled too;
+    it is not a labelled field, so `template_field` cannot reach it.
+    """
+    text = TEMPLATE.read_text(encoding="utf-8")
+    assert "@coderabbitai please assess the implementation" in text
+    assert "<proof file paths with named proof references>" in text
+    for label in (
+        "Assessed subject",
+        "Acceptance evidence",
+        "Known limitations",
+        *(
+            field
+            for _, field, _ in PROOF_PLACEHOLDERS
+        ),
+    ):
+        value = template_field(label)
+        # The template writes a full stop after the closing bracket, which is
+        # the same trailing punctuation the probe strips before deciding.
+        bracketed = value.removesuffix(".").rstrip()
+        assert bracketed.startswith("<") and bracketed.endswith(">"), (
+            f"the template's {label!r} value is no longer a placeholder:"
+            f" {value!r}"
+        )
 
 
 def test_a_proof_only_question_states_no_revision_and_needs_no_blob(
@@ -3432,3 +3496,160 @@ def test_a_read_only_query_leaves_the_command_state_alone(
         f"{name} rewrote the command state it read through:"
         f" {state.read_text(encoding='utf-8')!r}"
     )
+
+
+#: A completeness request as the skill posts it, with the marker the run mints.
+#: The marker is the run's own choice, so this stands in for any; the stand-in
+#: answers by the question's kind and echoes whatever marker the request
+#: carries, which is what a scenario cannot predict and must not hard-code.
+SCRIPTED_REQUEST = (
+    "@coderabbitai please assess the implementation in this PR for\n"
+    "completeness and correctness against the execplan:\n\n"
+    "> `docs/execplans/issue-271-readiness-handoff.md`\n\n"
+    "Assessed subject: the whole approved plan.\n"
+    "Published head: eeee5555; comparison base: "
+    "73d32981c7b7e8f52590a074873e28a9f369f0f9.\n"
+    "Plan revision: rev-7 (approved revision in force); plan file blob SHA at"
+    " this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.\n"
+    "Acceptance evidence: the hosted checks recorded for this head.\n"
+    "Known limitations: the local result is the stand-in's.\n"
+    "Proof inventory: none affected.\n"
+    "Assessment-ID: 271-ab-minted-by-the-run.\n\n"
+    "Please echo the Assessment-ID.\n"
+    "This is an assessment conversation, not a request to start a formal PR"
+    " review."
+)
+
+
+def scripted_scenario(tmp_path: Path) -> Path:
+    """Place the scripted-answer scenario's stand-in in its own directory."""
+    source = FIXTURES / "scenarios" / "posted-then-answered" / "facts.json"
+    shutil.copy2(source, tmp_path / "facts.json")
+    return place_shim(SHIM, "gh", tmp_path)
+
+
+def post_scripted(run: Path) -> subprocess.CompletedProcess[str]:
+    """Post the readiness request the scripted scenario is built to answer."""
+    return invoke(
+        run,
+        "api",
+        "--method",
+        "POST",
+        "repos/leynos/agent-helper-scripts/issues/272/comments",
+        "-f",
+        "body=" + SCRIPTED_REQUEST,
+        token=POOL_TOKEN,
+    )
+
+
+def test_a_scripted_answer_echoes_the_marker_the_run_minted(
+    tmp_path: Path,
+) -> None:
+    """The one case where a run both asks and clears needs an answer to its ask.
+
+    The marker is chosen by the agent, so a fixture cannot key a verdict on it.
+    The stand-in answers by the question's kind and echoes the marker the
+    request carried, which is also what the observation protocol correlates on:
+    an answer naming a different marker would not be attributable to the
+    question, and the run would be right to keep waiting.
+    """
+    run = scripted_scenario(tmp_path)
+    done = post_scripted(run)
+    assert done.returncode == 0, done.stderr
+    answers = json.loads((run / "state.json").read_text(encoding="utf-8"))[
+        "scripted"
+    ]
+    assert len(answers) == 1, answers
+    body = answers[0]["body"]
+    assert "271-ab-minted-by-the-run" in body, body
+    assert "**Verdict: clear**" in body, body
+
+
+def test_a_scripted_answer_discloses_in_its_own_text_that_it_is_scripted(
+    tmp_path: Path,
+) -> None:
+    """A recording must not need the README to say what answered the run.
+
+    The `cs` stand-in prints its disclosure on every answer, and this one does
+    the same. The text is what a reader of `answers/` and the discussion
+    listing actually sees; a disclosure held only in prose beside the fixture
+    would leave the recording itself claiming a service reply.
+    """
+    run = scripted_scenario(tmp_path)
+    assert post_scripted(run).returncode == 0
+    body = json.loads((run / "state.json").read_text(encoding="utf-8"))[
+        "scripted"
+    ][0]["body"]
+    assert "not a CodeRabbit answer" in body, body
+
+
+def test_a_scripted_answer_is_listed_and_readable_by_its_own_route(
+    tmp_path: Path,
+) -> None:
+    """The answer is a comment in the discussion, not a private side channel.
+
+    A run finds a reply by listing the discussion and filtering it by time; it
+    then fetches the comment it selected. An answer that only `state.json` held
+    would be invisible to the first and 404 on the second, so the scripted case
+    would behave exactly like the unscripted one.
+    """
+    run = scripted_scenario(tmp_path)
+    assert post_scripted(run).returncode == 0
+    listed = json.loads(
+        invoke(
+            run, "api", "repos/leynos/agent-helper-scripts/issues/272/comments"
+        ).stdout
+    )
+    bot = [entry for entry in listed if entry["user"]["login"] == "coderabbitai[bot]"]
+    assert len(bot) == 1, bot
+    answer = bot[0]
+    fetched = invoke(
+        run, "api", f"repos/leynos/agent-helper-scripts/issues/comments/{answer['id']}"
+    )
+    assert fetched.returncode == 0, fetched.stderr
+    assert json.loads(fetched.stdout)["id"] == answer["id"]
+
+
+def test_a_scripted_answer_is_stamped_after_its_own_request(
+    tmp_path: Path,
+) -> None:
+    """A time-filtered poll must see the answer, not filter it away.
+
+    The observation protocol fetches the discussion updated since the request's
+    timestamp. An answer carrying the same stamp, or an earlier one, would be
+    excluded by that filter, and the run would report silence for a question it
+    had just had answered.
+    """
+    run = scripted_scenario(tmp_path)
+    assert post_scripted(run).returncode == 0
+    state = json.loads((run / "state.json").read_text(encoding="utf-8"))
+    request = state["posted"][0]["created_at"]
+    answer = state["scripted"][0]["created_at"]
+    assert answer > request, f"answer {answer} does not sort after {request}"
+
+
+def test_an_unscripted_scenario_still_answers_no_question_it_did_not_record(
+    run: Path,
+) -> None:
+    """Scripting is opt-in per scenario, and silence stays silence.
+
+    The default `current-whole-plan` fixture records its answer in the thread
+    and scripts nothing. A POST it did not record must therefore be answered
+    with the request alone: inventing a verdict here would let a holding case
+    clear itself, which is the failure the whole fixture exists to prevent.
+    """
+    done = invoke(
+        run,
+        "api",
+        "--method",
+        "POST",
+        "repos/leynos/agent-helper-scripts/issues/272/comments",
+        "-f",
+        "body=@coderabbitai please assess the implementation.\n\n"
+        "Assessment-ID: 271-ab-unrecorded.\n",
+        token=POOL_TOKEN,
+    )
+    assert done.returncode == 0, done.stderr
+    state = json.loads((run / "state.json").read_text(encoding="utf-8"))
+    assert "scripted" not in state, state
+    assert len(state["posted"]) == 1, state

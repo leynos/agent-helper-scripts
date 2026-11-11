@@ -405,6 +405,7 @@ import json, sys
 
 state = json.load(open(sys.argv[1], encoding="utf-8"))
 posted = state.get("posted") or []
+scripted = state.get("scripted") or []
 if not posted:
     print("posted comment: none", file=sys.stderr)
     raise SystemExit(0)
@@ -412,6 +413,17 @@ authors = {entry.get("user", {}).get("login") for entry in posted}
 if authors != {"fixture-commenter"}:
     print(f"abort: a posted comment is authored by {authors!r}", file=sys.stderr)
     raise SystemExit(1)
+# A scripted answer is not a submitted body. It is the stand-in's verdict, and
+# writing it into `submitted/` would present a fixture's own words as the
+# request the run asked. It is reported separately, with its marker, so the
+# recording still shows what answered the run.
+for entry in scripted:
+    body = entry.get("body", "")
+    if "gh-stand-in: scripted reply" not in body:
+        print("abort: a scripted reply does not disclose that it is scripted",
+              file=sys.stderr)
+        raise SystemExit(1)
+    print(f"--- scripted reply {entry.get('id')}: {body.splitlines()[0]} ---")
 bodies = [entry.get("body", "") for entry in posted]
 for index, body in enumerate(bodies, 1):
     print(f"--- posted {index}/{len(bodies)} by fixture-commenter, {len(body)} chars ---")
@@ -440,7 +452,7 @@ fi
 # otherwise fails here rather than being filed as a fresh recording.
 EXPECT_READY=no
 case $SCENARIO in
-  current-whole-plan | proof-only-cleared | combined-plan-and-proof)
+  current-whole-plan | proof-only-cleared | combined-plan-and-proof | posted-then-answered)
     EXPECT_READY=yes
     ;;
 esac
@@ -1223,7 +1235,12 @@ bodies = [
 problems = []
 completeness = [body for body in bodies if "please assess the implementation" in body]
 proofs = [body for body in bodies if "are you satisfied that the introduced proof" in body]
-if not completeness and not proofs:
+# A scenario that scripts an answer exists to be asked in the run itself, so it
+# deliberately seeds no question: seeding one would answer a request the run
+# never made and make the case a duplicate of the recorded ones. The exemption
+# is tied to the script, not to the scenario name, so it cannot be borrowed to
+# excuse an ordinary case that merely forgot its premise.
+if not completeness and not proofs and not facts.get("scripted_replies"):
     problems.append("the permitting scenario seeds no assessment question")
 
 # The blob a request cites is the plan file's blob *at the published head*,
@@ -1364,6 +1381,25 @@ fi
 if [ "$EXPECT_READY" = no ] && [ "$ready_calls" -ne 0 ]; then
   echo "abort: '$SCENARIO' should stay in draft, but 'pr ready' was issued" >&2
   rc=1
+fi
+# A scenario that scripts an answer exists to show one run both asking and
+# clearing. Its transition is only evidence if the run posted the question in
+# that same run: a recorded answer already in the thread would leave the
+# question unasked, and the case would then duplicate the permitting ones. The
+# check is on the state the run wrote, not on the facts it started from.
+SCRIPTED=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("scripted_replies") or {}))' "$RUN/facts.json")
+if [ "$SCRIPTED" != "0" ]; then
+  posted_count=$(python3 -c 'import json,sys,os; p=sys.argv[1]; print(len((json.load(open(p)) if os.path.exists(p) else {}).get("posted") or []))' "$RUN/state.json")
+  scripted_count=$(python3 -c 'import json,sys,os; p=sys.argv[1]; print(len((json.load(open(p)) if os.path.exists(p) else {}).get("scripted") or []))' "$RUN/state.json")
+  echo "outcome: scripted-answer run posted=$posted_count answered=$scripted_count"
+  if [ "$posted_count" -eq 0 ]; then
+    echo "abort: '$SCENARIO' scripts an answer but the run posted no request" >&2
+    rc=1
+  fi
+  if [ "$EXPECT_READY" = yes ] && [ "$scripted_count" -eq 0 ]; then
+    echo "abort: '$SCENARIO' scripts an answer but none was served to the run" >&2
+    rc=1
+  fi
 fi
 # A permitting run must read the transition back, so its own evidence is the
 # observed state rather than the command's exit status. The check is ordered:

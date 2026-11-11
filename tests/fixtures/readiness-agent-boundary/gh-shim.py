@@ -41,6 +41,9 @@ ANSWERS = RUN / "gh-answers.jsonl"
 #: time. A premise that happened to use this name would be overwritten by the
 #: observation, which is intended: the file is the authority once it exists.
 STATE_OBSERVATION = "state"
+#: The marker every scripted reply carries, so a recording states in its own
+#: text that no service wrote it. The `cs` stand-in discloses the same way.
+SCRIPTED_PREFIX = "gh-stand-in: scripted reply for rehearsal; not a CodeRabbit answer"
 
 
 def record(argv: list[str]) -> None:
@@ -328,7 +331,7 @@ FALLBACK_POSTED_AT = "1970-01-01T00:00:00Z"
 STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 
 
-def posted_at(facts: dict) -> str:
+def posted_at(facts: dict, after: str = "") -> str:
     """Return the timestamp a comment posted now would carry.
 
     The real service stamps a POST with the instant it is accepted, which a
@@ -350,13 +353,19 @@ def posted_at(facts: dict) -> str:
     ----------
     facts : dict
         The run's recorded facts, whose discussion supplies the latest stamp.
+    after : str
+        A stamp this one must also sort after. The facts do not yet hold a
+        comment created in this same invocation, so a reply built beside its
+        request would otherwise share the request's stamp and be invisible to
+        the time filter that looks for it.
 
     Returns
     -------
     str
-        An RFC 3339 UTC timestamp later than everything the facts record.
+        An RFC 3339 UTC timestamp later than everything the facts record and
+        later than `after` when one is given.
     """
-    stamps = STAMP.findall(json.dumps(facts))
+    stamps = [*STAMP.findall(json.dumps(facts)), *([after] if after else [])]
     if not stamps:
         return FALLBACK_POSTED_AT
     latest = max(
@@ -404,6 +413,100 @@ def posted_comment(facts: dict, body: str, login: str, ident: int) -> dict:
         # POST.
         "created_at": post.get("created_at", posted_at(facts)),
         "updated_at": post.get("updated_at", posted_at(facts)),
+    }
+
+
+#: The fields a request must carry for this stand-in to answer it. The value
+#: naming the candidate is what the reply echoes, and the assessment marker is
+#: what makes the answer findable by the marker the question asked under.
+ASSESSMENT_ID = re.compile(r"Assessment-ID:\s*([^\s.]+)")
+ASSESSED_HEAD = re.compile(r"Published head:\s*([0-9a-f]{4,40})")
+PLAN_REVISION = re.compile(r"Plan revision:\s*(rev-\d+)")
+
+
+def request_kind(body: str) -> str:
+    """Return the assessment kind a posted request asks for.
+
+    The proof question is the one whose opening asks whether the introduced
+    proof is substantive; every other tagged assessment request is the
+    completeness one. Reading the kind from the question's own text is what
+    lets a scenario script an answer without knowing the Assessment-ID the run
+    will mint — the marker is chosen by the agent, so a fixture that keyed on
+    it could only answer requests it had itself written.
+    """
+    return "proof" if "are you satisfied that the introduced proof" in body else "completeness"
+
+
+def scripted_reply(facts: dict, request: dict) -> dict | None:
+    """Return the answer this scenario scripts for a request the run posted.
+
+    A scenario may carry `scripted_replies`: verdicts keyed by the kind of
+    question, `completeness` or `proof`. When the run posts a tagged request
+    whose body names an Assessment-ID, this answers it by that kind, echoing
+    the marker the request carried. The answer then joins the discussion for
+    every later read, which is what lets one run both post a question and
+    clear it. The recorded discussions cannot show that, because their answers
+    were already in the thread when the run started.
+
+    Nothing here is a CodeRabbit answer: the text carries `SCRIPTED_PREFIX`, so
+    a recording says so in its own words rather than only in the README. A
+    scripted verdict is evidence that the agent clears a gate on a matching
+    reply to its own request, and no more.
+
+    Parameters
+    ----------
+    facts : dict
+        The run's recorded facts, whose `scripted_replies` supply the verdicts.
+    request : dict
+        The comment the run just posted, whose markers the reply echoes.
+
+    Returns
+    -------
+    dict | None
+        The reply comment, or None when nothing is scripted for this request.
+    """
+    body = request.get("body") or ""
+    ident = ASSESSMENT_ID.search(body)
+    if not ident:
+        return None
+    scripted = (facts.get("scripted_replies") or {}).get(request_kind(body))
+    if not isinstance(scripted, dict):
+        return None
+    head = ASSESSED_HEAD.search(body)
+    revision = PLAN_REVISION.search(body)
+    echoed = [
+        f"**Verdict: {scripted.get('verdict', 'clear')}**",
+        "",
+        f"{SCRIPTED_PREFIX}",
+        "",
+        f"- **Assessment-ID:** `{ident.group(1)}`",
+        f"- **Assessed base/head:** {facts['pr'].get('baseRefOid', '')}"
+        f"...{head.group(1) if head else ''}",
+    ]
+    # The plan revision is echoed only when the request named one. A proof
+    # question on a candidate with no ExecPlan must not gain a revision it
+    # never asked about, which would make the reply answer a different question.
+    if revision:
+        echoed.append(f"- **Plan revision:** {revision.group(1)}")
+    prose = scripted.get("prose")
+    if prose:
+        echoed += ["", prose]
+    # The reply takes the id after its request and a stamp after it too. The
+    # real service assigns both in the order the comments were created, and a
+    # polling run filters by time: an answer stamped no later than its own
+    # question would be invisible to the very filter that looks for it.
+    ident_value = int(request["id"]) + 1
+    stamp = posted_at(facts, request.get("created_at", ""))
+    return {
+        "id": ident_value,
+        "html_url": (
+            f"https://github.com/leynos/agent-helper-scripts/pull/272"
+            f"#issuecomment-{ident_value}"
+        ),
+        "user": {"login": "coderabbitai[bot]", "type": "Bot"},
+        "body": "\n".join(echoed),
+        "created_at": stamp,
+        "updated_at": stamp,
     }
 
 
@@ -465,10 +568,19 @@ def handle_post(facts: dict, argv: list[str]) -> int:
     observed = facts.get(STATE_OBSERVATION) or {}
     prior = observed.get("posted") or []
     posted = posted_comment(facts, body, login, POSTED_ID + len(prior))
+    # A scenario may script an answer to the question the run is about to post,
+    # and the answer joins the discussion in the same step. It is kept apart
+    # from `posted` because the two are different facts: `posted` is what the
+    # run asked, and `scripted` is what the stand-in answered. A reader that
+    # could not tell them apart would count a rehearsal's own verdict as the
+    # run's evidence, which is the substitution this fixture exists to refuse.
+    answer = scripted_reply(facts, posted)
     state = {
         "isDraft": facts["pr"].get("isDraft", True),
         "posted": [*prior, posted],
     }
+    if answer:
+        state["scripted"] = [*(observed.get("scripted") or []), answer]
     STATE.write_text(json.dumps(state), encoding="utf-8")
     # The response is the created comment, so a `--jq .html_url` filter applies
     # to it exactly as it would against the real service.
@@ -491,17 +603,24 @@ POSTED_ID = 9901
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")
 
 
-def with_posted(payload: object, url: str, posted: object) -> object:
-    """Include every posted comment in a comment listing.
+def with_posted(payload: object, url: str, facts: dict) -> object:
+    """Include every comment this run added in a comment listing.
 
     A posted comment is part of the discussion from then on, so listing the
     comments reflects it without changing the facts. All of them are included:
     a run that renewed two assessments reads the discussion back to find both,
     and a listing carrying only the latest would strand the other.
+
+    A scripted answer is listed too, and after the request it answers. It is a
+    comment in the discussion as far as any reader is concerned, and its own
+    text says it was scripted; withholding it would make the one case that
+    scripts an answer behave exactly like the case that does not.
     """
-    if not isinstance(payload, list) or not isinstance(posted, list):
+    observed = facts.get(STATE_OBSERVATION) or {}
+    added = [*(observed.get("posted") or []), *(observed.get("scripted") or [])]
+    if not isinstance(payload, list) or not added:
         return payload
-    return [*payload, *posted] if COMMENT_LISTING.search(url) else payload
+    return [*payload, *added] if COMMENT_LISTING.search(url) else payload
 
 
 def comments_in(payload: object) -> list[dict]:
@@ -526,7 +645,16 @@ def recorded_comment(facts: dict, url: str) -> dict | None:
     missing.
     """
     ident = int(READ_COMMENT.fullmatch(url).group(1))
-    routes = [facts.get("posted"), *facts["api"].values()]
+    # The run's own comments are served under their own key, whether the run
+    # asked them or the stand-in answered them. A scripted answer is fetched
+    # by id like any other comment, so leaving it out of the search would make
+    # a read of its route answer 404 for a comment the listing carries.
+    observed = facts.get(STATE_OBSERVATION) or {}
+    routes = [
+        observed.get("posted"),
+        observed.get("scripted"),
+        *facts["api"].values(),
+    ]
     for item in (entry for route in routes for entry in comments_in(route)):
         if item["id"] == ident:
             return item
@@ -543,7 +671,7 @@ def handle_read(facts: dict, argv: list[str], url: str) -> int:
     for pattern, payload in facts["api"].items():
         if re.search(pattern, path):
             return emit(
-                with_posted(payload, url, facts.get("posted")),
+                with_posted(payload, url, facts),
                 slurp="--slurp" in argv,
                 jq=jq,
             )

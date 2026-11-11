@@ -1,0 +1,18 @@
+@coderabbitai please assess the implementation in this PR for completeness and correctness against the execplan:
+
+> `docs/execplans/issue-271-readiness-handoff.md`
+
+Assessed subject: the whole approved plan.
+Published head: eeee6666; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Plan revision: rev-7 (plan file blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at this head).
+Acceptance evidence: hosted check runs on eeee6666 — Makefile gates (7701) success; CodeScene Code Health Review (7702) success, "No issues found"; Gecko Security Review (7703) success. Local `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 eeee6666` reported no issues (the local CodeScene source here is a simulated stand-in).
+Known limitations: the head SHA is reported by the API in abbreviated form (eeee6666); local Makefile gates were not rerun by the supervisor; no proofs are introduced or changed, so no proof assessment is requested.
+Assessment-ID: pr272-completeness-20261111T152446Z.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Identify remaining in-scope omissions or correctness defects and any access
+or inspection limitations. Assess the implementation, not just the plan text.
+

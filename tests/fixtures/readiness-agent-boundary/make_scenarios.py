@@ -765,6 +765,12 @@ class Case:
     # without being able to move it independently of the assessment replies.
     plan_revision: str = "rev-7"
     plan_blob: str = PLAN_BLOB
+    # Verdicts the stand-in answers with, keyed by question kind. Most cases
+    # record an answer that was already in the thread; a case that scripts one
+    # is the only shape in which a single run both posts a question and clears
+    # it. The marker is echoed from the request the run minted, so a fixture
+    # never has to predict the Assessment-ID the agent chooses.
+    scripted_replies: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 def changed_paths(case: Case) -> list[str]:
@@ -882,6 +888,12 @@ def scenario(case: Case) -> None:
         # testing.
         "cs_finding": local_finding() if case.cs_mode == "finding" else "",
     }
+    # Only a case that scripts an answer carries the key. Emitting an empty
+    # mapping for every scenario would rewrite sixteen files to say nothing,
+    # and a reader of those facts would have to decide whether `{}` meant "no
+    # answer is scripted" or "an answer was scripted and lost".
+    if case.scripted_replies:
+        facts["scripted_replies"] = case.scripted_replies
     directory = OUT / case.name
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "facts.json").write_text(
@@ -954,6 +966,37 @@ scenario(Case(
             "2026-11-07T20:15:00Z",
         ),
     ],
+))
+
+scenario(Case(
+    name="posted-then-answered",
+    head="eeee6666",
+    draft=True,
+    # No assessment is in the thread. This is the one case where the run must
+    # post the question itself, and the stand-in answers it, so a single run
+    # both asks and clears. Every other permitting case starts with the answer
+    # already recorded, which is why none of them can show this path.
+    comments=[
+        comment(
+            9401,
+            "buzzybee-df12",
+            (
+                "Preparing the readiness run for `eeee6666`. No assessment has"
+                " been requested yet."
+            ),
+            "2026-11-07T20:40:00Z",
+        ),
+    ],
+    cs_mode="clean",
+    scripted_replies={
+        "completeness": {
+            "verdict": "clear",
+            "prose": (
+                "The whole approved plan is implemented at this head."
+                " No in-scope rework remains."
+            ),
+        },
+    },
 ))
 
 scenario(Case(
