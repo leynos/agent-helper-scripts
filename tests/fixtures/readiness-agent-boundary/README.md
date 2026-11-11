@@ -641,6 +641,16 @@ the rest were verified against their committed facts rather than assumed, which
 is what `test_each_holding_combined_premise_holds_for_its_recorded_facts` does
 for every one of the six.
 
+`combined-proof-stale-revision` and `combined-proof-stale-plan-revision` were
+recorded again once their premises were corrected to cite the blob the head
+serves. Their earlier recordings were made against requests that quoted the
+`rev-7` blob beside a head that served the `rev-8` file, which is the
+contradiction described above; the clarifying remarks those runs made about the
+mismatch were evidence of the premise defect, not of the stale approval the
+cases exist to rehearse. Both re-runs passed every assertion, and each posted
+its renewed requests citing `e3b7c04d…`, so those `submitted/` bodies and the
+outcomes beside them now show the skill's own requests rather than the seed's.
+
 The plan-read arm stops at those three. `combined-proof-pending`,
 `combined-proof-stale-verdict` and `combined-proof-candidate-mismatch` are
 decided by the state of the proof verdict alone — unfinished, or clear for a

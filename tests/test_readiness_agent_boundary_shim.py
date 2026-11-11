@@ -1236,10 +1236,112 @@ def test_the_runner_requires_the_plan_read_before_the_transition() -> None:
     saw, which is the superseded-revision defect the rule exists to prevent.
     """
     runner = RUNNER.read_text()
-    assert 'grep -F "contents/$plan_path" "$TRACE"' in runner, (
-        "the shell-level ordering check no longer names the approved path"
+    assert 'grep -nF "contents/$plan_path?" "$TRACE"' in runner, (
+        "the shell-level ordering check no longer names the approved path, or "
+        "no longer asks grep for line numbers"
     )
     assert "read the plan after the transition, not before it" in runner
+
+
+def plan_line_command() -> str:
+    """Return the shell command the runner uses to locate the plan read.
+
+    Extracted from the runner rather than restated, so the control below runs
+    the bytes that actually execute.
+    """
+    for line in RUNNER.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("plan_line=$(grep"):
+            return stripped[len("plan_line=$(") : -1]
+    raise AssertionError("the runner has no plan_line command")
+
+
+def run_plan_line(trace_text: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Run the runner's own `plan_line` command over a constructed trace."""
+    trace = tmp_path / "trace.jsonl"
+    trace.write_text(trace_text, encoding="utf-8")
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            plan_line_command(),
+            "plan_line",
+        ],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "TRACE": str(trace),
+            "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
+        },
+        check=False,
+    )
+
+
+def test_the_shell_level_ordering_check_yields_a_line_number(
+    tmp_path: Path,
+) -> None:
+    """`plan_line` has to be a number, or the ordering comparison decides nothing.
+
+    The check compares `plan_line` against `ready_line` with `-gt`. Without
+    `grep -n` the variable holds the matched trace line — the JSON array the
+    stand-in recorded — and the comparison fails with `integer expression
+    expected` while the surrounding `if` reports only its own branch. The run
+    then passes the ordering check without ever having made it.
+
+    Running the command rather than matching its text is what catches that:
+    the flag is present or absent, and only the output says which variable the
+    rest of the script receives.
+    """
+    trace = "".join(
+        json.dumps(argv) + "\n"
+        for argv in (
+            ["pr", "view", "272", "--json", "isDraft"],
+            [
+                "api",
+                "repos/leynos/agent-helper-scripts/contents/"
+                "docs/execplans/issue-271-readiness-handoff.md?ref=4444eeee",
+            ],
+            ["pr", "ready", "272"],
+        )
+    )
+    done = run_plan_line(trace, tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "2", (
+        f"expected the plan read's line number, got {done.stdout.strip()!r}"
+    )
+
+
+def test_the_ordering_check_yields_nothing_without_a_plan_read(
+    tmp_path: Path,
+) -> None:
+    """An empty value is what makes the missing-read branch fire.
+
+    The runner treats an empty `plan_line` as "the plan was never read" and
+    aborts. A command that matched the directory listing, or a bare
+    `contents/docs/execplans` route, would hand that branch a line number and
+    report a read that never happened.
+    """
+    trace = "".join(
+        json.dumps(argv) + "\n"
+        for argv in (
+            [
+                "api",
+                "repos/leynos/agent-helper-scripts/contents/docs/execplans",
+            ],
+            [
+                "api",
+                "repos/leynos/agent-helper-scripts/contents/"
+                "docs/execplans/issue-271-readiness-handoff.md.bak?ref=4444eeee",
+            ],
+            ["pr", "ready", "272"],
+        )
+    )
+    done = run_plan_line(trace, tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "", (
+        f"a non-read produced a line number: {done.stdout.strip()!r}"
+    )
 
 
 def test_every_route_counts_the_files_the_diff_names() -> None:
@@ -1740,14 +1842,20 @@ def proof_read(ref: str, path: str = "proofs/refinement/Theorem.lean") -> list[s
     ]
 
 
-#: What a usable read of the assessed proof returns. The probe requires text
-#: rather than a particular one: what the theorem says is the assessed subject,
-#: and the read is evidence that the agent saw it.
+#: What a usable read of the assessed proof returns. The probe requires the
+#: whole served text: the assessed subject is the theorem *and* the body that
+#: discharges it, so the two are written here exactly as the route serves them.
 PROOF_TEXT = (
-    "theorem refinement_sound : forall (s : State), refine s = s -> sound s := by\n"
+    "theorem refinement_sound :\n"
+    "  forall (s : State), refine s = s → sound s := by\n"
     "  intro s h\n"
     "  exact sound_of_refine s h\n"
 )
+
+#: The declaration header alone. The route's first line, and what a filtered
+#: read reduced to the theorem statement returns. It carries no discharge, so
+#: it is not a read of the proof the assessment is about.
+PROOF_HEADER = "theorem refinement_sound :\n"
 
 
 @pytest.fixture
@@ -1921,7 +2029,31 @@ def test_the_proof_read_probe_refuses_a_metadata_only_answer(
         "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
     )
     assert done.returncode != 0, "a hash-only proof read was accepted"
-    assert "carries no theorem text" in done.stderr, done.stderr
+    assert "does not carry the assessed proof" in done.stderr, done.stderr
+
+
+def test_the_proof_read_probe_refuses_a_declaration_only_answer(
+    tmp_path: Path, combined_facts: Path
+) -> None:
+    """The header is not the proof either.
+
+    Anchoring on `theorem <name> :` admitted the file's first line on its own,
+    so an answer that showed the statement and stopped — a filtered read, or a
+    `--jq .content` reduced to one line — passed a check whose subject is the
+    discharge as much as the claim. The body is now required, and this control
+    supplies the exact header the file starts with.
+    """
+    reads = [proof_read("3333dddd")]
+    trace = write_lines(tmp_path / "trace.jsonl", [*reads, READY_INVOCATION])
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [proof_answer(reads[0], 0, PROOF_HEADER), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe(
+        "PROBE_PROOF_READ", str(trace), str(answers), str(combined_facts)
+    )
+    assert done.returncode != 0, "a declaration-only proof read was accepted"
+    assert "does not carry the assessed proof" in done.stderr, done.stderr
 
 
 def test_the_proof_read_probe_reads_the_proof_out_of_a_contents_payload(

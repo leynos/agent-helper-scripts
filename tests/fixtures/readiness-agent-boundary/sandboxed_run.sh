@@ -571,7 +571,18 @@ case $SCENARIO in
     # `contents/docs/execplans` listing. The grep only decides whether this
     # ordering check runs at all; the probe below decides which read counts,
     # and it holds the read to the same approved path.
-    plan_line=$(grep -F "contents/$plan_path" "$TRACE" | grep -F 'ref=' | head -1 | cut -d: -f1)
+    #
+    # The trailing `?` is the same terminator `reads_approved_plan` applies:
+    # without it, `-F` matches a longer path that merely contains this one, so
+    # a read of `issue-271-readiness-handoff.md.bak?ref=…` would be counted as
+    # a read of the approved file and this check would pass on the wrong file.
+    # Every candidate-bound read carries `?ref=`, so the query is the boundary.
+    #
+    # `-n` is required rather than cosmetic: without it the first match is the
+    # whole trace line, so `plan_line` holds JSON instead of a line number and
+    # the comparison below reports `integer expression expected` and silently
+    # decides nothing.
+    plan_line=$(grep -nF "contents/$plan_path?" "$TRACE" | grep -F 'ref=' | head -1 | cut -d: -f1)
     ready_line=$(grep -n '"pr", "ready"' "$TRACE" | head -1 | cut -d: -f1)
     if [ -z "$plan_path" ]; then
       echo "abort: '$SCENARIO' names no approved plan path" >&2
@@ -811,24 +822,27 @@ facts = json.load(open(facts_path, encoding="utf-8"))
 pr = facts["pr"]
 proof_path = facts["proof_path"]
 candidate_refs = {str(pr.get("headRefOid", "")), str(pr.get("headRefName", ""))} - {""}
-# The theorem the assessed proof states. The subject of the assessment is the
-# proof's text, so an answer carrying only its metadata describes the file
-# without ever showing what it claims. `--jq .sha` exits zero and prints a
-# hash, which is exactly the answer a run that never saw the theorem produces,
-# so the text has to be required rather than the exit status alone.
+# The text the assessed proof states: statement and body, as the route serves
+# it. The subject of the assessment is what the proof claims *and* how it
+# discharges the claim, so an answer holding only the declaration header — or
+# only the file's metadata — does not show the agent the thing it judged. An
+# earlier version anchored on `theorem <name> :` alone, which the first line of
+# the file satisfies on its own; the whole served text is what is required
+# here, so omitting the body is refused however the read was filtered.
+# `--jq .sha` exits zero and prints a hash, which is exactly the answer a run
+# that never saw the file produces, so the text has to be required rather than
+# the exit status alone.
 proof_text = "\n".join(
     str(payload.get("content", ""))
     for pattern, payload in facts["api"].items()
     if isinstance(payload, dict) and re.search(pattern, f"/contents/{proof_path}")
-)
-theorem = re.search(r"theorem\s+\w+\s*:", proof_text)
-if theorem is None:
+).strip()
+if not re.search(r"theorem\s+\w+\s*:", proof_text):
     print(
         "the scenario's proof route serves no theorem for a read to find",
         file=sys.stderr,
     )
     raise SystemExit(1)
-theorem = theorem.group(0)
 
 def load(path):
     """Return one parsed entry per line, skipping blank and malformed lines."""
@@ -857,6 +871,20 @@ def proof_body(served):
         content = payload.get("content")
         return content if isinstance(content, str) else ""
     return served
+
+def read_complete_proof(served):
+    """Return whether one answer shows the whole proof the route serves.
+
+    The comparison is against the served text rather than against a prefix of
+    it. The declaration header, `theorem refinement_sound :`, appears on the
+    file's first line and would satisfy a check for the theorem alone, so a
+    filtered read that stopped there — or a `--jq .content` reduced to the
+    first line — would pass while the body it is judged on was never seen.
+    Whitespace is normalized because a run may print the text with trailing
+    blank lines trimmed; the statements and the discharge have to be there.
+    """
+    carried = " ".join(proof_body(served).split())
+    return " ".join(proof_text.split()) in carried
 
 def names_proof(argument):
     """Return whether one argv entry asks for the assessed proof itself."""
@@ -908,13 +936,13 @@ for index, argv in enumerate(trace[:ready]):
     if not served.strip():
         problems.append("candidate-bound proof read returned nothing")
         continue
-    # An answer that shows the file's metadata and not its text is a read of
-    # the route, not of the proof. The assessed subject is what the theorem
-    # states, so the text that states it has to be in the answer.
-    if theorem not in proof_body(served):
+    # An answer that shows the file's metadata, or only its declaration header,
+    # is not a read of the proof. The assessed subject is the theorem together
+    # with the body that discharges it, so the whole served text has to be in
+    # the answer.
+    if not read_complete_proof(served):
         problems.append(
-            "candidate-bound proof read carries no theorem text"
-            f" ({theorem!r} absent)"
+            "candidate-bound proof read does not carry the assessed proof"
         )
         continue
     raise SystemExit(0)
