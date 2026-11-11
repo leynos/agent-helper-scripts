@@ -626,6 +626,19 @@ posts the question itself, finds the answer in the discussion it polls,
 correlates it by the marker it minted, and clears the gate on that correlation
 rather than on the act of posting.
 
+**The stand-in does not apply `since`.** The recorded poll carries
+`-f since=<the second before the request>`, and the stand-in answers it with
+the whole thread rather than filtering to the comments updated after that
+instant. A real service would return only the request and the answer, so the
+recording shows the agent selecting the answer from a superset that also holds
+the seeded premise comment. What the recording does establish is the part that
+matters to the correlation: the answer's stamp sorts strictly after its
+request's, so a real filter would include it. `posted_at(facts, after)` sets
+that ordering deliberately, and
+`test_a_scripted_answer_is_stamped_after_its_own_request` fails if a later
+change stops it. Emulating the filter would make the recording more faithful
+and is not claimed here.
+
 **Freshness of each recording.** All seventeen recordings passed their own
 outcome assertion when they were made. They were replaced when the runner
 gained the shared `pr-ready` boundary line, the successful read-back check, the
