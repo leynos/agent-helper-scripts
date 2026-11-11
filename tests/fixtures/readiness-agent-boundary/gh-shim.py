@@ -818,10 +818,16 @@ def mark_ready(facts: dict) -> int:
 
     The transition is written without dropping what the state already holds: a
     run can post a follow-up and then mark the PR ready, and the posted comment
-    is still evidence after the second transition.
+    is still evidence after the second transition. That state comes from the
+    observation `read_facts` already made, not from a second read of the file:
+    a state file removed after the first read would otherwise be written back
+    as a transition-only record, and the comments the run had posted would be
+    reported absent from a history this call had just truncated.
     """
-    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
-    STATE.write_text(json.dumps({**state, "isDraft": False}), encoding="utf-8")
+    observed = facts.get(STATE_OBSERVATION) or {}
+    STATE.write_text(
+        json.dumps({**observed, "isDraft": False}), encoding="utf-8"
+    )
     # The same instant is recorded in the local-check trace, so the runner can
     # tell a `cs delta` read before the decision from one run after it.
     # Appending at the transition is what makes that ordering observable; two

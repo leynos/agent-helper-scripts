@@ -91,23 +91,35 @@ and `subset-clear` — same head, same discussion, same checks — with
 `start_skill` set so the run begins at the sender. The crossing is the only
 difference, so a divergence in outcome is attributable to it.
 
-The runner enforces four things about such a run, because reaching the right
+The runner enforces five things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:
 
 - It opened `sdlc-implementation/SKILL.md` and `pr-babysitting/SKILL.md`. A
   `cd <skill>; cat SKILL.md` counts as an open, which is the form a real run
   used; matching only the joined path missed it and failed a run that had in
-  fact crossed.
+  fact crossed. A path that is merely named does not: a note written with
+  `cat > notes.md` that mentions both skills is a write, and is refused. The
+  read has to be a `Read` of the file or a shell reader — `cat`, `sed`, `head`
+  and the like — with the file as its argument.
 - It did not decide before opening either skill. The two opens are not ordered
   against each other, because an agent may explore either file first without
   that meaning anything was carried. The decision is what orders them, and it
   is found through the stand-in's trace: a call is a `gh pr ready` only when
-  the trace recorded that invocation. A ledger entry that describes the command
-  it declined to run is not the command — the first version of this check
-  searched the event stream for the text, and the subset run's own "do not run
-  gh pr ready" line would have been read as its transition.
-- Its final message carries a `HANDOFF PACKET` block whose fields are the ones
-  the candidate's own skill states, in that order. The labels are read from the
+  the trace recorded that invocation, and only a Bash argument list is
+  searched, so a scratch file named `gh pr ready 272.txt` is not a transition.
+  A ledger entry that describes the command it declined to run is not the
+  command either — the first version of this check searched the event stream
+  for the text, and the subset run's own "do not run gh pr ready" line would
+  have been read as its transition.
+- The packet was recorded **before** the transition it informs. The packet is
+  a message of its own, and its position in the agent's event stream is
+  compared with the `gh pr ready` call's. A run that printed the packet only
+  after marking the PR ready is describing the handoff retrospectively, so the
+  receiver cannot have applied it. The probe's negative control is a run that
+  opens both skills, prints a valid packet and takes the right decision, and is
+  nevertheless refused because the packet came after the transition.
+- It printed a `HANDOFF PACKET` block whose fields are the ones the
+  candidate's own skill states, in that order. The labels are read from the
   staged `sdlc-implementation`, so a packet that dropped or reordered a line is
   refused; Markdown decoration on the title or the lines is tolerated.
 - The completeness line still says the assessment is required against the
@@ -132,6 +144,15 @@ outcomes quote the deciding reply and the local `cs` result, and both quote the
 `cs` stand-in's own disclosure that it is simulated — the rehearsal's local
 CodeScene half is a stand-in, and neither outcome presents it as a real
 analysis.
+
+Each run also commits `traces/<name>-transcript.jsonl`: every assistant
+message's text and tool calls, with the tool results and session bookkeeping
+removed. The full event stream is several hundred kilobytes per run and carries
+nothing else about the handoff, while the ordering evidence — which message
+held the packet, and which held the transition — is in the transcript alone.
+`test_the_committed_crossing_recordings_retain_the_handoff_evidence` runs the
+probe over those committed files, so the evidence a reviewer reads is checked
+by the same code the run itself ran.
 
 ### The two-assessment cases
 
@@ -718,14 +739,22 @@ confined to the comment the stand-in records and serves back; they were not
 re-recorded, and their provenance is the earlier refresh above.
 
 `combined-proof-pending` and `combined-proof-stale-verdict` were recorded next,
-after the others. Last, `combined-proof-stale-plan-revision` was recorded, and
-it is the only one made under every current assertion at once: the premise
+after the others. `combined-proof-stale-plan-revision` followed them, and it
+was the only one made under every assertion current at that time: the premise
 check, the plan-read check, the comment stamp and the answer record. The three
 post differently, which is why each has a different artefact set: the pending
 run posts nothing, the stale-verdict and stale-plan-revision runs both post and
 so have `submitted/` entries. The answer records under `answers/` exist only
 for runs whose scratch directory still held one when the record was committed;
 a run whose scratch is gone has none, and none was reconstructed.
+
+Both crossing runs were recorded last of all, and are the only recordings made
+under the packet-ordering rule: the two earlier crossing runs printed their
+packet in the final message, after the transition, and the rule now refuses
+that shape. The first of the current pair was made after the runner began
+requiring the packet before the decision, and its outcome says so — "I produced
+the handoff packet above, then marked the PR ready". The holding one ends with
+its packet, because a blocked handoff has no decision after it to record.
 
 A recording made before an assertion was added is still valid evidence for what
 it observed, but it has not been re-run against the assertion. The plan-read

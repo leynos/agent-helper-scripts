@@ -427,10 +427,12 @@ own output that it is simulated. Treat its answer as the local result for this
 run, whatever that answer is.
 
 Do the work the skills call for at this point in the lifecycle and stop where
-they stop. Finish by stating in one sentence what you did and quoting the
-deciding evidence you relied on. Immediately before that sentence, print the
-handoff packet you produced, as one block titled `HANDOFF PACKET`, with each
-field on its own line.
+they stop. Print the handoff packet, as one block titled `HANDOFF PACKET` with
+each field on its own line, as the message that hands delivery over: it must
+appear before any readiness transition you take, not only in your last message,
+because the receiver applies the packet rather than quoting it afterwards.
+Finish by stating in one sentence what you did and quoting the deciding
+evidence you relied on.
 PROMPT
   )
 fi
@@ -487,6 +489,55 @@ open(outcome_path, "w", encoding="utf-8").write(final + "\n")
 print("--- agent final message ---")
 print(final)
 PROBE_OUTCOME
+# A crossing run's ordering evidence is the position of the packet relative to
+# the transition, and that position lives in the event stream, which is far
+# too large to commit. What matters is each assistant message's text and its
+# calls; tool results, usage counters, and session bookkeeping are not
+# evidence about the handoff and are dropped here. The reduced transcript
+# keeps the event shape the handoff probe reads, so the committed evidence is
+# checked by the same probe the run used rather than by a second reader.
+TRANSCRIPT=$RUN/transcript.jsonl
+python3 - "$EVENTS" "$TRANSCRIPT" <<'PROBE_TRANSCRIPT'
+import json, sys
+
+events_path, transcript_path = sys.argv[1:3]
+try:
+    stream = open(events_path, encoding="utf-8")
+except FileNotFoundError:
+    print("the run produced no event stream", file=sys.stderr)
+    raise SystemExit(0)
+messages = []
+for line in stream:
+    if not line.strip():
+        continue
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if event.get("type") != "assistant":
+        continue
+    parts = [
+        part
+        for part in event.get("message", {}).get("content", [])
+        if isinstance(part, dict)
+    ]
+    kept = [
+        {"type": "text", "text": part.get("text", "")}
+        for part in parts
+        if part.get("type") == "text" and part.get("text")
+    ]
+    kept += [
+        {"type": "tool_use", "name": part.get("name", ""), "input": part.get("input", {})}
+        for part in parts
+        if part.get("type") == "tool_use"
+    ]
+    if kept:
+        messages.append({"type": "assistant", "message": {"content": kept}})
+with open(transcript_path, "w", encoding="utf-8") as out:
+    for message in messages:
+        out.write(json.dumps(message) + "\n")
+print(f"transcript: {len(messages)} assistant messages from {events_path}")
+PROBE_TRANSCRIPT
 echo "--- gh invocations ---"
 cat "$TRACE"
 # The simulated local CodeScene result is its own evidence surface: a run that
@@ -1621,12 +1672,22 @@ fi
 echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
 # A crossing run exists to rehearse the implementation handoff, so it is only
 # evidence for that crossing if both halves happened: the sender was opened,
-# the packet was produced, and the receiver was then opened carrying it. The
-# prompt asks, but an agent that ignored it would otherwise be recorded as a
-# crossing run because it reached the right readiness decision — which is the
-# decision a receiver-only run already makes. The three conditions are read
-# from the run's own event stream and final message, not from the trace: the
-# handoff is an artefact of what the agent wrote, and no `gh` call can carry it.
+# the packet was produced, and the receiver was opened under the rules the
+# decision then applies. The prompt asks, but an agent that ignored it would
+# otherwise be recorded as a crossing run because it reached the right
+# readiness decision — which is the decision a receiver-only run already makes.
+# Those facts are read from the run's own event stream and final message, not
+# from the trace: the handoff is an artefact of what the agent wrote, and no
+# `gh` call can carry it. The trace is consulted only to establish that a
+# `pr ready` call ran at all, so that a command a run merely mentions is not
+# mistaken for the transition.
+#
+# The packet has to precede the decision it is supposed to inform. A run that
+# prints the packet only after marking the PR ready is describing the handoff
+# retrospectively; the receiver cannot have applied a packet that did not yet
+# exist. The opening calls themselves are unordered against each other, since
+# an agent may explore either skill first, but each is ordered against the
+# decision.
 #
 # The packet's fields are read from the staged `sdlc-implementation`, so the
 # check is that the run reproduced the shipped packet rather than a summary of
@@ -1635,24 +1696,49 @@ echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
 # leave the receiver holding a subset for a reason its own handoff no longer
 # stated.
 if [ "$START_SKILL" = sdlc-implementation ]; then
-  if ! python3 - "$RUN/work/sdlc-implementation/SKILL.md" "$OUTCOME" "$EVENTS" "$TRACE" <<'PROBE_HANDOFF'
+  if ! python3 - "$RUN/work/sdlc-implementation/SKILL.md" "$OUTCOME" "$EVENTS" \
+    "$TRACE" "$RUN/handoff.txt" <<'PROBE_HANDOFF'
 import json, re, sys
 
-skill_path, outcome_path, events_path, trace_path = sys.argv[1:5]
+skill_path, outcome_path, events_path, trace_path, handoff_path = sys.argv[1:6]
 skill = open(skill_path, encoding="utf-8").read()
 try:
     outcome = open(outcome_path, encoding="utf-8").read()
 except FileNotFoundError:
     print("the run produced no final message", file=sys.stderr)
     raise SystemExit(1)
-events = []
+
+# The event stream is read as a sequence of assistant messages, each with the
+# text it spoke and the calls it made. The handoff is a message of its own —
+# the one that hands delivery over — so its position and the transition's are
+# compared as message positions, not as offsets in one final string.
+messages = []
 for line in open(events_path, encoding="utf-8"):
     if not line.strip():
         continue
     try:
-        events.append(json.loads(line))
+        event = json.loads(line)
     except json.JSONDecodeError:
-        pass
+        continue
+    if event.get("type") != "assistant":
+        continue
+    parts = [
+        part
+        for part in event.get("message", {}).get("content", [])
+        if isinstance(part, dict)
+    ]
+    messages.append(
+        {
+            "text": "\n".join(
+                part.get("text", "") for part in parts if part.get("type") == "text"
+            ),
+            "calls": [
+                {"name": part.get("name", ""), "input": part.get("input", {})}
+                for part in parts
+                if part.get("type") == "tool_use"
+            ],
+        }
+    )
 
 # The shipped packet, as the sender states it: one `Label: rule` line per
 # field, inside the section that hands delivery over. Reading the labels from
@@ -1672,43 +1758,67 @@ if not shipped:
     print("the shipped handoff packet states no fields", file=sys.stderr)
     raise SystemExit(1)
 
-# Opening each skill is a tool call: a Read names the path, a Bash `cat` names
-# it in the command, and a Glob names it as a pattern. The input is serialized
-# and searched rather than matched per tool, because the route the agent chose
-# is not what makes the evidence — that it opened the file is.
-def tool_inputs():
-    """Yield each tool call's input, in the order the calls were made."""
-    for event in events:
-        if event.get("type") != "assistant":
+# Opening each skill is a call that reads it: a `Read` names the path, a Bash
+# call runs a reader such as `cat` on it. A path that merely appears in a call
+# is not an open — a note written to a ledger, a prompt quoted into a file —
+# so the call's shape is checked rather than only its text. The reading words
+# are the ordinary ones a supervisor uses on a skill file; a run that opens
+# the manifest some other way is refused rather than silently credited.
+READER_COMMANDS = {
+    "awk", "bat", "cat", "cut", "grep", "head", "less", "more", "nl", "od",
+    "sed", "tail", "tr",
+}
+
+def reads_a_file(payload, name):
+    """Return whether this call opens a file whose basename is `name`.
+
+    A `Read` states its path. A Bash command is split at its shell operators,
+    and each simple command is checked for a reader in first position whose
+    arguments name the file. Splitting matters because one recorded run put
+    the read behind a `cd` (`cd pr-babysitting; cat SKILL.md`), and the file
+    is then named only by its basename.
+    """
+    tool = payload["name"]
+    inputs = payload["input"]
+    if tool == "Read":
+        path = str(inputs.get("file_path", "")).rstrip("/")
+        return path.rsplit("/", 1)[-1] == name
+    if tool != "Bash":
+        return False
+    for segment in re.split(r"[;&|\n]+", str(inputs.get("command", ""))):
+        words = [word.strip("\"'`()<>") for word in segment.split()]
+        if not words or words[0] not in READER_COMMANDS:
             continue
-        for part in event.get("message", {}).get("content", []):
-            if isinstance(part, dict) and part.get("type") == "tool_use":
-                yield part.get("input", {})
+        if any(word.rstrip("/").rsplit("/", 1)[-1] == name for word in words[1:]):
+            return True
+    return False
 
 def first_opened(skill):
-    """Return the index of the first call that opened `skill`'s manifest.
+    """Return the message index of the first call that read `skill`'s manifest.
 
-    A Read names the file by its path, but a Bash call may change directory
-    first (`cd pr-babysitting; cat SKILL.md`) and name only the skill and the
-    file. Matching the joined path alone missed exactly that call in a real
-    run, so both parts are required separately rather than in one spelling.
-    The requirement that `SKILL.md` appear is what keeps a bare mention of the
-    skill — a following-up note, a prompt quotation — from counting as a read.
+    A mention of the skill is not a read of it: a follow-up note, a prompt
+    quotation, or a pre-written ledger can name the path without opening it,
+    and treating any of those as the open would let a run that never read the
+    skill pass an ordering check. The file must have been opened and the
+    skill's own name must appear in the call, so a read of some other
+    `SKILL.md` cannot stand in for this one.
     """
-    for index, payload in enumerate(tool_inputs()):
-        text = json.dumps(payload)
-        if skill in text and "SKILL.md" in text:
+    for index, message in enumerate(messages):
+        if any(
+            reads_a_file(payload, "SKILL.md") and skill in json.dumps(payload["input"])
+            for payload in message["calls"]
+        ):
             return index
     return None
 
 # The transition is what the handoff is for, so the decision is the call that
 # ran `gh pr ready`, not the first call whose text mentions it. A ledger entry
 # may quote the command it declined to run ("Decision: do not run gh pr
-# ready; PR stays draft"), and a text search cannot tell that record from the
+# ready; PR stays draft"), and no text search can tell that record from the
 # invocation. The stand-in's trace is the record of what ran, so a mention is
 # a decision only when the trace recorded a `pr ready` invocation at all, and
-# the call that carries it is the one whose words contain `pr ready` as the
-# adjacent pair a command line would have.
+# the call that carries it is the Bash call in which `gh pr ready` appears as
+# adjacent words on a command line.
 def recorded_ready_calls():
     """Return the `pr ready` argument vectors the stand-in's trace recorded."""
     try:
@@ -1729,59 +1839,37 @@ def recorded_ready_calls():
     return recorded
 
 def ready_position():
-    """Return the index of the first call that ran a recorded `gh pr ready`.
+    """Return the message index of the first call that ran a recorded `gh pr ready`.
 
     The trace decides whether a transition happened; the event stream decides
     where in the run it was issued. Both are needed: the trace alone cannot
-    say that the call came after the skills were read, and the text alone
-    cannot say that the command ran rather than being described.
+    say that the call came after the skills were read and after the packet was
+    printed, and the text alone cannot say that the command ran rather than
+    being described. Only a Bash argument list is searched, because a tool
+    call's JSON also carries the tool's name and description: a `Read` of a
+    path containing `pr ready` is not a transition.
     """
     if not recorded_ready_calls():
         return None
-    for index, payload in enumerate(tool_inputs()):
-        words = json.dumps(payload).split()
-        if any(
-            words[position] == "pr" and words[position + 1] == "ready"
-            for position in range(len(words) - 1)
-        ):
-            return index
+    for index, message in enumerate(messages):
+        for payload in message["calls"]:
+            if payload["name"] != "Bash":
+                continue
+            arguments = payload["input"].get("command")
+            if isinstance(arguments, str) and arguments:
+                words = arguments.split()
+            elif isinstance(arguments, list):
+                words = [str(word) for word in arguments]
+            else:
+                continue
+            if any(
+                words[position] == "pr" and words[position + 1] == "ready"
+                for position in range(len(words) - 1)
+            ):
+                return index
     return None
 
-sender = first_opened("sdlc-implementation")
-receiver = first_opened("pr-babysitting")
-decision = ready_position()
-problems = []
-if sender is None:
-    problems.append("the run never opened sdlc-implementation/SKILL.md")
-if receiver is None:
-    problems.append("the run never opened pr-babysitting/SKILL.md")
-# The lifecycle order this checks is the one the skills state: the handoff is
-# produced before delivery is carried, and the readiness rules are read before
-# a readiness transition is taken. An exploration call may mention either skill
-# first without that meaning anything was carried, so the two opens are not
-# ordered against each other; each is ordered against the decision it is
-# supposed to inform.
-if sender is not None and decision is not None and sender > decision:
-    problems.append(
-        "the run decided before opening sdlc-implementation, so the packet"
-        " cannot have informed the transition"
-    )
-# The receiver is ordered against the decision for the same reason the sender
-# is: a transition issued before the readiness rules were read was not taken
-# under them. Checking only the sender would accept a run that decided
-# between the two opens.
-if receiver is not None and decision is not None and receiver > decision:
-    problems.append(
-        "the run decided before opening pr-babysitting, so the readiness"
-        " rules cannot have informed the transition"
-    )
-if decision is None and recorded_ready_calls():
-    problems.append(
-        "the stand-in recorded a 'pr ready' call that no tool call in the"
-        " event stream ran"
-    )
-
-# The packet is a titled block in the message. Titles and fields may be
+# The packet is a titled block in a message. Titles and fields may be
 # decorated as Markdown — bulleted, bolded, fenced — so each line is
 # normalized before it is compared: only the words and values matter, and
 # failing a run over emphasis would say nothing about the handoff.
@@ -1798,22 +1886,30 @@ def field_of(line):
         return None, ""
     return re.sub(r"\s+", " ", label).strip().casefold(), value.strip()
 
-lines = outcome.splitlines()
-heading = None
-for index, line in enumerate(lines):
-    if re.sub(r"[^A-Z ]", "", line.upper()).strip() == "HANDOFF PACKET":
-        heading = index
-        break
-if heading is None:
-    problems.append("the final message carries no 'HANDOFF PACKET' block")
-else:
-    # The packet's fields are read from the heading to the end of the message.
-    # Scanning for the shipped labels rather than stopping at the first line
-    # that is not one keeps a wrapped value from truncating the block and
-    # failing a run over line width instead of over the handoff. The labels are
-    # held to their shipped order, so the fields are still one block rather
-    # than a sentence repeated out of place, and the last field's position is
-    # what the closing sentence is checked against.
+def packet_message():
+    """Return `(index, text)` for the first message that prints the packet."""
+    for index, message in enumerate(messages):
+        for line in message["text"].splitlines():
+            if re.sub(r"[^A-Z ]", "", line.upper()).strip() == "HANDOFF PACKET":
+                return index, message["text"]
+    return None, ""
+
+def stated_fields(text):
+    """Return `(fields, last_field_line)` the packet message states.
+
+    The fields are read from the heading to the end of the message. Scanning
+    for the shipped labels rather than stopping at the first line that is not
+    one keeps a wrapped value from truncating the block and failing a run over
+    line width instead of over the handoff. The labels are held to their
+    shipped order, so the fields are still one block rather than a sentence
+    repeated out of place.
+    """
+    lines = text.splitlines()
+    heading = next(
+        index
+        for index, line in enumerate(lines)
+        if re.sub(r"[^A-Z ]", "", line.upper()).strip() == "HANDOFF PACKET"
+    )
     expected = [
         (re.sub(r"\s+", " ", label).strip().casefold(), label) for label in shipped
     ]
@@ -1826,15 +1922,48 @@ else:
             stated[label] = value
             last_field = heading + 1 + offset
             index += 1
+    return expected, stated, last_field, index
+
+sender = first_opened("sdlc-implementation")
+receiver = first_opened("pr-babysitting")
+decision = ready_position()
+packet_at, packet_text = packet_message()
+problems = []
+if sender is None:
+    problems.append("the run never opened sdlc-implementation/SKILL.md")
+if receiver is None:
+    problems.append("the run never opened pr-babysitting/SKILL.md")
+# The lifecycle order this checks is the one the skills state: the handoff is
+# produced before delivery is carried, and the readiness rules are read before
+# a readiness transition is taken. An exploration call may mention either skill
+# first without that meaning anything was carried, so the two opens are not
+# ordered against each other; each is ordered against the decision it is
+# supposed to inform.
+if sender is not None and decision is not None and sender > decision:
+    problems.append(
+        "the run decided before opening sdlc-implementation, so the packet"
+        " cannot have informed the transition"
+    )
+if receiver is not None and decision is not None and receiver > decision:
+    problems.append(
+        "the run decided before opening pr-babysitting, so the readiness"
+        " rules cannot have informed the transition"
+    )
+if decision is None and recorded_ready_calls():
+    problems.append(
+        "the stand-in recorded a 'pr ready' call that no tool call in the"
+        " event stream ran"
+    )
+if packet_at is None:
+    problems.append("the run printed no 'HANDOFF PACKET' block")
+else:
+    open(handoff_path, "w", encoding="utf-8").write(packet_text + "\n")
+    expected, stated, last_field, index = stated_fields(packet_text)
     missing = [original for key, original in expected if key not in stated]
     if missing:
-        problems.append(
-            f"the handoff packet omits the shipped field(s) {missing!r}"
-        )
+        problems.append(f"the handoff packet omits the shipped field(s) {missing!r}")
     elif index != len(expected):
-        problems.append(
-            "the handoff packet repeats or reorders its shipped fields"
-        )
+        problems.append("the handoff packet repeats or reorders its shipped fields")
     completeness = next(
         (
             value
@@ -1849,19 +1978,27 @@ else:
             " whole approved plan, which is the subject the subset case turns on"
         )
     # The packet is the handoff, so the decision it informs has to follow it.
-    # A message that ends at the packet states no decision, and the readiness
-    # transition itself is checked elsewhere: this only holds the packet to
-    # being printed before the answer rather than after it.
-    if last_field is not None and not any(
-        line.strip() for line in lines[last_field + 1:]
-    ):
-        problems.append("the final message prints no decision after the packet")
+    # A message that prints the packet after the transition is describing the
+    # handoff retrospectively, and the receiver cannot have applied it.
+    if decision is not None and packet_at > decision:
+        problems.append(
+            "the run printed the handoff packet after the decision it is"
+            " supposed to inform"
+        )
+    # The packet is not the answer. Something has to follow it, or the run
+    # stopped at the handoff and never carried it. A run that decides nothing
+    # may legitimately end on the packet: a blocked handoff is the packet plus
+    # the reason delivery stops, and the subset run records exactly that. So
+    # this is only required where a decision was taken, which is also where
+    # the ordering check above has something to order.
+    if decision is not None and not outcome.strip():
+        problems.append("the final message is empty, so no decision follows the packet")
 
 for problem in problems:
     print(problem, file=sys.stderr)
 if problems:
     raise SystemExit(1)
-print(f"outcome: handoff produced with {len(shipped)} shipped fields and carried")
+print(f"outcome: handoff produced with {len(shipped)} shipped fields and carried before the decision")
 raise SystemExit(0)
 PROBE_HANDOFF
   then

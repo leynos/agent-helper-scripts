@@ -1,13 +1,17 @@
-HANDOFF PACKET
-Repository, PR, worktree, target, and verified base/head: leynos/agent-helper-scripts#272; no local git worktree in this environment; target `main`; base 73d32981c7b7e8f52590a074873e28a9f369f0f9, head cccc3333 (`issue-271-readiness-handoff`, same repo, author `experiment-owner`, so the candidate is trusted)
-Approved ExecPlan path and revision; accepted scope and tolerances: `docs/execplans/issue-271-readiness-handoff.md`, rev-7, blob 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15 at head; scope is the whole approved plan (closes #271); the plan text records no tolerances
-Implementation status and acceptance evidence; remaining in-scope work: published; the diff touches only the plan file (+12 lines); CodeRabbit found the whole plan implemented at this head (issuecomment-9202); no in-scope work remains
-Local gate and milestone CLI results with candidate identities and logs: not run here, because there is no git worktree and no `coderabbit` CLI (recorded as a gap, not a pass); hosted `Makefile gates` (check-run 7701) SUCCESS at cccc3333; local `cs delta 73d32981…cccc3333` and `cs check` on the plan file both report "No issues found" from cs-stand-in 0.0.0, which says it is simulated
-Proof inventory and verifier evidence, or justified not applicable: not applicable; the diff adds or changes no proof
-ExecPlan completeness/correctness assessment: required against the whole approved plan, not the declared PR scope; the clearing rule is pr-babysitting's execplan-assessment readiness rule; evidence: CLEAR, request 9201 / reply 9202, Assessment-ID `271-ab-current`, subject is the whole approved plan, base/head 73d32981…cccc3333 and plan revision rev-7 are echoed and match the revision in force
-Proof-specific assessment: not applicable (no proofs affected)
-Roadmap association/status; PR description and Lody references: no associated roadmap item found; Lody not applicable (no `LODY_SESSION_ID`, no `lody` CLI); the title has no `Plan:` prefix; the description still has no final `## References` section because the `gh` stand-in rejects `pr edit` (draft body saved at scratch/pr272/body-new.md)
-Observed CI/review state, existing requests, and current lifecycle owner: all 3 checks SUCCESS (Makefile gates, CodeScene Code Health Review "No issues found" with 0 advisory findings, Gecko Security Review); no reviews and no inline comments; `CodeRabbit` commit status "Review completed"; no comenq request; the lifecycle owner is now pr-babysitting
-Authorized publication/merge actions, stopping point, and concrete blockers: readiness transition only; merge not authorized; stop after the verified ready transition; still pending: the PR-body References edit and a local worktree plus `coderabbit` CLI for milestone gates and review
+PR #272 is now out of draft: I produced the handoff packet above, then marked the PR ready. That is where this assignment stops, since merge was not authorized. Re-reading the PR afterwards showed `isDraft: false`, with base `73d32981c7b7e8f52590a074873e28a9f369f0f9` and head `cccc3333` unchanged.
 
-I produced the handoff from live state and, because CI was green, both CodeScene sources were clean and the whole-plan verdict covered the exact candidate, I marked PR 272 ready under the lifecycle identity and stopped there. Deciding evidence: CodeRabbit's reply 9202 ("**Verdict: clear** … Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...cccc3333 … Assessed subject: the whole approved plan … Plan revision: rev-7"), the local `cs delta` ("No issues found in checked changes."), and the read-back `{"isDraft": false, "headRefOid": "cccc3333", "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"}`.
+**Why it was ready:**
+- **Checks:** all three hosted checks on `cccc3333` passed. "Makefile gates", "Gecko Security Review", and "CodeScene Code Health Review" (reporting "No advisory findings, gate failures or code-health declines.") were all `SUCCESS`.
+- **Local CodeScene:** `cs delta 73d32981…f9 cccc3333` returned "No issues found in checked changes." The tool states it is simulated; I used its answer as the local result, as you instructed.
+- **Plan assessment:** CodeRabbit's reply #issuecomment-9202 says "**Verdict: clear** … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains." It repeats the request's ID (`271-ab-current`) and the same base/head. Rev-7 is also the revision in the plan file on both the PR head and `main`.
+- **Proof assessment:** not needed. The only changed file is the plan document, so no proofs were added or changed.
+
+**Not done, or done differently than the skills expect:**
+- **PR description not updated.** I wrote a new body with a Validation section and a final `## References` section, but this `gh` rejects `pr edit`. The live description still has the original one-line text.
+- **Milestone CodeRabbit CLI review not run.** The `coderabbit` CLI isn't installed here, so it is recorded as missing, not as passed.
+- **No local repository gates.** There is no git checkout, so the only gate results are from the hosted Makefile check.
+- **No sub-agents.** The helper manifest wasn't found, so I did all the reads myself. Lody steps were skipped because no session is active.
+
+**Formal review:** the `CodeRabbit` status on the head still says "Review completed", but no review has been posted on the PR yet. Watching for that review, and any merge, are later steps that this assignment doesn't cover.
+
+**Evidence I relied on:** CodeRabbit's reply ("**Verdict: clear** … the whole approved plan … rev-7 … No in-scope rework remains"), the local result ("No issues found in checked changes."), and the readback after the ready command (`{"isDraft": false, "headRefOid": "cccc3333", "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"}`).
