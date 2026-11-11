@@ -48,6 +48,8 @@ both serve the text a run reads at its own head.
 | `combined-proof-unbound-revision`    | `5555ffff` | **clear** whole plan, `rev-7`                                                | **clear**, but the reply echoes no plan revision   | no            |
 | `combined-proof-candidate-mismatch`  | `6666aaaa` | **clear** whole plan, `rev-7`                                                | **clear**, for `…7777bbbb`, which is not this head | no            |
 | `posted-then-answered`               | `eeee6666` | none seeded; the run posts the question and a scripted reply answers it      | none                                               | yes           |
+| `crossing-whole-plan`                | `cccc3333` | **clear** whole plan, `rev-7`; run starts at `sdlc-implementation`           | none affected                                      | yes           |
+| `crossing-subset-clear`              | `ffff6666` | **clear**; subject is still the declared subset                              | none                                               | no            |
 
 `codescene-advisory` isolates the CodeScene gate from every other reason to
 hold: the whole approved plan has cleared at the revision in force, and all
@@ -74,6 +76,51 @@ scenario to exercise the manual-comment route: the agent posts a follow-up
 asking for a `rev-7` verdict, reads it back, and waits for an answer that the
 facts never supply. The scenario therefore shows both halves of the
 stale-revision rule — the follow-up path works, and readiness still waits.
+
+### The cross-skill handoff cases
+
+The other sixteen scenarios start a run at `pr-babysitting`. The readiness
+rules live there, but the packet that says which assessments apply is produced
+by `sdlc-implementation`, and until these two cases existed the handoff between
+them was only ever rehearsed in memory:
+`tests/test_readiness_handoff_boundary.py` drives the receiver from the shipped
+packet, which establishes what the receiver does with one, not that an agent
+asked to start at the sender produces one and carries it. `crossing-whole-plan`
+and `crossing-subset-clear` are the same two decisions as `current-whole-plan`
+and `subset-clear` — same head, same discussion, same checks — with
+`start_skill` set so the run begins at the sender. The crossing is the only
+difference, so a divergence in outcome is attributable to it.
+
+The runner enforces three things about such a run, because reaching the right
+readiness decision is exactly what a receiver-only run already does:
+
+- It opened `sdlc-implementation/SKILL.md`, opened `pr-babysitting/SKILL.md`,
+  and did not decide before opening the sender. A `cd <skill>; cat SKILL.md`
+  counts as an open, which is the form a real run used; matching only the
+  joined path missed it and failed a run that had in fact crossed.
+- Its final message carries a `HANDOFF PACKET` block whose fields are the ones
+  the candidate's own skill states, in that order. The labels are read from the
+  staged `sdlc-implementation`, so a packet that dropped or reordered a line is
+  refused; Markdown decoration on the title or the lines is tolerated.
+- The completeness line still says the assessment is required against the
+  whole approved plan. That line is what the subset case turns on: if the
+  packet stopped stating it, the subset run would hold for a reason its own
+  handoff no longer gave.
+
+That last condition is why the packet is checked for content and not merely for
+presence. It is also why the two cases reuse recorded evidence rather than
+inventing new evidence:
+`test_a_crossing_scenario_reuses_a_recorded_readiness_decision` asserts that
+each crossing `facts.json` is its sibling's facts plus the start skill.
+
+Both runs were made on 2026-11-11 against this branch's skills. The permitting
+one marked the PR ready after reading the plan at `cccc3333` and reconciling
+`rev-7`; the holding one left it in draft and said so in terms of the subject
+alone. Neither posted a comment, so neither has a `submitted/` entry. Both
+outcomes quote the deciding reply and the local `cs` result, and both quote the
+`cs` stand-in's own disclosure that it is simulated — the rehearsal's local
+CodeScene half is a stand-in, and neither outcome presents it as a real
+analysis.
 
 ### The two-assessment cases
 
@@ -291,14 +338,17 @@ that read would demand evidence their decisions do not rest on.
 
 `sandboxed_run.sh` takes a scenario name and needs `SKILL_SRC` set to the
 `skills` directory of the candidate under test. It copies
-`$SKILL_SRC/pr-babysitting` into a scratch working directory and runs a
-headless agent there, so the prompt's `pr-babysitting/SKILL.md` resolves. Every
-completeness request in `scenarios/` names the head it was posted for, and no
-scenario carries a review decision the assessment is meant to be judged on.
+`$SKILL_SRC/pr-babysitting` — and, for a scenario that sets `start_skill`, the
+sender too — into a scratch working directory and runs a headless agent there,
+so the prompt's `pr-babysitting/SKILL.md` resolves. Every completeness request
+in `scenarios/` names the head it was posted for, and no scenario carries a
+review decision the assessment is meant to be judged on.
 
 ```bash
 SKILL_SRC=/path/to/checkout/skills \
   bash tests/fixtures/readiness-agent-boundary/sandboxed_run.sh current-whole-plan
+SKILL_SRC=/path/to/checkout/skills \
+  bash tests/fixtures/readiness-agent-boundary/sandboxed_run.sh crossing-whole-plan
 ```
 
 The runner is not part of any Makefile gate: it needs a model API credential
@@ -639,12 +689,12 @@ that ordering deliberately, and
 change stops it. Emulating the filter would make the recording more faithful
 and is not claimed here.
 
-**Freshness of each recording.** All seventeen recordings passed their own
-outcome assertion when they were made. They were replaced when the runner
-gained the shared `pr-ready` boundary line, the successful read-back check, the
-candidate-bound plan read and the head-commit route, and when the assignment
-began naming the stand-in as the local source; both changes reached every
-scenario, so all nine originals were redone together.
+**Freshness of each recording.** All seventeen recordings made before the
+crossing cases passed their own outcome assertion when they were made. They
+were replaced when the runner gained the shared `pr-ready` boundary line, the
+successful read-back check, the candidate-bound plan read and the head-commit
+route, and when the assignment began naming the stand-in as the local source;
+both changes reached every scenario, so all nine originals were redone together.
 
 The stand-in's handling of a posted comment changed next, and the recordings
 that post were redone under it: the combined cases as they then stood and

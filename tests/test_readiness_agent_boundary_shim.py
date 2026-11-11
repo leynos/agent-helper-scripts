@@ -3653,3 +3653,468 @@ def test_an_unscripted_scenario_still_answers_no_question_it_did_not_record(
     state = json.loads((run / "state.json").read_text(encoding="utf-8"))
     assert "scripted" not in state, state
     assert len(state["posted"]) == 1, state
+
+
+#: The scenarios that rehearse the implementation handoff: the run starts at
+#: `sdlc-implementation`, produces the packet and carries it into
+#: `pr-babysitting`. Everything else starts at the receiver.
+CROSSING = ("crossing-whole-plan", "crossing-subset-clear")
+
+#: The sender the handoff probe reads its packet from. Named once so the probe
+#: tests and any future crossing case point at the shipped skill.
+IMPLEMENTATION_SKILL = (
+    FIXTURES.parent.parent.parent / "skills" / "sdlc-implementation" / "SKILL.md"
+)
+
+
+def _start_skill(facts: dict) -> str:
+    """Return the skill a scenario says its run starts at, or the default."""
+    return str(facts.get("start_skill", "pr-babysitting"))
+
+
+def test_every_crossing_scenario_states_its_start_and_no_other_does() -> None:
+    """The crossing is a property of the scenario, not of the runner's mood.
+
+    A scenario whose facts named no start skill would get the receiver-only
+    prompt, and a rehearsal meant to cross the handoff would then record a run
+    that never opened the sender. The converse matters too: a receiver-only
+    case that gained the key would be re-run under a prompt its committed
+    recording was never made with, so the seventeen existing cases are held to
+    stating nothing.
+    """
+    found = set()
+    for facts_path in sorted((FIXTURES / "scenarios").glob("*/facts.json")):
+        facts = json.loads(facts_path.read_text(encoding="utf-8"))
+        name = facts_path.parent.name
+        if "start_skill" in facts:
+            found.add(name)
+            assert facts["start_skill"] == "sdlc-implementation", (
+                f"{name} names an unknown start skill {facts['start_skill']!r}"
+            )
+    assert found == set(CROSSING), (
+        f"the crossing scenarios and the named ones disagree: {found}"
+    )
+
+
+def test_a_crossing_scenario_reuses_a_recorded_readiness_decision() -> None:
+    """The crossing must be the only variable a crossing run adds.
+
+    Each crossing case is one of the two decisions the readiness rule already
+    turns on — the hole is in the assessment evidence, not in the handoff — so
+    its facts are the existing case's facts plus the start skill. A run of it
+    is therefore evidence about whether the crossing preserves the decision,
+    not about whether a handwritten scenario reached the intended verdict.
+    If the two facts had drifted, a divergence could be attributed to either.
+    """
+    pairs = {
+        "crossing-whole-plan": "current-whole-plan",
+        "crossing-subset-clear": "subset-clear",
+    }
+    for crossing, recorded in pairs.items():
+        left = json.loads(
+            (FIXTURES / "scenarios" / crossing / "facts.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        right = json.loads(
+            (FIXTURES / "scenarios" / recorded / "facts.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert left.pop("start_skill") == "sdlc-implementation"
+        assert left == right, (
+            f"{crossing} differs from {recorded} beyond its start skill, so a"
+            " difference in outcome cannot be attributed to the crossing"
+        )
+
+
+def test_the_runner_selects_the_crossing_prompt_from_the_scenario() -> None:
+    """The start skill is read, validated, and branched on by the runner.
+
+    An unvalidated value would fall through to the receiver prompt silently,
+    which is the failure the crossing checks exist to prevent: the run would
+    look like a crossed rehearsal and be a receiver-only one. The staged skill
+    list has to follow the same value, or a crossing run would be asked for a
+    handoff from a skill the sandbox never copied.
+    """
+    runner = RUNNER.read_text()
+    assert 'facts.get("start_skill", "pr-babysitting")' in runner, (
+        "the runner no longer reads the scenario's start skill"
+    )
+    assert "unknown start_skill" in runner, (
+        "the runner accepts a start skill it does not know"
+    )
+    assert 'STAGED_SKILLS="sdlc-implementation pr-babysitting"' in runner, (
+        "a crossing run is not given both shipped skills"
+    )
+    assert "STAGED_SKILLS=pr-babysitting" in runner, (
+        "a receiver-only run is no longer given the receiver alone"
+    )
+    for skill in ("sdlc-implementation", "pr-babysitting"):
+        assert f"`{skill}/SKILL.md`" in runner or f"{skill}/SKILL.md" in runner, (
+            f"the crossing prompt no longer names {skill}/SKILL.md"
+        )
+    assert "HANDOFF PACKET" in runner, (
+        "the crossing prompt no longer asks for the packet"
+    )
+
+
+def test_the_receiver_prompt_is_the_one_the_recordings_were_made_under() -> None:
+    """Seventeen recordings must stay attached to a prompt that still exists.
+
+    The crossing was added by giving those scenarios a branch, not by editing
+    the prompt every existing recording was made under. Re-wording it here
+    would leave each one describing a run nobody can reproduce, and nothing in
+    the suite would notice, because the prompt is not part of any recording.
+    """
+    runner = RUNNER.read_text()
+    recorded = runner[
+        runner.index("You are the PR lifecycle supervisor for leynos/agent-helper-scripts pull")
+        :
+    ]
+    recorded = recorded[: recorded.index("\nPROMPT\n")]
+    assert "Start at `pr-babysitting/SKILL.md`" in recorded, (
+        "the receiver prompt no longer sends the run to the receiver skill"
+    )
+    assert "sdlc-implementation" not in recorded, (
+        "the receiver prompt now names the sender, so the existing recordings"
+        " were made under a prompt the runner no longer sends"
+    )
+
+
+def handoff_outcome(**overrides: object) -> str:
+    """Build a final message carrying the shipped packet, as the prompt asks."""
+    fields = {
+        "Repository, PR, worktree, target, and verified base/head":
+            "leynos/agent-helper-scripts#272 at cccc3333, base 73d32981",
+        "Approved ExecPlan path and revision; accepted scope and tolerances":
+            "docs/execplans/issue-271-readiness-handoff.md at rev-7",
+        "Implementation status and acceptance evidence; remaining in-scope work":
+            "delivered; the change is under test; nothing in scope remains",
+        "Local gate and milestone CLI results with candidate identities and logs":
+            "make test at cccc3333 in /tmp/gates.out",
+        "Proof inventory and verifier evidence, or justified not applicable":
+            "none affected; no proof changed",
+        "ExecPlan completeness/correctness assessment":
+            "required against the whole approved plan, not the declared PR"
+            " scope; evidence or pending: clear for rev-7",
+        "Proof-specific assessment": "required when applicable; not applicable",
+        "Roadmap association/status; PR description and Lody references":
+            "no roadmap item; description names the plan",
+        "Observed CI/review state, existing requests, and current lifecycle owner":
+            "all checks green; the supervisor owns delivery",
+        "Authorized publication/merge actions, stopping point, and concrete"
+        " blockers": "no publication; stop at readiness; no blockers",
+    }
+    lines = ["HANDOFF PACKET", ""]
+    for label, value in fields.items():
+        lines.append(f"{label}: {value}")
+    lines += ["", "I marked the PR ready because the whole approved plan cleared."]
+    return "\n".join(lines)
+
+
+def handoff_run(tmp_path: Path, outcome: str, opens: tuple[str, ...] = ()) -> Path:
+    """Write one crossing run's skill, outcome and event stream."""
+    skill = tmp_path / "SKILL.md"
+    shutil.copy2(IMPLEMENTATION_SKILL, skill)
+    message = tmp_path / "outcome.txt"
+    message.write_text(outcome + "\n", encoding="utf-8")
+    events = [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Read",
+                        "input": {"file_path": f"/run/work/{name}"},
+                    }
+                ]
+            },
+        }
+        for name in opens
+    ]
+    write_lines(tmp_path / "events.jsonl", events)
+    return tmp_path
+
+
+
+def test_the_handoff_probe_accepts_a_run_that_crossed(tmp_path: Path) -> None:
+    """The probe must pass the run the prompt asks for.
+
+    Without this the refusals below would pass against a probe that rejects
+    everything, which is a broken check reported as a strict one.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "10 shipped fields" in done.stdout, done.stdout
+
+
+def test_the_handoff_probe_refuses_a_run_that_never_opened_the_sender(
+    tmp_path: Path,
+) -> None:
+    """Reaching the right decision is not evidence that the handoff crossed.
+
+    A receiver-only run reaches the same readiness verdict, so an outcome-only
+    check would accept it as a crossing. The event stream is what separates
+    them.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), opens=("pr-babysitting/SKILL.md",))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "never opened sdlc-implementation" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_packet_missing_a_shipped_field(
+    tmp_path: Path,
+) -> None:
+    """The packet is the shipped one, not a summary the agent preferred.
+
+    The fields are read from the candidate's own skill, so a packet that drops
+    a line is refused even if every line it kept is correct.
+    """
+    outcome = handoff_outcome().replace(
+        "Proof-specific assessment: required when applicable; not applicable\n", ""
+    )
+    run = handoff_run(
+        tmp_path,
+        outcome,
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "Proof-specific assessment" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_completeness_line_without_the_subject(
+    tmp_path: Path,
+) -> None:
+    """The completeness line is what the subset case turns on.
+
+    A crossing that carried an assessment line which no longer named the whole
+    approved plan would leave the receiver refusing a subset for a reason its
+    own handoff did not state, and the subset run's hold would be attributed to
+    a rule the crossing had removed.
+    """
+    outcome = handoff_outcome().replace(
+        "required against the whole approved plan, not the declared PR scope;",
+        "required against the declared PR scope;",
+    )
+    run = handoff_run(
+        tmp_path,
+        outcome,
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "whole approved plan" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_packet_printed_after_the_decision(
+    tmp_path: Path,
+) -> None:
+    """A packet below the closing sentence was not the one the run carried.
+
+    The prompt asks for the packet immediately before the summary; a run that
+    pasted it after the answer is describing the handoff retrospectively.
+    """
+    lines = handoff_outcome().splitlines()
+    closing = lines.pop()
+    outcome = "\n".join([closing, ""] + lines)
+    run = handoff_run(
+        tmp_path,
+        outcome,
+        opens=("sdlc-implementation/SKILL.md", "pr-babysitting/SKILL.md"),
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "no decision after the packet" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_refuses_a_decision_taken_before_the_sender_was_opened(
+    tmp_path: Path,
+) -> None:
+    """The packet has to inform the decision, not follow it.
+
+    The opens are ordered against the `pr ready` call rather than against each
+    other: an agent may mention the receiver while exploring, but a transition
+    that happened before the sender was read cannot have been informed by the
+    packet it produced.
+    """
+    # Both skills are read and the transition is issued, so the run is complete
+    # except for the order: the sender is read after the decision it is
+    # supposed to inform. A run that merely failed to open the sender would be
+    # refused by the coverage check instead, and this case would pass without
+    # testing the ordering it is named for.
+    run = handoff_run(tmp_path, handoff_outcome())
+    events = [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Read",
+                        "input": {"file_path": "/run/work/pr-babysitting/SKILL.md"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Bash",
+                        "input": {"command": "gh pr ready 272 --repo r"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Read",
+                        "input": {"file_path": "/run/work/sdlc-implementation/SKILL.md"},
+                    }
+                ]
+            },
+        },
+    ]
+    write_lines(run / "events.jsonl", events)
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "decided before opening sdlc-implementation" in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_requires_the_receiver_to_be_opened_too(
+    tmp_path: Path,
+) -> None:
+    """A handoff that was produced but never carried is not a crossing.
+
+    The sender alone can describe a packet; only the receiver applies it. A run
+    that read the sender, wrote the packet and issued the transition without
+    ever opening `pr-babysitting` would be recorded as a crossed rehearsal
+    while following a rule it never read.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        opens=("sdlc-implementation/SKILL.md",),
+    )
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+    )
+    assert done.returncode != 0
+    assert "never opened pr-babysitting" in done.stderr, done.stderr
+
+
+def test_the_committed_crossing_recordings_retain_the_handoff_evidence() -> None:
+    """The retained evidence has to be the handoff, not just the decision.
+
+    A trace shows the reads and a decision shows the verdict; neither shows the
+    packet that crossed. The outcome is the only committed artefact carrying
+    it, so it has to hold the shipped packet and the decision the packet
+    informed, or the two runs would be indistinguishable from receiver-only
+    ones whose outcomes happened to agree.
+
+    The scripted-reply question does not arise here: neither run posted, and
+    the stand-in would have refused an unscripted answer anyway. Each outcome
+    still has to attribute its local CodeScene result to the stand-in, because
+    a reader cannot tell a simulated clearance from a real one otherwise.
+    """
+    packets = {}
+    for name in CROSSING:
+        outcome = (FIXTURES / "outcomes" / f"{name}.txt").read_text(
+            encoding="utf-8"
+        )
+        assert "HANDOFF PACKET" in outcome, f"{name} retains no handoff packet"
+        for label in (
+            "Repository, PR, worktree, target, and verified base/head",
+            "ExecPlan completeness/correctness assessment",
+            "Proof-specific assessment",
+        ):
+            assert label in outcome, f"{name} retains no {label!r} line"
+        assert "simulated" in outcome, (
+            f"{name} does not attribute the local CodeScene result to the"
+            " stand-in, so the recording presents a simulation as an analysis"
+        )
+        assert "scripted reply" not in outcome, (
+            f"{name} describes a scripted reply, but the run scripts none"
+        )
+        packets[name] = outcome
+    # The two runs reached opposite decisions on the same packet, which is what
+    # makes them a pair: a whole-plan verdict transitions, and a clear verdict
+    # on a declared subset does not.
+    assert "still a draft" in packets["crossing-subset-clear"], (
+        "the subset crossing no longer records that it stayed in draft"
+    )
+    assert "marked PR 272 ready" in packets["crossing-whole-plan"], (
+        "the whole-plan crossing no longer records its transition"
+    )
+
+
+def test_the_committed_crossing_traces_match_their_decisions() -> None:
+    """The recording beside each outcome has to show the decision it reports.
+
+    The outcomes are prose the agent wrote; the traces are what the stand-in
+    recorded. Committing an outcome beside a trace from a different run would
+    pair a claim with unrelated evidence, and the pairing test cannot see it
+    because both files individually have the right shape.
+    """
+    for name, expected in (("crossing-whole-plan", 1), ("crossing-subset-clear", 0)):
+        trace = FIXTURES / "traces" / f"{name}.jsonl"
+        calls = [
+            json.loads(line)
+            for line in trace.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        # The stand-in records each invocation as its argv list, so the
+        # decision is a prefix match rather than a textual search: `pr view`
+        # also mentions the PR and would match a looser pattern.
+        ready = [call for call in calls if call[:2] == ["pr", "ready"]]
+        assert len(ready) == expected, (
+            f"{name} records {len(ready)} 'pr ready' calls, expected {expected}"
+        )

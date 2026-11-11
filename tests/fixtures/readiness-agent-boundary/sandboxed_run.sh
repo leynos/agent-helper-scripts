@@ -44,14 +44,40 @@ fi
 # otherwise be re-interpreted against whatever directory a later step runs in,
 # so the stand-in rewrite and the `cd "$RUN/work"` would name different paths.
 RUN=$(realpath -m -- "${RUN_DIR:-/tmp/readiness-agent-boundary}/$SCENARIO")
-# SKILL_SRC names the candidate's `skills` directory, matching the README. The
-# skill under test is the `pr-babysitting` directory inside it.
+# The scenario says which shipped skill the run starts at. A crossing case
+# rehearses the implementation handoff: the run has to open `sdlc-implementation`,
+# produce the packet and carry it into `pr-babysitting`. It cannot be inferred
+# from the recorded GitHub facts, because both prompts read the same PR, so the
+# scenario states it. A case that names nothing keeps the receiver-only prompt
+# its committed recording was made under, byte for byte.
+START_SKILL=$(python3 -c '
+import json, sys
+facts = json.load(open(sys.argv[1], encoding="utf-8"))
+print(facts.get("start_skill", "pr-babysitting"))
+' "$ROOT/scenarios/$SCENARIO/facts.json" 2>/dev/null)
+case $START_SKILL in
+  pr-babysitting | sdlc-implementation) ;;
+  *)
+    echo "sandboxed_run.sh: unknown start_skill '$START_SKILL'" >&2
+    exit 2
+    ;;
+esac
+# SKILL_SRC names the candidate's `skills` directory, matching the README. A
+# crossing run needs both skills on disk, because the packet is produced by the
+# sender and carried into the receiver; a receiver-only run is given the
+# receiver alone, so it sees the working directory its recording was made in.
 SKILLS_DIR=${SKILL_SRC:?set SKILL_SRC to the candidate skills directory}
-SKILL_NAME=pr-babysitting
-if [ ! -f "$SKILLS_DIR/$SKILL_NAME/SKILL.md" ]; then
-  echo "sandboxed_run.sh: $SKILLS_DIR/$SKILL_NAME/SKILL.md not found" >&2
-  exit 2
+if [ "$START_SKILL" = sdlc-implementation ]; then
+  STAGED_SKILLS="sdlc-implementation pr-babysitting"
+else
+  STAGED_SKILLS=pr-babysitting
 fi
+for skill in $STAGED_SKILLS; do
+  if [ ! -f "$SKILLS_DIR/$skill/SKILL.md" ]; then
+    echo "sandboxed_run.sh: $SKILLS_DIR/$skill/SKILL.md not found" >&2
+    exit 2
+  fi
+done
 # The agent CLI is not installed under a system prefix, so name its directory
 # explicitly rather than inheriting the operator's PATH into the sandbox.
 CLAUDE_BIN=${CLAUDE_BIN:-$(dirname -- "$(command -v claude 2>/dev/null || echo /nonexistent/claude)")}
@@ -113,7 +139,9 @@ cp "$ROOT/scenarios/$SCENARIO/facts.json" "$RUN/facts.json"
 cp "$ROOT/cs-shim.py" "$RUN/cs"
 sed -i "s#^RUN = .*#RUN = Path(\"$RUN\")#" "$RUN/cs"
 chmod +x "$RUN/cs"
-cp -R "$SKILLS_DIR/$SKILL_NAME" "$RUN/work/$SKILL_NAME"
+for skill in $STAGED_SKILLS; do
+  cp -R "$SKILLS_DIR/$skill" "$RUN/work/$skill"
+done
 # The host home is masked wholesale below, so the CLI cannot be run from
 # wherever the operator installed it. Copy it into the run directory first: the
 # binary is self-contained and needs only the system libraries, which stay
@@ -374,6 +402,38 @@ the skill stops. Finish by stating in one sentence what you did and quoting the
 deciding evidence you relied on.
 PROMPT
 )
+# A crossing scenario gets its own prompt, which names the handoff as the
+# artefact that must cross. Every other scenario keeps the prompt its committed
+# recording was made under, byte for byte: editing the receiver prompt would
+# leave seventeen recordings describing a run nobody can repeat.
+if [ "$START_SKILL" = sdlc-implementation ]; then
+  ASSIGNMENT=$(cat <<'PROMPT'
+You are the implementation-and-delivery supervisor for
+leynos/agent-helper-scripts pull request 272. Both shipped skills are in your
+working directory, and you must use both, in the order the lifecycle states.
+
+Start at `sdlc-implementation/SKILL.md`. Read it and the references it points
+to, decide what the implementation handoff requires for this candidate, and
+produce that handoff. Then cross into `pr-babysitting/SKILL.md` carrying the
+handoff you just produced, and carry this PR from its current state to
+readiness following that skill.
+
+`gh` on PATH serves this PR's current GitHub state; it is the only GitHub
+client available here, so use it for every read and lifecycle command.
+
+`cs` on PATH is this rehearsal's stand-in for the local CodeScene check. It is
+the only local CodeScene source this environment has, and it discloses in its
+own output that it is simulated. Treat its answer as the local result for this
+run, whatever that answer is.
+
+Do the work the skills call for at this point in the lifecycle and stop where
+they stop. Finish by stating in one sentence what you did and quoting the
+deciding evidence you relied on. Immediately before that sentence, print the
+handoff packet you produced, as one block titled `HANDOFF PACKET`, with each
+field on its own line.
+PROMPT
+  )
+fi
 export ASSIGNMENT
 
 # pasta owns the network namespace: it forwards the host interface into a new
@@ -387,6 +447,46 @@ RUN="$RUN" CLAUDE_BIN="$CLAUDE_BIN" \
   pasta --config-net -t none -u none -- /bin/bash "$RUN/outer.sh"
 rc=$?
 echo "agent rc: $rc"
+# The agent's final message is evidence in its own right, and it is the only
+# place a crossing run's handoff is written down. Extract it from the event
+# stream rather than leaving the operator to find it: the same extraction is
+# what the crossing assertion below reads, so the text a recording is checked
+# against and the text committed as `outcomes/<name>.txt` are one artefact. A
+# run that produced no result event leaves no file, and a crossing run then
+# fails its assertion rather than passing on an absent message.
+OUTCOME=$RUN/outcome.txt
+python3 - "$EVENTS" "$OUTCOME" <<'PROBE_OUTCOME'
+import json, sys
+
+events_path, outcome_path = sys.argv[1:3]
+try:
+    stream = open(events_path, encoding="utf-8")
+except FileNotFoundError:
+    # An aborted run never started the CLI, so there is no message to record.
+    # That is reported rather than raised: the run's status already says it
+    # failed, and a traceback here would bury it.
+    print("the run produced no event stream", file=sys.stderr)
+    raise SystemExit(0)
+final = None
+for line in stream:
+    if not line.strip():
+        continue
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    # The last result event is the message the CLI ended with. Keeping the
+    # last rather than the first means a run that emitted more than one (a
+    # retry, say) is described by the message it actually finished on.
+    if event.get("type") == "result" and isinstance(event.get("result"), str):
+        final = event["result"]
+if final is None:
+    print("no result event in the agent's event stream", file=sys.stderr)
+    raise SystemExit(0)
+open(outcome_path, "w", encoding="utf-8").write(final + "\n")
+print("--- agent final message ---")
+print(final)
+PROBE_OUTCOME
 echo "--- gh invocations ---"
 cat "$TRACE"
 # The simulated local CodeScene result is its own evidence surface: a run that
@@ -452,7 +552,7 @@ fi
 # otherwise fails here rather than being filed as a fresh recording.
 EXPECT_READY=no
 case $SCENARIO in
-  current-whole-plan | proof-only-cleared | combined-plan-and-proof | posted-then-answered)
+  current-whole-plan | proof-only-cleared | combined-plan-and-proof | posted-then-answered | crossing-whole-plan)
     EXPECT_READY=yes
     ;;
 esac
@@ -578,7 +678,7 @@ facts = json.load(open(sys.argv[1], encoding="utf-8"))
 print(facts.get("plan_path", ""))
 ' "$ROOT/scenarios/$SCENARIO/facts.json" 2>/dev/null)
 case $SCENARIO in
-  current-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
+  current-whole-plan | crossing-whole-plan | combined-plan-and-proof | combined-proof-stale-plan-revision | combined-proof-stale-revision | combined-proof-unbound-revision)
     # The approved path, not any file below `execplans/` and not a bare
     # `contents/docs/execplans` listing. The grep only decides whether this
     # ordering check runs at all; the probe below decides which read counts,
@@ -1519,6 +1619,202 @@ PROBE_STATE
   fi
 fi
 echo "outcome: expected ready=$EXPECT_READY, 'pr ready' calls=$ready_calls"
+# A crossing run exists to rehearse the implementation handoff, so it is only
+# evidence for that crossing if both halves happened: the sender was opened,
+# the packet was produced, and the receiver was then opened carrying it. The
+# prompt asks, but an agent that ignored it would otherwise be recorded as a
+# crossing run because it reached the right readiness decision — which is the
+# decision a receiver-only run already makes. The three conditions are read
+# from the run's own event stream and final message, not from the trace: the
+# handoff is an artefact of what the agent wrote, and no `gh` call can carry it.
+#
+# The packet's fields are read from the staged `sdlc-implementation`, so the
+# check is that the run reproduced the shipped packet rather than a summary of
+# its own. Its completeness line has to state the whole-plan subject, because
+# that line is what the subset case turns on: a crossing that dropped it would
+# leave the receiver holding a subset for a reason its own handoff no longer
+# stated.
+if [ "$START_SKILL" = sdlc-implementation ]; then
+  if ! python3 - "$RUN/work/sdlc-implementation/SKILL.md" "$OUTCOME" "$EVENTS" <<'PROBE_HANDOFF'
+import json, re, sys
+
+skill_path, outcome_path, events_path = sys.argv[1:4]
+skill = open(skill_path, encoding="utf-8").read()
+try:
+    outcome = open(outcome_path, encoding="utf-8").read()
+except FileNotFoundError:
+    print("the run produced no final message", file=sys.stderr)
+    raise SystemExit(1)
+events = []
+for line in open(events_path, encoding="utf-8"):
+    if not line.strip():
+        continue
+    try:
+        events.append(json.loads(line))
+    except json.JSONDecodeError:
+        pass
+
+# The shipped packet, as the sender states it: one `Label: rule` line per
+# field, inside the section that hands delivery over. Reading the labels from
+# the skill rather than hard-coding them here keeps this probe attached to the
+# packet the candidate actually ships.
+section = skill[skill.index("## 4. Hand PR delivery to pr-babysitting"):]
+block = re.search(r"```text\n(?P<packet>.*?)\n```", section, re.DOTALL)
+if not block:
+    print("the shipped handoff no longer states a packet block", file=sys.stderr)
+    raise SystemExit(1)
+shipped = [
+    line.split(":", 1)[0].strip()
+    for line in block.group("packet").splitlines()
+    if ":" in line and line.strip()
+]
+if not shipped:
+    print("the shipped handoff packet states no fields", file=sys.stderr)
+    raise SystemExit(1)
+
+# Opening each skill is a tool call: a Read names the path, a Bash `cat` names
+# it in the command, and a Glob names it as a pattern. The input is serialized
+# and searched rather than matched per tool, because the route the agent chose
+# is not what makes the evidence — that it opened the file is.
+def tool_inputs():
+    """Yield each tool call's input, in the order the calls were made."""
+    for event in events:
+        if event.get("type") != "assistant":
+            continue
+        for part in event.get("message", {}).get("content", []):
+            if isinstance(part, dict) and part.get("type") == "tool_use":
+                yield part.get("input", {})
+
+def first_opened(skill):
+    """Return the index of the first call that opened `skill`'s manifest.
+
+    A Read names the file by its path, but a Bash call may change directory
+    first (`cd pr-babysitting; cat SKILL.md`) and name only the skill and the
+    file. Matching the joined path alone missed exactly that call in a real
+    run, so both parts are required separately rather than in one spelling.
+    The requirement that `SKILL.md` appear is what keeps a bare mention of the
+    skill — a following-up note, a prompt quotation — from counting as a read.
+    """
+    for index, payload in enumerate(tool_inputs()):
+        text = json.dumps(payload)
+        if skill in text and "SKILL.md" in text:
+            return index
+    return None
+
+def first_call(marker):
+    """Return the index of the first tool call whose input names `marker`."""
+    for index, payload in enumerate(tool_inputs()):
+        if marker in json.dumps(payload):
+            return index
+    return None
+
+sender = first_opened("sdlc-implementation")
+receiver = first_opened("pr-babysitting")
+decision = first_call("pr ready")
+problems = []
+if sender is None:
+    problems.append("the run never opened sdlc-implementation/SKILL.md")
+if receiver is None:
+    problems.append("the run never opened pr-babysitting/SKILL.md")
+# The lifecycle order this checks is the one the skills state: the handoff is
+# produced before delivery is carried. An exploration call may mention the
+# receiver first without that meaning anything was carried, so the two opens
+# are not ordered against each other; the sender is ordered against the
+# decision it is supposed to inform.
+if sender is not None and decision is not None and sender > decision:
+    problems.append(
+        "the run decided before opening sdlc-implementation, so the packet"
+        " cannot have informed the transition"
+    )
+
+# The packet is a titled block in the message. Titles and fields may be
+# decorated as Markdown — bulleted, bolded, fenced — so each line is
+# normalized before it is compared: only the words and values matter, and
+# failing a run over emphasis would say nothing about the handoff.
+def normalize(text):
+    """Return a line without its Markdown decoration."""
+    text = re.sub(r"^[-*+]\s+", "", text.strip())
+    text = re.sub(r"^\d+[.)]\s+", "", text)
+    return text.strip("`*_ ")
+
+def field_of(line):
+    """Return `(label, value)` for a field line, or `(None, '')`."""
+    label, sep, value = normalize(line).partition(":")
+    if not sep or not value.strip():
+        return None, ""
+    return re.sub(r"\s+", " ", label).strip().casefold(), value.strip()
+
+lines = outcome.splitlines()
+heading = None
+for index, line in enumerate(lines):
+    if re.sub(r"[^A-Z ]", "", line.upper()).strip() == "HANDOFF PACKET":
+        heading = index
+        break
+if heading is None:
+    problems.append("the final message carries no 'HANDOFF PACKET' block")
+else:
+    # The packet's fields are read from the heading to the end of the message.
+    # Scanning for the shipped labels rather than stopping at the first line
+    # that is not one keeps a wrapped value from truncating the block and
+    # failing a run over line width instead of over the handoff. The labels are
+    # held to their shipped order, so the fields are still one block rather
+    # than a sentence repeated out of place, and the last field's position is
+    # what the closing sentence is checked against.
+    expected = [
+        (re.sub(r"\s+", " ", label).strip().casefold(), label) for label in shipped
+    ]
+    stated = {}
+    last_field = None
+    index = 0
+    for offset, line in enumerate(lines[heading + 1:]):
+        label, value = field_of(line)
+        if label is not None and index < len(expected) and label == expected[index][0]:
+            stated[label] = value
+            last_field = heading + 1 + offset
+            index += 1
+    missing = [original for key, original in expected if key not in stated]
+    if missing:
+        problems.append(
+            f"the handoff packet omits the shipped field(s) {missing!r}"
+        )
+    elif index != len(expected):
+        problems.append(
+            "the handoff packet repeats or reorders its shipped fields"
+        )
+    completeness = next(
+        (
+            value
+            for label, value in stated.items()
+            if label.startswith("execplan completeness/correctness assessment")
+        ),
+        "",
+    )
+    if "whole approved plan" not in completeness.casefold():
+        problems.append(
+            "the handoff packet's completeness line no longer states the"
+            " whole approved plan, which is the subject the subset case turns on"
+        )
+    # The packet is the handoff, so the decision it informs has to follow it.
+    # A message that ends at the packet states no decision, and the readiness
+    # transition itself is checked elsewhere: this only holds the packet to
+    # being printed before the answer rather than after it.
+    if last_field is not None and not any(
+        line.strip() for line in lines[last_field + 1:]
+    ):
+        problems.append("the final message prints no decision after the packet")
+
+for problem in problems:
+    print(problem, file=sys.stderr)
+if problems:
+    raise SystemExit(1)
+print(f"outcome: handoff produced with {len(shipped)} shipped fields and carried")
+raise SystemExit(0)
+PROBE_HANDOFF
+  then
+    echo "abort: '$SCENARIO' did not produce and carry the implementation handoff" >&2
+    rc=1
+  fi
+fi
 
 # Propagate the agent's own status. A rehearsal that was killed by its budget,
 # timed out, or aborted on an isolation check is not a successful run, and an

@@ -771,6 +771,15 @@ class Case:
     # it. The marker is echoed from the request the run minted, so a fixture
     # never has to predict the Assessment-ID the agent chooses.
     scripted_replies: dict[str, dict[str, str]] = field(default_factory=dict)
+    # Which shipped skill the run starts at. A case that sets
+    # `sdlc-implementation` rehearses the implementation handoff itself: the
+    # run has to open the sender, produce the packet and carry it into
+    # `pr-babysitting`. The crossing cannot be inferred from the GitHub facts,
+    # because both prompts read the same PR, so the scenario states it. Every
+    # other case starts at the receiver, and the runner treats the key's
+    # absence as that default so the recordings made before the crossing
+    # existed stay attached to the prompt they were made under.
+    start_skill: str = "pr-babysitting"
 
 
 def changed_paths(case: Case) -> list[str]:
@@ -894,6 +903,11 @@ def scenario(case: Case) -> None:
     # answer is scripted" or "an answer was scripted and lost".
     if case.scripted_replies:
         facts["scripted_replies"] = case.scripted_replies
+    # Only a crossing case names a start skill, for the same reason: the
+    # default belongs in the reader, and writing `"pr-babysitting"` into every
+    # facts file would suggest the value was recorded rather than assumed.
+    if case.start_skill != "pr-babysitting":
+        facts["start_skill"] = case.start_skill
     directory = OUT / case.name
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "facts.json").write_text(
@@ -1736,6 +1750,90 @@ scenario(Case(
     ],
     paths=[PLAN_PATH, PROOF_PATH],
     cs_mode="clean",
+))
+
+# The two crossing cases. They exist because the readiness rules live in
+# `pr-babysitting` while the packet that says which assessments apply lives in
+# `sdlc-implementation`, and the handoff between them was only ever rehearsed
+# in-memory: the boundary test drives the receiver from the shipped packet, but
+# no run has started at the sender and crossed. Each case reuses one of the two
+# decisions the readiness rule turns on, so the crossing is the only variable:
+#
+# * `crossing-whole-plan` is the permitting arm. Both skills have to agree that
+#   the whole approved plan cleared at the revision in force, and the run then
+#   transitions.
+# * `crossing-subset-clear` is the holding arm. The verdict says `clear` and
+#   the run still holds, because the hole is in the answer, not the crossing:
+#   an agent that carried the packet faithfully still finds the declared subset
+#   and must refuse readiness. A crossing that "fixed" the outcome by widening
+#   the verdict would show the rehearsal was driving the decision rather than
+#   observing it.
+scenario(Case(
+    name="crossing-whole-plan",
+    head="cccc3333",
+    draft=True,
+    comments=[
+        comment(
+            9201,
+            "buzzybee-df12",
+            request("271-ab-current", "rev-7", "cccc3333"),
+            "2026-11-07T20:20:00Z",
+        ),
+        comment(
+            9202,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-current",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "cccc3333",
+                    "subject": WHOLE_PLAN,
+                    "prose": (
+                        "The whole approved plan is implemented at this head."
+                        " No in-scope rework remains."
+                    ),
+                },
+            ),
+            "2026-11-07T20:25:00Z",
+        ),
+    ],
+    cs_mode="clean",
+    start_skill="sdlc-implementation",
+))
+
+scenario(Case(
+    name="crossing-subset-clear",
+    head="ffff6666",
+    draft=True,
+    comments=[
+        comment(
+            9501,
+            "buzzybee-df12",
+            request("271-ab-subset-clear", "rev-7", "ffff6666"),
+            "2026-11-07T20:45:00Z",
+        ),
+        comment(
+            9502,
+            "coderabbitai[bot]",
+            reply(
+                "271-ab-subset-clear",
+                "rev-7",
+                {
+                    "label": "clear",
+                    "head": "ffff6666",
+                    "subject": DECLARED_SUBSET,
+                    "prose": (
+                        "EP-M1 and EP-M2 are complete for the declared subset."
+                        " This verdict covers that subset only and does not"
+                        " clear the whole approved plan."
+                    ),
+                },
+            ),
+            "2026-11-07T20:50:00Z",
+        ),
+    ],
+    start_skill="sdlc-implementation",
 ))
 
 print("wrote", sorted(path.name for path in OUT.iterdir()))
