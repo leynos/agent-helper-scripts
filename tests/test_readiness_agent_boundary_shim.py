@@ -1344,8 +1344,19 @@ def plan_read(ref: str) -> list[str]:
     return ["api", "-H", "Accept: application/vnd.github.raw", f"{PLAN_ROUTE}?ref={ref}"]
 
 
-def answer(argv: list[str], status: int = 0, stdout: str = "the plan\n") -> dict:
-    """Return one line of the stand-in's answer record."""
+#: What a revision-bearing plan read returns. The plan file is the surface that
+#: states the revision in force, so a successful read of it is only usable
+#: evidence when the text names one.
+PLAN_TEXT = "# Readiness handoff\n\nPlan revision: rev-7\n"
+
+
+def answer(argv: list[str], status: int = 0, stdout: str = PLAN_TEXT) -> dict:
+    """Return one line of the stand-in's answer record.
+
+    The default text states a revision because the recorded plan file does, and
+    a probe that cannot tell those apart would accept a read that established
+    nothing. Cases that need a different text pass one.
+    """
     return {"argv": argv, "status": status, "stdout": stdout}
 
 
@@ -1489,6 +1500,38 @@ def test_the_plan_probe_refuses_a_candidate_read_that_returned_nothing(
     )
     assert done.returncode != 0, "an empty candidate read was accepted"
     assert "candidate-bound plan read returned nothing" in done.stderr, "expected 'candidate-bound plan read returned nothing' in done.stderr"
+
+
+def test_the_plan_probe_refuses_a_candidate_read_that_names_no_revision(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """A successful read of some text is not a read of the revision in force.
+
+    The probe exists to tie the verdict to the revision the plan file states.
+    Text that never states one leaves nothing to reconcile, and accepting it
+    would record the read as evidence for a binding the run could not have
+    made. The two shapes here are what a 200 carries when the route answers
+    something other than the plan. An empty body is refused earlier, by the
+    "returned nothing" clause, and has its own test above.
+    """
+    for served in ("# Readiness handoff\n", "{}\n", "no revision here\n"):
+        trace = write_lines(
+            tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+        )
+        answers = write_lines(
+            tmp_path / "answers.jsonl",
+            [
+                answer(plan_read("cccc3333"), 0, served),
+                answer(READY_INVOCATION, 0, ""),
+            ],
+        )
+        done = run_probe(
+            "PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes"
+        )
+        assert done.returncode != 0, f"a revision-less read was accepted: {served!r}"
+        assert "names no plan revision" in done.stderr, (
+            f"a revision-less read was refused for another reason: {done.stderr}"
+        )
 
 
 def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
@@ -2187,6 +2230,11 @@ CREDENTIAL = re.compile(
     r"|(?i:bearer)\s+[A-Za-z0-9._-]{16,})"
 )
 
+#: How much of a match the message test treats as a leak in its own right. The
+#: full match being absent says nothing about a truncated copy, and a prefix is
+#: as identifying as the token it was cut from.
+PREFIX_CHARS = 12
+
 
 def credential_failure(name: str, found: re.Match[str]) -> str:
     """Compose the failure message for a credential-shaped match.
@@ -2199,6 +2247,19 @@ def credential_failure(name: str, found: re.Match[str]) -> str:
     It is a function of its arguments, and separate from the test that uses it,
     so the withholding can be checked directly: an assertion's own rewritten
     report is a second channel the message cannot control.
+
+    Parameters
+    ----------
+    name : str
+        The file the match was found in, named so a reader can open it.
+    found : re.Match of str
+        The credential-shaped match to report without quoting.
+
+    Returns
+    -------
+    str
+        A message naming the file and the offset, with the matched text
+        withheld.
     """
     return (
         f"{name} carries something credential-shaped at offset"
@@ -2246,6 +2307,15 @@ def test_the_credential_failure_message_withholds_the_match() -> None:
     assert found.group(0) not in message, (
         "the failure message quotes the match it is reporting:"
         f" {message!r}"
+    )
+    # A prefix is a leak too, and the full-match assertion cannot see one: a
+    # message that truncated the match would pass it while publishing the part
+    # of a real token that identifies it. Twelve characters covers the
+    # distinguishing stem of every pattern above.
+    prefix = found.group(0)[:PREFIX_CHARS]
+    assert prefix not in message, (
+        f"the failure message quotes the first {PREFIX_CHARS} characters of the"
+        f" match it is reporting: {message!r}"
     )
     assert str(found.start()) in message, (
         f"the failure message drops the offset that locates the match: {message!r}"
@@ -2333,3 +2403,46 @@ def test_a_read_only_query_is_answered_inside_the_recording_boundary(
         f"{name} recorded {answered['stdout']!r}, not what the agent received"
     )
     assert answered["stdout"].strip(), f"{name} recorded an empty answer"
+
+
+@pytest.mark.parametrize(
+    ("name", "argv"),
+    READS,
+    ids=[f"{name}-preserves-state" for name, _ in READS],
+)
+def test_a_read_only_query_leaves_the_command_state_alone(
+    run: Path, name: str, argv: tuple[str, ...]
+) -> None:
+    """A read is not a write, and `state.json` is where a write would land.
+
+    The stand-in keeps the commands it has performed in `state.json`, and every
+    read merges that file into the facts it answers from. The merge is what
+    makes a read-only command able to change the record: a key it did not mean
+    to carry, or a default it filled in, would be written back as if the run
+    had performed it. Both cases are checked because they fail differently —
+    an absent file must stay absent, and a file holding command state must come
+    back byte-identical. The trace and answer records are excluded on purpose:
+    recording is the boundary's own output, not the service's state.
+    """
+    state = run / "state.json"
+    assert not state.exists(), f"{name} started from a file the fixture did not write"
+    answered = invoke(run, *argv)
+    assert answered.returncode == 0, answered.stderr
+    assert not state.exists(), (
+        f"{name} created command state, so a read was recorded as a write"
+    )
+
+    # A run that has already posted or transitioned carries state. The read
+    # must answer around it without rewriting it: a merge that defaulted a
+    # missing key, or dropped one it did not recognize, would show up here and
+    # nowhere else, because the answer itself is unchanged.
+    recorded = json.dumps(
+        {"isDraft": True, "posted": [{"id": 9901, "body": "@coderabbitai …"}]}
+    )
+    state.write_text(recorded, encoding="utf-8")
+    answered = invoke(run, *argv)
+    assert answered.returncode == 0, answered.stderr
+    assert state.read_text(encoding="utf-8") == recorded, (
+        f"{name} rewrote the command state it read through:"
+        f" {state.read_text(encoding='utf-8')!r}"
+    )

@@ -564,7 +564,7 @@ case $SCENARIO in
       echo "abort: '$SCENARIO' read the plan after the transition, not before it" >&2
       rc=1
     elif ! python3 - "$TRACE" "$ANSWERS" "$ROOT/scenarios/$SCENARIO/facts.json" "$EXPECT_READY" <<'PROBE_PLAN'
-import json, sys
+import json, re, sys
 
 trace_path, answers_path, facts_path, expect_ready = sys.argv[1:5]
 facts = json.load(open(facts_path, encoding="utf-8"))
@@ -637,8 +637,21 @@ for index, argv in enumerate(trace[:ready]):
     if answer.get("status") != 0:
         problems.append(f"candidate-bound plan read failed: {answer.get('status')}")
         continue
-    if not str(answer.get("stdout", "")).strip():
+    served = str(answer.get("stdout", ""))
+    if not served.strip():
         problems.append("candidate-bound plan read returned nothing")
+        continue
+    # Non-empty is not the same as revision-bearing. The verdict is reconciled
+    # against the revision the plan file states, so a read that succeeded and
+    # returned a file naming no revision leaves nothing to reconcile — and a
+    # run that cleared on it would be evidence that the read happened, not that
+    # the revision in force was established. The value is required, not any
+    # particular one: `combined-proof-stale-revision` reads a plan that states
+    # a revision superseding both replies, which is exactly why it must be
+    # readable here.
+    found = re.search(r"Plan revision:\s*(\S+)", served)
+    if not found:
+        problems.append("candidate-bound plan read names no plan revision")
         continue
     raise SystemExit(0)
 for problem in problems:
