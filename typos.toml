@@ -43,6 +43,7 @@ extend-ignore-re = [
     "\\b(?:background|theme)_color\\b",
     "\\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\\b",
     "\\bAppFactory<Ser\\b",
+    "\\bCARGO_TERM_COLOR\\b",
     "\\bMOLD\\b",
     "\\bartifact-(?:name|server-path)\\b",
     "\\bartifact_name\\b",
