@@ -144,18 +144,43 @@ def api_url(argv: list[str]) -> str:
     return ""
 
 
+class StateFault(Exception):
+    """A run's own record could not be read, rather than simply not existing.
+
+    A first invocation has no `state.json`, and that is a real state: the
+    fixture premises answer every question on its own. A `state.json` that
+    exists but cannot be parsed is not that state — it is a recording this run
+    wrote and can no longer read. Treating it as absent would let the run answer
+    from the premise alone and hide the lost write, so it is reported instead.
+    """
+
+
 def read_facts() -> dict:
-    """Return this run's facts, with any post-transition state applied."""
+    """Return this run's facts, with any post-transition state applied.
+
+    Raises
+    ------
+    StateFault
+        Raised when the state file exists but cannot be read as a JSON object.
+        A missing file is not a fault: it means no transition has happened yet.
+    """
     facts = json.loads(SCENARIO.read_text(encoding="utf-8"))
     if STATE.exists():
-        state = json.loads(STATE.read_text(encoding="utf-8"))
+        try:
+            state = json.loads(STATE.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as fault:
+            raise StateFault(f"cannot read {STATE.name}: {fault}") from fault
+        if not isinstance(state, dict):
+            raise StateFault(f"{STATE.name} is not a JSON object")
         # `isDraft` belongs to the PR; anything else the state holds, such as a
         # posted comment, stays a top-level fact so a later read can find it.
         facts["pr"] = {
             **facts["pr"],
             **{key: value for key, value in state.items() if key in facts["pr"]},
         }
-        facts.update({key: value for key, value in state.items() if key not in facts["pr"]})
+        facts.update(
+            {key: value for key, value in state.items() if key not in facts["pr"]}
+        )
     return facts
 
 
@@ -435,16 +460,27 @@ def state_value(key: str) -> object:
     """Return `key` from the state a previous invocation recorded, if any.
 
     The stand-in is one process per invocation, so anything a later call has to
-    see must be read back from `state.json`. Returning None for a missing or
-    unreadable file keeps a first invocation — which has no state at all —
-    from needing a separate branch.
+    see must be read back from `state.json`. A missing file returns None, which
+    keeps a first invocation — which has no state at all — from needing a
+    separate branch.
+
+    Raises
+    ------
+    StateFault
+        Raised when the file exists but is not a readable JSON object. Falling
+        back to None there would answer a POST as though nothing had been
+        posted yet, silently reusing the first comment id and stranding the
+        comments this run had already written.
     """
     if not STATE.exists():
         return None
     try:
-        return json.loads(STATE.read_text(encoding="utf-8")).get(key)
-    except (OSError, json.JSONDecodeError, AttributeError):
-        return None
+        state = json.loads(STATE.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as fault:
+        raise StateFault(f"cannot read {STATE.name}: {fault}") from fault
+    if not isinstance(state, dict):
+        raise StateFault(f"{STATE.name} is not a JSON object")
+    return state.get(key)
 
 
 COMMENT_LISTING = re.compile(r"/issues/\d+/comments")
@@ -664,16 +700,22 @@ def mark_ready(facts: dict) -> int:
 
 def answer(argv: list[str]) -> int:
     """Answer one invocation from the recorded facts."""
-    facts = read_facts()
     # A route may refuse what the real client would refuse — an unknown
     # `--json` field, a malformed body — and a refusal is an answer with a
     # non-zero status, not a crash. Letting it escape would report a traceback
     # where the agent should see the client's own message.
+    #
+    # The state read is inside this boundary too. A run that cannot read back
+    # the comments it posted has lost a write of its own; answering from the
+    # premise as though it had not posted would report success for an
+    # observation that never happened. It sits inside the `try` rather than
+    # above it because `read_facts` is what raises the fault.
     try:
         # Each case is a prefix, not the whole argument list: the trailing
         # words are the command's own arguments, and a case that matched only
         # an exact length would turn every invocation carrying them into
         # "unsupported".
+        facts = read_facts()
         match argv:
             case ["api", *_]:
                 return answer_api(facts, argv)
@@ -698,6 +740,8 @@ def answer(argv: list[str]) -> int:
         return fail(f"gh: unsupported invocation {argv}")
     except Refused as refused:
         return fail(refused.message, refused.status)
+    except StateFault as fault:
+        return fail(f"gh: fixture state fault: {fault}", 1)
 
 
 def run_recorded(argv: list[str]) -> int:

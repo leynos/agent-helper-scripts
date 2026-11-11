@@ -591,6 +591,41 @@ def load(path):
             entries.append(None)
     return entries
 
+def contents_text(served):
+    """Return the file text a contents answer carries, or the text itself."""
+    try:
+        payload = json.loads(served)
+    except json.JSONDecodeError:
+        return served
+    if isinstance(payload, dict) and isinstance(payload.get("content"), str):
+        return payload["content"]
+    return served
+
+def revision_in(text):
+    """Return the plan revision a file's text states, or None."""
+    found = re.search(r"Plan revision:\s*(\S+)", text)
+    return found.group(1) if found else None
+
+# The revision the scenario's own plan route serves. This is the value a read
+# has to reproduce: the probe previously required only that some revision was
+# named, so a run that read a file stating any revision at all cleared a check
+# whose whole subject is the revision in force. Reading it from the facts makes
+# the assertion compare, rather than merely observe, and a later premise edit
+# that moved the file is caught here instead of silently weakening the case.
+served_revisions = {
+    revision_in(str(payload.get("content", "")))
+    for pattern, payload in facts["api"].items()
+    if "contents/docs/execplans/" in pattern and isinstance(payload, dict)
+} - {None}
+if len(served_revisions) != 1:
+    print(
+        f"the scenario's plan route states {sorted(served_revisions)},"
+        " expected exactly one revision to reconcile against",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+revision_in_force = served_revisions.pop()
+
 trace = load(trace_path)
 # The trace and the answer record are appended in the same order by the same
 # process, so their indices name the same invocation.
@@ -644,17 +679,26 @@ for index, argv in enumerate(trace[:ready]):
     if not served.strip():
         problems.append("candidate-bound plan read returned nothing")
         continue
-    # Non-empty is not the same as revision-bearing. The verdict is reconciled
+    # Non-empty is not the same as revision-bearing, and revision-bearing is not
+    # the same as revision-carrying-the-right-value. The verdict is reconciled
     # against the revision the plan file states, so a read that succeeded and
-    # returned a file naming no revision leaves nothing to reconcile — and a
-    # run that cleared on it would be evidence that the read happened, not that
-    # the revision in force was established. The value is required, not any
-    # particular one: `combined-proof-stale-revision` reads a plan that states
-    # a revision superseding both replies, which is exactly why it must be
-    # readable here.
-    found = re.search(r"Plan revision:\s*(\S+)", served)
-    if not found:
+    # returned a file naming no revision leaves nothing to reconcile, and one
+    # naming a different revision leaves the wrong thing to reconcile — a run
+    # that cleared on either would be evidence that the read happened, not that
+    # the revision in force was established. The value must be the one the
+    # scenario's own plan route serves. `combined-proof-stale-revision` reads a
+    # plan that states a revision superseding both replies: the hold is that the
+    # replies are stale, so the read has to carry the newer revision, and an
+    # equality check is what distinguishes it from a read of anything at all.
+    found = revision_in(contents_text(served))
+    if found is None:
         problems.append("candidate-bound plan read names no plan revision")
+        continue
+    if found != revision_in_force:
+        problems.append(
+            f"candidate-bound plan read states {found!r},"
+            f" not the {revision_in_force!r} the route serves"
+        )
         continue
     raise SystemExit(0)
 for problem in problems:

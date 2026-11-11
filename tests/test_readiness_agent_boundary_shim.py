@@ -1534,6 +1534,86 @@ def test_the_plan_probe_refuses_a_candidate_read_that_names_no_revision(
         )
 
 
+def test_the_plan_probe_refuses_a_read_of_another_revision(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The read must carry the revision in force, not merely a revision.
+
+    The check previously required only that a revision was named, so a read of
+    any file stating any revision cleared a rule whose subject is the revision
+    the plan route serves. A run that read a stale copy of the plan would then
+    be recorded as having established the current one.
+    """
+    served = "# Readiness handoff\n\nPlan revision: rev-6\n"
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333"), 0, served), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes")
+    assert done.returncode != 0, "a read of another revision was accepted"
+    assert "not the 'rev-7' the route serves" in done.stderr, done.stderr
+
+
+def test_the_plan_probe_reads_the_revision_out_of_a_contents_payload(
+    tmp_path: Path, whole_plan: Path
+) -> None:
+    """The recorded answer is the route's JSON, not the file's bare text.
+
+    The stand-in returns the GitHub contents payload, so the revision sits
+    inside `content` next to the file's metadata. A probe that searched only the
+    raw envelope would find no revision in a perfectly good read, and refusing
+    it would fail every rehearsal for a defect in the check.
+    """
+    served = json.dumps(
+        {
+            "name": "271-plan.md",
+            "path": "docs/execplans/271-plan.md",
+            "encoding": "utf-8",
+            "content": PLAN_TEXT,
+        }
+    )
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333"), 0, served), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(whole_plan), "yes")
+    assert done.returncode == 0, done.stderr
+
+
+def test_the_plan_probe_names_the_revision_the_route_serves(
+    tmp_path: Path,
+) -> None:
+    """A premise that states no revision is refused rather than assumed.
+
+    Reading the expected revision from the facts is what makes the comparison
+    possible. A premise whose plan route states none leaves nothing to compare
+    against, and a probe that silently skipped the comparison would accept every
+    read — the gap this rule closes, reintroduced through the facts.
+    """
+    facts = json.loads(SCENARIO.read_text(encoding="utf-8"))
+    for pattern, payload in facts["api"].items():
+        if "contents/docs/execplans/" in pattern and isinstance(payload, dict):
+            payload["content"] = "# Readiness handoff\n"
+    bare = tmp_path / "facts.json"
+    bare.write_text(json.dumps(facts), encoding="utf-8")
+    trace = write_lines(
+        tmp_path / "trace.jsonl", [plan_read("cccc3333"), READY_INVOCATION]
+    )
+    answers = write_lines(
+        tmp_path / "answers.jsonl",
+        [answer(plan_read("cccc3333")), answer(READY_INVOCATION, 0, "")],
+    )
+    done = run_probe("PROBE_PLAN", str(trace), str(answers), str(bare), "yes")
+    assert done.returncode != 0, "a revision-less premise was accepted"
+    assert "expected exactly one revision to reconcile against" in done.stderr, done.stderr
+
+
 def test_the_plan_probe_refuses_an_answer_record_that_disagrees(
     tmp_path: Path, whole_plan: Path
 ) -> None:
@@ -2750,6 +2830,49 @@ READS = (
     ("user", ("api", "user", "--jq", ".login")),
     ("issue-comments", ("api", "repos/leynos/agent-helper-scripts/issues/272/comments")),
 )
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    ["{not json", "[]", '"a string"', ""],
+    ids=["truncated", "list", "string", "empty"],
+)
+def test_a_read_that_cannot_read_back_its_state_faults(
+    run: Path, corrupt: str
+) -> None:
+    """A lost write must be reported, not answered around.
+
+    `state.json` is the run's own record. Falling back to the premise when it
+    exists but cannot be parsed turns a run that wrote a comment and then lost
+    the file into one that never posted, and reports success for an observation
+    that never happened. A missing file stays a real state — the first
+    invocation has none — so only the unreadable case is a fault.
+    """
+    (run / "state.json").write_text(corrupt, encoding="utf-8")
+    done = invoke(run, "api", "repos/leynos/agent-helper-scripts/issues/272/comments")
+    assert done.returncode != 0, done.stdout
+    assert "fixture state fault" in done.stderr, done.stderr
+    assert (run / "state.json").read_text(encoding="utf-8") == corrupt, (
+        "the faulting read rewrote the state it could not read"
+    )
+
+
+def test_a_post_that_cannot_read_its_prior_state_faults(run: Path) -> None:
+    """A POST reads the id sequence from state, so it faults like any read.
+
+    Continuing from an unreadable record would restart the comment ids at 9901
+    and report the run's earlier comments as absent, which is the same lost
+    write the plain read refuses.
+    """
+    (run / "state.json").write_text("{not json", encoding="utf-8")
+    done = invoke(
+        run, "api", COMMENT_ROUTE, "-f", "body=follow-up", token=POOL_TOKEN
+    )
+    assert done.returncode != 0, done.stdout
+    assert "fixture state fault" in done.stderr, done.stderr
+    assert (run / "state.json").read_text(encoding="utf-8") == "{not json", (
+        "the faulting POST overwrote the state it could not read"
+    )
 
 
 @pytest.mark.parametrize(("name", "argv"), READS, ids=[name for name, _ in READS])
