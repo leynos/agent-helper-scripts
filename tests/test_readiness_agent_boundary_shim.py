@@ -4867,6 +4867,166 @@ def test_the_handoff_probe_keeps_an_open_by_a_reader_with_options(
     assert done.returncode == 0, done.stdout + done.stderr
 
 
+def test_the_handoff_probe_binds_a_read_to_the_skill_it_opened(
+    tmp_path: Path,
+) -> None:
+    """The name has to be on the file that was read, not elsewhere in the call.
+
+    A single call can name one skill and read the other's manifest, and a
+    credit that looked for the skill's name anywhere in the call's input took
+    both from it: `echo sdlc-implementation; cat pr-babysitting/SKILL.md` put
+    the sender's name in the input and opened the receiver's file, so one call
+    satisfied both halves of the crossing's coverage while the sender was only
+    echoed. `resolves_to` compares the component before `SKILL.md`, so the
+    receiver's file cannot stand in for the sender's, and the run is refused
+    for the sender alone.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        tool_call(
+            "Bash",
+            {
+                "command": (
+                    "echo sdlc-implementation;"
+                    " cat pr-babysitting/SKILL.md"
+                )
+            },
+        ),
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0, "a mention of the sender was accepted as a read"
+    assert "never opened sdlc-implementation" in done.stderr, done.stderr
+    assert "never opened pr-babysitting" not in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_binds_a_read_to_its_own_success(tmp_path: Path) -> None:
+    """A read masked by a following command did not establish anything.
+
+    `cat <manifest> || true` exits zero whether or not the file could be read:
+    `true` runs because the read failed, and its zero becomes the call's. The
+    same holds under `;` and a pipe, where the next command runs
+    unconditionally. Only a call whose status belongs to the read — the read
+    is last, or every command after it is joined with `&&` — can credit it,
+    so a run whose only sender open is masked must be refused for the sender.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        tool_call(
+            "Bash",
+            {"command": "cat sdlc-implementation/SKILL.md || true"},
+        ),
+        tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0, "a masked read was accepted as an open"
+    assert "never opened sdlc-implementation" in done.stderr, done.stderr
+    assert "never opened pr-babysitting" not in done.stderr, done.stderr
+
+
+def test_the_handoff_probe_binds_a_read_to_every_separator_after_it(
+    tmp_path: Path,
+) -> None:
+    """An `&&` on the read's own side is not enough when a `;` follows it.
+
+    `cat <manifest> && ./check; true` exits `true`'s status whatever happened
+    to the read: the `;` runs the rest unconditionally once the `&&` chain
+    ends, so the read's failure is discarded before the call's status is
+    taken. A rule that read only the separator immediately after the read
+    would credit this and let a run whose only sender open was this call pass.
+    """
+    run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
+    events = [
+        tool_call(
+            "Bash",
+            {"command": "cat sdlc-implementation/SKILL.md && true; true"},
+        ),
+        tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode != 0, "a tail-masked read was accepted as an open"
+    assert "never opened sdlc-implementation" in done.stderr, done.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls -R; cat sdlc-implementation/SKILL.md",
+        "cat sdlc-implementation/SKILL.md;",
+    ],
+)
+def test_the_handoff_probe_keeps_a_read_that_ends_its_call(
+    command: str, tmp_path: Path
+) -> None:
+    """The masking refusals must not become a refusal of every trailing read.
+
+    `ls -R; cat <manifest>` is how a recorded run opened the sender, and the
+    call's status there is the read's own because nothing follows it. A rule
+    that refused every read with a separator before it, or that treated the
+    `;` when the read is last as a following operator, would fail the runs
+    this check exists to credit. A trailing `;` is the same call as one with
+    no separator at all: it starts no command, so the read is still last.
+    """
+    run = handoff_run(
+        tmp_path,
+        handoff_outcome(),
+        trace=[READY_INVOCATION],
+    )
+    events = [
+        tool_call("Read", {"file_path": "/run/work/pr-babysitting/SKILL.md"}),
+        tool_call("Bash", {"command": command}),
+        handoff_message(handoff_packet()),
+        tool_call(
+            "Bash", {"command": "gh pr ready 272 --repo leynos/agent-helper-scripts"}
+        ),
+    ]
+    write_lines(run / "events.jsonl", recorded(events))
+    done = run_probe(
+        "PROBE_HANDOFF",
+        str(run / "SKILL.md"),
+        str(run / "outcome.txt"),
+        str(run / "events.jsonl"),
+        str(run / "trace.jsonl"),
+        str(run / "handoff.txt"),
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
 def test_the_handoff_probe_refuses_an_open_that_failed(tmp_path: Path) -> None:
     """Trying to read a manifest is not opening it.
 
@@ -4943,6 +5103,11 @@ def test_the_handoff_probe_accepts_a_read_before_the_transition_in_its_call(
     evidence that the rules were read first, and refusing it would report the
     single-call form as unusable rather than ordering it. Without this the
     test above would pass against a probe that rejected every compound call.
+
+    The separator is `&&`, not `;`. Under `;` the transition runs whatever the
+    read did, so the call's zero belongs to `gh pr ready` and says nothing
+    about whether either manifest was readable; the read has to be shown to
+    have succeeded before it can be credited with informing the decision.
     """
     run = handoff_run(tmp_path, handoff_outcome(), trace=[READY_INVOCATION])
     events = [
@@ -4951,8 +5116,8 @@ def test_the_handoff_probe_accepts_a_read_before_the_transition_in_its_call(
             "Bash",
             {
                 "command": (
-                    "cat sdlc-implementation/SKILL.md pr-babysitting/SKILL.md;"
-                    " gh pr ready 272 --repo leynos/agent-helper-scripts"
+                    "cat sdlc-implementation/SKILL.md pr-babysitting/SKILL.md"
+                    " && gh pr ready 272 --repo leynos/agent-helper-scripts"
                 )
             },
         ),

@@ -134,6 +134,27 @@ readiness decision is exactly what a receiver-only run already does:
   `test_the_handoff_probe_keeps_an_open_by_a_reader_with_options` covers the
   real opens with options, one parametrized case per shape so that no shape is
   carried by a call the probe credits for another reason.
+
+  The file that was read has to be the skill's own manifest. Matching the
+  skill's name anywhere in the call was not enough:
+  `echo sdlc-implementation; cat pr-babysitting/SKILL.md` put the sender's name
+  in the input and opened the receiver's file, and one call then satisfied both
+  halves of the crossing's coverage. The check is now on the path component
+  before `SKILL.md`, with a bare `SKILL.md` resolved against a `cd` in the same
+  call. `test_the_handoff_probe_binds_a_read_to_the_skill_it_opened` covers it.
+
+  The read also has to have succeeded on its own. A compound call's exit status
+  belongs to its last command, so `cat <manifest> || true` and
+  `cat <manifest>; true` exit zero whether or not the file was read; so does
+  `cat <manifest> && a; b`, where the `;` ends the chain before the call's
+  status is taken. A read is credited only when nothing follows it or every
+  separator after it is `&&`. The read is still credited when it is last in its
+  call, `ls -R; cat <manifest>` being the form a recorded run used, and a
+  trailing `;` starts no command and so does not change that.
+  `test_the_handoff_probe_binds_a_read_to_its_own_success`,
+  `test_the_handoff_probe_binds_a_read_to_every_separator_after_it` and
+  `test_the_handoff_probe_keeps_a_read_that_ends_its_call` cover the masking
+  refusals and the reads they must not refuse.
 - It did not decide before opening either skill. The two opens are not ordered
   against each other, because an agent may explore either file first without
   that meaning anything was carried. The decision is what orders them, and it

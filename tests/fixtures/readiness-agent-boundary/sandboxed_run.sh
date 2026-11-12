@@ -1937,6 +1937,13 @@ READER_COMMANDS = {
     "tail": 0,
 }
 
+#: The shell operators that separate one simple command from the next. `&&`
+#: and `||` are kept distinct from a bare `;` because they decide whether the
+#: following command runs at all: a read that fails under `||` is replaced by
+#: whatever follows it, so the call's own status cannot say the read succeeded.
+SEGMENT_OPERATORS = re.compile(r"(\|\||&&|[;&|\n]+)")
+
+
 def command_segments(payload):
     """Return this call's simple commands, in the order the shell runs them.
 
@@ -1949,6 +1956,15 @@ def command_segments(payload):
     runs the transition and then reads a manifest contains both facts, and the
     call's index alone cannot say which came first.
 
+    The operator that follows each command is returned with it, because a
+    compound call's exit status belongs to its last command alone: `cat
+    <manifest> || true` and `cat <manifest>; true` exit zero whether or not
+    the manifest was read, since the next command runs whatever the read did.
+    `cat <manifest> && true` is the one shape that carries the read's own
+    status forward: the next command runs only when the read succeeded, so a
+    zero call does say the read worked. Recording the operator lets
+    `command_succeeded` tell those cases apart.
+
     Parameters
     ----------
     payload : dict
@@ -1957,18 +1973,78 @@ def command_segments(payload):
     Returns
     -------
     list
-        One entry per simple command. An entry is the command's words, already
-        stripped of quoting and redirection syntax.
+        One ``(words, following)`` entry per simple command. ``words`` is the
+        command's words, already stripped of quoting and redirection syntax,
+        and ``following`` is the separator after it, or ``None`` for the last
+        command in the call.
     """
     if payload["name"] == "Read":
-        return [[str(payload["input"].get("file_path", ""))]]
+        return [([str(payload["input"].get("file_path", ""))], None)]
     if payload["name"] != "Bash":
         return []
-    return [
-        [word.strip("\"'`()<>") for word in segment.split()]
-        for segment in re.split(r"[;&|\n]+", str(payload["input"].get("command", "")))
-        if segment.split()
+    pieces = SEGMENT_OPERATORS.split(str(payload["input"].get("command", "")))
+    # `re.split` with a capturing group alternates text, operator, text, … so
+    # the operator at index i+1 is the one *after* the text at index i — the
+    # separator that decides whether the next command runs.
+    words_by_piece = [
+        [word.strip("\"'`()<>") for word in piece.split()]
+        for piece in pieces
     ]
+    segments = []
+    for position, words in enumerate(words_by_piece):
+        if position % 2 == 1 or not words:
+            continue
+        following = pieces[position + 1] if position + 1 < len(pieces) else None
+        segments.append([words, following])
+    # A separator with no command after it starts nothing: `cat <path>;` ends
+    # the call as surely as `cat <path>` does, and the call's status is the
+    # read's either way. Reporting it as a following operator would make
+    # `command_succeeded` refuse a read that its own status does establish.
+    if segments:
+        segments[-1][1] = None
+    return [(words, following) for words, following in segments]
+
+
+def command_succeeded(payload, tail):
+    """Return whether one simple command of a call ran and succeeded.
+
+    A compound call's exit status belongs to its last command, so a read's own
+    outcome is only visible when every command after it is joined in a way
+    that carries its status forward. `cat <manifest> || true` and `cat
+    <manifest>; true` exit zero whether or not the manifest was read: the next
+    command runs whatever the read did and discards its status. `cat
+    <manifest> && true` is the one shape that preserves it, because the next
+    command runs only when the read succeeded.
+
+    The whole tail matters, not only the next separator. `cat <manifest> && a;
+    b` ends at `;`, so the call exits `b`'s status and says nothing about the
+    read when `a` skipped it. The read's status reaches the call's only along
+    an unbroken `&&` chain: every separator after the read is `&&` and the
+    call ends there.
+
+    A read followed by no command at all is the simplest case: the call's
+    status is the read's. The recorded runs use both credited forms — `ls;
+    cat <path>` and `ls -R | head -50 && cat <path>`, where the read is last —
+    and they are credited because the call's status is then the read's own.
+
+    Parameters
+    ----------
+    payload : dict
+        The call the command belongs to.
+    tail : list
+        The separators after this command, its own `following` first and the
+        last command's ``None`` last, as returned by `command_segments`.
+
+    Returns
+    -------
+    bool
+        Whether this command's own success is established.
+    """
+    if not succeeded(payload):
+        return False
+    if not tail:
+        return False
+    return all(separator == "&&" for separator in tail[:-1]) and tail[-1] is None
 
 
 #: The options that supply `sed`'s script instead of its first operand, so the
@@ -2027,22 +2103,92 @@ def read_files(payload, words):
     return operands[leading:]
 
 
+def resolves_to(path, skill, directory=None):
+    """Return whether `path` names ``skill``'s own `SKILL.md`.
+
+    The file has to be *this* skill's manifest, so the check is on the parent
+    directory of the path that was read, not on the skill's name anywhere in
+    the call. An earlier version searched the call's JSON for the name, which
+    `echo sdlc-implementation; cat pr-babysitting/SKILL.md` satisfies for the
+    sender without reading the sender's file at all: the name is one command's
+    argument and the read is another's.
+
+    A path may be relative (`SKILL.md`), partly qualified
+    (`pr-babysitting/SKILL.md`), or absolute
+    (`/run/work/pr-babysitting/SKILL.md`). In every qualified form the
+    component before `SKILL.md` is the skill's directory name, so that
+    component is what is compared. A bare `SKILL.md` is resolved against the
+    directory the call `cd`-ed into first, and is credited only when that
+    directory is the skill's.
+
+    Parameters
+    ----------
+    path : str
+        A file a command read.
+    skill : str
+        The skill directory name whose manifest is wanted.
+    directory : str or None
+        The directory this call has `cd`-ed into, if any.
+
+    Returns
+    -------
+    bool
+        Whether the path is that skill's `SKILL.md`.
+    """
+    parts = [part for part in path.rstrip("/").split("/") if part]
+    if not parts or parts[-1] != "SKILL.md":
+        return False
+    if len(parts) >= 2:
+        return parts[-2] == skill
+    if directory is None:
+        return False
+    return [part for part in directory.split("/") if part][-1:] == [skill]
+
+
+def changes_directory(words):
+    """Return the directory a `cd` command names, or None for any other command.
+
+    A recorded run opened the receiver as `cd pr-babysitting; cat SKILL.md`,
+    where the read names only the basename. The directory is in the `cd`, so
+    the `cd` is what binds that read to the skill, and the two are in the same
+    call in the order the shell runs them.
+
+    Parameters
+    ----------
+    words : list of str
+        One simple command.
+
+    Returns
+    -------
+    str or None
+        The `cd` target, or None when this command is not a `cd`.
+    """
+    if len(words) >= 2 and words[0] == "cd":
+        return words[1].rstrip("/")
+    return None
+
+
 def first_opened(skill):
     """Return the position of the first command that read `skill`'s manifest.
 
     A mention of the skill is not a read of it: a follow-up note, a prompt
     quotation, or a pre-written ledger can name the path without opening it,
     and treating any of those as the open would let a run that never read the
-    skill pass an ordering check. The file must have been opened and the
-    skill's own name must appear in the call, so a read of some other
-    `SKILL.md` cannot stand in for this one.
+    skill pass an ordering check. The file that was read must be the skill's
+    own manifest — see `resolves_to` — and a read behind a `cd` into the
+    skill's directory is bound to it by that `cd`.
 
-    The call must also have succeeded. An attempt that failed printed no
-    manifest, and the preserved `crossing-whole-plan` recording holds exactly
-    that: a `cat pr-babysitting/SKILL.md` that exited 1 because the path was
-    wrong, followed by a successful open of the same file. Crediting the first
-    would report the receiver as opened before the decision even where it was
-    opened only after.
+    The read must also have succeeded on its own, not merely been part of a
+    call that exited zero. `cat <manifest> || true` and `cat <manifest>; true`
+    exit zero whatever the read did: the command after the separator runs
+    unconditionally and its status becomes the call's, so the read's own
+    outcome is gone. `command_succeeded` therefore credits a read only when
+    the call's status can belong to it — no command follows it, or every
+    separator after it is `&&`, which runs the rest only when the read
+    succeeded. A `cat <manifest>; gh pr ready` is refused by the same rule.
+    The preserved `crossing-whole-plan` recording holds the simpler case as
+    well: a `cat pr-babysitting/SKILL.md` that exited 1 on a wrong path,
+    followed by a successful open of the same file.
 
     The position is `(message, call, command)`. A message may carry several
     calls and a call several commands, and comparing only the message would
@@ -2061,18 +2207,19 @@ def first_opened(skill):
         for call_index, payload in enumerate(message["calls"]):
             if not succeeded(payload):
                 continue
-            # The skill's own name has to appear somewhere in the call, so a
-            # read of a different `SKILL.md` cannot stand in for this one. A
-            # recorded run opened the receiver as `cd pr-babysitting; cat
-            # SKILL.md`, where the name is in the `cd` and the file is read by
-            # its basename; requiring the name on the reader's own command line
-            # would refuse the one form a run actually used.
-            if skill not in json.dumps(payload["input"]):
-                continue
-            for command_index, words in enumerate(command_segments(payload)):
+            directory = None
+            segments = command_segments(payload)
+            separators = [following for _words, following in segments]
+            for command_index, (words, _following) in enumerate(segments):
+                entered = changes_directory(words)
+                if entered is not None:
+                    directory = entered
+                    continue
+                if not command_succeeded(payload, separators[command_index:]):
+                    continue
                 if any(
-                    word.rstrip("/").rsplit("/", 1)[-1] == "SKILL.md"
-                    for word in read_files(payload, words)
+                    resolves_to(path, skill, directory)
+                    for path in read_files(payload, words)
                 ):
                     return index, call_index, command_index
     return None
@@ -2133,7 +2280,9 @@ def ready_position():
         for call_index, payload in enumerate(message["calls"]):
             if payload["name"] != "Bash" or not succeeded(payload):
                 continue
-            for command_index, words in enumerate(command_segments(payload)):
+            for command_index, (words, _following) in enumerate(
+                command_segments(payload)
+            ):
                 if any(
                     words[position] == "pr" and words[position + 1] == "ready"
                     for position in range(len(words) - 1)
