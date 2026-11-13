@@ -217,6 +217,34 @@ Record which reviewers and checks are configured and which are required.
 For an ExecPlan implementation assignment, read
 [ExecPlan assessments](references/execplan-assessment.md) and record its plan
 revision, implementation status, acceptance mapping, and assessment state.
+Record that state for each applicable assessment:
+
+- A verdict of `clear`, `not clear`, or `pending`, with a justified
+  `not applicable` for an assessment that does not apply.
+- Each verdict sits on the same entry as the base/head and the plan revision it
+  was given for; reconcile the revision the substantive reply echoes against
+  the revision in force, since a reply that echoes only the base/head does not
+  bind the verdict to an approved revision. That applies to whichever
+  assessment is in scope, so a proof request under an ExecPlan must also name
+  and echo the revision; without an ExecPlan, the base/head is the whole
+  candidate and there is no revision to reconcile.
+- The completeness assessment's subject is recorded as either the whole plan or
+  the declared subset; only the whole approved plan clears the gate, and a
+  declared-subset verdict is evidence for its actual scope only. The proof
+  assessment's subject is the named proofs it covers.
+- When the completeness assessment applies, a clear whole-plan completeness
+  verdict covering the accepted base/head and recorded against the currently
+  approved plan revision satisfies
+  [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).
+  A managed-stack layer that implements only its own milestones therefore
+  stays in draft until a whole-plan verdict covers its candidate; the record of
+  its subset is evidence, not a readiness waiver.
+- A verdict recorded against a superseded plan revision does not carry over,
+  even when the base/head is unchanged.
+- When the proof assessment applies, readiness also requires its clear verdict
+  for the same base/head; a clear completeness verdict alone does not satisfy
+  the gate.
+
 Record introduced or materially changed proofs and their required scrutiny also
 when no ExecPlan applies. Plan-authoring alone does not trigger an
 implementation assessment. Missing evidence remains pending, not a reason to
@@ -362,6 +390,15 @@ Outstanding means each of the following for the current candidate:
 
 A passing check with advisory findings still has outstanding issues. Record
 each finding and its disposition in the ledger.
+
+An unevaluable source is not a clear source. When `cs` is absent, fails, or
+cannot reach the licence service, the local delta is **unverified**, not clean:
+the gate stays open, the PR stays in draft, and the outcome names the missing
+tool as the deciding evidence. "I could not run the check" and "the check found
+nothing" are different facts, and only the second clears the rule. Record the
+unavailable source, what would have evaluated it, and that readiness waits on
+it. Do not substitute a hosted green badge for the missing local half, and do
+not describe the gate as cleared when one of its sources was never evaluated.
 
 Use `codescene-cli` and `codescene-health-rules` to inspect the actual
 diagnostic, affected paths, applicable rules, and the same base/head comparison

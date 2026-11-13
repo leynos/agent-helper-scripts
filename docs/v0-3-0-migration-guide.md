@@ -78,8 +78,41 @@ installer.
 For implementation PRs, applicable hosted completeness/correctness and
 proof-specific assessments must clear before a draft is marked ready. An
 already-ready PR stays ready when evidence is missing or invalidated, while
-merge remains blocked until the applicable assessment clears. See the
-[users' guide](users-guide.md#execplan-implementation) and the
+merge remains blocked until the applicable assessment clears.
+
+### Assessment verdicts bind to a revision
+
+An assessment verdict now counts for the accepted base/head **and** the
+approved plan revision in force, and the substantive reply must echo that
+revision. The revision half of that rule binds only an ExecPlan assignment: a
+proof-only assignment with no ExecPlan keeps the base/head as its whole
+candidate and asks for no revision echo. Reassess work whose evidence predates
+this change:
+
+- A completeness verdict obtained against an earlier base/head does not cover a
+  later push. Request a candidate-bound follow-up rather than transferring the
+  old result.
+- A changed candidate needs renewed coverage even when the plan revision is
+  unchanged: a new commit, rebase or retarget moves the base/head, and the old
+  verdict covered the one it inspected. A verdict also stops counting when a
+  newly approved plan revision replaces the one it inspected, even when no
+  commit moved. In both cases, reassess against the revision in force.
+- The completeness request covers the whole approved plan, so a message that
+  reports remaining milestones as unimplemented work has not cleared it. Do not
+  record those milestones as known limitations; they are in-scope work.
+- A plan delivered as a managed stack gets no readiness exception for a lower
+  layer. Record that layer's declared-subset verdict as evidence for its actual
+  scope only, naming the layer's milestones, the `github-stacks` parent and the
+  milestones remaining above it; the record never clears the gate. The
+  whole-plan verdict is still required before any layer's transition, the layer
+  carrying the plan's remainder still needs it, and a single PR that claims the
+  whole plan but delivers part of it never qualifies.
+- One undivided plan delivered as a stack has no readiness path: a lower layer
+  cannot get a whole-plan verdict while upper layers hold the remainder, and
+  every selected PR must be non-draft to merge. Approve one independently
+  complete plan per layer, or deliver the undivided plan in a single PR.
+
+See the [users' guide](users-guide.md#execplan-implementation) and the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md) and
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.
@@ -149,6 +182,14 @@ as a script. Refresh the skills with `install-skills` to pick up the changes.
 - **CodeScene.** Previously only a failing quality gate triggered repair. Every
   outstanding issue now counts, including advisory findings in a passing check,
   `codescene-access[bot]` inline comments, and local `cs delta` warnings.
+- **Unverified local CodeScene.** A local `cs` that is absent, fails, or cannot
+  reach its licence service now blocks readiness instead of being treated as
+  clean. The candidate's local delta is recorded as unverified, the gate stays
+  open, and the PR stays in draft until a local result exists. A hosted green
+  check is not a substitute: agents that previously relied on the hosted result
+  when the CLI was unavailable now hold the PR in draft and name the missing
+  tool. Provide a working `codescene-cli` installation and licence access, or
+  expect readiness to wait on that source.
 - **Comment helper.** The posting function embedded in `references/comments.md`
   is replaced by `skills/pr-babysitting/scripts/post-manual-comment.sh`. The
   token-pool format at `~/.local/share/github-tokens` is unchanged. The helper

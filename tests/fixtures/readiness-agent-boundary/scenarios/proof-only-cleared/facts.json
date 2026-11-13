@@ -1,0 +1,248 @@
+{
+  "login": "experiment-owner",
+  "pr_checks": "Makefile gates\tCOMPLETED\tSUCCESS\nCodeScene Code Health Review\tCOMPLETED\tSUCCESS\nGecko Security Review\tCOMPLETED\tSUCCESS\n",
+  "pr": {
+    "number": 272,
+    "url": "https://github.com/leynos/agent-helper-scripts/pull/272",
+    "title": "Prove refinement soundness",
+    "body": "Introduces one Lean refinement proof and changes no ExecPlan. Closes #271.",
+    "state": "OPEN",
+    "author": {
+      "login": "experiment-owner",
+      "type": "User"
+    },
+    "baseRefName": "main",
+    "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9",
+    "headRefName": "issue-271-readiness-handoff",
+    "headRefOid": "eeee5555",
+    "headRepository": {
+      "name": "agent-helper-scripts",
+      "nameWithOwner": "leynos/agent-helper-scripts"
+    },
+    "headRepositoryOwner": {
+      "login": "leynos"
+    },
+    "isCrossRepository": false,
+    "isDraft": true,
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "BLOCKED",
+    "reviewDecision": "",
+    "statusCheckRollup": [
+      {
+        "name": "Makefile gates",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
+      },
+      {
+        "name": "CodeScene Code Health Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "No issues found",
+          "summary": "No advisory findings, gate failures or code-health declines.",
+          "annotations_count": 0
+        }
+      },
+      {
+        "name": "Gecko Security Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
+      }
+    ],
+    "files": [
+      {
+        "filename": "proofs/refinement/Theorem.lean",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "eeee5555"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "eeee5555",
+        "messageHeadline": "Introduce the refinement proof"
+      }
+    ]
+  },
+  "pr_ready_response": "Pull request leynos/agent-helper-scripts#272 is marked as ready for review",
+  "pr_diff": "proofs/refinement/Theorem.lean\n",
+  "api": {
+    "/pulls/\\d+$": {
+      "number": 272,
+      "base": {
+        "sha": "73d32981c7b7e8f52590a074873e28a9f369f0f9"
+      },
+      "head": {
+        "sha": "eeee5555"
+      },
+      "draft": true,
+      "changed_files": 1
+    },
+    "/pulls/\\d+/files(?:[?#]|$)": [
+      {
+        "filename": "proofs/refinement/Theorem.lean",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "eeee5555"
+      }
+    ],
+    "/pulls/\\d+/commits(?:[?#]|$)": [
+      {
+        "sha": "eeee5555",
+        "commit": {
+          "message": "Introduce the refinement proof"
+        }
+      }
+    ],
+    "/commits/eeee5555$": {
+      "sha": "eeee5555",
+      "author": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "committer": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "commit": {
+        "message": "Introduce the refinement proof",
+        "author": {
+          "name": "experiment-owner"
+        }
+      }
+    },
+    "graphql$": {
+      "data": {
+        "repository": {
+          "pullRequest": {
+            "reviewThreads": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    "/issues/\\d+/comments": [
+      {
+        "id": 9401,
+        "user": {
+          "login": "pandalump",
+          "type": "User"
+        },
+        "created_at": "2026-11-07T20:35:00Z",
+        "updated_at": "2026-11-07T20:35:00Z",
+        "body": "@coderabbitai are you satisfied that the introduced proof(s)\n(proofs/refinement/Theorem.lean#refinement_sound) is\nsubstantive, rigorous, and well-founded?\n\nRepository: leynos/agent-helper-scripts\nPull request: 272\nAssessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555\nProof inventory and claims: `proofs/refinement/Theorem.lean`, theorem `refinement_sound : forall (s : State), refine s = s -> sound s`, discharged by `sound_of_refine s h`.\nProduction correspondence: the theorem states that a state is sound whenever refining it returns it unchanged; the refinement transition it constrains is the implementation this candidate ships.\nAssumptions, trusted boundaries, domain, and bounds: the candidate states no axioms, stubs or trusted boundaries of its own beyond the names the file uses, and no tool, backend or version is recorded for it in this fixture.\nVerifier evidence: the hosted `Makefile gates` check is the only verifier surface this fixture records for the head; no Lean build log, command or per-obligation outcome is served, and none is claimed here.\nNon-vacuity and limitations: the fixture records no witness, negative control or counterexample for the claim, and states that limitation rather than presenting a finite example as an unbounded proof.\nPlan revision: <omitted; no ExecPlan applies>.\nAssessment-ID: 271-ab-proof-only.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9401"
+      },
+      {
+        "id": 9402,
+        "user": {
+          "login": "coderabbitai[bot]",
+          "type": "Bot"
+        },
+        "created_at": "2026-11-07T20:40:00Z",
+        "updated_at": "2026-11-07T20:40:00Z",
+        "body": "**Verdict: clear**\n\n- **Assessment-ID:** `271-ab-proof-only`\n- **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...eeee5555\n- **Assessed subject:** `refinement_sound`\n\nThe refinement proof is substantive and non-vacuous. No plan revision is named, so none is echoed.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9402"
+      }
+    ],
+    "/commits/eeee5555/status$": {
+      "state": "success",
+      "statuses": [
+        {
+          "context": "CodeRabbit",
+          "state": "success",
+          "description": "Review completed"
+        }
+      ]
+    },
+    "/pulls/\\d+/reviews$": [],
+    "/pulls/\\d+/comments$": [],
+    "/commits/eeee5555/check-runs(?:[?#]|$)": {
+      "total_count": 3,
+      "check_runs": [
+        {
+          "id": 7701,
+          "name": "Makefile gates",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7702,
+          "name": "CodeScene Code Health Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "No issues found",
+            "summary": "No advisory findings, gate failures or code-health declines.",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7703,
+          "name": "Gecko Security Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        }
+      ]
+    },
+    "/check-runs/\\d+/annotations(?:[?#]|$)": [],
+    "/contents/proofs/[^?#]+(?:[?#]|$)": {
+      "name": "Theorem.lean",
+      "path": "proofs/refinement/Theorem.lean",
+      "sha": "c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761",
+      "size": 118,
+      "encoding": "utf-8",
+      "content": "theorem refinement_sound :\n  forall (s : State), refine s = s \u2192 sound s := by\n  intro s h\n  exact sound_of_refine s h\n",
+      "type": "file"
+    },
+    "/contents/skills/[^?#]+(?:[?#]|$)": {
+      "name": "readiness_gate.py",
+      "path": "skills/pr-babysitting/scripts/readiness_gate.py",
+      "sha": "b41d0c8e5f2a7d9c3e6b1048fa2c7d5e9b3a6f02",
+      "size": 3295,
+      "encoding": "utf-8",
+      "content": "\"\"\"Read the readiness gate's assessments.\"\"\"\n\nCOMPLETENESS = \"completeness\"\nPROOF = \"proof\"\nKINDS = (COMPLETENESS, PROOF)\nVERDICTS = (\"clear\", \"not clear\")\nBOT = \"coderabbitai[bot]\"\n\n\ndef _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:\n    \"\"\"Return whether every applicable assessment clears for this candidate.\n\n    The checks are written out one after another rather than split into\n    helpers, which is the shape the recorded local finding describes. This is a\n    fixture, not a working gate: it exists to be read, and the size the finding\n    reports is computed from this text.\n    \"\"\"\n    if not state:\n        return False\n    if state.get(\"isDraft\") is True:\n        return False\n    if state.get(\"state\") != \"OPEN\":\n        return False\n    if state.get(\"merged\") is True:\n        return False\n    if not state.get(\"headRefOid\"):\n        return False\n    if not state.get(\"baseRefOid\"):\n        return False\n    if plan.get(\"approved\") is not True:\n        return False\n    if not plan.get(\"revision\"):\n        return False\n    if not plan.get(\"subject\"):\n        return False\n    if plan.get(\"revision\") != state.get(\"revision\"):\n        return False\n    if plan.get(\"head\") != state.get(\"headRefOid\"):\n        return False\n    if plan.get(\"base\") != state.get(\"baseRefOid\"):\n        return False\n    for thread in threads:\n        if thread.get(\"isOutdated\"):\n            return False\n        if not thread.get(\"isResolved\"):\n            return False\n        kind = thread.get(\"assessment\")\n        if kind not in KINDS:\n            return False\n        if thread.get(\"verdict\") not in VERDICTS:\n            return False\n        if thread.get(\"author\") != BOT:\n            return False\n        if not thread.get(\"replies\"):\n            return False\n        if any(reply.get(\"dismissed\") for reply in thread.get(\"replies\", [])):\n            return False\n        if kind == PROOF:\n            if not thread.get(\"cleared\"):\n                return False\n            if not thread.get(\"scrutinized\"):\n                return False\n            if thread.get(\"waived\"):\n                return False\n        if kind == COMPLETENESS:\n            if thread.get(\"subject\") != plan.get(\"subject\"):\n                return False\n            if thread.get(\"revision\") != plan.get(\"revision\"):\n                return False\n            if thread.get(\"head\") != state.get(\"headRefOid\"):\n                return False\n            if thread.get(\"base\") != state.get(\"baseRefOid\"):\n                return False\n            if thread.get(\"scope\") != plan.get(\"scope\"):\n                return False\n    for proof in proofs:\n        if not proof.get(\"changed\"):\n            continue\n        if not proof.get(\"scrutinized\"):\n            return False\n        if not str(proof.get(\"path\", \"\")).endswith(\".lean\"):\n            return False\n        if not proof.get(\"statement\"):\n            return False\n        if proof.get(\"sorry\"):\n            return False\n        if proof.get(\"axioms\") not in ({\"propext\"}, set()):\n            return False\n        if proof.get(\"reviewed\") is not True:\n            return False\n    if not threads:\n        return False\n    if not proofs and plan.get(\"proves\"):\n        return False\n    if len(threads) > 200:\n        return False\n    return True\n",
+      "type": "file"
+    },
+    "/issues/\\d+$": {
+      "number": 271,
+      "title": "Prove refinement soundness",
+      "state": "open",
+      "body": "There is no ExecPlan; this PR is the proof work."
+    }
+  },
+  "coords": {
+    "repository": "leynos/agent-helper-scripts",
+    "pull_request": 272
+  },
+  "cs_mode": "clean",
+  "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
+  "proof_path": "proofs/refinement/Theorem.lean",
+  "proof_reference": "refinement_sound",
+  "cs_finding": ""
+}

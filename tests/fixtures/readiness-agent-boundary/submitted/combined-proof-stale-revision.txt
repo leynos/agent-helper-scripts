@@ -1,0 +1,40 @@
+--- posted comment 1 of 2 ---
+@coderabbitai please assess the implementation in this PR for completeness and correctness against the execplan:
+
+> `docs/execplans/issue-271-readiness-handoff.md`
+
+Assessed subject: the whole approved plan.
+Published head: 4444eeee; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Plan revision: rev-8 (the revision the plan file declares at this head); plan file blob SHA at this head: e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8.
+Acceptance evidence: hosted check runs at this head: `Makefile gates` (7701) success, `CodeScene Code Health Review` (7702) success with "No advisory findings, gate failures or code-health declines.", `Gecko Security Review` (7703) success; local `cs delta 73d32981c7b7e8f52590a074873e28a9f369f0f9 4444eeee`: "No issues found in checked changes."
+Known limitations: the local CodeScene result comes from the rehearsal stand-in, which states in its own output that it is simulated and is not a CodeScene analysis.
+Follow-up to: https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9961 (answered in #issuecomment-9962). That verdict echoed plan revision rev-7, but the plan file at this head declares rev-8, so the verdict does not cover the revision now in force.
+Assessment-ID: 271-ab-combined-rev8.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Identify remaining in-scope omissions or correctness defects and any access
+or inspection limitations. Assess the implementation, not just the plan text.
+
+--- posted comment 2 of 2 ---
+@coderabbitai are you satisfied that the introduced proof(s) (`proofs/refinement/Theorem.lean`#`refinement_sound`) is substantive, rigorous, and well-founded?
+
+Published head: 4444eeee; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.
+Proof inventory and claims: `proofs/refinement/Theorem.lean`, theorem `refinement_sound : forall (s : State), refine s = s -> sound s`, discharged by `sound_of_refine s h`.
+Production correspondence: the theorem constrains the refinement transition this candidate ships; a state is sound whenever refining it leaves it unchanged.
+Assumptions, trusted boundaries, domain, and bounds: the candidate declares no axioms, stubs, or trusted boundaries of its own beyond the names the file uses. No tool, backend, or version is recorded.
+Verifier evidence: the hosted `Makefile gates` check (7701) succeeded at this head. No Lean build log, command, or per-obligation outcome is available, and I am not claiming one.
+Non-vacuity and limitations: no witness, negative control, or counterexample is recorded. This is a stated gap, not a claim of an unbounded result from finite examples.
+Plan revision: rev-8 (the revision the plan file declares at this head); plan file blob SHA at this head: e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8.
+Follow-up to: https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9963 (answered in #issuecomment-9964 against rev-7, which this head's plan file has superseded).
+Assessment-ID: 271-ab-combined-rev8-proof.
+
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Check substance, rigour, foundations, and correspondence to production code.
+Identify each unresolved concern or missing inspection explicitly.
+

@@ -1,0 +1,25 @@
+{"argv": ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", "number,title,state,isDraft,author,headRefName,headRefOid,baseRefName,baseRefOid,headRepository,headRepositoryOwner,isCrossRepository,body,mergeable,statusCheckRollup,reviewDecision,commits"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/pulls/272/reviews", "--paginate"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/pulls/272/comments", "--paginate"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/commits/dddd4444/statuses"], "status": 1}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/commits/dddd4444/check-runs"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate", "--jq", "length"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/272/comments", "--paginate"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/issues/comments/9301"], "status": 0}
+{"argv": ["api", "repos/leynos/agent-helper-scripts/commits/dddd4444/status"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["api", "--method", "GET", "--paginate", "repos/leynos/agent-helper-scripts/issues/272/comments", "-F", "per_page=100", "-f", "since=2026-11-07T20:29:59Z", "--jq", "[.[]|select(.user.login==\"coderabbitai[bot]\")]|length"], "status": 0}
+{"argv": ["pr", "view", "272", "--repo", "leynos/agent-helper-scripts", "--json", "isDraft,headRefOid,baseRefOid"], "status": 0}

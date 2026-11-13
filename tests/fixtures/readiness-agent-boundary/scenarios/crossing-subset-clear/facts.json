@@ -1,0 +1,269 @@
+{
+  "login": "experiment-owner",
+  "pr_checks": "Makefile gates\tCOMPLETED\tSUCCESS\nCodeScene Code Health Review\tCOMPLETED\tSUCCESS\nGecko Security Review\tCOMPLETED\tSUCCESS\n",
+  "pr": {
+    "number": 272,
+    "url": "https://github.com/leynos/agent-helper-scripts/pull/272",
+    "title": "Bind the draft-to-ready gate to the implementation handoff",
+    "body": "Implements the approved plan `docs/execplans/issue-271-readiness-handoff.md`. Closes #271.",
+    "state": "OPEN",
+    "author": {
+      "login": "experiment-owner",
+      "type": "User"
+    },
+    "baseRefName": "main",
+    "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9",
+    "headRefName": "issue-271-readiness-handoff",
+    "headRefOid": "ffff6666",
+    "headRepository": {
+      "name": "agent-helper-scripts",
+      "nameWithOwner": "leynos/agent-helper-scripts"
+    },
+    "headRepositoryOwner": {
+      "login": "leynos"
+    },
+    "isCrossRepository": false,
+    "isDraft": true,
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "BLOCKED",
+    "reviewDecision": "",
+    "statusCheckRollup": [
+      {
+        "name": "Makefile gates",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
+      },
+      {
+        "name": "CodeScene Code Health Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "No issues found",
+          "summary": "No advisory findings, gate failures or code-health declines.",
+          "annotations_count": 0
+        }
+      },
+      {
+        "name": "Gecko Security Review",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "output": {
+          "title": "",
+          "summary": "",
+          "annotations_count": 0
+        }
+      }
+    ],
+    "files": [
+      {
+        "filename": "docs/execplans/issue-271-readiness-handoff.md",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "ffff6666"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "ffff6666",
+        "messageHeadline": "Deliver the plan"
+      }
+    ]
+  },
+  "pr_ready_response": "Pull request leynos/agent-helper-scripts#272 is marked as ready for review",
+  "pr_diff": "docs/execplans/issue-271-readiness-handoff.md\n",
+  "api": {
+    "/pulls/\\d+$": {
+      "number": 272,
+      "base": {
+        "sha": "73d32981c7b7e8f52590a074873e28a9f369f0f9"
+      },
+      "head": {
+        "sha": "ffff6666"
+      },
+      "draft": true,
+      "changed_files": 1
+    },
+    "/pulls/\\d+/files(?:[?#]|$)": [
+      {
+        "filename": "docs/execplans/issue-271-readiness-handoff.md",
+        "status": "modified",
+        "additions": 12,
+        "deletions": 0,
+        "changes": 12,
+        "sha": "ffff6666"
+      }
+    ],
+    "/pulls/\\d+/commits(?:[?#]|$)": [
+      {
+        "sha": "ffff6666",
+        "commit": {
+          "message": "Deliver the plan"
+        }
+      }
+    ],
+    "/commits/ffff6666$": {
+      "sha": "ffff6666",
+      "author": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "committer": {
+        "login": "experiment-owner",
+        "type": "User"
+      },
+      "commit": {
+        "message": "Deliver the plan",
+        "author": {
+          "name": "experiment-owner"
+        }
+      }
+    },
+    "graphql$": {
+      "data": {
+        "repository": {
+          "pullRequest": {
+            "reviewThreads": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    "/issues/\\d+/comments": [
+      {
+        "id": 9501,
+        "user": {
+          "login": "buzzybee-df12",
+          "type": "User"
+        },
+        "created_at": "2026-11-07T20:45:00Z",
+        "updated_at": "2026-11-07T20:45:00Z",
+        "body": "@coderabbitai please assess the implementation in this PR for\ncompleteness and correctness against the execplan:\n\n> `docs/execplans/issue-271-readiness-handoff.md`\n\nAssessed subject: the whole approved plan.\nPublished head: ffff6666; comparison base: 73d32981c7b7e8f52590a074873e28a9f369f0f9.\nPlan revision: rev-7 (approved revision in force); plan file blob SHA at this head: 5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15.\nAcceptance evidence: the hosted checks recorded for this head, and the local `cs delta` result where the run consulted one.\nKnown limitations: the local CodeScene result is the rehearsal stand-in's, which discloses in its own output that it is simulated rather than a CodeScene analysis.\nProof inventory: none affected.\nAssessment-ID: 271-ab-subset-clear.\n\nPlease echo the Assessment-ID, assessed base/head, and plan revision in\nyour substantive reply.\nThis is an assessment conversation, not a request to start a formal PR\nreview.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9501"
+      },
+      {
+        "id": 9502,
+        "user": {
+          "login": "coderabbitai[bot]",
+          "type": "Bot"
+        },
+        "created_at": "2026-11-07T20:50:00Z",
+        "updated_at": "2026-11-07T20:50:00Z",
+        "body": "**Verdict: clear**\n\n- **Assessment-ID:** `271-ab-subset-clear`\n- **Assessed base/head:** 73d32981c7b7e8f52590a074873e28a9f369f0f9...ffff6666\n- **Assessed subject:** the declared subset (milestones EP-M1 and EP-M2 only); the whole approved plan is not cleared by this reply\n- **Plan revision:** rev-7\n\nEP-M1 and EP-M2 are complete for the declared subset. This verdict covers that subset only and does not clear the whole approved plan.",
+        "html_url": "https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9502"
+      }
+    ],
+    "/commits/ffff6666/status$": {
+      "state": "success",
+      "statuses": [
+        {
+          "context": "CodeRabbit",
+          "state": "success",
+          "description": "Review completed"
+        }
+      ]
+    },
+    "/pulls/\\d+/reviews$": [],
+    "/pulls/\\d+/comments$": [],
+    "/commits/ffff6666/check-runs(?:[?#]|$)": {
+      "total_count": 3,
+      "check_runs": [
+        {
+          "id": 7701,
+          "name": "Makefile gates",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7702,
+          "name": "CodeScene Code Health Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "No issues found",
+            "summary": "No advisory findings, gate failures or code-health declines.",
+            "annotations_count": 0
+          }
+        },
+        {
+          "id": 7703,
+          "name": "Gecko Security Review",
+          "status": "COMPLETED",
+          "conclusion": "SUCCESS",
+          "output": {
+            "title": "",
+            "summary": "",
+            "annotations_count": 0
+          }
+        }
+      ]
+    },
+    "/check-runs/\\d+/annotations(?:[?#]|$)": [],
+    "/contents/proofs/[^?#]+(?:[?#]|$)": {
+      "name": "Theorem.lean",
+      "path": "proofs/refinement/Theorem.lean",
+      "sha": "c7e5a12b9d4f860312ab7c5e9d1846f0a2b3c761",
+      "size": 118,
+      "encoding": "utf-8",
+      "content": "theorem refinement_sound :\n  forall (s : State), refine s = s \u2192 sound s := by\n  intro s h\n  exact sound_of_refine s h\n",
+      "type": "file"
+    },
+    "/contents/skills/[^?#]+(?:[?#]|$)": {
+      "name": "readiness_gate.py",
+      "path": "skills/pr-babysitting/scripts/readiness_gate.py",
+      "sha": "b41d0c8e5f2a7d9c3e6b1048fa2c7d5e9b3a6f02",
+      "size": 3295,
+      "encoding": "utf-8",
+      "content": "\"\"\"Read the readiness gate's assessments.\"\"\"\n\nCOMPLETENESS = \"completeness\"\nPROOF = \"proof\"\nKINDS = (COMPLETENESS, PROOF)\nVERDICTS = (\"clear\", \"not clear\")\nBOT = \"coderabbitai[bot]\"\n\n\ndef _assess_gate(state: dict, plan: dict, threads: list, proofs: list) -> bool:\n    \"\"\"Return whether every applicable assessment clears for this candidate.\n\n    The checks are written out one after another rather than split into\n    helpers, which is the shape the recorded local finding describes. This is a\n    fixture, not a working gate: it exists to be read, and the size the finding\n    reports is computed from this text.\n    \"\"\"\n    if not state:\n        return False\n    if state.get(\"isDraft\") is True:\n        return False\n    if state.get(\"state\") != \"OPEN\":\n        return False\n    if state.get(\"merged\") is True:\n        return False\n    if not state.get(\"headRefOid\"):\n        return False\n    if not state.get(\"baseRefOid\"):\n        return False\n    if plan.get(\"approved\") is not True:\n        return False\n    if not plan.get(\"revision\"):\n        return False\n    if not plan.get(\"subject\"):\n        return False\n    if plan.get(\"revision\") != state.get(\"revision\"):\n        return False\n    if plan.get(\"head\") != state.get(\"headRefOid\"):\n        return False\n    if plan.get(\"base\") != state.get(\"baseRefOid\"):\n        return False\n    for thread in threads:\n        if thread.get(\"isOutdated\"):\n            return False\n        if not thread.get(\"isResolved\"):\n            return False\n        kind = thread.get(\"assessment\")\n        if kind not in KINDS:\n            return False\n        if thread.get(\"verdict\") not in VERDICTS:\n            return False\n        if thread.get(\"author\") != BOT:\n            return False\n        if not thread.get(\"replies\"):\n            return False\n        if any(reply.get(\"dismissed\") for reply in thread.get(\"replies\", [])):\n            return False\n        if kind == PROOF:\n            if not thread.get(\"cleared\"):\n                return False\n            if not thread.get(\"scrutinized\"):\n                return False\n            if thread.get(\"waived\"):\n                return False\n        if kind == COMPLETENESS:\n            if thread.get(\"subject\") != plan.get(\"subject\"):\n                return False\n            if thread.get(\"revision\") != plan.get(\"revision\"):\n                return False\n            if thread.get(\"head\") != state.get(\"headRefOid\"):\n                return False\n            if thread.get(\"base\") != state.get(\"baseRefOid\"):\n                return False\n            if thread.get(\"scope\") != plan.get(\"scope\"):\n                return False\n    for proof in proofs:\n        if not proof.get(\"changed\"):\n            continue\n        if not proof.get(\"scrutinized\"):\n            return False\n        if not str(proof.get(\"path\", \"\")).endswith(\".lean\"):\n            return False\n        if not proof.get(\"statement\"):\n            return False\n        if proof.get(\"sorry\"):\n            return False\n        if proof.get(\"axioms\") not in ({\"propext\"}, set()):\n            return False\n        if proof.get(\"reviewed\") is not True:\n            return False\n    if not threads:\n        return False\n    if not proofs and plan.get(\"proves\"):\n        return False\n    if len(threads) > 200:\n        return False\n    return True\n",
+      "type": "file"
+    },
+    "/contents/docs/execplans/issue\\-271\\-readiness\\-handoff\\.md(?:[?#]|$)": {
+      "name": "issue-271-readiness-handoff.md",
+      "path": "docs/execplans/issue-271-readiness-handoff.md",
+      "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+      "size": 42,
+      "encoding": "utf-8",
+      "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+      "type": "file"
+    },
+    "/contents/docs/execplans(?:[?#]|$)": [
+      {
+        "name": "issue-271-readiness-handoff.md",
+        "path": "docs/execplans/issue-271-readiness-handoff.md",
+        "sha": "5a1c9e4d7b3f28a06c5e1d9b4f7a2c8e6d0b3f15",
+        "size": 42,
+        "encoding": "utf-8",
+        "content": "# Readiness handoff\n\nPlan revision: rev-7\n",
+        "type": "file"
+      }
+    ],
+    "/issues/\\d+$": {
+      "number": 271,
+      "title": "Bind the draft-to-ready gate to the implementation handoff",
+      "state": "open",
+      "body": "The approved plan is `docs/execplans/issue-271-readiness-handoff.md`."
+    }
+  },
+  "coords": {
+    "repository": "leynos/agent-helper-scripts",
+    "pull_request": 272
+  },
+  "cs_mode": "clean",
+  "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
+  "proof_path": "proofs/refinement/Theorem.lean",
+  "proof_reference": "refinement_sound",
+  "cs_finding": "",
+  "start_skill": "sdlc-implementation"
+}

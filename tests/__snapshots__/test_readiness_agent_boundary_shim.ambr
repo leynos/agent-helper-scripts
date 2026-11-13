@@ -1,0 +1,117 @@
+# serializer version: 1
+# name: test_the_structured_pr_routes_keep_their_shape[checks]
+  '''
+  <check>	<status>	<conclusion>
+  <check>	<status>	<conclusion>
+  <check>	<status>	<conclusion>
+  '''
+# ---
+# name: test_the_structured_pr_routes_keep_their_shape[list]
+  list([
+    dict({
+      'baseRefName': 'main',
+      'headRefName': 'issue-271-readiness-handoff',
+      'isDraft': True,
+      'number': 272,
+      'state': 'OPEN',
+      'statusCheckRollup': list([
+        dict({
+          'conclusion': 'SUCCESS',
+          'name': 'Makefile gates',
+          'output': dict({
+            'annotations_count': 0,
+            'summary': '',
+            'title': '',
+          }),
+          'status': 'COMPLETED',
+        }),
+        dict({
+          'conclusion': 'SUCCESS',
+          'name': 'CodeScene Code Health Review',
+          'output': dict({
+            'annotations_count': 0,
+            'summary': 'No advisory findings, gate failures or code-health declines.',
+            'title': 'No issues found',
+          }),
+          'status': 'COMPLETED',
+        }),
+        dict({
+          'conclusion': 'SUCCESS',
+          'name': 'Gecko Security Review',
+          'output': dict({
+            'annotations_count': 0,
+            'summary': '',
+            'title': '',
+          }),
+          'status': 'COMPLETED',
+        }),
+      ]),
+    }),
+  ])
+# ---
+# name: test_the_structured_pr_routes_keep_their_shape[view]
+  dict({
+    'author': dict({
+      'login': 'experiment-owner',
+      'type': 'User',
+    }),
+    'baseRefName': 'main',
+    'baseRefOid': '<candidate-bound>',
+    'body': '<candidate-bound>',
+    'commits': list([
+      dict({
+        'messageHeadline': 'Deliver the plan',
+        'sha': '<candidate-bound>',
+      }),
+    ]),
+    'headRefName': 'issue-271-readiness-handoff',
+    'headRefOid': '<candidate-bound>',
+    'headRepository': dict({
+      'name': 'agent-helper-scripts',
+      'nameWithOwner': 'leynos/agent-helper-scripts',
+    }),
+    'headRepositoryOwner': dict({
+      'login': 'leynos',
+    }),
+    'isCrossRepository': False,
+    'isDraft': True,
+    'mergeStateStatus': 'BLOCKED',
+    'mergeable': 'MERGEABLE',
+    'number': 272,
+    'reviewDecision': '',
+    'state': 'OPEN',
+    'statusCheckRollup': list([
+      dict({
+        'conclusion': 'SUCCESS',
+        'name': 'Makefile gates',
+        'output': dict({
+          'annotations_count': 0,
+          'summary': '',
+          'title': '',
+        }),
+        'status': 'COMPLETED',
+      }),
+      dict({
+        'conclusion': 'SUCCESS',
+        'name': 'CodeScene Code Health Review',
+        'output': dict({
+          'annotations_count': 0,
+          'summary': 'No advisory findings, gate failures or code-health declines.',
+          'title': 'No issues found',
+        }),
+        'status': 'COMPLETED',
+      }),
+      dict({
+        'conclusion': 'SUCCESS',
+        'name': 'Gecko Security Review',
+        'output': dict({
+          'annotations_count': 0,
+          'summary': '',
+          'title': '',
+        }),
+        'status': 'COMPLETED',
+      }),
+    ]),
+    'title': 'Bind the draft-to-ready gate to the implementation handoff',
+  })
+# ---

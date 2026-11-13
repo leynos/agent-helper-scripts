@@ -711,7 +711,9 @@ assessment conversations, not formal review requests. The agent actively awaits
 and reads the substantive issue-comment replies before readiness. Assessment
 conversations never enter `comenq`; formal review dispatch and its rate-limit
 recovery belong after the verified ready transition. See
-[awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md).
+[awaiting CodeRabbit](../skills/pr-babysitting/references/awaiting-coderabbit.md)
+and, for the verdict a reply must return and the revision it must bind to,
+[readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
 
 ## PR babysitting
 
@@ -1005,6 +1007,33 @@ merge; the workflow never sets it back to draft. Ready-only and no-merge
 assignments stop at their authorized boundary, and all local validation follows
 the candidate execution boundary above.
 
+A verdict clears only the candidate it was given for. The completeness
+assessment covers the whole approved plan, not the delivered subset, so
+remaining milestones stay in scope rather than counting as known limitations.
+Its verdict belongs to an accepted base/head and to the approved plan revision
+in force, and the reply must echo that revision: a verdict recorded against a
+later-adjusted base/head, or against a revision that a newly approved plan has
+replaced, does not clear the gate even when the commit is unchanged. An
+implementation assignment that requires the completeness assessment while
+recording no approved revision is a scope error rather than a candidate that
+clears on its base/head, because there is no plan revision for the verdict to
+be bound to. The same revision binding applies to a proof assessment under an
+ExecPlan. A plan delivered as a managed stack gets no readiness exception for
+its lower layers: a lower layer's declared-subset verdict is recorded as
+evidence for that layer's actual scope only, naming the layer's own milestones,
+the `github-stacks` parent it builds on and the milestones remaining above it,
+and that record never clears the gate. The whole-plan verdict is still required
+before any layer's transition, and the stack does not count as delivered until
+the layer carrying the plan's remainder obtains one.
+
+A stack cut from one undivided plan therefore has no delivery path: the lower
+layer cannot obtain a whole-plan verdict while the upper layers hold the
+remainder, and each selected PR must be non-draft for the stack to merge. Plan
+that at approval time, not at readiness. Approve one plan per layer, each
+independently complete, so every layer is assessed against the whole of its own
+plan; or deliver the undivided plan in a single PR. See
+[readiness and later changes](../skills/pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes).
+
 For an assessment wait, the agent records the pre-post comment baseline and
 server-assigned request ID, reads immediately, then polls all updated comment
 pages within a foreground deadline. It verifies CodeRabbit's author identity,
@@ -1025,6 +1054,17 @@ advisory findings in a passing check, inline comments from
 local and hosted validation. Suppression remains an absolute last resort,
 reached only after refactoring, restructuring, and false-positive verification
 have failed, and is justified on the PR.
+
+A local CodeScene result that could not be obtained does not clear the gate.
+When `cs` is absent, exits non-zero, or cannot reach its licence service, the
+candidate's local delta is **unverified**, not clean: the gate stays open, the
+PR stays in draft, and the outcome names the missing tool as the deciding
+evidence. A hosted green check cannot substitute for the missing local half,
+because the two read different inputs — the hosted check evaluates the pushed
+diff, while the local check evaluates the tree the agent is about to push. "The
+check could not run" and "the check found nothing" are different facts, and
+only the second clears the rule. The ledger records the unavailable source,
+what would have evaluated it, and that readiness waits on it.
 
 The workflow reads inline findings, review banners, and CodeRabbit's first
 issue comment, including pre-merge rows edited in place. It distinguishes

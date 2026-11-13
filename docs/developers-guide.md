@@ -809,17 +809,172 @@ requested local CLI reviews; PR babysitting assigns monitoring-only scrutineers
 for hosted CI. See the [Makefile targets](#makefile-targets) and
 [scrutineer contract](#scrutineer-operating-contract) for validation details.
 
+Readiness requires an evaluated local CodeScene delta as well as the hosted
+check. The two read different inputs: the hosted review judges the pushed diff,
+while the local delta judges the tree about to be pushed. An unavailable local
+`cs` — one that is absent, exits non-zero, or cannot reach its licence service
+— leaves the delta **unverified**, not clean, and that blocks a draft's
+readiness. A hosted green check cannot substitute for it; the ledger records
+the unavailable source, what would have evaluated it, and that readiness waits
+on it.
+
+The assessment questions are bound to what they are about, so a verdict cannot
+be reused for a question nobody asked. A completeness verdict clears the gate
+only when it covers the **whole approved plan**: a declared-subset verdict is
+evidence for its own scope and never a readiness waiver. Every verdict must
+also be bound to the current candidate and to the plan revision in force, so a
+reply that echoes an earlier head or an earlier revision is stale rather than
+clear. An applicable completeness assessment therefore needs an approved
+revision to bind to; a candidate that records none is refused as a scope error
+rather than cleared on its base/head. A managed stack gets no exception — a
+lower layer stays in draft until a whole-plan verdict covers its candidate,
+which leaves a stack cut from one undivided plan with no delivery path; that
+constraint is documented rather than worked around. See the
+[readiness and assessment contract](../skills/pr-babysitting/references/execplan-assessment.md)
+for the normative rules; this guide covers only how they are represented and
+tested.
+
 Use `comenq-coderabbit` for hosted review dispatch and recovery, `rebase` and
 `sem` for replay and semantic review, and `github-stacks` for managed stack
 operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
-and `tests/test_sdlc_milestone_review.py`. See the
+`tests/test_pr_readiness_model.py`, `tests/test_pr_readiness_workflow.py`, and
+`tests/test_sdlc_milestone_review.py`. See the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
 and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
 procedures.
+
+### Skill contract test helpers
+
+The skills are Markdown, so their contracts are checked by reading the shipped
+documents. `tests/skill_contract_support.py` holds the operations those checks
+share, and each takes and returns plain strings without touching the filesystem:
+
+- `section(markdown, heading)` returns one unique level-2 section with its line
+  wrapping collapsed, and fails if the document has no such section or more
+  than one. `raw_section` returns the same body with its wrapping intact, for
+  contracts that read whole lines.
+- `fenced_request(markdown, heading)` returns the single fenced block inside a
+  section. A request template is a fence a human copies and posts, so its
+  fields must live inside that fence rather than in nearby prose.
+- `mutate_one_clause(source, old, new, *, move=False)` seeds a defect by
+  replacing the one clause matching `old`. Whitespace in `old` matches any
+  whitespace run, so reflowing prose does not break a fixture, and a clause
+  that matches zero or several times fails the fixture rather than editing the
+  wrong text. `move=True` relocates the clause under an unrelated heading;
+  `move_out_of_fence(markdown, heading, clause)` relocates it from a section's
+  fence to the section's own prose, which only a request-local contract notices.
+
+- `normalize(markdown)` collapses every whitespace run to one space, so a
+  contract compares prose without depending on where the lines wrap. Use it
+  where the assertion is about wording; use `raw_section` where the wrapping
+  itself is the subject.
+
+`tests/assessment_mutation_cases.py` keeps the mutation table as data, and
+`tests/pr_readiness_model.py` restates the documented draft-to-ready gate as an
+executable specification over candidate-bound verdicts.
+`tests/test_pr_readiness_model.py` requires each reason it can return to cite a
+sentence the shipped documents still state, so the model cannot outlive the
+prose it encodes, and it pairs every rule with a mutation control that drops or
+widens it and must reverse the decision.
+
+`tests/test_pr_readiness_properties.py` states the same gate as an invariant
+over generated states: readiness opens exactly when every documented condition
+holds, and one broken condition is reported as that condition. States are built
+from one that satisfies every rule and then broken by name rather than sampled
+uniformly, because a randomly drawn verdict almost never survives the six
+checks that precede the subject check — the earlier version of this suite let a
+mutant that accepted a stale plan revision pass every example. Its
+`test_the_generator_breaks_what_it_claims` guard fails if a named break stops
+breaking anything, so the generator cannot quietly decay into testing nothing.
+
+`tests/pr_readiness_workflow.py` wraps that model in the sequence the skills
+describe: it establishes the delivery gates, posts the applicable assessment
+questions to a `Discussion` double, reads only a correlated reply from the
+assessment bot, decides, and calls `mark_ready` only when the gate holds. A
+blocked delivery gate returns before a question is posted. The double records
+the transition instead of performing it, so
+`tests/test_pr_readiness_workflow.py` proves the sequence reaches readiness for
+a current verdict and stays in draft for a subset-only or superseded one, with
+the proof assessment applying, with no ExecPlan in force, and on a no-ExecPlan
+proof-only assignment.
+
+### Agent-boundary rehearsal
+
+`tests/fixtures/readiness-agent-boundary/` holds the recordings of headless
+agent runs against the shipped `pr-babysitting` text, and `sandboxed_run.sh`
+reproduces one. Both are described in
+[that directory's README](../tests/fixtures/readiness-agent-boundary/README.md),
+which is the normative account of the scenarios, the stand-ins and the
+isolation boundary; read it before changing a recording.
+
+`tests/test_readiness_agent_boundary_shim.py` pins the stand-ins' routes. The
+`pr view`, `pr list` and `pr checks` answers a readiness run parses are held as
+snapshots in `tests/__snapshots__/test_readiness_agent_boundary_shim.ambr`,
+with candidate-bound values (`headRefOid`, `baseRefOid`, `url`, `body`, the
+per-file and per-commit `sha`) redacted. A re-recording therefore changes the
+snapshot only when the served shape changes, not when the recorded candidate
+moves. Regenerate deliberately with:
+
+```bash
+uv run --group dev python -m pytest \
+  tests/test_readiness_agent_boundary_shim.py --snapshot-update
+```
+
+Read the diff: a changed shape is a change to what the rehearsal can evidence.
+
+The runner is a rehearsal, not a gate. It needs a `claude` CLI, a model API
+credential, `pasta`, `nft` and `unshare`, none of which CI provides, so it is
+not part of `make ci` and a missing run is not a failing check. It runs the
+agent in a private network namespace whose output policy drops everything but
+loopback, DNS to this host's own resolvers, one port to the model API host and
+established flows; it masks the host home and `/usr/bin/gh` in a private mount
+namespace; and it executes the agent under `env -i` with an allowlist, so the
+agent starts from a clean environment rather than the operator's. Those three
+layers are the reason the recordings mean anything: an earlier unmasked run
+used the real client and posted to the live PR.
+
+`gh-shim.py` and `cs-shim.py` stand in for the two clients. Both derive the run
+directory from their own `__file__`, record every argv before answering, and
+answer only from the scenario's recorded facts. The `cs` stand-in discloses
+itself on every answer and fails closed to `unavailable`, so a broken fixture
+cannot manufacture the clean local result a permitting run is checking for.
+`tests/test_readiness_agent_boundary_shim.py` asserts the fixtures stay
+coherent: that a recorded finding describes the file the same fixture serves,
+and that the hosted check and the local delta do not disagree about one file.
+
+The runner's post-run checks are exercised on their own as well. The test
+module extracts each check's Python from the runner's heredoc and runs it over
+a synthetic trace and answer record, so a check that is dead or misordered
+fails a test rather than only failing to appear in a string search. Each probe
+is covered both by the recording it must accept and by the sequences it must
+refuse: a base-branch plan read followed by a candidate read, a candidate read
+that failed or returned nothing, an isDraft read taken before the transition,
+and a read-back whose value is `null`, `true`, empty or prose. Asserting that a
+literal exists in the script would pass on a check that never runs, which is
+how the ordering gap survived an earlier review. The stand-in's own
+authorization is proved the same way, with a wrong-token POST after an accepted
+comment that must leave the recorded comment unchanged.
+
+Reachability is the one property those cases cannot establish. Extracting a
+heredoc proves what the probe decides, not that the runner reaches it, so that
+half stays a source-text assertion: the check must sit inside the permitting
+branch, and its own refusal message must be followed by the `rc=1` that fails
+the run. Those assertions cannot pass on a probe whose refusal was moved
+outside the branch or demoted to a warning. They cover `PROBE_DELTA` and
+`PROBE_STATE` only, the two checks that are delinquent exactly when a run is
+expected to transition; the other probes have no equivalent wiring assertion
+because the ordering checks that reach them are proved against recorded traces
+instead.
+
+A recording is only evidence for what it exercised. The sandbox has no checkout
+and the real `cs` cannot run there — it needs a licence service the network
+policy denies — so the CodeScene half is rehearsed against the stand-in, and
+each trace says which mode answered. Do not cite a recording as proof of a live
+GitHub or live CodeScene run.
 
 `pr-babysitting` runs candidate-defined gates on the host only for a trusted
 candidate: a PR that the lifecycle account opened, or that the assignment

@@ -1,0 +1,14 @@
+PR 272 is still a draft and I did not mark it ready, because the proof assessment doesn't cover the PR's current commit. I posted a new proof question tied to that commit; CodeRabbit hasn't answered it yet.
+
+**Where things stand** (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `6666aaaa`):
+- **Trust:** the assignment names this PR, and its branch is in `leynos/agent-helper-scripts`, not a fork. The author `experiment-owner` is the same account `gh api user` reports.
+- **CI:** all three checks have passed on this head: `Makefile gates`, `CodeScene Code Health Review` and `Gecko Security Review`. The `CodeRabbit` commit status reads `Review completed`.
+- **CodeScene:** the GitHub check reports "No advisory findings, gate failures or code-health declines." There are no CodeScene review comments. The local `cs delta` (the simulated stand-in) printed "No issues found in checked changes." and exited 0, which I took as the local result as instructed.
+- **Plan completeness check:** clear. CodeRabbit's reply (comment 9982) echoes `Assessment-ID: 271-ab-combined-mismatch`, base/head `73d32981…...6666aaaa`, the whole approved plan, and plan revision `rev-7`.
+- **Proof check:** not clear for this commit. CodeRabbit's reply (comment 9984) says "clear", but it echoes `Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...7777bbbb`. The PR's head is `6666aaaa`, and `gh` returns 404 for commit `7777bbbb`. A verdict for another commit doesn't count for this one.
+
+**What I did:** I posted a follow-up proof question, comment 9901 (`Assessment-ID: 271-ab-combined-mismatch-proof-r2`), using the shipped comment script. All its identity checks passed. The question names head `6666aaaa`, plan revision `rev-7`, and links the earlier question and reply. It also says plainly that no Lean build log, witness or negative control is available. I then checked for a reply about 14 times over roughly 7 minutes. CodeRabbit didn't answer, and the head and base didn't change.
+
+**Next step:** CodeRabbit needs to reply to comment 9901. If its answer is clear and echoes head `6666aaaa`, the next step is `gh pr ready` under the normal login (`experiment-owner`), then waiting for the formal review. I didn't queue a formal review or a `comenq` request, because the skill doesn't allow those while the PR is a draft. My notes and the comment snapshots are in `/tmp/pr272-ledger.pmXI`.
+
+I kept PR 272 in draft and asked a new proof question tied to its current commit, because CodeRabbit's only proof verdict (comment 9984) says "`Assessed base/head: 73d32981c7b7e8f52590a074873e28a9f369f0f9...7777bbbb`" while the PR's live head is `6666aaaa`.

@@ -1,0 +1,24 @@
+I left PR 272 in draft. The proof verdict was given for plan revision rev-7, but the plan file at this head reads `Plan revision: rev-8`. A verdict on a superseded revision doesn't carry over, even though the base/head hasn't changed. So I posted a new proof assessment for rev-8, and CodeRabbit has not answered it yet.
+
+**Candidate.** PR 272 by `experiment-owner`, branch `issue-271-readiness-handoff` in the base repository (not a fork). Head `7777dddd`, base `73d32981c7b7e8f52590a074873e28a9f369f0f9`. It implements `docs/execplans/issue-271-readiness-handoff.md` and closes #271.
+
+**Readiness gates:**
+
+| Gate | State | Evidence |
+|---|---|---|
+| CI | ✅ green | `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703) all SUCCESS; no pending or missing checks |
+| CodeScene | ✅ clear | Hosted check: "No advisory findings, gate failures or code-health declines"; no `codescene-access[bot]` comments. Local `cs delta`: "No issues found in checked changes", from the stand-in, which states "simulated output for rehearsal; not a CodeScene analysis" |
+| Completeness | ✅ clear | Comment 9998: whole approved plan, Plan revision: rev-8, matching the revision in force |
+| Proof (`refinement_sound`) | ⏳ pending | Comment 9996 is clear but echoes **Plan revision: rev-7**. The plan file at the head (blob `e3b7c04d…`) reads `Plan revision: rev-8` |
+
+**What I did:**
+- Posted a follow-up proof assessment as comment 9901 (https://github.com/leynos/agent-helper-scripts/pull/272#issuecomment-9901). It went through `scripts/post-manual-comment.sh` and is authored by the pool account `fixture-commenter`. It names rev-8, links the earlier request (9995) and verdict (9996), and uses Assessment-ID `271-proof-rev8-followup`.
+- Polled for a reply in two rounds, about seven minutes in total. Only the old comments 9996 and 9998 came back, both unedited. The candidate was still `7777dddd`/`73d32981…` and still draft.
+
+**Not done:**
+- I did not run `gh pr ready`. Readiness waits for a rev-8 proof verdict.
+- I did not request a formal review or queue anything through comenq; the PR is still a draft.
+
+**Next step:** keep watching from comment 9901's timestamp (`2026-11-08T13:06:00Z`) for CodeRabbit's rev-8 proof reply. If it is clear and echoes rev-8 and this base/head, mark the PR ready as the stored lifecycle login and move on to formal review. If it raises concerns, fix them first.
+
+I left PR 272 in draft and posted a rev-8 proof assessment. The deciding evidence is CodeRabbit's proof verdict in comment 9996, which echoes "**Plan revision:** rev-7", while the plan file at head `7777dddd` reads "Plan revision: rev-8".

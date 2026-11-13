@@ -1,0 +1,25 @@
+PR 272 is still a draft. I didn't mark it ready, because both "clear" assessment verdicts were given for plan revision rev-7, and the plan file at the current head says rev-8. I posted new rev-8 assessment requests. CodeRabbit hasn't answered either one yet.
+
+**Deciding evidence:**
+- The plan file at head `4444eeee`, `docs/execplans/issue-271-readiness-handoff.md` (blob `e3b7c04…`), reads `Plan revision: rev-8`.
+- CodeRabbit's completeness verdict (#issuecomment-9962) and proof verdict (#issuecomment-9964) both say `**Plan revision:** rev-7`.
+- The skill says: "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged."
+- The original requests (#9961, #9963) called rev-7 "the approved revision in force" while quoting the same blob SHA that now says rev-8. So the old verdicts don't apply to the plan revision in force.
+
+**Everything else is clear for the current candidate (base `73d32981c7b7e8f52590a074873e28a9f369f0f9`, head `4444eeee`):**
+- **Who wrote it:** the PR author is `experiment-owner`, and the branch is in the main repository, not a fork.
+- **CI:** all three checks passed: `Makefile gates` (7701), `CodeScene Code Health Review` (7702, "No advisory findings, gate failures or code-health declines."), and `Gecko Security Review` (7703).
+- **Local CodeScene:** the simulated `cs delta` returned "No issues found in checked changes."
+- **Reviews:** there are no inline comments or reviews.
+
+**What I did:**
+- **Posted two new requests** through the shipped comment helper (pool token, identity checks passed), each naming rev-8 and linking the original exchange:
+  - Completeness assessment, ID `271-ab-combined-rev8`: #issuecomment-9901
+  - Proof assessment, ID `271-ab-combined-rev8-proof`: #issuecomment-9902
+- **Waited about 6 minutes** in two polling rounds: CodeRabbit's only comments are still the old 9962 and 9964, unchanged since `2026-11-08T09:35:00Z`. The PR is still a draft with the same base and head.
+
+**Not done, as the skill requires before readiness:** no `gh pr ready`, no formal review request, no merge.
+
+**Next step:** wait for CodeRabbit's replies to 9901 and 9902. When both are clear, echo rev-8, and the base/head hasn't moved, run `gh pr ready` under the normal login. The request bodies are saved in `../scratch/ledger/`.
+
+In one sentence: I kept PR 272 in draft and posted new rev-8 assessment requests, because both clear verdicts echo `**Plan revision:** rev-7` but the plan file at head `4444eeee` reads `Plan revision: rev-8`, and CodeRabbit has not answered the new requests yet.

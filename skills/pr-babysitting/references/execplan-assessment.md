@@ -64,26 +64,45 @@ Preserve this opening, substituting the actual approved plan path. Do not post
 unresolved placeholders. Supplement it with the published candidate, acceptance
 evidence, and honest limitations:
 
+<!-- markdownlint-disable MD013 -->
+
 ```text
 @coderabbitai please assess the implementation in this PR for completeness and correctness against the execplan:
 
 > `docs/execplans/<slug>.md`
 
+Assessed subject: <the whole approved plan>.
 Published head: <full head SHA>; comparison base: <full base SHA>.
+Plan revision: <approved revision identifier and the plan file's blob SHA at this head>.
 Acceptance evidence: <commands, results, and evidence links>.
-Known limitations: <established limitations or none established>.
+Known limitations: <evidential limits only: checks not run, inspection not possible, proof bounds; not unimplemented plan milestones>.
 Assessment-ID: <unique request marker>.
 
-Please echo the Assessment-ID and assessed base/head in your substantive reply.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Identify remaining in-scope omissions or correctness defects and any access
 or inspection limitations. Assess the implementation, not just the plan text.
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 CodeRabbit must address the actual plan and implementation with no remaining
 in-scope rework. An acknowledgement, silence, generic approval, missing
-inspection, or plan progress checkbox does not establish that result.
+inspection, or plan progress checkbox does not establish that result. An
+unimplemented plan milestone is in-scope work, not a limitation, per
+[applicability and ownership](#applicability-and-ownership). Name the plan
+revision in the request, because base/head alone cannot identify which revision
+was inspected when the approved revision changes without a new head; a reply
+that echoes only the base/head cannot bind its verdict to an approved revision.
+The `Assessed subject:` line is always the whole approved plan, and no other
+subject clears the gate. A managed-stack layer may record a declared-subset
+verdict as evidence for that layer's actual scope only, naming the layer's own
+milestones, the `github-stacks` parent it builds on and the milestones
+remaining above it. The whole-plan verdict remains required before any layer's
+transition, and the stack does not count as delivered until the layer carrying
+the plan's remainder obtains one.
 
 ## Proof inventory and specific scrutiny
 
@@ -122,9 +141,11 @@ Production correspondence: <implementation paths and relevant requirements>.
 Assumptions, trusted boundaries, domain, and bounds: <specific evidence>.
 Verifier evidence: <versions, commands, configuration, and per-proof outcomes>.
 Non-vacuity and limitations: <witnesses, negative controls, and residual gaps>.
+Plan revision: <approved revision identifier and the plan file's blob SHA at this head; omit when no ExecPlan applies>.
 Assessment-ID: <unique request marker>.
 
-Please echo the Assessment-ID and assessed base/head in your substantive reply.
+Please echo the Assessment-ID, assessed base/head, and plan revision in your
+substantive reply; echo the plan revision only when this request names one.
 This is an assessment conversation, not a request to start a formal PR review.
 
 Check substance, rigour, foundations, and correspondence to production code.
@@ -137,7 +158,9 @@ Require an explicit satisfactory assessment of the listed proofs with no
 unresolved substantive proof concern. Verifier success and CodeRabbit's
 judgement complement each other; neither replaces the other. When no proof is
 affected, record a justified `not applicable` instead of posting an empty
-inventory or creating a ceremonial proof.
+inventory or creating a ceremonial proof. Name the plan revision only when an
+ExecPlan applies; a proof-only assignment with no ExecPlan keeps the base/head
+as its whole candidate and asks for no revision echo.
 
 ## Readiness and later changes
 
@@ -149,6 +172,33 @@ remaining in-scope defects has not cleared the gate. Fix, validate, push, and
 await confirmation of the affected assessment. Never interpret a posted
 request, green formal-review check, or queue receipt as completion.
 
+A plan delivered as a managed stack has more than one layer in flight. There is
+no subset or plateau waiver: a lower layer that implements only its own
+milestones stays in draft until a clear whole-plan verdict covers its
+candidate, exactly as ordinary delivery does. Record its declared-subset
+verdict as evidence for that layer's actual scope only, naming the layer's
+milestones, the `github-stacks` parent it builds on and the milestones
+remaining above it, and show that the deliverable they contain is not claimed
+here; the record never clears the gate. The unimplemented milestones are still
+in-scope work for the stack as a whole, and the stack does not count as
+delivered until the layer that carries the plan's remaining milestones obtains
+the whole-plan verdict. A single PR that claims the whole plan but delivers
+part of it never qualifies either, because the remainder has no other owner;
+that is the incident this contract closes. Where a boundary between layers
+makes the subject genuinely ambiguous, escalate it under the existing rules
+rather than treating the subset record as clearance.
+
+That leaves a stack cut from one undivided plan with no delivery path: a lower
+layer cannot obtain a whole-plan verdict while the layers above it hold the
+remainder, and [`github-stacks`](../../github-stacks/SKILL.md#merging) requires
+each selected PR to be open and not a draft before the stack merges. Resolve it
+when the plan is approved, not by waiving the rule at readiness. Split the
+approved plan into independently complete units, one per layer, so that each
+layer is assessed against the whole of its own plan; or deliver the undivided
+plan in a single PR. A stack laid out from one undivided plan has no readiness
+path, so restructure the plan before approval rather than discovering the
+deadlock here.
+
 Once those responses, green CI, and clear CodeScene findings cover the current
 candidate, mark it ready and verify the transition. Only then inspect formal
 review progress and rate limiting: await an active or automatic review, or use
@@ -157,9 +207,20 @@ a later stage, not the mechanism for obtaining the pre-ready assessment.
 
 An already-ready PR stays ready; obtain missing assessments before merge.
 Subsequent repairs, proof changes, rebases, or retargeting require renewed
-candidate-bound evidence and affected assessment coverage. Preserve earlier
-evidence for its actual scope without relabelling it as a new review. Do not
-set the PR back to draft. If the assessment service explicitly cannot process
-the question, retain its response and report the specific blocker rather than
+candidate-bound evidence and affected assessment coverage. The plan revision is
+part of that candidate: a verdict recorded against a revision that has since
+been superseded by a newly approved revision does not clear the gate, even when
+the base/head is unchanged. Reassess against the approved revision in force.
+Reconcile the revision a reply echoes with the revision in force; a reply that
+echoes only the base/head does not establish which revision was inspected. An
+applicable completeness assessment is bound to an approved plan revision. An
+assignment that requires one while recording no approved revision is a scope
+error to repair, not an assessment to read as clear on its base/head alone. A
+proof-only assignment with no ExecPlan is unaffected, because its completeness
+assessment is recorded as not applicable and its proof verdict is bound to the
+base/head, which is that candidate's whole identity. Preserve earlier evidence
+for its actual scope without relabelling it as a new review. Do not set the PR
+back to draft. If the assessment service explicitly cannot process the
+question, retain its response and report the specific blocker rather than
 inferring failure from automatic draft-review policy. Do not bypass the gate.
 Generic approval cannot discharge missing proof scrutiny.

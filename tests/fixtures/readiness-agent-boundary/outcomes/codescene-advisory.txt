@@ -1,0 +1,14 @@
+I left PR #272 in draft and changed nothing on GitHub, because CodeScene still reports outstanding issues and the skill doesn't allow marking a PR ready until those are cleared.
+
+**Ledger for this candidate** (base `73d32981…`, head `9999aaaa`):
+- **Who wrote it:** author `experiment-owner`, branch in `leynos/agent-helper-scripts` (not a fork), one commit, `9999aaaa`.
+- **CI:** all three check runs pass: `Makefile gates` (7701), `CodeScene Code Health Review` (7702) and `Gecko Security Review` (7703).
+- **CodeRabbit:** the commit status reads `Review completed`. There are no formal reviews and no inline threads yet.
+- **Plan assessment:** clear. CodeRabbit's verdict (comment 9602) covers this base/head, the whole approved plan and plan revision `rev-7`. No tests or other proofs were affected, so no proof assessment applies.
+- **CodeScene (not clear):**
+  - The hosted check passed, but its output is titled "Issues found" and lists two problems with `_assess_gate`: "Complex Method: … cyclomatic complexity of 44 (threshold 9)" and "Large Method: … has 87 lines, threshold = 70".
+  - `cs delta 73d32981… 9999aaaa` (the stand-in, which says it is simulated) separately reports "🚩 New issue: Large Method … `_assess_gate` has 87 lines, threshold = 70" in `skills/pr-babysitting/scripts/readiness_gate.py`. `cs check` on that file agrees.
+
+The skill says a passing check that lists issues still has outstanding issues, so I didn't run `gh pr ready`. The fix is to refactor `_assess_gate` into smaller pieces, not suppress the warnings. There is no checkout of the PR branch here, so I couldn't make that repair. The next step belongs to whoever owns the implementation: refactor and push. Then the new head needs fresh CI, a re-run of both CodeScene sources and an updated plan assessment before the PR can be marked ready.
+
+The deciding evidence was the hosted check output, "Issues found — Complex Method: `_assess_gate` has a cyclomatic complexity of 44 (threshold 9). Large Method: `_assess_gate` has 87 lines, threshold = 70.", and the local `cs delta` result, "🚩 New issue: Large Method … `_assess_gate` has 87 lines, threshold = 70".

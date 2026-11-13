@@ -1,0 +1,17 @@
+PR #272 is now out of draft: I produced the handoff packet above, then marked the PR ready. That is where this assignment stops, since merge was not authorized. Re-reading the PR afterwards showed `isDraft: false`, with base `73d32981c7b7e8f52590a074873e28a9f369f0f9` and head `cccc3333` unchanged.
+
+**Why it was ready:**
+- **Checks:** all three hosted checks on `cccc3333` passed. "Makefile gates", "Gecko Security Review", and "CodeScene Code Health Review" (reporting "No advisory findings, gate failures or code-health declines.") were all `SUCCESS`.
+- **Local CodeScene:** `cs delta 73d32981…f9 cccc3333` returned "No issues found in checked changes." The tool states it is simulated; I used its answer as the local result, as you instructed.
+- **Plan assessment:** CodeRabbit's reply #issuecomment-9202 says "**Verdict: clear** … Assessed subject: the whole approved plan … Plan revision: rev-7 … No in-scope rework remains." It repeats the request's ID (`271-ab-current`) and the same base/head. Rev-7 is also the revision in the plan file on both the PR head and `main`.
+- **Proof assessment:** not needed. The only changed file is the plan document, so no proofs were added or changed.
+
+**Not done, or done differently than the skills expect:**
+- **PR description not updated.** I wrote a new body with a Validation section and a final `## References` section, but this `gh` rejects `pr edit`. The live description still has the original one-line text.
+- **Milestone CodeRabbit CLI review not run.** The `coderabbit` CLI isn't installed here, so it is recorded as missing, not as passed.
+- **No local repository gates.** There is no git checkout, so the only gate results are from the hosted Makefile check.
+- **No sub-agents.** The helper manifest wasn't found, so I did all the reads myself. Lody steps were skipped because no session is active.
+
+**Formal review:** the `CodeRabbit` status on the head still says "Review completed", but no review has been posted on the PR yet. Watching for that review, and any merge, are later steps that this assignment doesn't cover.
+
+**Evidence I relied on:** CodeRabbit's reply ("**Verdict: clear** … the whole approved plan … rev-7 … No in-scope rework remains"), the local result ("No issues found in checked changes."), and the readback after the ready command (`{"isDraft": false, "headRefOid": "cccc3333", "baseRefOid": "73d32981c7b7e8f52590a074873e28a9f369f0f9"}`).
