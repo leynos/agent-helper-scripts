@@ -295,6 +295,64 @@ def proof_request(listing: list[dict]) -> dict | None:
 PROOF_INVENTORY = re.compile(r"^Proof inventory:[^\n]*", re.MULTILINE)
 
 
+def recorded_reference(directory: Path) -> str:
+    """Return the named proof reference the recording says its candidate carries.
+
+    `proof_path` names the file; the inventory a reply is compared against
+    names the reference inside it. The recording carries both, so the diff and
+    the inventory are reconciled by the identity the recording was made under
+    rather than by a second guess from the path's spelling.
+
+    Parameters
+    ----------
+    directory : Path
+        The run copy holding the facts `decide` serves.
+
+    Returns
+    -------
+    str
+        The reference the recording's proof is assessed under.
+    """
+    facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
+    return proof_reference(str(facts["proof_reference"]))
+
+
+def stated_proofs(
+    inventory: tuple[str, ...], changed: bool, reference: str
+) -> tuple[str, ...]:
+    """Return the inventory a proof assessment must actually cover.
+
+    Applicability and coverage are two facts that have to agree. The diff says
+    the assessment applies; the inventory says what the reply will be compared
+    against. An inventory that owes nothing to a changed proof — it names some
+    other proof, or names none — would let a clear reply for that other proof
+    discharge an assessment of the proof the candidate changed, so the changed
+    proof is added to what the reply must cover.
+
+    The addition is one-way. A non-empty inventory that already names the
+    changed proof is left exactly as recorded, and an empty inventory over an
+    unchanged candidate stays empty: the join only ever adds the proof the
+    diff actually carries.
+
+    Parameters
+    ----------
+    inventory : tuple of str
+        The proofs the request's inventory names.
+    changed : bool
+        Whether the candidate's diff changes the proof the recording names.
+    reference : str
+        The named reference the recording's proof is assessed under.
+
+    Returns
+    -------
+    tuple of str
+        The inventory the reply's subject is compared against.
+    """
+    if not changed:
+        return inventory
+    return tuple(dict.fromkeys((*inventory, reference)))
+
+
 def affects_a_proof(body: str) -> bool:
     """Return whether a completeness request says the candidate affects a proof.
 
@@ -691,9 +749,11 @@ def decide(
     # it made a proof-changing candidate with no question look inapplicable.
     # The question is the assessment, not the condition.
     conditional = "required when applicable" in packet["proof"].casefold()
-    affected = changes_a_proof(
-        changed_paths(shim), recorded_proof(tmp_path)
-    ) or affects_a_proof(body)
+    changed = changes_a_proof(changed_paths(shim), recorded_proof(tmp_path))
+    affected = changed or affects_a_proof(body)
+    # Applicability and coverage are reconciled, so an inventory that names
+    # some other proof cannot discharge the assessment the diff requires. The
+    # reply must cover the changed proof whether or not the sender listed it.
     pull = workflow.PullRequest(
         base=str(pr["baseRefOid"]),
         head=head,
@@ -701,7 +761,11 @@ def decide(
         ci_green=all(state == "SUCCESS" for state in checks(pr).values()),
         codescene_clear=codescene_clear(pr),
         approved_plan_revision=revision.group(1),
-        required_proofs=proof_inventory(proof_ask, body),
+        required_proofs=stated_proofs(
+            proof_inventory(proof_ask, body),
+            changed,
+            recorded_reference(tmp_path),
+        ),
     )
     proof_marker = (
         SHIM_MODULE.ASSESSMENT_ID.search(str(proof_ask["body"])).group(1)
@@ -889,6 +953,64 @@ def test_the_receiver_reads_applicability_from_the_inventory_not_the_question(
     assert pull.ready_transitions == [pull.head]
 
 
+def test_an_inventory_naming_a_proof_the_diff_omits_still_applies(
+    tmp_path: Path,
+    packet: dict[str, str],
+) -> None:
+    """The inventory can add an assessment the diff alone would not require.
+
+    The two reads are not symmetric. The diff decides a change to a proof it
+    carries; the inventory decides a sender's claim about a proof the diff does
+    not carry. `current-whole-plan` changes only the plan and records
+    `none affected`, and it clears. Give it the combined scenario's inventory —
+    naming `refinement_sound`, which its own diff does not touch — and it must
+    stop clearing: the sender has said a proof is affected, so the assessment
+    applies and its missing reply holds the gate. A receiver that read only the
+    diff would clear this candidate, and the sentence would be ignored in the
+    one direction it is allowed to speak.
+
+    This is the case that separates the two reads. The test above holds a
+    candidate whose diff decides; this one holds a candidate whose inventory
+    decides while its diff does not.
+    """
+    claim = tmp_path / "claim"
+    claim.mkdir()
+    shim = stage(claim, "current-whole-plan")
+    proof = recorded_proof(claim)
+    reference = recorded_reference(claim)
+    assert not changes_a_proof(changed_paths(shim), proof), (
+        "the scenario now changes the proof it names"
+    )
+    facts = json.loads((claim / "facts.json").read_text(encoding="utf-8"))
+    assert not affects_a_proof(
+        str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
+    ), "the scenario no longer records an empty inventory"
+    facts["api"][r"/issues/\d+/comments"] = [
+        {
+            **entry,
+            "body": PROOF_INVENTORY.sub(
+                f"Proof inventory: `{proof}` (`{reference}`).", str(entry["body"])
+            )
+            if "please assess the implementation" in str(entry["body"])
+            else str(entry["body"]),
+        }
+        for entry in facts["api"][r"/issues/\d+/comments"]
+    ]
+    assert affects_a_proof(
+        str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
+    ), "the altered inventory names no proof"
+    pull, decision = decide("current-whole-plan", claim, packet, facts)
+    assert decision.ready is False, (
+        "an inventory naming an affected proof cleared without its assessment"
+    )
+    assert pull.ready_transitions == [], (
+        f"the candidate transitioned to {pull.ready_transitions}"
+    )
+    assert decision.reason == "proof-pending", (
+        f"the candidate decided {decision.reason!r}, not 'proof-pending'"
+    )
+
+
 def test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo(
     tmp_path: Path,
     packet: dict[str, str],
@@ -941,10 +1063,12 @@ def test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_und
     assert pull.ready_transitions == [], (
         f"the candidate transitioned to {pull.ready_transitions}"
     )
-    # The diff is what applies, so the hold is the assessment that names no
-    # subject rather than an unanswered question about one.
-    assert decision.reason == "proof-inventory-empty", (
-        f"the candidate decided {decision.reason!r}, not 'proof-inventory-empty'"
+    # The diff is what applies, and it is what the reply must cover: with the
+    # inventory denying it, the changed proof is added back to the inventory,
+    # so the hold is the unanswered assessment of that proof rather than a
+    # request that named no subject at all.
+    assert decision.reason == "proof-pending", (
+        f"the candidate decided {decision.reason!r}, not 'proof-pending'"
     )
 
     # The control: no changed proof, the same empty inventory, and it clears.
@@ -958,7 +1082,108 @@ def test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_und
     assert decision.ready is True, (
         f"the control decided {decision.reason!r} without a proof question"
     )
-    assert pull.ready_transitions == [pull.head]
+    assert pull.ready_transitions == [pull.head], (
+        f"the control recorded {pull.ready_transitions}"
+    )
+
+
+def test_a_non_empty_inventory_naming_another_proof_cannot_cover_the_change(
+    tmp_path: Path,
+    packet: dict[str, str],
+) -> None:
+    """The reply must cover the proof the candidate changed, not a nearby one.
+
+    Applicability and coverage are two facts a candidate can make disagree.
+    `combined-plan-and-proof` changes `refinement_sound` and asks about it.
+    Rename the proof throughout the served recording — inventory, question and
+    answer alike — to `other_sound`, and every part of the sender's side is
+    consistent about a proof the candidate does not carry. The diff is
+    unchanged, so the assessment still applies; but an inventory that owes
+    nothing to the changed proof would let that clean verdict on `other_sound`
+    discharge the assessment of `refinement_sound`, and the candidate would
+    leave draft with the changed proof unassessed.
+
+    Reconciling the diff with the inventory adds the changed proof to what the
+    reply must cover, so the clean verdict naming only `other_sound` is
+    incomplete rather than clear. The `current-whole-plan` control changes no
+    proof at all: the same rename there leaves the inventory the whole story,
+    and the clean verdict on the renamed proof clears the gate. The hold above
+    is therefore the changed proof, not the name.
+    """
+    # A proof-changing candidate whose whole recording names another proof.
+    renamed = tmp_path / "renamed"
+    renamed.mkdir()
+    shim = stage(renamed, "combined-plan-and-proof")
+    proof = recorded_proof(renamed)
+    reference = recorded_reference(renamed)
+    assert changes_a_proof(changed_paths(shim), proof), (
+        "the scenario no longer changes the proof it names"
+    )
+    assert reference and reference != "other_sound", (
+        f"the recording's reference is {reference!r}, so the rename is a no-op"
+    )
+    facts = json.loads((renamed / "facts.json").read_text(encoding="utf-8"))
+    facts["api"][r"/issues/\d+/comments"] = [
+        {
+            **entry,
+            "body": str(entry["body"]).replace(reference, "other_sound"),
+        }
+        for entry in facts["api"][r"/issues/\d+/comments"]
+    ]
+    stripped = [
+        entry for entry in facts["api"][r"/issues/\d+/comments"]
+        if "please assess the implementation" in str(entry["body"])
+    ]
+    assert stripped, "the renamed discussion holds no completeness request"
+    assert reference not in str(stripped[0]["body"]), (
+        "the renamed inventory still names the changed proof"
+    )
+    pull, decision = decide("combined-plan-and-proof", renamed, packet, facts)
+    assert decision.ready is False, (
+        "a clean verdict on another proof cleared the changed proof's assessment"
+    )
+    assert pull.ready_transitions == [], (
+        f"the candidate transitioned to {pull.ready_transitions}"
+    )
+    assert decision.reason == "proof-inventory-incomplete", (
+        f"the candidate decided {decision.reason!r}, not"
+        " 'proof-inventory-incomplete'"
+    )
+
+    # The control: the same rename on a candidate that changes no proof.
+    control = tmp_path / "renamed-control"
+    control.mkdir()
+    control_shim = stage(control, "current-whole-plan")
+    assert not changes_a_proof(
+        changed_paths(control_shim), recorded_proof(control)
+    ), "the control scenario now changes the proof it names"
+    control_facts = json.loads(
+        (control / "facts.json").read_text(encoding="utf-8")
+    )
+    control_facts["api"][r"/issues/\d+/comments"] = [
+        {
+            **entry,
+            "body": str(entry["body"]).replace(reference, "other_sound"),
+        }
+        for entry in control_facts["api"][r"/issues/\d+/comments"]
+    ]
+    control_body = str(
+        completeness_request(
+            control_facts["api"][r"/issues/\d+/comments"]
+        )["body"]
+    )
+    assert not affects_a_proof(control_body), (
+        "the control's inventory no longer records an empty inventory"
+    )
+    pull, decision = decide(
+        "current-whole-plan", control, packet, control_facts
+    )
+    assert decision.ready is True, (
+        f"the control decided {decision.reason!r} without a proof assessment"
+    )
+    assert pull.ready_transitions == [pull.head], (
+        f"the control recorded {pull.ready_transitions}"
+    )
 
 
 def listing_comments(directory: Path) -> list[dict]:

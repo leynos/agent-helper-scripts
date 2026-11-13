@@ -96,23 +96,38 @@ posted. The question is the assessment, not the condition: deriving the
 condition from its presence made a missing required question look like an
 inapplicable assessment, so a proof-changing candidate whose proof question was
 never posted cleared on the completeness reply alone. Two independent reads
-decide the condition instead, and they have an order.
+decide the condition instead, and they are not symmetric.
 
 The candidate's diff is the primary evidence. A change to the proof the
 recording names affects it whatever any request says, so
 `test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo`
 rewrites `combined-plan-and-proof`'s inventory to `none affected` and removes
 its proof question, and requires the candidate to stay in draft. A sender's
-sentence cannot unmake the file its own diff carries. The completeness request's
-`Proof inventory:` line is the secondary read: it can *add* applicability, by
-naming a proof the diff does not carry, and
+sentence cannot unmake the file its own diff carries.
+
+The completeness request's `Proof inventory:` line is the secondary read, and
+it speaks only in the other direction: it can *add* applicability, by naming a
+proof the diff does not carry. That is
+`test_an_inventory_naming_a_proof_the_diff_omits_still_applies`, which gives
+`current-whole-plan` — a candidate that changes only the plan — the combined
+scenario's inventory and requires it to stop clearing, because the sender has
+claimed an affected proof whose assessment is missing. The two holds are
+therefore controlled separately, one by a diff the inventory denies and one by
+an inventory the diff does not support.
+
 `test_the_receiver_reads_applicability_from_the_inventory_not_the_question`
-removes the proof question from that same recording while leaving its inventory
-naming the proof, so the case shows that a missing question is pending rather
-than inapplicable. Both tests take the `current-whole-plan` control, which
-changes no proof and says `none affected`: it must clear without a proof
-question, so neither hold is attributable to deleting a comment or to the
-inventory sentence alone.
+covers the missing question alone: it removes the proof question from
+`combined-plan-and-proof` while leaving its inventory naming the proof, so the
+case shows a missing question is pending rather than inapplicable. Reading
+applicability without ever reconciling coverage was still wrong, which is
+`test_a_non_empty_inventory_naming_another_proof_cannot_cover_the_change`: a
+clean verdict on a differently-named proof cannot discharge the assessment of
+the proof the candidate changed.
+
+Every case takes the `current-whole-plan` control in the form its own rewrite
+needs: the unchanged scenario changes no proof and says `none affected`, and it
+must clear without a proof question. So no hold above is attributable to
+deleting a comment, to the inventory sentence alone, or to a rename.
 
 The runner enforces five things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:

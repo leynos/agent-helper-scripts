@@ -44,6 +44,12 @@ PLAN_BLOB_REV8 = "e3b7c04d9a6f5128b47d0c3e8a15f96d2c4b70a8"
 # The proof the two `proof-only-*` scenarios introduce. It is the subject of
 # their proof assessment, and the only changed file in those runs.
 PROOF_PATH = "proofs/refinement/Theorem.lean"
+# The named reference inside that proof. The template asks about "proof file
+# paths with named proof references", and the recorded replies name the
+# reference alone, so the recording carries it beside the path: a receiver that
+# reconciles the changed proof with the inventory those replies are compared
+# against needs both halves of the identity from the same premise.
+PROOF_REFERENCE = "refinement_sound"
 # The inventory line for a candidate that changes this proof and asks a proof
 # question about it. Every `combined-*` scenario is one, so none of them may
 # say "none affected": that sentence and the sibling proof request state two
@@ -890,6 +896,12 @@ def scenario(case: Case) -> None:
         # route. A run that read some other proof, or read this one at another
         # ref, has not inspected the subject its verdict covers.
         "proof_path": PROOF_PATH,
+        # The reference the proof is assessed under, as its inventory entry
+        # names it. The diff names a file and the reply names a reference, so a
+        # receiver reconciling the two needs both from one premise: the same
+        # recording says which file it changes and what that file is called in
+        # the inventory the reply is compared against.
+        "proof_reference": PROOF_REFERENCE,
         # The finding text accompanies the mode, so the size the local result
         # reports is derived from the same file the `contents` route serves. A
         # finding written twice could disagree with the code it describes, and

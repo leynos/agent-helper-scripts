@@ -301,5 +301,6 @@
   "cs_mode": "clean",
   "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
   "proof_path": "proofs/refinement/Theorem.lean",
+  "proof_reference": "refinement_sound",
   "cs_finding": ""
 }

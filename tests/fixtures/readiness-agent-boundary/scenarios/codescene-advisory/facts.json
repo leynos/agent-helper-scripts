@@ -296,5 +296,6 @@
   "cs_mode": "finding",
   "plan_path": "docs/execplans/issue-271-readiness-handoff.md",
   "proof_path": "proofs/refinement/Theorem.lean",
+  "proof_reference": "refinement_sound",
   "cs_finding": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nskills/pr-babysitting/scripts/readiness_gate.py\nCode Health: (8.69)\n\n  \ud83d\udea9 New issue: Large Method\n     Function: _assess_gate at line 10\n     Status: _assess_gate has 87 lines, threshold = 70\n"
 }
