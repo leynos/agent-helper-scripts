@@ -981,25 +981,57 @@ def test_an_inventory_naming_a_proof_the_diff_omits_still_applies(
     assert not changes_a_proof(changed_paths(shim), proof), (
         "the scenario now changes the proof it names"
     )
-    facts = json.loads((claim / "facts.json").read_text(encoding="utf-8"))
+
+    def decided(
+        name: str, line: str
+    ) -> tuple[workflow.PullRequest, workflow.Readiness, dict]:
+        """Serve this scenario with one `Proof inventory:` line, and decide."""
+        directory = tmp_path / name
+        directory.mkdir()
+        stage(directory, "current-whole-plan")
+        facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
+        facts["api"][r"/issues/\d+/comments"] = [
+            {**entry, "body": PROOF_INVENTORY.sub(line, str(entry["body"]))}
+            for entry in facts["api"][r"/issues/\d+/comments"]
+        ]
+        pull, decision = decide("current-whole-plan", directory, packet, facts)
+        return pull, decision, facts
+
+    # The ladder the README states: the scenario's own empty inventory clears,
+    # an absent line clears, and only a line naming a proof its diff does not
+    # carry holds. Each step changes the line and nothing else.
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    stage(empty, "current-whole-plan")
+    facts = json.loads((empty / "facts.json").read_text(encoding="utf-8"))
     assert not affects_a_proof(
         str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
     ), "the scenario no longer records an empty inventory"
-    facts["api"][r"/issues/\d+/comments"] = [
-        {
-            **entry,
-            "body": PROOF_INVENTORY.sub(
-                f"Proof inventory: `{proof}` (`{reference}`).", str(entry["body"])
-            )
-            if "please assess the implementation" in str(entry["body"])
-            else str(entry["body"]),
-        }
-        for entry in facts["api"][r"/issues/\d+/comments"]
-    ]
+    pull, decision = decide("current-whole-plan", empty, packet)
+    assert decision.ready is True, (
+        f"the empty-inventory control decided {decision.reason!r}"
+    )
+    assert pull.ready_transitions == [pull.head], (
+        f"the empty-inventory control recorded {pull.ready_transitions}"
+    )
+
+    pull, decision, absent = decided("absent", "")
+    assert not affects_a_proof(
+        str(completeness_request(absent["api"][r"/issues/\d+/comments"])["body"])
+    ), "the removed inventory still records an affected proof"
+    assert decision.ready is True, (
+        f"the absent-line control decided {decision.reason!r}"
+    )
+    assert pull.ready_transitions == [pull.head], (
+        f"the absent-line control recorded {pull.ready_transitions}"
+    )
+
+    pull, decision, named = decided(
+        "named", f"Proof inventory: `{proof}` (`{reference}`)."
+    )
     assert affects_a_proof(
-        str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
+        str(completeness_request(named["api"][r"/issues/\d+/comments"])["body"])
     ), "the altered inventory names no proof"
-    pull, decision = decide("current-whole-plan", claim, packet, facts)
     assert decision.ready is False, (
         "an inventory naming an affected proof cleared without its assessment"
     )
@@ -1008,31 +1040,6 @@ def test_an_inventory_naming_a_proof_the_diff_omits_still_applies(
     )
     assert decision.reason == "proof-pending", (
         f"the candidate decided {decision.reason!r}, not 'proof-pending'"
-    )
-
-    # The line, and nothing else, is what held that candidate. Delete the line
-    # from the same altered recording and it clears: without this control a
-    # hold could be attributed to anything else the rewrite carried.
-    absent = tmp_path / "absent"
-    absent.mkdir()
-    shim = stage(absent, "current-whole-plan")
-    facts = json.loads((absent / "facts.json").read_text(encoding="utf-8"))
-    facts["api"][r"/issues/\d+/comments"] = [
-        {
-            **entry,
-            "body": PROOF_INVENTORY.sub("", str(entry["body"])),
-        }
-        for entry in facts["api"][r"/issues/\d+/comments"]
-    ]
-    assert not affects_a_proof(
-        str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
-    ), "the removed inventory still records an affected proof"
-    pull, decision = decide("current-whole-plan", absent, packet, facts)
-    assert decision.ready is True, (
-        f"the control decided {decision.reason!r} with no inventory line"
-    )
-    assert pull.ready_transitions == [pull.head], (
-        f"the control recorded {pull.ready_transitions}"
     )
 
 

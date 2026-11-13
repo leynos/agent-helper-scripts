@@ -130,11 +130,12 @@ must clear without a proof question. So no hold above is attributable to
 deleting a comment or to a rename.
 
 The inventory sentence alone can hold, and for one case that hold is the point.
-`test_an_inventory_naming_a_proof_the_diff_omits_still_applies` rewrites only
-that line: `current-whole-plan` clears with its own `none affected` inventory,
-clears again with the line deleted outright, and stops clearing once the line
-names the combined scenario's proof. The first two controls are what make the
-third attributable to the sentence.
+`test_an_inventory_naming_a_proof_the_diff_omits_still_applies` runs the same
+`current-whole-plan` recording three times, varying only that line. With its own
+`none affected` inventory it clears; with the line deleted outright it clears
+again; with the line naming `refinement_sound` from `combined-plan-and-proof`
+it stops clearing. All three decisions are taken in that test, so the third is
+attributable to the sentence and to nothing else the rewrite changes.
 
 For the other cases the inventory sentence cannot explain the hold.
 `test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo`
