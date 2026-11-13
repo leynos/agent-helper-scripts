@@ -127,7 +127,21 @@ the proof the candidate changed.
 Every case takes the `current-whole-plan` control in the form its own rewrite
 needs: the unchanged scenario changes no proof and says `none affected`, and it
 must clear without a proof question. So no hold above is attributable to
-deleting a comment, to the inventory sentence alone, or to a rename.
+deleting a comment or to a rename.
+
+The inventory sentence alone can hold, and for one case that hold is the point.
+`test_an_inventory_naming_a_proof_the_diff_omits_still_applies` rewrites only
+that line: `current-whole-plan` clears with its own `none affected` inventory,
+clears again with the line deleted outright, and stops clearing once the line
+names the combined scenario's proof. The first two controls are what make the
+third attributable to the sentence.
+
+For the other cases the inventory sentence cannot explain the hold.
+`test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo`
+sets the line to `none affected` over a proof-changing diff and still holds,
+while its `current-whole-plan` control carries the same empty inventory with no
+changed proof and clears — the same sentence, opposite outcomes, so the diff is
+what decides.
 
 The runner enforces five things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:

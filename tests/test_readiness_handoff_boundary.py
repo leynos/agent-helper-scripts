@@ -1010,6 +1010,31 @@ def test_an_inventory_naming_a_proof_the_diff_omits_still_applies(
         f"the candidate decided {decision.reason!r}, not 'proof-pending'"
     )
 
+    # The line, and nothing else, is what held that candidate. Delete the line
+    # from the same altered recording and it clears: without this control a
+    # hold could be attributed to anything else the rewrite carried.
+    absent = tmp_path / "absent"
+    absent.mkdir()
+    shim = stage(absent, "current-whole-plan")
+    facts = json.loads((absent / "facts.json").read_text(encoding="utf-8"))
+    facts["api"][r"/issues/\d+/comments"] = [
+        {
+            **entry,
+            "body": PROOF_INVENTORY.sub("", str(entry["body"])),
+        }
+        for entry in facts["api"][r"/issues/\d+/comments"]
+    ]
+    assert not affects_a_proof(
+        str(completeness_request(facts["api"][r"/issues/\d+/comments"])["body"])
+    ), "the removed inventory still records an affected proof"
+    pull, decision = decide("current-whole-plan", absent, packet, facts)
+    assert decision.ready is True, (
+        f"the control decided {decision.reason!r} with no inventory line"
+    )
+    assert pull.ready_transitions == [pull.head], (
+        f"the control recorded {pull.ready_transitions}"
+    )
+
 
 def test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo(
     tmp_path: Path,
