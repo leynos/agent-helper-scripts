@@ -321,8 +321,14 @@ def test_a_blank_revision_identifies_nothing(
         completeness(bounds=bound(revision=revision, echoed=echoed)),
         proof(),
     )
-    assert decision.reason == reason
-    assert decision.ready is (reason == "ready")
+    assert decision.reason == reason, (
+        f"revision {revision!r} echoed as {echoed!r} against"
+        f" {approved!r} decided {decision.reason!r}, not {reason!r}"
+    )
+    assert decision.ready is (reason == "ready"), (
+        f"revision {revision!r} echoed as {echoed!r} against {approved!r}"
+        f" reported ready={decision.ready}"
+    )
 
 
 def test_a_proof_verdict_on_a_superseded_revision_keeps_the_pr_in_draft() -> None:

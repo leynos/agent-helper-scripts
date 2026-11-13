@@ -239,6 +239,22 @@ def plan_file(shim: Path, path: str, ref: str) -> dict:
     return json.loads(done.stdout)
 
 
+def changed_paths(shim: Path) -> list[str]:
+    """Return the candidate's changed paths, through the route a run reads.
+
+    The diff is read from the stand-in rather than from `facts.json` for the
+    same reason the discussion is: a premise the stand-in would not serve is
+    not one a run could have seen. `gh pr diff --name-only` prints one path per
+    line, so the read is the same text a receiver would parse.
+    """
+    done = invoke(
+        shim, "pr", "diff", "272", "--repo", "leynos/agent-helper-scripts",
+        "--name-only",
+    )
+    assert done.returncode == 0, done.stderr
+    return [line for line in done.stdout.splitlines() if line.strip()]
+
+
 def tagged_requests(listing: list[dict], opening: str) -> list[dict]:
     """Return the tagged requests in a discussion that carry one opening.
 
@@ -288,11 +304,19 @@ def affects_a_proof(body: str) -> bool:
     empty; one that names proofs is not. A request carrying no such line
     establishes nothing, and is read as neither.
 
-    The proof question is a different fact from this one. It says the
-    assessment was asked for, not whether it applies: a candidate that changes
-    a proof and never has its question posted is a candidate with a missing
-    assessment. Reading applicability from the question alone made that state
-    look inapplicable, which cleared the gate on the completeness reply.
+    This is the secondary read, and it can only *add* applicability. The
+    candidate's diff is the primary evidence, so an inventory that names a
+    proof the diff does not carry still makes the assessment apply, while an
+    inventory that says `none affected` over a changed proof cannot unmake it.
+    A sender that writes that sentence over its own changed proof has recorded
+    a contradiction, and taking the sentence as authoritative is what let a
+    proof-changing candidate clear on the completeness reply alone.
+
+    The proof question is a different fact again. It says the assessment was
+    asked for, not whether it applies: a candidate that changes a proof and
+    never has its question posted is a candidate with a missing assessment.
+    Reading applicability from the question alone made that state look
+    inapplicable, which cleared the gate on the completeness reply.
 
     Parameters
     ----------
@@ -308,6 +332,51 @@ def affects_a_proof(body: str) -> bool:
     if stated is None:
         return False
     return "none affected" not in stated.group(0).casefold()
+
+
+def recorded_proof(directory: Path) -> str:
+    """Return the proof the recording says its candidate carries.
+
+    A GitHub diff names files, not what they are: whether a changed path is a
+    proof under assessment is a fact about the candidate's own inventory of
+    proofs, and the shipped contract says to inspect symbols and verifier
+    configuration rather than decide by filenames. So the identity comes from
+    the recording's `proof_path`, and the diff says only whether that file is
+    among the changed ones. The runner compares a run's `none affected`
+    against the same premise, so applicability here is decided against the
+    identity the recording was made under rather than against a second guess
+    from the path's spelling.
+
+    Parameters
+    ----------
+    directory : Path
+        The run copy holding the facts `decide` serves.
+
+    Returns
+    -------
+    str
+        The repository-relative proof path the recording names.
+    """
+    facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
+    return str(facts["proof_path"])
+
+
+def changes_a_proof(changed: list[str], proof: str) -> bool:
+    """Return whether the candidate's own diff carries the proof it names.
+
+    Parameters
+    ----------
+    changed : list of str
+        The paths the candidate changes, as its diff reports them.
+    proof : str
+        The repository-relative proof path the recording names.
+
+    Returns
+    -------
+    bool
+        Whether that proof is among the changed paths.
+    """
+    return bool(proof) and proof in changed
 
 
 def field_in(body: str, label: str) -> str:
@@ -564,9 +633,10 @@ def decide(
 
     The receiver is handed the scenario through the stand-in: it lists the
     discussion, reads the plan the completeness request names at the head the
-    PR gives, derives its assignment from the handoff packet and the request's
-    proof inventory, and decides on the replies the recording holds for the
-    markers it found. No candidate value and no reply is written here.
+    PR gives, reads the candidate's changed paths, derives its assignment from
+    the handoff packet, that diff and the request's proof inventory, and
+    decides on the replies the recording holds for the markers it found. No
+    candidate value and no reply is written here.
 
     Parameters
     ----------
@@ -606,17 +676,24 @@ def decide(
     revision = SHIM_MODULE.PLAN_REVISION.search(content)
     assert revision, f"{scenario} serves no plan revision at {head}"
 
-    # The packet conditions the proof assessment, and the candidate's
-    # affected-proof inventory says whether the condition is met: the packet
-    # states when the assessment applies, and the inventory states what this
-    # candidate affects. A tagged proof question is not applicability evidence.
-    # It says the question was posted, so reading applicability from it made a
-    # proof-changing candidate with no question look inapplicable, and the
-    # completeness reply alone then cleared the gate. A missing required
-    # question is a pending assessment: the inventory still says a proof is
-    # affected, and the model holds on the unanswered proof reply.
+    # The packet conditions the proof assessment, and two independent reads
+    # decide whether the condition is met. The candidate's own diff is the
+    # primary evidence: a change to the proof the recording names affects it
+    # whatever any request says about it. The completeness request's
+    # `Proof inventory:` line can only add applicability, by naming a proof the
+    # diff does not carry; it can never take it away, because a sender that
+    # writes `none affected` over a changed proof has contradicted its own
+    # diff, and reading that sentence as authoritative is what let a
+    # proof-changing candidate clear on the completeness reply alone.
+    #
+    # A tagged proof question is not applicability evidence in either
+    # direction. It says the question was posted, so reading applicability from
+    # it made a proof-changing candidate with no question look inapplicable.
+    # The question is the assessment, not the condition.
     conditional = "required when applicable" in packet["proof"].casefold()
-    affected = affects_a_proof(body)
+    affected = changes_a_proof(
+        changed_paths(shim), recorded_proof(tmp_path)
+    ) or affects_a_proof(body)
     pull = workflow.PullRequest(
         base=str(pr["baseRefOid"]),
         head=head,
@@ -808,6 +885,78 @@ def test_the_receiver_reads_applicability_from_the_inventory_not_the_question(
     pull, decision = decide("current-whole-plan", empty, packet)
     assert decision.ready is True, (
         "an empty inventory did not clear without a proof question"
+    )
+    assert pull.ready_transitions == [pull.head]
+
+
+def test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo(
+    tmp_path: Path,
+    packet: dict[str, str],
+) -> None:
+    """A changed proof makes the assessment apply whatever the inventory says.
+
+    The diff is the candidate's own evidence: `combined-plan-and-proof` changes
+    `proofs/refinement/Theorem.lean`, so the proof assessment applies to it.
+    Rewrite that candidate's `Proof inventory:` line to `none affected` and
+    remove its proof question, and the candidate is still the same one — the
+    same proof is in its diff. An inventory read as authoritative would take
+    the assessment out of scope on the sender's word, so the candidate would
+    clear on the completeness reply alone with no proof reply at all, which is
+    exactly the transition the proof gate exists to refuse. The inventory is
+    the sender's statement of what it affects; it can name a proof the diff
+    does not carry, and it cannot deny one the diff does.
+
+    The control is `current-whole-plan`, which changes no proof and records the
+    same empty inventory: it must still clear without a proof question, so the
+    hold above is the diff and not the sentence.
+    """
+    # A proof-changing candidate whose inventory denies the proof it changes.
+    denied = tmp_path / "denied"
+    denied.mkdir()
+    shim = stage(denied, "combined-plan-and-proof")
+    proof = recorded_proof(denied)
+    assert changes_a_proof(changed_paths(shim), proof), (
+        "the scenario no longer changes the proof it names"
+    )
+    facts = json.loads((denied / "facts.json").read_text(encoding="utf-8"))
+    comments = [
+        entry for entry in facts["api"][r"/issues/\d+/comments"]
+        if not proof_request([entry])
+    ]
+    assert len(comments) < len(facts["api"][r"/issues/\d+/comments"]), (
+        "the scenario asks no proof question"
+    )
+    for entry in comments:
+        entry["body"] = PROOF_INVENTORY.sub(
+            "Proof inventory: none affected.", str(entry["body"])
+        )
+    facts["api"][r"/issues/\d+/comments"] = comments
+    assert not affects_a_proof(str(completeness_request(comments)["body"])), (
+        "the altered inventory still records an affected proof"
+    )
+    pull, decision = decide("combined-plan-and-proof", denied, packet, facts)
+    assert decision.ready is False, (
+        "a proof-changing candidate cleared with its inventory denying the proof"
+    )
+    assert pull.ready_transitions == [], (
+        f"the candidate transitioned to {pull.ready_transitions}"
+    )
+    # The diff is what applies, so the hold is the assessment that names no
+    # subject rather than an unanswered question about one.
+    assert decision.reason == "proof-inventory-empty", (
+        f"the candidate decided {decision.reason!r}, not 'proof-inventory-empty'"
+    )
+
+    # The control: no changed proof, the same empty inventory, and it clears.
+    control = tmp_path / "control"
+    control.mkdir()
+    control_shim = stage(control, "current-whole-plan")
+    assert not changes_a_proof(
+        changed_paths(control_shim), recorded_proof(control)
+    ), "the control scenario now changes the proof it names"
+    pull, decision = decide("current-whole-plan", control, packet)
+    assert decision.ready is True, (
+        f"the control decided {decision.reason!r} without a proof question"
     )
     assert pull.ready_transitions == [pull.head]
 

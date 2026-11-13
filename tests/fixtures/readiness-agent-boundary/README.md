@@ -91,20 +91,28 @@ and `subset-clear` — same head, same discussion, same checks — with
 `start_skill` set so the run begins at the sender. The crossing is the only
 difference, so a divergence in outcome is attributable to it.
 
-The receiver's applicability is read from the candidate's affected-proof
-inventory, not from whether a proof question was posted. The completeness
-request's `Proof inventory:` line is the sender's statement of what the
-candidate affects, and it is there whether or not the question went out; the
-question is the assessment, not the condition. Deriving the condition from the
-question made a missing required question look like an inapplicable assessment,
-so a proof-changing candidate whose proof question was never posted cleared on
-the completeness reply alone. The inventory now says a proof is affected and
-the unanswered proof assessment holds the gate, which is
-`test_the_receiver_reads_applicability_from_the_inventory_not_the_question`.
-That test removes the question from `combined-plan-and-proof` and serves the
-altered facts, and its control removes nothing from a scenario whose inventory
-says `none affected` and still clears, so the case is about the inventory
-rather than about deleting a comment.
+The receiver's applicability is not read from whether a proof question was
+posted. The question is the assessment, not the condition: deriving the
+condition from its presence made a missing required question look like an
+inapplicable assessment, so a proof-changing candidate whose proof question was
+never posted cleared on the completeness reply alone. Two independent reads
+decide the condition instead, and they have an order.
+
+The candidate's diff is the primary evidence. A change to the proof the
+recording names affects it whatever any request says, so
+`test_the_receiver_reads_applicability_from_the_diff_the_inventory_cannot_undo`
+rewrites `combined-plan-and-proof`'s inventory to `none affected` and removes
+its proof question, and requires the candidate to stay in draft. A sender's
+sentence cannot unmake the file its own diff carries. The completeness request's
+`Proof inventory:` line is the secondary read: it can *add* applicability, by
+naming a proof the diff does not carry, and
+`test_the_receiver_reads_applicability_from_the_inventory_not_the_question`
+removes the proof question from that same recording while leaving its inventory
+naming the proof, so the case shows that a missing question is pending rather
+than inapplicable. Both tests take the `current-whole-plan` control, which
+changes no proof and says `none affected`: it must clear without a proof
+question, so neither hold is attributable to deleting a comment or to the
+inventory sentence alone.
 
 The runner enforces five things about such a run, because reaching the right
 readiness decision is exactly what a receiver-only run already does:
