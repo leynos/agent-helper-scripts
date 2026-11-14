@@ -2034,6 +2034,29 @@ four failure modes above against small inline documents, checking the specific
 diagnostic each raises, and separately confirms that an unmarked or marked
 mermaid fence is accepted and excluded from the results.
 
+### Rust API doc example contract
+
+The style guide's "API doc comments (Rust)" section ships an example that a
+reader copies into a real crate.
+`tests/test_documentation_style_guide_rust_doctest.py` selects that section by
+heading and checks the static shape that makes the example resolvable: one outer
+`rust,no_run` fence for the fragment, one inner `rust` doctest with no
+`no_run`, a hidden `# use mycrate::add;` before the assertion, the
+`# Parameters`, `# Returns`, and `# Examples` order, and `#[inline]` after the
+doc comment.
+
+A separate `slow` test writes the outer fence body into a dependency-free
+`mycrate` package and runs `cargo test --doc --offline`, so the guide's own
+example is compiled and executed as rustdoc sees it. Cargo must therefore be on
+`PATH` with a stable Rust toolchain. Locally, the test skips when `cargo` is
+absent; in CI, where `CI` is set, it fails with a prerequisite message so the
+required gate cannot silently lose the coverage. The workflow installs a stable
+toolchain before `make ci` for this reason.
+
+The style guide is not yet covered by the document-wide tested-example marker
+contract described above, so this focused section contract is the only
+automated check on the guide's Rust example.
+
 ## Validation expectations
 
 When changing bootstrap behaviour in this repository, replay the usual
