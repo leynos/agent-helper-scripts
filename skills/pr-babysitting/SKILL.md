@@ -300,9 +300,11 @@ it.
 
 If hosted CI is failing for the current head, the same repository commit gates
 pass locally for that head, and the branch is behind its live target, rebase
-onto the target before investigating the failure. Do not read failure logs,
-post an investigation comment, or dispatch a repair until the rebased candidate
-has its own CI result.
+onto the target before investigating the failure. Do not read or act on the
+scrutineer's captured failure logs or failure summary, post an investigation
+comment, or dispatch a repair until the rebased candidate has its own CI
+result. The scrutineer still collects those logs and the summary under its
+mandatory observation procedure.
 
 A base that has moved can fail a check the branch does not fail on its current
 base, so a local pass plus a behind-target branch is not evidence of a branch
@@ -387,13 +389,20 @@ feature delivered to trunk.
 ### Newer lint suites and out-of-scope violations
 
 A newer lint-suite release, such as a new Whitaker version, may report
-violations in code the candidate did not change. Treat those violations as
-out-of-scope prerequisite work, not as repairs to add to the feature diff.
+violations outside the candidate's accepted scope, commonly in code the
+candidate did not change. Treat those out-of-scope violations as prerequisite
+work, not as repairs to add to the feature diff. A violation in code the
+candidate's accepted scope covers, even in a file it did not otherwise touch,
+stays in scope and is repaired here.
 
 1. First look for an open PR targeting the same target branch that already
    addresses the violations, and base this PR on that branch until it merges.
    Reuse it as a base branch, not as a new stack layer: a PR can belong to only
-   one stack, and the existing fix PR may already be in one.
+   one stack, and the existing fix PR may already be in one. A base branch must
+   live in the same repository, so a fix PR whose head is in a fork cannot be
+   used directly. Create a temporary branch in the base repository at that
+   head, base this PR on the temporary branch, and delete it when the fix PR
+   merges, or wait for the fix to land when no such branch can be created.
 2. Otherwise, create a new base PR targeting the target branch that fixes
    exactly the newly reported violations, rebase this PR onto it, and retarget
    this PR to the new branch.
@@ -407,8 +416,14 @@ When this PR is already a layer in a managed stack, apply the fix underneath
 the whole stack, not between two layers:
 
 - If an existing fix PR applies, base the stack on a temporary copy of that fix
-  PR. The copy becomes obsolete when the fix PR merges; restack onto the merged
-  target afterwards and do not let the moving fix branch rewrite the stack.
+  PR. `gh stack` sets a stack's trunk only when the stack is created: `init -b`
+  and `link --base` apply at creation, and `rebase` and `sync` cascade from the
+  existing trunk. Move the stack onto the copy by unstacking and recreating it
+  with `gh stack init -b <copy-branch> <branches bottom to top>` followed by
+  `gh stack submit`, which dissolves the old stack object and creates a new
+  one, so its merge-queue position and review state restart. The copy becomes
+  obsolete when the fix PR merges; restack onto the merged target afterwards
+  and do not let the moving fix branch rewrite the stack.
 - If no existing fix PR applies, create the fix PR and rebase the whole stack
   onto it with `github-stacks`.
 

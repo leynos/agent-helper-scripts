@@ -773,14 +773,17 @@ flowchart TD
         candidate has its gates run sequentially on the host; an untrusted
         one is checked by observing hosted CI and reviewing the diff. A red
         hosted check whose local gates pass on a branch behind its target is
-        rebased onto the target before it is investigated. A newer lint
-        suite's out-of-scope violations move into a prerequisite fix PR. The
-        agent then clears every CodeScene issue, resolves applicable assessments,
-        and marks the PR ready with the lifecycle identity. It then observes
-        CodeRabbit's commit status and summary comment. If the current head
-        has not been reviewed or its findings are unresolved, the agent
-        repairs, validates, and pushes, and the new head returns to the
-        trust decision. Once the current head is reviewed and its findings
+        rebased onto the target and returns to the trust decision, so the
+        rebased candidate has its gates rerun before hosted CI is observed
+        again. Any other red hosted check is investigated and repaired. A
+        newer lint suite's out-of-scope violations move into a prerequisite
+        fix PR, and the changed candidate also returns to the trust decision.
+        The agent then clears every CodeScene issue, resolves applicable
+        assessments, and marks the PR ready with the lifecycle identity. It then
+        observes CodeRabbit's commit status and summary comment. If the
+        current head has not been reviewed or its findings are unresolved,
+        the agent repairs, validates, and pushes, and the new head returns to
+        the trust decision. Once the current head is reviewed and its findings
         are resolved, an authorized merge leads to a squash merge; otherwise
         the agent reports equilibrium. The gate, CodeScene, assessment, and
         review-observation stages can each end in a report of intractable
@@ -789,19 +792,22 @@ flowchart TD
     A[Start PR babysitting] --> T{Candidate trusted?}
     T -->|Yes| B[Run candidate gates sequentially]
     T -->|No| N[Observe hosted CI and review diff]
-    B --> S{Hosted CI red while local gates pass and branch behind target?}
-    S -->|Yes| R[Rebase onto live target, then re-observe]
-    S -->|No| C[Clear every CodeScene issue]
-    R --> C
+    B --> S{Hosted CI green?}
+    S -->|Yes| C[Clear every CodeScene issue]
+    S -->|No| P{Local gates pass and branch behind target?}
+    P -->|Yes| R[Rebase onto live target]
+    P -->|No| X[Investigate the failure]
+    R --> T
+    X --> H[Repair, validate, and push]
     N --> C
     C --> U{Newer lint suite reports out-of-scope violations?}
     U -->|No| D[Resolve applicable assessments]
     U -->|Yes| V[Base on existing fix PR or create one and retarget or restack]
-    V --> D
+    V --> T
     D --> E[Mark PR ready with lifecycle identity]
     E --> F[Observe CodeRabbit status and summary comment]
     F --> G{Current head reviewed and findings resolved?}
-    G -->|No| H[Repair, validate, and push]
+    G -->|No| H
     H --> T
     G -->|Yes| I{Merge authorized?}
     I -->|Yes| J[Authorized squash merge]
@@ -813,10 +819,10 @@ flowchart TD
 ```
 
 *PR babysitting stages and end states. Only a trusted candidate runs local
-gates; a repair push returns the new head to the trust decision. A stale base
-is rebased before diagnosis, and newer-tool lint violations move beneath the
-feature. The agent stops only at an authorized merge, equilibrium, or an
-intractable impasse.*
+gates; a repair push returns the new head to the trust decision, and so does a
+stale-base rebase or a prerequisite retarget. A newer-tool lint violation
+outside the accepted scope moves beneath the feature. The agent stops only at
+an authorized merge, equilibrium, or an intractable impasse.*
 
 Supply the original issue and accepted scope when they are not already linked.
 A review-only or no-merge assignment overrides the skill's full lifecycle. An
@@ -1090,18 +1096,24 @@ does not fail on its own base. Only a local failure, or a branch that already
 contains the target head, goes straight to failure investigation.
 
 A newer lint-suite release, such as a new Whitaker version, can report
-violations in code this PR did not change. Those violations are prerequisite
-work, not feature repairs. The agent bases this PR on an existing fix PR that
-targets `main`, or creates a new base PR for the fixes and retargets this PR
-onto it. An existing fix PR is reused only as a plain base branch: a PR can
-belong to only one stack, and that fix PR may already be in one. When the agent
-creates the new base PR, a managed stack through `github-stacks` links the
-chain if the tooling is available; otherwise the prerequisite branch
-relationship carries the same topology. When this PR is already a stack layer,
-the whole stack moves onto the new fix PR, or onto a temporary copy of an
-existing fix PR that becomes obsolete when that PR merges. The feature diff
-does not absorb unrelated lint repairs, suppress the new rule, or pin the older
-tool version.
+violations outside this PR's accepted scope, commonly in code it did not
+change. Those violations are prerequisite work, not feature repairs; a
+violation the accepted scope covers stays in this PR's diff. The agent bases
+this PR on an existing fix PR that targets `main`, or creates a new base PR for
+the fixes and retargets this PR onto it. A base branch must live in the same
+repository, so a fix PR whose head is in a fork is used through a temporary
+base-repository branch at that head, or its fix waits until it lands. An
+existing fix PR is reused only as a plain base branch: a PR can belong to only
+one stack, and that fix PR may already be in one. When the agent creates the
+new base PR, a managed stack through `github-stacks` links the chain if the
+tooling is available; otherwise the prerequisite branch relationship carries
+the same topology. When this PR is already a stack layer, the whole stack moves
+onto the new fix PR, or onto a temporary copy of an existing fix PR that
+becomes obsolete when that PR merges. Because `gh stack` fixes a stack's trunk
+at creation, that move means unstacking and recreating the stack, which
+restarts its merge-queue position and review state. The feature diff does not
+absorb unrelated lint repairs, suppress the new rule, or pin the older tool
+version.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable

@@ -49,7 +49,10 @@ A failing hosted check on a branch that is behind its target is not evidence of
 a branch defect until the branch has been rebased. When the same repository
 commit gates pass locally for the current head and the live target contains
 commits the branch does not, freeze and replay onto that target before reading
-failure logs, posting an investigation comment, or dispatching a repair.
+or acting on the scrutineer's captured failure logs or failure summary, posting
+an investigation comment, or dispatching a repair. The scrutineer still
+collects those logs under its own procedure; the summoning agent withholds them
+until the rebased candidate has its own CI result.
 
 Re-observe the rebased candidate's CI before investigating. When local gates
 also fail, or the branch already contains the target head, continue with normal
@@ -106,12 +109,18 @@ baseline is not the final lockfile when the feature changes dependencies.
 
 ## Retarget onto a prerequisite fix branch
 
-A newer lint suite can report violations in code the candidate did not change.
-The replay target then becomes the fix PR rather than the repository's trunk:
-look for an open fix PR for the same violations, or create one that fixes
-exactly those violations, and change this PR's base to its branch. Replay only
-this PR's own commits onto the fix branch, then verify both review diffs and
-the remote target relationship.
+A newer lint suite can report violations outside the candidate's accepted
+scope, commonly in code it did not change. The replay target then becomes the
+fix PR rather than the repository's trunk: look for an open fix PR for the same
+violations, or create one that fixes exactly those violations, and change this
+PR's base to its branch. Replay only this PR's own commits onto the fix branch,
+then verify both review diffs and the remote target relationship. A violation
+the candidate's accepted scope covers stays in this PR's diff.
+
+A base branch must live in the same repository. When the fix PR's head is in a
+fork, base this PR on a temporary branch in the base repository created at that
+head, and delete the temporary branch when the fix PR merges; if the repository
+does not permit that branch, wait for the fix to land before retargeting.
 
 When a new fix PR is created and `github-stacks` is available and enabled,
 create the chain as a managed stack instead of an unlinked prerequisite pair.
@@ -122,8 +131,12 @@ When this PR is already a stack layer, replay the whole stack onto the new fix
 PR rather than inserting the fix between two layers. If an existing fix PR is
 the base, take a temporary copy of its branch for the stack, because the
 original branch will move and then become obsolete when it merges; restack onto
-the merged target afterwards. A merged fix PR's squash SHA is evidence of
-landing, not the replay boundary for the rebased stack.
+the merged target afterwards. `gh stack` fixes a stack's trunk at creation
+only, so moving the stack onto the copy means unstacking and recreating it with
+`gh stack init -b <copy-branch>` and `gh stack submit`. That creates a new
+stack object, and the old one dissolves as its PRs are removed, so any
+merge-queue position and review state restart. A merged fix PR's squash SHA is
+evidence of landing, not the replay boundary for the rebased stack.
 
 ## Validate, finish outstanding work, and publish with a lease
 

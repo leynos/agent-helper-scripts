@@ -36,16 +36,17 @@ REASON_CITATIONS = {
         " only to a red current candidate."
     ),
     REBASE_FIRST: (
-        "Do not read failure logs, post an investigation comment, or dispatch a"
-        " repair until the rebased candidate has its own CI result."
+        "Do not read or act on the scrutineer's captured failure logs or failure"
+        " summary, post an investigation comment, or dispatch a repair until the"
+        " rebased candidate has its own CI result."
     ),
     INVESTIGATE: (
         "When local gates also fail, or the branch is already up to date,"
         " diagnose the failure normally"
     ),
     REPAIR_IN_SCOPE: (
-        "A newer lint-suite release, such as a new Whitaker version, may report"
-        " violations in code the candidate did not change."
+        "A violation in code the candidate's accepted scope covers, even in a"
+        " file it did not otherwise touch, stays in scope and is repaired here."
     ),
     BASE_ON_EXISTING_FIX: (
         "First look for an open PR targeting the same target branch that already"
@@ -128,11 +129,12 @@ def lint_violation_disposition(
 ) -> str:
     """Choose where a newer lint suite's violations are repaired.
 
-    Only a newer suite reporting against code the candidate did not change is
-    prerequisite work. Such a violation moves beneath the feature: an existing
-    fix PR is reused, or a new fix PR is created and the feature retargeted.
-    A managed stack rebases as a whole, and an existing fix PR already moving
-    under a stack is pinned as a temporary copy until it merges.
+    Only a newer suite reporting outside the candidate's accepted scope is
+    prerequisite work, whether or not the candidate touched the file. Such a
+    violation moves beneath the feature: an existing fix PR is reused, or a new
+    fix PR is created and the feature retargeted. A managed stack rebases as a
+    whole, and an existing fix PR already moving under a stack is pinned as a
+    temporary copy until it merges.
 
     An existing fix PR is reused only as a base branch. A PR can belong to only
     one stack, so it is never added to a new stack for this feature, even when

@@ -522,14 +522,27 @@ def _assert_candidate_trust_chart(chart: Flowchart) -> None:
 
 
 def _assert_lifecycle_chart(chart: Flowchart) -> None:
-    """Every head, including a repair push, passes the trust decision before local gates."""
+    """Every changed head, including a rebase or repair, returns to the trust decision."""
     _assert_predecessors(chart, "Run candidate gates sequentially", ("Candidate trusted?", "Yes"))
     _assert_predecessors(chart, "Observe hosted CI and review diff", ("Candidate trusted?", "No"))
     _assert_predecessors(
         chart,
         "Candidate trusted?",
         ("Start PR babysitting", ""),
+        ("Rebase onto live target", ""),
+        ("Base on existing fix PR or create one and retarget or restack", ""),
         ("Repair, validate, and push", ""),
+    )
+    _assert_predecessors(
+        chart,
+        "Clear every CodeScene issue",
+        ("Hosted CI green?", "Yes"),
+        ("Observe hosted CI and review diff", ""),
+    )
+    _assert_predecessors(
+        chart,
+        "Resolve applicable assessments",
+        ("Newer lint suite reports out-of-scope violations?", "No"),
     )
 
 
@@ -562,6 +575,8 @@ def test_lifecycle_flowchart_returns_every_head_to_the_trust_decision() -> None:
         (TRUST_CHART, _assert_candidate_trust_chart, "    A & C --> F"),
         (TRUST_CHART, _assert_candidate_trust_chart, "    A((Start)) --> F"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    H ==> B"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    R --> C"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    V --> D"),
     ),
 )
 def test_flowchart_checks_reject_trust_bypasses(
