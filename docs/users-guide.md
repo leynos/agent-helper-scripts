@@ -511,9 +511,11 @@ before trusting it.
 
 Repository attributes take precedence over the managed global block, so a
 repository can bypass enrolment with `*.rs !merge` in `.git/info/attributes` or
-`*.rs merge=text` in `.gitattributes`; see the
-[detailed skill](../skills/weave-git-merge/SKILL.md) for the scope differences
-and the command-scoped alternatives.
+`*.rs merge=text` in `.gitattributes`. Because an unspecified `merge` attribute
+falls back to `merge.default`, `!merge` bypasses Weave only when that setting
+does not name Weave; `merge=text` selects the built-in text merge explicitly.
+See the [detailed skill](../skills/weave-git-merge/SKILL.md) for the scope
+differences and the command-scoped alternatives.
 
 For unattended multi-commit or long-lived-branch rebases, the workflow bypasses
 Weave by default, using Git's built-in merge machinery with

@@ -335,11 +335,13 @@ dev-env-rocky ADR 011 and PR #231:
   and a later global line that disables an enrolled type fails provisioning.
 - The earlier per-repository-only activation policy is superseded: enrolment
   is now user-wide by default. Repository attributes take precedence over the
-  global block, so a repository can bypass enrolment persistently with
-  `*.rs !merge` in `.git/info/attributes` for this clone only, or with
-  `*.rs merge=text` in `.gitattributes` for every clone. A command-scoped
-  `merge.weave.driver` override bypasses Weave for one unattended rebase
-  without editing any attributes.
+  global block, so a repository can bypass enrolment persistently.
+  `*.rs !merge` in `.git/info/attributes` makes the attribute unspecified for
+  this clone only; because Git then consults `merge.default`, it bypasses Weave
+  only when that setting does not name Weave. `*.rs merge=text` in
+  `.gitattributes` selects the built-in text merge explicitly and for every
+  clone. A command-scoped `merge.weave.driver` override bypasses Weave for one
+  unattended rebase without editing any attributes.
 - `weave setup --global` is prohibited. It writes user-wide attributes outside
   the managed block, claims refused categories, and rewrites user-wide Git
   configuration, which can replace the managed driver registration.

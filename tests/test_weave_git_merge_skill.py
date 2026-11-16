@@ -520,6 +520,17 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
         "These persistent forms differ from the command-scoped bypasses"
         in _prose(skill)
     ), "persistent opt-outs must be distinguished from transient overrides"
+    assert "Git then consults `merge.default`" in _prose(skill), (
+        "an unspecified `merge` attribute must be shown to fall back to "
+        "`merge.default`, which can still select Weave"
+    )
+    assert "is unaffected by `merge.default`" in _prose(skill), (
+        "`merge=text` must be presented as the explicit text-driver opt-out"
+    )
+    assert "git config --get merge.default" in _prose(skill), (
+        "recovery must check the fallback driver before treating `unspecified` "
+        "as a bypass"
+    )
 
 
 def test_rebase_skill_routes_garbled_results_to_weave_recovery() -> None:
@@ -649,6 +660,9 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     )
     assert "`*.rs merge=text` in `.gitattributes`" in _prose(behaviour), (
         "the tracked persistent opt-out must be recorded"
+    )
+    assert "because Git then consults `merge.default`" in _prose(behaviour), (
+        "the reference must state the merge.default fallback for `!merge`"
     )
     assert "removed the watchdog thread and the `WEAVE_TIMEOUT` variable" in _prose(
         behaviour

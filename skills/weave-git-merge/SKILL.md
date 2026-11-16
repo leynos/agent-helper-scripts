@@ -215,10 +215,15 @@ unreliable. Prefer a stable installed path over a versioned build directory.
 
 Repository attributes take precedence over the managed user-wide block, so a
 repository can opt out persistently. `*.rs !merge` in `.git/info/attributes`
-makes the attribute unspecified for this clone without sharing the change;
-`*.rs merge=text` in `.gitattributes` is tracked and selects Git's built-in
-text merge for every clone. These persistent forms differ from the
-command-scoped bypasses below, which leave attribute files untouched.
+makes the attribute unspecified for this clone without sharing the change.
+Unspecified is not itself a driver: Git then consults `merge.default`, which is
+the built-in text merge unless configured. If `merge.default` names Weave,
+`!merge` does not bypass it. Prefer an explicit text driver instead:
+`*.rs merge=text` in `.git/info/attributes` opts this clone out, and
+`*.rs merge=text` in `.gitattributes` opts every clone out and is tracked.
+`merge=text` selects the built-in text merge explicitly and is unaffected by
+`merge.default`. These persistent forms differ from the command-scoped bypasses
+below, which leave attribute files untouched.
 
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:
@@ -235,7 +240,9 @@ and clone-local attribute files untouched and needs no restore step. Use the
 attribute rows when the override is unavailable or when the goal is to make Git
 report the path as unselected. `-c core.attributesFile=/dev/null` now
 suppresses managed user-wide enrolment for one command; it cannot override
-tracked or clone-local rules.
+tracked or clone-local rules. Because `!merge` leaves the path unspecified,
+also confirm that `merge.default` does not select Weave; use `merge=text`, or
+add `-c merge.default=text`, to force the built-in text merge.
 
 ## Preview before changing Git state
 
@@ -665,6 +672,11 @@ git -c core.attributesFile=/dev/null merge <same-original-arguments>
 git cherry-pick --abort
 git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>
 ```
+
+Unspecified paths fall back to `merge.default`, so also run
+`git config --get merge.default` before trusting that check. If it names Weave,
+add `-c merge.default=text` to each command, or select `merge=text` in the
+repository's attributes.
 
 For unattended rebase recovery, also force the expected conflict style for the
 retry without mutating persistent Git configuration:
