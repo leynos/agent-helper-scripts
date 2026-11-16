@@ -26,11 +26,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.3.3
 
-      # The style-guide doctest contract executes an example with
-      # `cargo test --doc`, so the gate needs a Rust toolchain. The action
-      # publishes toolchain branches rather than release tags, so it is pinned
-      # by commit; the explicit input selects the latest stable release, and
-      # the action installs the minimal profile.
+      # Two contracts execute a guide example with `cargo test --doc`:
+      # `tests/test_documentation_style_guide_rust_doctest.py` and
+      # `tests/test_rust_doctest_dry_guide_examples.py`. The latter needs
+      # edition 2024 support, which stable Rust 1.85 or later provides. The
+      # action publishes toolchain branches rather than release tags, so it is
+      # pinned by commit; the explicit input selects the latest stable release,
+      # and the action installs the minimal profile.
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8  # master, 2026-10-16
         with:
@@ -54,12 +56,17 @@ jobs:
         with:
           version: "0.6.1"
 
-      # `make model-check` runs a pinned FizzBee release and does not fetch
+# `make model-check` runs a pinned FizzBee release and does not fetch
       # it. This is the only networked step of the model-checking gate: the
       # launcher verifies the archive and the unpacked files against the
       # digests in specs/pr-readiness/suite.toml.
       - name: Install the pinned FizzBee release
         run: make fizzbee
+
+      # Record the resolved toolchain so a failure can be attributed to the
+      # version the gate actually used.
+      - name: Record Rust toolchain
+        run: cargo --version
 
       # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence

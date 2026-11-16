@@ -150,6 +150,7 @@ function within the doctest that returns a Result. This leverages the
 Termination trait, which is implemented for Result. The surrounding boilerplate
 can then be hidden from the rendered documentation.
 
+<!-- tested-example: doctest-explicit-main -->
 ```rust
 /// # Examples
 ///
@@ -174,6 +175,7 @@ rustdoc provides a lesser-known but more concise shorthand for this exact
 scenario. If a code block ends with the literal token (()), rustdoc will
 automatically wrap the code in a main function that returns a Result.
 
+<!-- tested-example: doctest-implicit-main -->
 ```rust
 /// # Examples
 ///
@@ -296,29 +298,40 @@ connect to it, and seed it with some initial data. Repeating this multi-line
 setup in every single example is inefficient and makes maintenance difficult. A
 change to the setup process would require updating dozens of doctests.
 
-### 4.2 The `#[cfg(doctest)]` Pattern for Shared Helpers
+### 4.2 Shared Helpers for External Doctests
 
-The canonical solution to this problem involves using a special configuration
-flag provided by `rustdoc`: `doctest`. A common mistake is to try to place
-shared test logic in a block guarded by `#[cfg(test)]`. This will not work,
-because `rustdoc` does not enable the `test` configuration flag during its
-compilation process; `#[cfg(test)]` is reserved for unit and integration tests
-run directly by `cargo test`.[^10]
+A common mistake is to try to place shared test logic in a block guarded by
+`#[cfg(test)]`. This will not work, because `rustdoc` does not enable the
+`test` configuration flag when it compiles the library that a doctest links
+against; `#[cfg(test)]` is reserved for unit and integration tests run directly
+by `cargo test`.[^10]
 
-Instead, `rustdoc` sets its own unique `doctest` flag. By guarding a module or
-function with `#[cfg(doctest)]`, developers can write helper code that is
-compiled and available *only* when `cargo test --doc` is running. This code is
-excluded from normal production builds and standard unit test runs, preventing
-any pollution of the final binary or the public API.
+The `doctest` configuration flag has a related, narrower purpose. `rustdoc` sets
+`doctest` only while it collects doctests from the crate being documented,
+including doctests in extra documentation such as an included README.[^2] It
+does not set `doctest` when Cargo compiles the library as a dependency of the
+generated doctest crate. A module guarded by `#[cfg(doctest)]` is therefore
+absent from the linked library, and an external doctest that imports it fails
+with an unresolved import. Making the module `pub` does not help: the module is
+not compiled into the dependency at all. This is the same split that
+[Section 5.1](#51-documenting-conditionally-compiled-items-cfgdoc) calls the
+"cfg duality"; the configuration that collects documentation is not the
+configuration that compiles the code under test.
 
-The typical implementation pattern is to create a public helper module within
-the library. The doctest must refer to it via the crate name (here `mycrate`,
-standing for the reader's own crate), never via `crate::`, because its
-generated crate is external to the library being documented, even when Rust
-2024 combines compatible examples:
+The practical pattern is an ordinarily compiled public helper module that is
+hidden from the generated documentation:
 
+<!-- tested-example: doctest-helpers-library -->
 ```rust
-// In lib.rs or a submodule
+//! Example library for the shared doctest-helper pattern.
+
+/// State shared by the documented function and its doctests.
+pub struct TestContext {
+    /// Connection string used by the function.
+    pub database_url: String,
+    /// Whether setup established a connection.
+    pub connected: bool,
+}
 
 /// A function that requires a complex environment to test.
 ///
@@ -326,6 +339,7 @@ generated crate is external to the library being documented, even when Rust
 ///
 /// ```
 /// # use mycrate::doctest_helpers::setup_test_environment;
+/// # use mycrate::my_func_that_needs_env;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut ctx = setup_test_environment()?;
 /// let result = my_func_that_needs_env(&mut ctx);
@@ -333,33 +347,59 @@ generated crate is external to the library being documented, even when Rust
 /// # Ok(())
 /// # }
 /// ```
-pub fn my_func_that_needs_env(ctx: &mut TestContext) -> Result<(), ()> {
-    //... function logic...
+pub fn my_func_that_needs_env(ctx: &mut TestContext) -> Result<(), String> {
+    if ctx.database_url.is_empty() {
+        return Err("database URL is empty".to_owned());
+    }
+    ctx.connected = true;
     Ok(())
 }
 
-// This module and its contents are only compiled for doctests.
-#[cfg(doctest)]
+// Compiled into every build, but hidden from the generated documentation.
+#[doc(hidden)]
 pub mod doctest_helpers {
-    // Re-export any types needed for the function signatures above.
-    pub use super::TestContext;
-    use std::io::Result;
+    use super::TestContext;
 
-    pub fn setup_test_environment() -> Result<TestContext> {
-        // All the complex, shared setup logic lives here once.
-        println!("Setting up test environment...");
-        Ok(TestContext { /*... */ })
+    /// Build a context without touching a real database.
+    pub fn setup_test_environment() -> Result<TestContext, std::io::Error> {
+        Ok(TestContext {
+            database_url: "postgres://localhost/test".to_owned(),
+            connected: false,
+        })
     }
 }
-
-// A struct that might be needed by the public function signature.
-// It can be defined normally.
-pub struct TestContext { /*... */ }
 ```
 
-This pattern is the most effective way to achieve DRY doctests. It centralizes
-setup logic, improves maintainability, and cleanly separates testing concerns
-from production code.[^10]
+The helper module is `pub`, so the external doctest crate can reach it, and it
+is compiled into every build, including the library dependency that the doctest
+links. The doctest must refer to the helper via the crate name (here `mycrate`,
+standing for the reader's own crate), never via `crate::`, because its
+generated crate is external to the library being documented, even when Rust
+2024 combines compatible examples. `#[doc(hidden)]` only removes the module
+from the rendered documentation; it does not change the module's visibility or
+remove it from the public API. Treat such a module as internal API: name it so
+that its purpose is clear, exclude it from semantic-versioning guarantees, and
+keep it free of dependencies that production builds would not otherwise need.
+
+A feature-gated variant keeps the helper out of ordinary builds, at the cost of
+an explicit feature selection. Declare the feature in `Cargo.toml` as
+`[features]` followed by `doctest-helpers = []`, guard the module with
+`#[cfg(feature = "doctest-helpers")]` next to `#[doc(hidden)]`, and run
+`cargo test --doc --features doctest-helpers`. Without that flag, the library
+dependency that the doctest links does not contain the module, so the doctest
+fails with an unresolved import rather than silently skipping. Features are
+public and additive, and downstream crates can enable them, so this variant
+exposes the helper through the crate's feature surface. It suits projects that
+already expect consumers to choose features, and it is not a way to hide the
+helper from the public API. See
+[Section 5.2](#52-executing-doctests-conditionally-feature-flags) for how
+feature flags control conditional doctest execution.
+
+This pattern centralizes setup logic, improves maintainability, and keeps the
+helper available to the external doctest crate without adding a production
+dependency. The helper is not excluded from production builds: the genuine
+choices are an ordinary `#[doc(hidden)]` module or a feature-gated module whose
+feature is enabled for the doctest run.
 
 ### 4.3 Advanced DRY: Programmatic Doctest Generation
 
@@ -399,6 +439,7 @@ builds.[^12]
 
 **The Pattern**:
 
+<!-- tested-example: doctest-cfg-doc-item -->
 ```rust
 /// A socket that is only available on Unix platforms.
 #[cfg(any(unix, doc))]
@@ -432,6 +473,7 @@ Two primary patterns exist to achieve this.
 This pattern involves placing a #\[cfg\] attribute directly on the code within
 the doctest itself.
 
+<!-- tested-example: doctest-feature-block -->
 ```rust
 /// This example only runs if the "serde" feature is enabled.
 ///
@@ -457,6 +499,7 @@ the doctest's opening fence as a documentation attribute. When `serde` is
 disabled, the fence is marked `ignore`; when `serde` is enabled, the same
 example is an ordinary doctest.
 
+<!-- tested-example: doctest-cfg-attr-fence -->
 ```rust
 #![cfg_attr(not(feature = "serde"), doc = "```ignore")]
 #![cfg_attr(feature = "serde", doc = "```")]
@@ -487,6 +530,7 @@ Rust, and it does not compile under this repository's default
 that build their documentation on nightly (for example, via `docs.rs`, which
 runs nightly `rustdoc`).
 
+<!-- tested-example: doctest-doc-cfg -->
 ```rust
 // At the crate root (lib.rs)
 #![feature(doc_cfg)]
@@ -611,7 +655,9 @@ mastering doctests:
    `.unwrap()` to promote robust error-handling practices.
 
 4. **Be DRY**: When setup logic is shared across multiple examples, centralize
-   it in a helper module guarded by `#[cfg(doctest)]` to avoid repetition.
+   it in a `#[doc(hidden)] pub` helper module that the external doctest crate
+   can import, rather than in a `#[cfg(doctest)]` module that the linked
+   library does not contain.
 
 5. **Master** `cfg`: Use `#[cfg(doc)]` to control an item's *visibility* in the
    final documentation. Use `#[cfg(feature = "...")]` or other `cfg` flags
