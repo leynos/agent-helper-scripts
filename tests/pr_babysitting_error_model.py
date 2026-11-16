@@ -9,8 +9,10 @@ matching sentences.
 
 It is a specification rehearsal, not skill enforcement. Every decision it can
 return appears in ``REASON_CITATIONS`` with the sentence that states the rule,
-and ``test_pr_babysitting_error_model.py`` requires both to stay in step with
-the shipped skill. Nothing here talks to GitHub, runs Git, or changes a PR.
+and in ``REASON_CONDITIONS`` with the trigger and selection clauses a reader
+needs to reach it. ``test_pr_babysitting_error_model.py`` requires both to stay
+in step with the shipped skill, and deletes each clause in turn to prove the
+guard notices. Nothing here talks to GitHub, runs Git, or changes a PR.
 """
 
 from __future__ import annotations
@@ -72,6 +74,65 @@ REASON_CITATIONS = {
     ),
 }
 REASONS = frozenset(REASON_CITATIONS)
+
+#: The trigger and selection clauses each decision depends on. A citation only
+#: proves the shipped text still says the action; these clauses prove it still
+#: states when that action applies. The contract tests delete each one in turn.
+_OUT_OF_SCOPE_TRIGGER = (
+    "A newer lint-suite release, such as a new Whitaker version, may report"
+    " violations outside the candidate's accepted scope, commonly in code the"
+    " candidate did not change."
+)
+REASON_CONDITIONS = {
+    NO_CI_FAILURE: (
+        "A green hosted result needs no diagnosis, and this rebase rule applies"
+        " only to a red current candidate.",
+    ),
+    REBASE_FIRST: (
+        "If hosted CI is failing for the current head, the same repository"
+        " commit gates pass locally for that head, and the branch is behind its"
+        " live target, rebase onto the target before investigating the failure.",
+        "the same repository commit gates pass locally for that head",
+        "the branch is behind its live target",
+        "rebase onto the target before investigating the failure",
+    ),
+    INVESTIGATE: (
+        "When local gates also fail, or the branch is already up to date,"
+        " diagnose the failure normally",
+    ),
+    REPAIR_IN_SCOPE: (
+        _OUT_OF_SCOPE_TRIGGER,
+        "A violation in code the candidate's accepted scope covers, even in a"
+        " file it did not otherwise touch, stays in scope and is repaired here.",
+    ),
+    BASE_ON_EXISTING_FIX: (
+        _OUT_OF_SCOPE_TRIGGER,
+        "First look for an open PR targeting the same target branch that already"
+        " addresses the violations, and base this PR on that branch until it"
+        " merges.",
+    ),
+    CREATE_FIX_AND_RETARGET: (
+        _OUT_OF_SCOPE_TRIGGER,
+        "Otherwise, create a new base PR targeting the target branch that fixes"
+        " exactly the newly reported violations, rebase this PR onto it, and"
+        " retarget this PR to the new branch.",
+    ),
+    CREATE_FIX_STACK_AND_RETARGET: (
+        _OUT_OF_SCOPE_TRIGGER,
+        "For the new base PR in step 2, create the chain as a managed stack"
+        " with `github-stacks` when the tooling is available and enabled.",
+    ),
+    TEMPORARY_FIX_COPY: (
+        "If an existing fix PR applies, base the stack on a temporary copy of"
+        " that fix PR.",
+        "Replay every layer's own commits onto the copy bottom to top, and"
+        " validate each replayed layer before it joins the stack.",
+    ),
+    CREATE_FIX_AND_REBASE_STACK: (
+        "If no existing fix PR applies, create the fix PR and rebase the whole"
+        " stack onto it with `github-stacks`.",
+    ),
+}
 
 #: Constraints the dispositions must respect. A PR belongs to only one stack,
 #: so an existing fix PR is reused as a plain base branch rather than added to

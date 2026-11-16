@@ -31,6 +31,7 @@ from skill_contract_support import (
     fenced_request,
     move_out_of_fence,
     mutate_one_clause,
+    normalize,
     section,
 )
 
@@ -132,6 +133,39 @@ def test_fetch_example_freezes_nondefault_target_on_distinct_remote(local_git: G
     assert result.stdout.splitlines() == ["refs/remotes/target/release/next", release], "freeze must select actual release target"
     assert release != feature, "fixture must distinguish target and feature"
     assert fixture.git("rev-parse", "main") != release, "fixture must distinguish default and release"
+
+
+def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitFixture) -> None:
+    """A behind-target candidate gains the target fix only through the documented replay.
+
+    The fixture models the stale-base rule: the candidate passes its own gates,
+    the live target contains the change that the red hosted run needs, and the
+    documented freeze and replay bring that change into the candidate without
+    dropping the feature work. Investigation happens only after this state.
+    """
+    fixture = local_git
+    fixture.git("switch", "-c", "feature")
+    feature = fixture.commit("feature.txt", "feature\n", "feature work")
+    fixture.git("push", "push", "feature")
+    fixture.git("switch", "main")
+    fix = fixture.commit("gate.sh", "exit 0\n", "target fix for the red check")
+    fixture.git("push", "target", "main")
+    fixture.git("switch", "feature")
+    assert not (fixture.work / "gate.sh").exists(), "candidate must start without the target fix"
+    fixture.git("merge-base", "--is-ancestor", fix, "HEAD", check=False)
+    script = git_example('git check-ref-format') + '\nprintf "%s\\n" "$TARGET"\n'
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-c", script], cwd=fixture.work,
+        env=fixture.env | {"target_remote": "target", "target_branch": "main"},
+        text=True, capture_output=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == fix, "freeze must select the moved target"
+    fixture.git("rebase", fix)
+    assert (fixture.work / "gate.sh").read_text() == "exit 0\n", "replay must land the target fix"
+    assert (fixture.work / "feature.txt").read_text() == "feature\n", "replay must preserve feature work"
+    assert fixture.git("rev-parse", "HEAD~1") == fix, "replayed candidate must sit on the target"
+    assert fixture.git("rev-parse", "HEAD") != feature, "replay must rewrite the candidate head"
 
 
 def test_lock_restore_example_preserves_combined_manifest_during_replay(local_git: GitFixture) -> None:
@@ -481,6 +515,54 @@ def test_trust_rehearsal_rows_follow_the_normative_boundary(
     assert response in rows[scenario], f"rehearsal row drifted: {scenario}"
     assert rule in TRUST_BOUNDARY_RULES, f"rehearsal row cites an unchecked rule: {rule}"
     assert rule in _trust_contract(), f"rehearsal row cites a missing rule: {rule}"
+
+
+#: Rehearsal rows for the two error-handling rules and the stack procedure each
+#: names the response the row must state and the shipped clause that authorizes
+#: it, so a row cannot drift away from the rule it rehearses.
+REHEARSAL_ERROR_ROWS = (
+    (
+        "A hosted check fails while local gates pass on a behind-target branch.",
+        "Rebase onto the live target and re-observe before reading logs",
+        "rebase onto the target before investigating the failure",
+    ),
+    (
+        "A newer Whitaker version flags code outside this PR's accepted scope.",
+        "Reuse an existing fix PR only as a base branch, or create one and stack or retarget",
+        "Treat those out-of-scope violations as prerequisite work, not as repairs"
+        " to add to the feature diff.",
+    ),
+    (
+        "A newer Whitaker version flags a file the accepted scope covers.",
+        "Repair it in this PR; an unchanged file is not automatically out of scope.",
+        "A violation in code the candidate's accepted scope covers, even in a"
+        " file it did not otherwise touch, stays in scope and is repaired here.",
+    ),
+    (
+        "An existing fix PR's stack holds a merged, merging, or queued layer.",
+        "Reconcile that layer's state before recreating the stack",
+        "Reconcile those states before recreating, and keep each layer PR in"
+        " exactly one stack.",
+    ),
+)
+
+
+@pytest.mark.parametrize(("scenario", "response", "rule"), REHEARSAL_ERROR_ROWS)
+def test_error_rehearsal_rows_follow_the_normative_rule(
+    scenario: str, response: str, rule: str
+) -> None:
+    """Each error rehearsal row states the response and cites a rule the skill keeps."""
+    rows = {
+        cells[0]: cells[1]
+        for line in REHEARSAL.read_text().splitlines()
+        if line.startswith("| ")
+        and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 2
+    }
+    assert scenario in rows, f"rehearsal row is missing: {scenario}"
+    assert response in rows[scenario], f"rehearsal row drifted: {scenario}"
+    assert rule in normalize(SKILL.read_text()), (
+        f"rehearsal row cites a rule the skill no longer states: {scenario}"
+    )
 
 
 def _assert_predecessors(chart: Flowchart, label: str, *expected: tuple[str, str]) -> None:

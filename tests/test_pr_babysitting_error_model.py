@@ -5,6 +5,22 @@ specification with whole facts: the hosted and local gate results, the target's
 position, and the fix PR and stack context. It also requires every decision to
 cite a sentence the shipped skill still contains, and proves each input is
 load-bearing by changing it and observing a different decision.
+
+Which shipped sentences each group guards:
+
+- ``test_model_*`` cases exercise ``pr_babysitting_error_model`` itself, not the
+  shipped behaviour. They state what the specification decides for a fact set.
+- ``test_each_reason_cites_a_sentence_in_the_skill`` and
+  ``test_each_constraint_cites_a_sentence_in_the_skill`` guard the action
+  sentence for each decision and constraint in ``SKILL.md``.
+- ``test_each_reason_states_its_trigger_conditions`` and
+  ``test_dropping_any_trigger_condition_is_detected`` guard the trigger and
+  selection clauses: the three rebase conditions, the out-of-scope condition,
+  and the fix-PR selection rule. Dropping or inverting one fails the guard.
+- ``test_rebase_reference_*`` guards the stale-base and prerequisite procedures
+  in ``references/rebase.md``, not only their headings.
+- ``test_pr_babysitting_examples.py`` runs the documented procedure against a
+  temporary Git repository and checks the rehearsal rows and lifecycle diagram.
 """
 
 from __future__ import annotations
@@ -23,17 +39,19 @@ from pr_babysitting_error_model import (
     INVESTIGATE,
     NO_CI_FAILURE,
     REASON_CITATIONS,
+    REASON_CONDITIONS,
     REBASE_FIRST,
     REPAIR_IN_SCOPE,
     TEMPORARY_FIX_COPY,
     ci_failure_disposition,
     lint_violation_disposition,
 )
-from skill_contract_support import normalize
+from skill_contract_support import mutate_one_clause, normalize, section
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills/pr-babysitting/SKILL.md"
+REBASE = ROOT / "skills/pr-babysitting/references/rebase.md"
 
 
 def ci_case(
@@ -84,7 +102,7 @@ def lint_case(
         "local-failure-current",
     ],
 )
-def test_ci_disposition_rebases_only_a_stale_base_with_a_local_pass(
+def test_model_ci_disposition_rebases_only_a_stale_base_with_a_local_pass(
     ci_failing: bool, local_gates_pass: bool, behind_target: bool, expected: str
 ) -> None:
     """All three facts are required before a red run is diagnosed through a rebase."""
@@ -98,7 +116,7 @@ def test_ci_disposition_rebases_only_a_stale_base_with_a_local_pass(
     )
 
 
-def test_each_ci_condition_changes_the_decision() -> None:
+def test_model_ci_conditions_are_load_bearing() -> None:
     """Dropping any one required fact sends the case back to investigation.
 
     This is the mutation control for the rebase-first rule: a model that
@@ -146,7 +164,7 @@ def test_each_ci_condition_changes_the_decision() -> None:
         "stack-with-new-fix-no-new-tooling",
     ],
 )
-def test_lint_disposition_places_out_of_scope_violations_beneath_the_feature(
+def test_model_lint_disposition_places_out_of_scope_violations_beneath_the_feature(
     newer_suite: bool,
     out_of_scope: bool,
     existing_fix_pr: bool,
@@ -167,7 +185,7 @@ def test_lint_disposition_places_out_of_scope_violations_beneath_the_feature(
     )
 
 
-def test_each_lint_condition_changes_the_decision() -> None:
+def test_model_lint_conditions_are_load_bearing() -> None:
     """Dropping any required fact moves the repair back in scope or changes its base.
 
     The four stack cases and the two non-stack cases together show that no
@@ -210,7 +228,7 @@ def test_each_constraint_cites_a_sentence_in_the_skill(constraint: str) -> None:
     )
 
 
-def test_an_existing_fix_pr_is_never_added_to_a_new_stack() -> None:
+def test_model_existing_fix_pr_never_joins_a_new_stack() -> None:
     """A PR belongs to one stack, so an existing fix PR is only a base branch.
 
     The stack tooling being available must not turn reuse into a second stack
@@ -248,24 +266,73 @@ REACHABLE = {
 }
 
 
-def test_every_reason_is_reachable_and_no_other_reason_is_returned() -> None:
+def test_model_every_reason_is_reachable_and_no_other_reason_is_returned() -> None:
     """Every cited decision has a case, and the cases produce nothing else."""
     assert set(REACHABLE) == set(REASON_CITATIONS)
     assert all(reason == expected for reason, expected in REACHABLE.items())
     assert set(error_module.REASONS) == set(REASON_CITATIONS)
 
 
-@pytest.mark.parametrize("reason", sorted(REASON_CITATIONS))
-def test_dropping_any_single_citation_is_detected(reason: str) -> None:
-    """No citation can be deleted without breaking the coverage equality.
+def _missing(document: str, clauses: tuple[str, ...]) -> list[str]:
+    """Return the clauses the document no longer states, ignoring wrapping."""
+    text = normalize(document)
+    return [clause for clause in clauses if normalize(clause) not in text]
 
-    A decision that leaves ``REASON_CITATIONS`` while its case remains in
-    ``REACHABLE`` makes the two sets differ, which is what the coverage test
-    above checks. This control proves that difference exists for every reason.
-    """
-    reduced = {
-        key: value for key, value in REASON_CITATIONS.items() if key != reason
-    }
-    assert set(REACHABLE) != set(reduced), (
-        f"dropping {reason!r} would leave the reachable decisions unchanged"
+
+def test_every_reason_states_its_trigger_conditions() -> None:
+    """Each decision names the clauses that make it apply, in the same set."""
+    assert set(REASON_CONDITIONS) == set(REASON_CITATIONS)
+    for reason, clauses in REASON_CONDITIONS.items():
+        missing = _missing(SKILL.read_text(), clauses)
+        assert not missing, f"reason {reason!r} no longer states {missing}"
+
+
+@pytest.mark.parametrize(
+    ("reason", "clause"),
+    [
+        (reason, clause)
+        for reason in sorted(REASON_CONDITIONS)
+        for clause in REASON_CONDITIONS[reason]
+    ],
+    ids=lambda value: value[:40],
+)
+def test_dropping_any_trigger_condition_is_detected(
+    reason: str, clause: str
+) -> None:
+    """Removing or inverting one trigger clause fails the condition contract."""
+    mutated = mutate_one_clause(SKILL.read_text(), clause, "")
+    assert clause in _missing(mutated, REASON_CONDITIONS[reason]), (
+        f"dropping {clause!r} left reason {reason!r} satisfied"
     )
+
+
+def test_rebase_reference_withholds_logs_until_the_rebased_candidate_reports() -> None:
+    """The stale-base procedure states the trigger, the action, and the re-observation."""
+    body = section(REBASE.read_text(), "Diagnose a stale base before reading logs")
+    assert (
+        "When the same repository commit gates pass locally for the current head"
+        " and the live target contains commits the branch does not, freeze and"
+        " replay onto that target before reading or acting on the scrutineer's"
+        " captured failure logs or failure summary" in body
+    )
+    assert "Re-observe the rebased candidate's CI before investigating." in body
+    assert (
+        "When local gates also fail, or the branch already contains the target"
+        " head, continue with normal failure diagnosis." in body
+    )
+
+
+def test_rebase_reference_retargets_and_restacks_onto_the_prerequisite() -> None:
+    """The prerequisite procedure states the scope boundary, fork handling, and stack replay."""
+    body = section(REBASE.read_text(), "Retarget onto a prerequisite fix branch")
+    required = (
+        "A violation the candidate's accepted scope covers stays in this PR's diff.",
+        "base this PR on a temporary branch in the base repository created at that"
+        " head",
+        "a PR can belong to only one stack, so reuse that PR as a plain base branch"
+        " instead",
+        "Replay every layer's own commits onto the copy bottom to top",
+        "`gh stack unstack` cannot remove merged, merging, or queued PRs",
+    )
+    missing = _missing(body, required)
+    assert not missing, f"prerequisite procedure no longer states {missing}"
