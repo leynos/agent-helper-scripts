@@ -10,6 +10,8 @@ from pathlib import Path
 
 import yaml
 
+from skill_contract_support import normalize
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = REPO_ROOT / "skills" / "weave-git-merge"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
@@ -24,8 +26,8 @@ def _read(path: Path) -> str:
 
 
 def _prose(text: str) -> str:
-    """Collapse whitespace so phrase checks survive the estate's 80-column wrap."""
-    return " ".join(text.split())
+    """Collapse whitespace through the shared skill-contract helper."""
+    return normalize(text)
 
 
 def _mapping(document: str) -> dict[str, object]:
