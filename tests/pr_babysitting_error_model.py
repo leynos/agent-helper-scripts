@@ -146,7 +146,8 @@ def lint_violation_disposition(
         Whether the violation comes from a newer release of the lint suite
         rather than the rules the candidate was written against.
     out_of_scope : bool
-        Whether the reported code lies outside the candidate's changes.
+        Whether the reported code lies outside the candidate's accepted scope,
+        whether or not the candidate touched that code.
     existing_fix_pr : bool
         Whether an open PR already fixes the same violations.
     in_managed_stack : bool
