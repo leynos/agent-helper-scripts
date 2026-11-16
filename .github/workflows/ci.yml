@@ -26,6 +26,16 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.3.3
 
+      # The style-guide doctest contract executes an example with
+      # `cargo test --doc`, so the gate needs a Rust toolchain. The action
+      # publishes toolchain branches rather than release tags, so it is pinned
+      # by commit; the explicit input selects the latest stable release, and
+      # the action installs the minimal profile.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8  # master, 2026-10-16
+        with:
+          toolchain: stable
+
       # Markdown is linted by the upstream action rather than an installation
       # of our own: its release carries the linter's whole dependency graph, so
       # nothing is resolved from the registry at run time. Dependabot manages
