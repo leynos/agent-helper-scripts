@@ -14,6 +14,7 @@ import logging
 import os
 import sqlite3
 import sys
+import types
 from pathlib import Path
 from textwrap import dedent, indent
 from typing import Any
@@ -41,6 +42,7 @@ PARAMETER_EXAMPLES = {
 }
 CONCURRENT_SCENARIO_ENV = "SCRIPTING_STANDARDS_CONCURRENT_SCENARIO"
 CONCURRENT_STATE_ENV = "SCRIPTING_STANDARDS_CONCURRENT_STATE"
+DRY_RUN_SCRIPT_EXAMPLES = ("cyclopts-cli", "reference-script")
 
 
 def _example_source(identifier: str) -> str:
@@ -68,6 +70,48 @@ def _execute_example(
     code = compile(example.body, f"{SCRIPTING_STANDARDS_PATH}:{identifier}", "exec")
     exec(code, namespace)
     return namespace
+
+
+def _clear_input_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove inherited ``INPUT_*`` variables so an example starts clean."""
+    for name in tuple(os.environ):
+        if name.startswith("INPUT_"):
+            monkeypatch.delenv(name, raising=False)
+
+
+def _install_scripts_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+) -> types.ModuleType:
+    """Register an extracted reference script as the ``scripts.package`` module."""
+    scripts_package = types.ModuleType("scripts")
+    scripts_package.__path__ = []
+    module = types.ModuleType("scripts.package")
+    module.__file__ = str(tmp_path / "scripts" / "package.py")
+    exec(compile(source, module.__file__, "exec"), module.__dict__)
+    monkeypatch.setitem(sys.modules, "scripts", scripts_package)
+    monkeypatch.setitem(sys.modules, "scripts.package", module)
+    return module
+
+
+class _VersionOverrideProxy:
+    """Forward monkeypatch calls while forcing ``INPUT_VERSION``."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, version: str) -> None:
+        """Wrap ``monkeypatch`` and record the version to substitute."""
+        self._monkeypatch = monkeypatch
+        self._version = version
+
+    def setenv(self, name: str, value: str) -> None:
+        """Forward ``setenv``, substituting the forced version."""
+        if name == "INPUT_VERSION":
+            value = self._version
+        self._monkeypatch.setenv(name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward any other attribute to the wrapped fixture."""
+        return getattr(self._monkeypatch, name)
 
 
 def _install_concurrent_command_stub(
@@ -569,3 +613,74 @@ def test_cmd_mox_spy_example_records_passthrough_arguments(
     namespace = _execute_example("cmd-mox-spy")
 
     namespace["test_spy_and_record"](cmd_mox, tmp_path)
+
+
+@pytest.mark.parametrize("identifier", DRY_RUN_SCRIPT_EXAMPLES)
+@pytest.mark.parametrize(
+    ("version", "accepted"),
+    (("1.2.3", True), ("9.9.9", False)),
+)
+def test_reference_scripts_emit_json_with_the_reported_version(
+    identifier: str,
+    version: str,
+    accepted: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both reference scripts print JSON, and only the documented version passes."""
+    _clear_input_environment(monkeypatch)
+    monkeypatch.setenv("INPUT_BIN_NAME", "demo")
+    monkeypatch.setenv("INPUT_VERSION", version)
+    outdir = tmp_path / "out"
+
+    namespace = _execute_example(
+        identifier,
+        filename=tmp_path / "scripts" / "package.py",
+    )
+    namespace["app"](
+        ["--dry-run", "--outdir", str(outdir)],
+        result_action="return_value",
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert (payload["version"] == "1.2.3") is accepted, (
+        "the documented version check must accept 1.2.3 and reject 9.9.9"
+    )
+    assert not outdir.exists(), "dry-run must not create the output directory"
+
+
+def test_published_environment_example_accepts_the_reported_version(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The shipped environment test passes for the documented happy path."""
+    _clear_input_environment(monkeypatch)
+    _install_scripts_package(
+        tmp_path,
+        monkeypatch,
+        _example_source("reference-script"),
+    )
+    namespace = _execute_example("pytest-environment")
+
+    namespace["test_reads_env_and_defaults"](monkeypatch, tmp_path, capsys)
+
+
+def test_published_environment_example_rejects_a_different_version(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The shipped environment test fails when the reported version differs."""
+    _clear_input_environment(monkeypatch)
+    _install_scripts_package(
+        tmp_path,
+        monkeypatch,
+        _example_source("reference-script"),
+    )
+    namespace = _execute_example("pytest-environment")
+    proxy = _VersionOverrideProxy(monkeypatch, "9.9.9")
+
+    with pytest.raises(AssertionError):
+        namespace["test_reads_env_and_defaults"](proxy, tmp_path, capsys)

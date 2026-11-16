@@ -56,6 +56,7 @@ Employ Cyclopts when a script requires parameters, particularly under CI with
 ```python
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional, Annotated
 
@@ -92,7 +93,7 @@ def default(
     build_dir = (outdir or (project_root / "dist")) / name
 
     if dry_run:
-        print({
+        print(json.dumps({
             "name": name,
             "version": version,
             "target": target,
@@ -101,7 +102,7 @@ def default(
             "deb_depends": deb_depends,
             "rpm_depends": rpm_depends,
             "build_dir": str(build_dir),
-        })
+        }))
         return
 
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -471,6 +472,7 @@ except FileNotFoundError:
 # ///
 
 from __future__ import annotations
+import json
 from pathlib import Path
 from typing import Optional, Annotated
 
@@ -519,16 +521,20 @@ def main(
                 if not tag_matches_head:
                     raise SystemExit(result.exit_code)
 
-    print({
+    print(json.dumps({
         "bin_name": bin_name,
         "version": version,
         "formats": formats or [],
         "dist": str(dist),
-    })
+    }))
 
 if __name__ == "__main__":
     app()
 ```
+
+Both reference scripts print one JSON object on standard output, and the test
+below parses it with `json.loads` rather than matching a Python dictionary
+representation.
 
 ## Testing expectations
 
@@ -548,24 +554,26 @@ if __name__ == "__main__":
 
 <!-- tested-example: pytest-environment -->
 ```python
-import os
-from pathlib import Path
-from cyclopts.testing import invoke
+import json
+
 from scripts.package import app
 
 
-def test_reads_env_and_defaults(monkeypatch, tmp_path):
+def test_reads_env_and_defaults(monkeypatch, tmp_path, capsys):
     # Arrange env for Cyclopts
     monkeypatch.setenv("INPUT_BIN_NAME", "demo")
     monkeypatch.setenv("INPUT_VERSION", "1.2.3")
     monkeypatch.setenv("INPUT_FORMATS", "deb rpm")  # whitespace or newlines
 
-    # Exercise
-    result = invoke(app, [])
+    # Exercise; dry-run avoids filesystem and command side effects
+    app(
+        ["--dry-run", "--outdir", str(tmp_path)],
+        result_action="return_value",
+    )
 
     # Assert
-    assert result.exit_code == 0
-    assert '"version": "1.2.3"' in result.stdout
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["version"] == "1.2.3"
 
 
 def test_patch_python_dependency(mocker):
