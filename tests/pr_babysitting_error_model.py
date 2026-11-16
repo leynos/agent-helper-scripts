@@ -58,8 +58,8 @@ REASON_CITATIONS = {
         " retarget this PR to the new branch."
     ),
     CREATE_FIX_STACK_AND_RETARGET: (
-        "Create the chain as a managed stack with `github-stacks` when the"
-        " tooling is available and enabled."
+        "For the new base PR in step 2, create the chain as a managed stack"
+        " with `github-stacks` when the tooling is available and enabled."
     ),
     TEMPORARY_FIX_COPY: (
         "If an existing fix PR applies, base the stack on a temporary copy of"
@@ -71,6 +71,17 @@ REASON_CITATIONS = {
     ),
 }
 REASONS = frozenset(REASON_CITATIONS)
+
+#: Constraints the dispositions must respect. A PR belongs to only one stack,
+#: so an existing fix PR is reused as a plain base branch rather than added to
+#: this feature's stack. The citation keeps that reason next to the model.
+CONSTRAINT_CITATIONS = {
+    "one-stack-per-pr": (
+        "Reuse it as a base branch, not as a new stack layer: a PR can belong to"
+        " only one stack, and the existing fix PR may already be in one."
+    ),
+}
+CONSTRAINTS = frozenset(CONSTRAINT_CITATIONS)
 
 
 def ci_failure_disposition(
@@ -122,6 +133,10 @@ def lint_violation_disposition(
     fix PR is reused, or a new fix PR is created and the feature retargeted.
     A managed stack rebases as a whole, and an existing fix PR already moving
     under a stack is pinned as a temporary copy until it merges.
+
+    An existing fix PR is reused only as a base branch. A PR can belong to only
+    one stack, so it is never added to a new stack for this feature, even when
+    stack tooling is available.
 
     Parameters
     ----------

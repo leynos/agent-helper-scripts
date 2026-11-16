@@ -16,6 +16,7 @@ import pytest
 import pr_babysitting_error_model as error_module
 from pr_babysitting_error_model import (
     BASE_ON_EXISTING_FIX,
+    CONSTRAINT_CITATIONS,
     CREATE_FIX_AND_REBASE_STACK,
     CREATE_FIX_AND_RETARGET,
     CREATE_FIX_STACK_AND_RETARGET,
@@ -197,6 +198,30 @@ def test_each_reason_cites_a_sentence_in_the_skill(reason: str) -> None:
         f"reason {reason!r} cites a sentence the skill does not state:"
         f" {REASON_CITATIONS[reason]}"
     )
+
+
+@pytest.mark.parametrize("constraint", sorted(CONSTRAINT_CITATIONS))
+def test_each_constraint_cites_a_sentence_in_the_skill(constraint: str) -> None:
+    """A constraint that stops being documented must fail the model's contract."""
+    documents = normalize(SKILL.read_text())
+    assert normalize(CONSTRAINT_CITATIONS[constraint]) in documents, (
+        f"constraint {constraint!r} cites a sentence the skill does not state:"
+        f" {CONSTRAINT_CITATIONS[constraint]}"
+    )
+
+
+def test_an_existing_fix_pr_is_never_added_to_a_new_stack() -> None:
+    """A PR belongs to one stack, so an existing fix PR is only a base branch.
+
+    The stack tooling being available must not turn reuse into a second stack
+    membership for the fix PR. Only a newly created fix PR becomes a layer.
+    """
+    assert error_module.CONSTRAINTS == frozenset(CONSTRAINT_CITATIONS)
+    for stack_tooling in (False, True):
+        assert (
+            lint_case(existing_fix_pr=True, stack_tooling=stack_tooling)
+            == BASE_ON_EXISTING_FIX
+        ), "an existing fix PR was moved into a new stack"
 
 
 #: One case per decision the model can return. The coverage test requires the

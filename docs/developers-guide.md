@@ -881,8 +881,10 @@ executable specification over candidate-bound verdicts.
 skill states: a red hosted run is rebased before diagnosis only when the same
 commit gates pass locally and the branch is behind its target, and a newer lint
 suite's out-of-scope violations become a prerequisite fix PR, or a new base of
-a managed stack, rather than feature repairs. Its contract test keeps every
-decision cited by the shipped skill and proves each input changes the result.
+a managed stack, rather than feature repairs. An existing fix PR is reused only
+as a base branch, because a PR belongs to one stack; only a newly created fix
+PR becomes a stack layer. Its contract test keeps every decision and constraint
+cited by the shipped skill, and proves each input changes the result.
 `tests/test_pr_readiness_model.py` requires each reason it can return to cite a
 sentence the shipped documents still state, so the model cannot outlive the
 prose it encodes, and it pairs every rule with a mutation control that drops or

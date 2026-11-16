@@ -392,13 +392,16 @@ out-of-scope prerequisite work, not as repairs to add to the feature diff.
 
 1. First look for an open PR targeting the same target branch that already
    addresses the violations, and base this PR on that branch until it merges.
+   Reuse it as a base branch, not as a new stack layer: a PR can belong to only
+   one stack, and the existing fix PR may already be in one.
 2. Otherwise, create a new base PR targeting the target branch that fixes
    exactly the newly reported violations, rebase this PR onto it, and retarget
    this PR to the new branch.
-3. Create the chain as a managed stack with `github-stacks` when the tooling is
-   available and enabled. A plain prerequisite branch relationship is the
-   fallback when stacks are unavailable, not a reason to put the fixes in the
-   feature diff.
+3. For the new base PR in step 2, create the chain as a managed stack with
+   `github-stacks` when the tooling is available and enabled. A plain
+   prerequisite branch relationship is the fallback when stacks are
+   unavailable, not a reason to put the fixes in the feature diff. Do not add
+   an existing fix PR from step 1 to a stack for this feature.
 
 When this PR is already a layer in a managed stack, apply the fix underneath
 the whole stack, not between two layers:

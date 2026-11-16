@@ -1093,12 +1093,15 @@ A newer lint-suite release, such as a new Whitaker version, can report
 violations in code this PR did not change. Those violations are prerequisite
 work, not feature repairs. The agent bases this PR on an existing fix PR that
 targets `main`, or creates a new base PR for the fixes and retargets this PR
-onto it. A managed stack through `github-stacks` links the chain when the
-tooling is available; otherwise the prerequisite branch relationship carries
-the same topology. When this PR is already a stack layer, the whole stack moves
-onto the new fix PR, or onto a temporary copy of an existing fix PR that
-becomes obsolete when that PR merges. The feature diff does not absorb
-unrelated lint repairs, suppress the new rule, or pin the older tool version.
+onto it. An existing fix PR is reused only as a plain base branch: a PR can
+belong to only one stack, and that fix PR may already be in one. When the agent
+creates the new base PR, a managed stack through `github-stacks` links the
+chain if the tooling is available; otherwise the prerequisite branch
+relationship carries the same topology. When this PR is already a stack layer,
+the whole stack moves onto the new fix PR, or onto a temporary copy of an
+existing fix PR that becomes obsolete when that PR merges. The feature diff
+does not absorb unrelated lint repairs, suppress the new rule, or pin the older
+tool version.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable

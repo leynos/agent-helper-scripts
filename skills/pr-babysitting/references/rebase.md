@@ -113,14 +113,17 @@ exactly those violations, and change this PR's base to its branch. Replay only
 this PR's own commits onto the fix branch, then verify both review diffs and
 the remote target relationship.
 
-When `github-stacks` is available and enabled, create the chain as a managed
-stack instead of an unlinked prerequisite pair. When this PR is already a stack
-layer, replay the whole stack onto the new fix PR rather than inserting the fix
-between two layers. If an existing fix PR is the base, take a temporary copy of
-its branch for the stack, because the original branch will move and then become
-obsolete when it merges; restack onto the merged target afterwards. A merged
-fix PR's squash SHA is evidence of landing, not the replay boundary for the
-rebased stack.
+When a new fix PR is created and `github-stacks` is available and enabled,
+create the chain as a managed stack instead of an unlinked prerequisite pair.
+Do not add an existing fix PR to this feature's stack: a PR can belong to only
+one stack, so reuse that PR as a plain base branch instead.
+
+When this PR is already a stack layer, replay the whole stack onto the new fix
+PR rather than inserting the fix between two layers. If an existing fix PR is
+the base, take a temporary copy of its branch for the stack, because the
+original branch will move and then become obsolete when it merges; restack onto
+the merged target afterwards. A merged fix PR's squash SHA is evidence of
+landing, not the replay boundary for the rebased stack.
 
 ## Validate, finish outstanding work, and publish with a lease
 
