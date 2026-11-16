@@ -286,20 +286,23 @@ claimed. Trust `git check-attr merge -- path` for the current repository, and
 add an explicit attribute rule only after confirming the installed Weave
 version handles that format acceptably.
 
-For unattended agents, a rule arriving only from global or clone-local ambient
-configuration is not repository consent for a long multi-commit replay. The
-main skill therefore defaults such operations to built-in Git merging with
-`zdiff3`. A tracked `.gitattributes` rule is an explicit repository opt-in and
-should be respected unless an authorized recovery says otherwise.
-`core.attributesFile` being absent from Git config means the default
-`$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes` path is
-consulted, so an absent setting is not an absent rule.
+For unattended agents, a rule arriving from managed user-wide enrolment, or
+from other global or clone-local ambient configuration, is not repository
+consent for a long multi-commit replay. The main skill therefore defaults such
+operations to built-in Git merging with `zdiff3`. A tracked `.gitattributes`
+rule is an explicit repository opt-in and should be respected unless an
+authorized recovery says otherwise. `core.attributesFile` being absent from Git
+config means the default `$XDG_CONFIG_HOME/git/attributes` or
+`$HOME/.config/git/attributes` path is consulted, so an absent setting is not
+an absent rule.
 
 ## Estate baseline
 
 The `dev-env-rocky` deployment, as of its September 2026 change "Pin Weave to
 v0.5.1 and make merge-driver activation opt-in", defines the baseline the main
-skill assumes:
+skill assumes. That change's repository-level-only activation clause is
+superseded by the later managed user-wide enrolment decision recorded in
+dev-env-rocky ADR 011 and PR #231:
 
 - `weave-cli` and `weave-driver` are installed from the upstream `v0.5.1` tag
   with `cargo install --git ... --tag v0.5.1 --locked --force` into the owner's
@@ -321,9 +324,25 @@ skill assumes:
   merge.conflictStyle = zdiff3
   ```
 
-- Activation is a reviewed per-repository opt-in through that repository's
-  `.gitattributes` or, for a recorded non-shared experiment,
-  `.git/info/attributes`. `weave setup --global` is prohibited.
+- Managed user-wide enrolment writes a marker-delimited block to the global
+  Git attributes file that Git reads: `core.attributesFile` when set, otherwise
+  `$XDG_CONFIG_HOME/git/attributes`, falling back to
+  `~/.config/git/attributes`. The block selects `merge=weave` for `rs`, `py`,
+  `ts`, and `tsx` by default. Provisioning owns only that block and refuses
+  data, Markdown, and lock-file extensions user-wide: `csv`, `json`, `json5`,
+  `jsonc`, `lock`, `markdown`, `md`, `mdx`, `toml`, `xml`, `yaml`, and `yml`. A
+  repository may still enrol such paths through its own reviewed attributes,
+  and a later global line that disables an enrolled type fails provisioning.
+- The earlier per-repository-only activation policy is superseded: enrolment
+  is now user-wide by default. Repository attributes take precedence over the
+  global block, so a repository can bypass enrolment persistently with
+  `*.rs !merge` in `.git/info/attributes` for this clone only, or with
+  `*.rs merge=text` in `.gitattributes` for every clone. A command-scoped
+  `merge.weave.driver` override bypasses Weave for one unattended rebase
+  without editing any attributes.
+- `weave setup --global` is prohibited. It writes user-wide attributes outside
+  the managed block, claims refused categories, and rewrites user-wide Git
+  configuration, which can replace the managed driver registration.
 - Unattended long-lived branch rebases use Git's text merge unless dogfooding
   is explicitly requested. The sanctioned bypass for an opted-in repository is
   a command-scoped

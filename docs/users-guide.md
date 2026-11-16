@@ -499,22 +499,33 @@ rerun against the new `HEAD`.
 
 The skill assumes the `dev-env-rocky` baseline: Weave `v0.5.1`, a globally
 registered driver command that carries `WEAVE_EVENT=1` and a quoted absolute
-path, no global attributes rule, `merge.conflictStyle=zdiff3` set globally, and
-activation only through a repository's own reviewed attributes such as
-`src/*.rs merge=weave`. The skill shows how to verify a host against that
-baseline before trusting it.
+path, and `merge.conflictStyle=zdiff3` set globally. Registration defines
+`merge.weave` but does not select it. Managed user-wide enrolment writes a
+marker-delimited block to the global Git attributes file that Git reads,
+selecting `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default. The same
+policy refuses data, Markdown, and lock-file extensions user-wide (`csv`,
+`json`, `json5`, `jsonc`, `lock`, `markdown`, `md`, `mdx`, `toml`, `xml`,
+`yaml`, and `yml`), although a repository may enrol reviewed paths through its
+own attributes. The skill shows how to verify a host against that baseline
+before trusting it.
+
+Repository attributes take precedence over the managed global block, so a
+repository can bypass enrolment with `*.rs !merge` in `.git/info/attributes` or
+`*.rs merge=text` in `.gitattributes`; see the
+[detailed skill](../skills/weave-git-merge/SKILL.md) for the scope differences
+and the command-scoped alternatives.
 
 For unattended multi-commit or long-lived-branch rebases, the workflow bypasses
 Weave by default, using Git's built-in merge machinery with
-`merge.conflictStyle=zdiff3` instead. Ambient global or clone-local selection
-is never repository consent; a tracked `.gitattributes` rule is explicit opt-in
-for attended merges and requested dogfooding, and for unattended replays the
-skill bypasses it with a command-scoped override of the named driver, repeated
-on every `--continue`, rather than by editing attribute files. This matters
-because Weave 0.3.6 has recorded clean-exit corruption modes that pass parsers,
-compilers, and tests, so a clean exit and a green suite are never acceptance
-evidence on their own, and the 0.5.1 pin is not a claim that those modes are
-fixed.
+`merge.conflictStyle=zdiff3` instead. Managed user-wide enrolment and other
+ambient global or clone-local selection are never repository consent; a tracked
+`.gitattributes` rule is explicit opt-in for attended merges and requested
+dogfooding, and for unattended replays the skill bypasses it with a
+command-scoped override of the named driver, repeated on every `--continue`,
+rather than by editing attribute files. This matters because Weave 0.3.6 has
+recorded clean-exit corruption modes that pass parsers, compilers, and tests,
+so a clean exit and a green suite are never acceptance evidence on their own,
+and the 0.5.1 pin is not a claim that those modes are fixed.
 
 When Weave is deliberately kept active, per-replay structural checks via
 `git rebase --exec` are the default, and driver stderr — including

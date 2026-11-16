@@ -231,37 +231,66 @@ def test_skill_reads_driver_stderr_and_supports_event_capture() -> None:
     )
 
 
-def test_skill_describes_the_v051_opt_in_estate_baseline() -> None:
-    """The skill states the deployment it assumes and how to verify a host."""
+def test_skill_describes_the_v051_managed_user_wide_estate_baseline() -> None:
+    """The skill states managed user-wide enrolment and how to verify a host."""
     _, skill = _skill_frontmatter()
+    prose = _prose(skill)
 
-    assert "## Know the estate baseline" in _prose(skill), (
+    assert "## Know the estate baseline" in prose, (
         "the skill must describe the deployment baseline it assumes"
     )
     assert "`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`" in skill, (
         "the registered driver command must be quoted exactly"
     )
-    assert "No global attributes rule selects Weave" in _prose(skill), (
-        "global registration without activation is the baseline's key property"
+    assert "Registration defines `merge.weave` and does not select it" in prose, (
+        "registration must be distinguished from attribute-based activation"
     )
-    assert "type -a weave weave-driver" in _prose(skill), (
+    assert "managed, marker-delimited block in the global Git attributes file" in prose, (
+        "the managed global attributes block must be named as the selector"
+    )
+    assert "selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default" in prose, (
+        "the default enrolled extensions must be documented"
+    )
+    for extension in ("`rs`", "`py`", "`ts`", "`tsx`"):
+        assert extension in prose, f"default enrolment must name {extension}"
+    assert "refuses data, Markdown, and lock-file extensions" in prose, (
+        "the refused categories must be documented"
+    )
+    for extension in ("`csv`", "`json`", "`lock`", "`markdown`", "`toml`", "`yaml`"):
+        assert extension in prose, f"the refused set must name {extension}"
+    assert "Provisioning owns only its managed block" in prose, (
+        "block ownership must not imply control of the whole attributes file"
+    )
+    assert (
+        "`merge: weave` for enrolled Rust, Python, TypeScript, and TSX paths" in prose
+    ), "the host check must require the managed defaults to resolve"
+    assert "type -a weave weave-driver" in prose, (
         "PATH shadowing must be checked before trusting a version"
     )
     assert (
         "git config --show-origin --show-scope --get-all merge.weave.driver"
-        in _prose(skill)
+        in prose
     ), "the effective driver must be inspected with its scope and origin"
-    assert "do not run `weave setup --global`" in _prose(skill), (
-        "the baseline prohibits recreating ambient global activation"
+    assert "do not run `weave setup --global`" in prose, (
+        "the baseline prohibits writes outside managed enrolment"
     )
-    assert "src/*.rs merge=weave" in _prose(skill), (
-        "the skill must show the narrow tracked opt-in the baseline prefers"
+    assert "src/*.rs merge=weave" in prose, (
+        "the skill must show deliberate enrolment for reviewed paths"
     )
-    assert "WEAVE_TIMEOUT" in _prose(skill) and "0.5.x removed the watchdog" in skill, (
+    assert "No global attributes rule selects Weave" not in prose, (
+        "the superseded repository-only baseline must not survive"
+    )
+    assert "Global registration alone must not select Weave" not in prose, (
+        "the superseded registration-only rationale must not survive"
+    )
+    assert "ambient activation the deployment removed" not in prose, (
+        "the superseded prohibition rationale must not survive"
+    )
+    assert "WEAVE_TIMEOUT" in prose and "0.5.x removed the watchdog" in skill, (
         "the 0.3.x-only timeout must be marked as removed rather than documented "
         "as current behaviour"
     )
-    assert "WEAVE_STATS=1" in _prose(skill) and "WEAVE_MAX_DUPLICATES" in skill, (
+    assert "WEAVE_STATS=1" in prose and "WEAVE_MAX_DUPLICATES" in skill, (
         "the 0.5.x environment switches must be documented"
     )
 
@@ -477,6 +506,20 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
     assert "`/dev/null` alone cannot override those rules" in _prose(skill), (
         "the workflow must state the limits of the global-file override"
     )
+    assert "`*.rs !merge` in `.git/info/attributes`" in _prose(skill), (
+        "the persistent clone-local opt-out must be documented"
+    )
+    assert "`*.rs merge=text` in `.gitattributes`" in _prose(skill), (
+        "the persistent shared opt-out must be documented"
+    )
+    assert (
+        "Repository attributes take precedence over the managed user-wide block"
+        in _prose(skill)
+    ), "the precedence that makes a repository opt-out effective must be stated"
+    assert (
+        "These persistent forms differ from the command-scoped bypasses"
+        in _prose(skill)
+    ), "persistent opt-outs must be distinguished from transient overrides"
 
 
 def test_rebase_skill_routes_garbled_results_to_weave_recovery() -> None:
@@ -585,6 +628,27 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     )
     assert "Registration does not activate the driver" in _prose(behaviour), (
         "registration and activation must be stated as separate"
+    )
+    assert (
+        "repository-level-only activation clause is superseded" in _prose(behaviour)
+    ), "the legacy opt-in activation policy must be marked superseded"
+    assert "dev-env-rocky ADR 011 and PR #231" in _prose(behaviour), (
+        "the managed enrolment decision must cite its upstream record"
+    )
+    assert "Managed user-wide enrolment writes a marker-delimited block" in _prose(
+        behaviour
+    ), "the managed block must be recorded in the baseline"
+    assert "selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default" in (
+        _prose(behaviour)
+    ), "the default enrolled extensions must be recorded"
+    assert "refuses data, Markdown, and lock-file extensions user-wide" in _prose(
+        behaviour
+    ), "the refused categories must be recorded"
+    assert "`*.rs !merge` in `.git/info/attributes`" in _prose(behaviour), (
+        "the clone-local persistent opt-out must be recorded"
+    )
+    assert "`*.rs merge=text` in `.gitattributes`" in _prose(behaviour), (
+        "the tracked persistent opt-out must be recorded"
     )
     assert "removed the watchdog thread and the `WEAVE_TIMEOUT` variable" in _prose(
         behaviour

@@ -1332,12 +1332,20 @@ below exists.
 ### Estate baseline and driver override
 
 The skill assumes the `dev-env-rocky` deployment that pins Weave to `v0.5.1`
-and makes activation opt-in: the driver is registered globally as
-`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, no global
-attributes rule selects it, `merge.conflictStyle=zdiff3` is global, and each
-repository opts in through its own attributes. The sanctioned bypass for an
-opted-in repository replaces the named driver for one command rather than
-editing attribute files:
+and separates registration from attribute-based activation: the driver is
+registered globally as
+`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, and
+`merge.conflictStyle=zdiff3` is global. Registration does not select Weave.
+Managed user-wide enrolment writes a marker-delimited block to the global Git
+attributes file that Git reads (`core.attributesFile`, otherwise
+`$XDG_CONFIG_HOME/git/attributes`, otherwise `~/.config/git/attributes`) and
+selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default. Data,
+Markdown, and lock-file extensions are refused user-wide; repositories may
+still enrol reviewed paths through their own attributes. Repository attributes
+take precedence over the global block, so a repository can bypass enrolment with
+`*.rs !merge` in `.git/info/attributes` or `*.rs merge=text` in
+`.gitattributes`. The sanctioned command-scoped bypass replaces the named
+driver for one command rather than editing attribute files:
 `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
 -c merge.weave.recursive=text`,
 repeated on every `--continue`. The scope matrix keeps the attribute-level
@@ -1355,7 +1363,9 @@ executable against real Git.
 - `--global` — global Git config plus a global attributes file. When
   `core.attributesFile` is unset, Git falls back to
   `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`. The
-  estate baseline prohibits this scope.
+  estate baseline prohibits this scope: it writes user-wide attributes outside
+  the managed enrolment block, claims refused categories, and can replace the
+  managed driver registration.
 
 ### Driver contract
 
