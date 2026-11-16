@@ -9,11 +9,13 @@ copied snippets.
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import logging
 import os
 import sqlite3
 import sys
+import tempfile
 import types
 from pathlib import Path
 from textwrap import dedent, indent
@@ -55,19 +57,29 @@ def _execute_source(
     *,
     filename: Path,
     namespace: dict[str, Any],
-    diagnostic_name: str | None = None,
+    module_filename: str = "example.py",
 ) -> None:
-    """Compile and execute extracted source into an isolated namespace.
+    """Load extracted source as a file-backed module into ``namespace``.
 
-    ``exec`` is a deliberate, narrowly scoped exception to the repository's
-    no-``exec`` guidance. The source is a fence from a repository-owned
-    guide, read at test time, not untrusted input. Running it in a
-    caller-supplied namespace is what lets an example resolve its own
-    globals and report diagnostics against the guide path; file-backed
-    module loading cannot do that for a fence that is not a standalone file.
+    The source is a fence from a repository-owned guide, read at test time,
+    not untrusted input. Writing it to a temporary module and loading that
+    module through ``importlib`` avoids direct ``exec`` while preserving the
+    caller's ``__file__``, ``__name__`` and other globals. ``module_filename``
+    names the temporary module so tracebacks retain the example identifier.
     """
-    code = compile(source, diagnostic_name or str(filename), "exec")
-    exec(code, namespace)
+    with tempfile.TemporaryDirectory() as directory:
+        module_path = Path(directory) / module_filename
+        module_path.write_text(source, encoding="utf-8")
+        spec = importlib.util.spec_from_file_location(
+            str(namespace.get("__name__", "tested_example")),
+            module_path,
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load example source from {filename}")
+        module = importlib.util.module_from_spec(spec)
+        module.__dict__.update(namespace)
+        spec.loader.exec_module(module)
+        namespace.update(module.__dict__)
 
 
 def _execute_example(
@@ -92,7 +104,7 @@ def _execute_example(
         example.body,
         filename=example_filename,
         namespace=namespace,
-        diagnostic_name=f"{SCRIPTING_STANDARDS_PATH}:{identifier}",
+        module_filename=f"{identifier}.py",
     )
     return namespace
 
@@ -118,7 +130,6 @@ def _install_scripts_package(
         source,
         filename=tmp_path / "scripts" / "package.py",
         namespace=module.__dict__,
-        diagnostic_name=module.__file__,
     )
     monkeypatch.setitem(sys.modules, "scripts", scripts_package)
     monkeypatch.setitem(sys.modules, "scripts.package", module)
