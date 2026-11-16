@@ -541,6 +541,12 @@ def _assert_lifecycle_chart(chart: Flowchart) -> None:
     )
     _assert_predecessors(
         chart,
+        "Investigate the failure",
+        ("Local gates pass?", "No"),
+        ("Branch behind target?", "No"),
+    )
+    _assert_predecessors(
+        chart,
         "Resolve applicable assessments",
         ("Newer lint suite reports out-of-scope violations?", "No"),
     )
@@ -575,6 +581,7 @@ def test_lifecycle_flowchart_returns_every_head_to_the_trust_decision() -> None:
         (TRUST_CHART, _assert_candidate_trust_chart, "    A & C --> F"),
         (TRUST_CHART, _assert_candidate_trust_chart, "    A((Start)) --> F"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    H ==> B"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    B --> C"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    R --> C"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    V --> D"),
     ),

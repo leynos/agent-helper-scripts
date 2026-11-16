@@ -416,14 +416,19 @@ When this PR is already a layer in a managed stack, apply the fix underneath
 the whole stack, not between two layers:
 
 - If an existing fix PR applies, base the stack on a temporary copy of that fix
-  PR. `gh stack` sets a stack's trunk only when the stack is created: `init -b`
-  and `link --base` apply at creation, and `rebase` and `sync` cascade from the
-  existing trunk. Move the stack onto the copy by unstacking and recreating it
-  with `gh stack init -b <copy-branch> <branches bottom to top>` followed by
-  `gh stack submit`, which dissolves the old stack object and creates a new
-  one, so its merge-queue position and review state restart. The copy becomes
-  obsolete when the fix PR merges; restack onto the merged target afterwards
-  and do not let the moving fix branch rewrite the stack.
+  PR. Replay every layer's own commits onto the copy bottom to top, and
+  validate each replayed layer before it joins the stack. `gh stack` sets a
+  stack's trunk only when the stack is created: `init -b` and `link --base`
+  apply at creation, and `rebase` and `sync` cascade from the existing trunk.
+  Move the stack onto the copy with
+  `gh stack init -b <copy-branch> <branches bottom to top>` followed by
+  `gh stack submit`. Recreating creates a new stack object, so its merge-queue
+  position and review state restart, but the old stack does not dissolve on its
+  own: `gh stack unstack` cannot remove merged, merging, or queued PRs, which
+  remain in it, and it dissolves only once every PR is removed. Reconcile those
+  states before recreating, and keep each layer PR in exactly one stack. The
+  copy becomes obsolete when the fix PR merges; restack onto the merged target
+  afterwards and do not let the moving fix branch rewrite the stack.
 - If no existing fix PR applies, create the fix PR and rebase the whole stack
   onto it with `github-stacks`.
 

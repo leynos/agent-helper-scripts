@@ -771,9 +771,10 @@ flowchart TD
     accDescr {
         PR babysitting starts with the candidate trust decision. A trusted
         candidate has its gates run sequentially on the host; an untrusted
-        one is checked by observing hosted CI and reviewing the diff. A red
-        hosted check whose local gates pass on a branch behind its target is
-        rebased onto the target and returns to the trust decision, so the
+        one is checked by observing hosted CI and reviewing the diff. A
+        failing local gate is investigated and repaired before readiness. A
+        red hosted check whose local gates pass on a branch behind its target
+        is rebased onto the target and returns to the trust decision, so the
         rebased candidate has its gates rerun before hosted CI is observed
         again. Any other red hosted check is investigated and repaired. A
         newer lint suite's out-of-scope violations move into a prerequisite
@@ -792,11 +793,13 @@ flowchart TD
     A[Start PR babysitting] --> T{Candidate trusted?}
     T -->|Yes| B[Run candidate gates sequentially]
     T -->|No| N[Observe hosted CI and review diff]
-    B --> S{Hosted CI green?}
+    B --> Q{Local gates pass?}
+    Q -->|No| X[Investigate the failure]
+    Q -->|Yes| S{Hosted CI green?}
     S -->|Yes| C[Clear every CodeScene issue]
-    S -->|No| P{Local gates pass and branch behind target?}
+    S -->|No| P{Branch behind target?}
     P -->|Yes| R[Rebase onto live target]
-    P -->|No| X[Investigate the failure]
+    P -->|No| X
     R --> T
     X --> H[Repair, validate, and push]
     N --> C
@@ -1109,11 +1112,15 @@ new base PR, a managed stack through `github-stacks` links the chain if the
 tooling is available; otherwise the prerequisite branch relationship carries
 the same topology. When this PR is already a stack layer, the whole stack moves
 onto the new fix PR, or onto a temporary copy of an existing fix PR that
-becomes obsolete when that PR merges. Because `gh stack` fixes a stack's trunk
-at creation, that move means unstacking and recreating the stack, which
-restarts its merge-queue position and review state. The feature diff does not
-absorb unrelated lint repairs, suppress the new rule, or pin the older tool
-version.
+becomes obsolete when that PR merges. Every layer's own commits are replayed
+onto the copy bottom to top and validated before the layer joins the stack.
+Because `gh stack` fixes a stack's trunk at creation, that move means
+recreating the stack, which restarts its merge-queue position and review state.
+The old stack does not dissolve on its own: `gh stack unstack` cannot remove
+merged, merging, or queued PRs, and the stack dissolves only once every PR is
+removed, so those states are reconciled before recreating. The feature diff
+does not absorb unrelated lint repairs, suppress the new rule, or pin the older
+tool version.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable

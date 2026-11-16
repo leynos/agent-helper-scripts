@@ -130,13 +130,19 @@ one stack, so reuse that PR as a plain base branch instead.
 When this PR is already a stack layer, replay the whole stack onto the new fix
 PR rather than inserting the fix between two layers. If an existing fix PR is
 the base, take a temporary copy of its branch for the stack, because the
-original branch will move and then become obsolete when it merges; restack onto
-the merged target afterwards. `gh stack` fixes a stack's trunk at creation
-only, so moving the stack onto the copy means unstacking and recreating it with
-`gh stack init -b <copy-branch>` and `gh stack submit`. That creates a new
-stack object, and the old one dissolves as its PRs are removed, so any
-merge-queue position and review state restart. A merged fix PR's squash SHA is
-evidence of landing, not the replay boundary for the rebased stack.
+original branch will move and then become obsolete when it merges. Replay every
+layer's own commits onto the copy bottom to top and validate each replayed
+layer before it joins the new stack; restack onto the merged target after the
+fix PR lands. `gh stack` fixes a stack's trunk at creation only, so moving the
+stack onto the copy means recreating it with
+`gh stack init -b <copy-branch> <branches bottom to top>` and
+`gh stack submit`. That creates a new stack object, so any merge-queue position
+and review state restart. The old stack does not dissolve on its own:
+`gh stack unstack` cannot remove merged, merging, or queued PRs, which remain
+in it, and it dissolves only once every PR is removed. Reconcile those states
+before recreating, and keep each layer PR in exactly one stack. A merged fix
+PR's squash SHA is evidence of landing, not the replay boundary for the rebased
+stack.
 
 ## Validate, finish outstanding work, and publish with a lease
 
