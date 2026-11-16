@@ -57,7 +57,15 @@ def _execute_source(
     namespace: dict[str, Any],
     diagnostic_name: str | None = None,
 ) -> None:
-    """Compile and execute extracted source into an isolated namespace."""
+    """Compile and execute extracted source into an isolated namespace.
+
+    ``exec`` is a deliberate, narrowly scoped exception to the repository's
+    no-``exec`` guidance. The source is a fence from a repository-owned
+    guide, read at test time, not untrusted input. Running it in a
+    caller-supplied namespace is what lets an example resolve its own
+    globals and report diagnostics against the guide path; file-backed
+    module loading cannot do that for a fence that is not a standalone file.
+    """
     code = compile(source, diagnostic_name or str(filename), "exec")
     exec(code, namespace)
 
@@ -638,19 +646,15 @@ def test_cmd_mox_spy_example_records_passthrough_arguments(
 
 
 @pytest.mark.parametrize("identifier", DRY_RUN_SCRIPT_EXAMPLES)
-@pytest.mark.parametrize(
-    ("version", "accepted"),
-    (("1.2.3", True), ("9.9.9", False)),
-)
+@pytest.mark.parametrize("version", ("1.2.3", "9.9.9"))
 def test_reference_scripts_emit_json_with_the_reported_version(
     identifier: str,
     version: str,
-    accepted: bool,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Both reference scripts print JSON, and only the documented version passes."""
+    """Both reference scripts report the exact version they are given as JSON."""
     _clear_input_environment(monkeypatch)
     monkeypatch.setenv("INPUT_BIN_NAME", "demo")
     monkeypatch.setenv("INPUT_VERSION", version)
@@ -666,8 +670,8 @@ def test_reference_scripts_emit_json_with_the_reported_version(
     )
 
     payload = json.loads(capsys.readouterr().out)
-    assert (payload["version"] == "1.2.3") is accepted, (
-        "the documented version check must accept 1.2.3 and reject 9.9.9"
+    assert payload["version"] == version, (
+        "the script output must propagate the configured version exactly"
     )
     assert not outdir.exists(), "dry-run must not create the output directory"
 
