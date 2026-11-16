@@ -50,6 +50,18 @@ def _example_source(identifier: str) -> str:
     return EXAMPLES[identifier].body
 
 
+def _execute_source(
+    source: str,
+    *,
+    filename: Path,
+    namespace: dict[str, Any],
+    diagnostic_name: str | None = None,
+) -> None:
+    """Compile and execute extracted source into an isolated namespace."""
+    code = compile(source, diagnostic_name or str(filename), "exec")
+    exec(code, namespace)
+
+
 def _execute_example(
     identifier: str,
     *,
@@ -61,14 +73,19 @@ def _execute_example(
     assert example.language == "python", (
         f"tested example {identifier!r} must be a Python fence"
     )
+    example_filename = filename or SCRIPTING_STANDARDS_PATH
     namespace: dict[str, Any] = {
-        "__file__": str(filename or SCRIPTING_STANDARDS_PATH),
+        "__file__": str(example_filename),
         "__name__": "tested_scripting_standards_example",
     }
     if extra_globals is not None:
         namespace.update(extra_globals)
-    code = compile(example.body, f"{SCRIPTING_STANDARDS_PATH}:{identifier}", "exec")
-    exec(code, namespace)
+    _execute_source(
+        example.body,
+        filename=example_filename,
+        namespace=namespace,
+        diagnostic_name=f"{SCRIPTING_STANDARDS_PATH}:{identifier}",
+    )
     return namespace
 
 
@@ -89,7 +106,12 @@ def _install_scripts_package(
     scripts_package.__path__ = []
     module = types.ModuleType("scripts.package")
     module.__file__ = str(tmp_path / "scripts" / "package.py")
-    exec(compile(source, module.__file__, "exec"), module.__dict__)
+    _execute_source(
+        source,
+        filename=tmp_path / "scripts" / "package.py",
+        namespace=module.__dict__,
+        diagnostic_name=module.__file__,
+    )
     monkeypatch.setitem(sys.modules, "scripts", scripts_package)
     monkeypatch.setitem(sys.modules, "scripts.package", module)
     return module

@@ -532,9 +532,9 @@ if __name__ == "__main__":
     app()
 ```
 
-Both reference scripts print one JSON object on standard output, and the test
-below parses it with `json.loads` rather than matching a Python dictionary
-representation.
+Both reference scripts print one JSON object on standard output during a dry
+run, and the test below parses it with `json.loads` rather than matching a
+Python dictionary representation.
 
 ## Testing expectations
 
