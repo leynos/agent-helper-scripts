@@ -50,7 +50,8 @@ as a default.
 ### Cyclopts CLI pattern (environment‑first)
 
 Employ Cyclopts when a script requires parameters, particularly under CI with
-`INPUT_*` variables.
+`INPUT_*` variables. These examples target Cyclopts 4.3 or later, which
+supports the `result_action` argument used to invoke the app in tests.
 
 <!-- tested-example: cyclopts-cli -->
 ```python
@@ -468,7 +469,7 @@ except FileNotFoundError:
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["cyclopts>=2.9", "cuprum==0.2.0b2", "cmd-mox"]
+# dependencies = ["cyclopts>=4.3,<5", "cuprum==0.2.0b2", "cmd-mox"]
 # ///
 
 from __future__ import annotations
