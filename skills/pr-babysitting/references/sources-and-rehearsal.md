@@ -41,6 +41,8 @@ executable checks actually run separately in the PR validation evidence.
 | Commits from a new outside author arrive on a trusted candidate.       | Withdraw trust; observe hosted CI and review the diff until the assignment or the user extends trust.          |
 | CI watcher exits because the API is unavailable.                       | Report observation failure, not a failed build or a pass.                                                      |
 | CI fails with no immediately obvious remedy.                           | Post the preserved investigation template with a tag, redacted logs, run URL, and candidate evidence.          |
+| A hosted check fails while local gates pass on a behind-target branch. | Rebase onto the live target and re-observe before reading logs; a stale base is not a branch defect.           |
+| A newer Whitaker version flags code this PR did not change.            | Base on an existing fix PR, or create one and retarget or restack the whole stack; do not absorb the repairs.  |
 | A shared policy/audit defect blocks the feature.                       | Create an independent prerequisite below the feature and verify that the original PR targets it.               |
 | Proposed prerequisite depends on unfinished feature code.              | Report the dependency conflict; do not silently reverse the stack.                                             |
 | An old run is red and its current-candidate rerun passes.              | Record the supersession and retain the old evidence without blocking forever.                                  |

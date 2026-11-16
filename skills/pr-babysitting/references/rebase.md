@@ -43,6 +43,19 @@ ordinary merge-base does not establish a squash-restack boundary. Execute only
 the reviewed replay plan from that skill, with the fetched `TARGET` as its
 explicit target, the merge backend, and `merge.conflictStyle=zdiff3`.
 
+## Diagnose a stale base before reading logs
+
+A failing hosted check on a branch that is behind its target is not evidence of
+a branch defect until the branch has been rebased. When the same repository
+commit gates pass locally for the current head and the live target contains
+commits the branch does not, freeze and replay onto that target before reading
+failure logs, posting an investigation comment, or dispatching a repair.
+
+Re-observe the rebased candidate's CI before investigating. When local gates
+also fail, or the branch already contains the target head, continue with normal
+failure diagnosis. Do not rebase merely because a check is red: the local pass
+and the behind-target condition are both required.
+
 ## Plan each conflict before editing
 
 At every stop, inspect `git status`, unmerged paths and index stages, the
@@ -90,6 +103,24 @@ lock-generation command. Regenerate sooner as well if a per-replay gate
 requires a coherent manifest/lock pair. Review the resulting dependency diff,
 preserve both branches' requirements, and avoid unrelated upgrades. A target
 baseline is not the final lockfile when the feature changes dependencies.
+
+## Retarget onto a prerequisite fix branch
+
+A newer lint suite can report violations in code the candidate did not change.
+The replay target then becomes the fix PR rather than the repository's trunk:
+look for an open fix PR for the same violations, or create one that fixes
+exactly those violations, and change this PR's base to its branch. Replay only
+this PR's own commits onto the fix branch, then verify both review diffs and
+the remote target relationship.
+
+When `github-stacks` is available and enabled, create the chain as a managed
+stack instead of an unlinked prerequisite pair. When this PR is already a stack
+layer, replay the whole stack onto the new fix PR rather than inserting the fix
+between two layers. If an existing fix PR is the base, take a temporary copy of
+its branch for the stack, because the original branch will move and then become
+obsolete when it merges; restack onto the merged target afterwards. A merged
+fix PR's squash SHA is evidence of landing, not the replay boundary for the
+rebased stack.
 
 ## Validate, finish outstanding work, and publish with a lease
 

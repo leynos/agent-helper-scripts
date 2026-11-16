@@ -296,6 +296,21 @@ candidate. Conversely, do not ignore a current red check because it is
 optional. Record why an old result is superseded and which current run replaces
 it.
 
+### Rebase a stale base before investigating
+
+If hosted CI is failing for the current head, the same repository commit gates
+pass locally for that head, and the branch is behind its live target, rebase
+onto the target before investigating the failure. Do not read failure logs,
+post an investigation comment, or dispatch a repair until the rebased candidate
+has its own CI result.
+
+A base that has moved can fail a check the branch does not fail on its current
+base, so a local pass plus a behind-target branch is not evidence of a branch
+defect. Rebase and re-observe first. A green hosted result needs no diagnosis,
+and this rebase rule applies only to a red current candidate. When local gates
+also fail, or the branch is already up to date, diagnose the failure normally,
+including the CodeRabbit investigation route below.
+
 For an obvious failure, make the smallest systemic correction and an
 appropriate regression test or contract check. For a failure whose cause or
 remedy is not immediately obvious, ask CodeRabbit for assistance in a top-level
@@ -368,6 +383,35 @@ Manage the prerequisite as its own PR with its own scrutineer, CI, findings,
 review state, and merge gates. Prioritize the lowest unmerged layer. Do not
 squash-merge the original PR into a temporary prerequisite branch and call the
 feature delivered to trunk.
+
+### Newer lint suites and out-of-scope violations
+
+A newer lint-suite release, such as a new Whitaker version, may report
+violations in code the candidate did not change. Treat those violations as
+out-of-scope prerequisite work, not as repairs to add to the feature diff.
+
+1. First look for an open PR targeting the same target branch that already
+   addresses the violations, and base this PR on that branch until it merges.
+2. Otherwise, create a new base PR targeting the target branch that fixes
+   exactly the newly reported violations, rebase this PR onto it, and retarget
+   this PR to the new branch.
+3. Create the chain as a managed stack with `github-stacks` when the tooling is
+   available and enabled. A plain prerequisite branch relationship is the
+   fallback when stacks are unavailable, not a reason to put the fixes in the
+   feature diff.
+
+When this PR is already a layer in a managed stack, apply the fix underneath
+the whole stack, not between two layers:
+
+- If an existing fix PR applies, base the stack on a temporary copy of that fix
+  PR. The copy becomes obsolete when the fix PR merges; restack onto the merged
+  target afterwards and do not let the moving fix branch rewrite the stack.
+- If no existing fix PR applies, create the fix PR and rebase the whole stack
+  onto it with `github-stacks`.
+
+The fix PR is its own PR with its own gates, findings, and review state. Keep
+the feature's scope unchanged. Do not absorb unrelated lint repairs, suppress
+the new rule, or pin the older tool version to keep the feature diff green.
 
 After the prerequisite lands, inspect the remote topology before replaying; the
 service may already have updated descendants. Preserve the child's old
