@@ -339,9 +339,11 @@ dev-env-rocky ADR 011 and PR #231:
   `*.rs !merge` in `.git/info/attributes` makes the attribute unspecified for
   this clone only; because Git then consults `merge.default`, it bypasses Weave
   only when that setting does not name Weave. `*.rs merge=text` in
-  `.gitattributes` selects the built-in text merge explicitly and for every
-  clone. A command-scoped `merge.weave.driver` override bypasses Weave for one
-  unattended rebase without editing any attributes.
+  `.gitattributes` selects the built-in text merge explicitly for every clone
+  unless a higher-precedence attribute source still selects Weave; verify the
+  effective value with `git check-attr merge`. A command-scoped
+  `merge.weave.driver` override bypasses Weave for one unattended rebase
+  without editing any attributes.
 - `weave setup --global` is prohibited. It writes user-wide attributes outside
   the managed block, claims refused categories, and rewrites user-wide Git
   configuration, which can replace the managed driver registration.

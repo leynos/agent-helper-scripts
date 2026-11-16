@@ -264,6 +264,12 @@ def test_skill_describes_the_v051_managed_user_wide_estate_baseline() -> None:
     assert (
         "`merge: weave` for enrolled Rust, Python, TypeScript, and TSX paths" in prose
     ), "the host check must require the managed defaults to resolve"
+    assert "A repository's own reviewed attribute rule" in prose, (
+        "reviewed repository enrolment must be distinguished from a host fault"
+    )
+    assert "are deliberate enrolment rather than host faults" in prose, (
+        "reviewed opt-ins and requested dogfooding must not be host failures"
+    )
     assert "type -a weave weave-driver" in prose, (
         "PATH shadowing must be checked before trusting a version"
     )
@@ -531,6 +537,12 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
         "recovery must check the fallback driver before treating `unspecified` "
         "as a bypass"
     )
+    assert "a closer `.gitattributes` rule" in _prose(skill), (
+        "the tracked opt-out must acknowledge higher-precedence attribute sources"
+    )
+    assert "verify the change with" in _prose(skill), (
+        "an attribute opt-out must be verified with `check-attr` after the change"
+    )
 
 
 def test_rebase_skill_routes_garbled_results_to_weave_recovery() -> None:
@@ -664,6 +676,10 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "because Git then consults `merge.default`" in _prose(behaviour), (
         "the reference must state the merge.default fallback for `!merge`"
     )
+    assert (
+        "unless a higher-precedence attribute source still selects Weave"
+        in _prose(behaviour)
+    ), "the reference must qualify the tracked opt-out by attribute precedence"
     assert "removed the watchdog thread and the `WEAVE_TIMEOUT` variable" in _prose(
         behaviour
     ), "the timeout must be recorded as a 0.3.x-only behaviour"

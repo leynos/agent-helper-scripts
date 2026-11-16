@@ -1346,9 +1346,10 @@ take precedence over the global block, so a repository can bypass enrolment with
 `*.rs !merge` in `.git/info/attributes` or `*.rs merge=text` in
 `.gitattributes`. An unspecified `merge` attribute falls back to
 `merge.default`, so `!merge` bypasses Weave only when that setting does not
-name Weave; `merge=text` selects the built-in text merge explicitly. The
-sanctioned command-scoped bypass replaces the named driver for one command
-rather than editing attribute files:
+name Weave; `merge=text` selects the built-in text merge explicitly. Attribute
+precedence still applies, so verify the effective value with
+`git check-attr merge`. The sanctioned command-scoped bypass replaces the named
+driver for one command rather than editing attribute files:
 `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
 -c merge.weave.recursive=text`,
 repeated on every `--continue`. The scope matrix keeps the attribute-level

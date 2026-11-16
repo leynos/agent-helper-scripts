@@ -65,11 +65,14 @@ Both binaries must report `0.5.1`, and the versions resolved on `PATH` must
 match the canonical `~/.cargo/bin` binaries. In a repository without its own
 attributes, `git check-attr merge` must report `merge: weave` for enrolled
 Rust, Python, TypeScript, and TSX paths, and `merge: unspecified` for other
-paths unless the repository opts in. Selection outside the managed defaults, or
-from another source, is an environment finding. So is Weave selection for a
-refused category such as Markdown, data, or lock files. A host that reports
-`0.3.6` has not been reconciled either. Record any of these as an environment
-finding and apply the unattended bypass below rather than assuming the baseline.
+paths unless the repository opts in. Unexpected selection outside the managed
+defaults, or from another ambient source, is an environment finding. So is
+unexpected Weave selection for a refused category such as Markdown, data, or
+lock files. A repository's own reviewed attribute rule, and dogfooding the task
+explicitly requests, are deliberate enrolment rather than host faults. A host
+that reports `0.3.6` has not been reconciled either. Record any unexpected
+selection as an environment finding and apply the unattended bypass below
+rather than assuming the baseline.
 
 ## Establish the operation and evidence boundary
 
@@ -220,10 +223,14 @@ Unspecified is not itself a driver: Git then consults `merge.default`, which is
 the built-in text merge unless configured. If `merge.default` names Weave,
 `!merge` does not bypass it. Prefer an explicit text driver instead:
 `*.rs merge=text` in `.git/info/attributes` opts this clone out, and
-`*.rs merge=text` in `.gitattributes` opts every clone out and is tracked.
-`merge=text` selects the built-in text merge explicitly and is unaffected by
-`merge.default`. These persistent forms differ from the command-scoped bypasses
-below, which leave attribute files untouched.
+`*.rs merge=text` in `.gitattributes` is tracked and opts out every clone that
+does not already select Weave from a higher-precedence source. `merge=text`
+selects the built-in text merge explicitly and is unaffected by
+`merge.default`. Attribute precedence still decides the result: a
+`.git/info/attributes` rule, or a closer `.gitattributes` rule, can keep Weave
+selected, so verify the change with `git check-attr merge -- path/to/file.rs`.
+These persistent forms differ from the command-scoped bypasses below, which
+leave attribute files untouched.
 
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:
@@ -242,7 +249,9 @@ report the path as unselected. `-c core.attributesFile=/dev/null` now
 suppresses managed user-wide enrolment for one command; it cannot override
 tracked or clone-local rules. Because `!merge` leaves the path unspecified,
 also confirm that `merge.default` does not select Weave; use `merge=text`, or
-add `-c merge.default=text`, to force the built-in text merge.
+add `-c merge.default=text`, to force the built-in text merge. Whatever the
+rule, confirm the effective result with `git check-attr merge -- path`: a
+higher-precedence source can still select Weave.
 
 ## Preview before changing Git state
 
