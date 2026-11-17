@@ -20,6 +20,7 @@ from __future__ import annotations
 #: Outcomes for a hosted CI failure the supervisor has to diagnose.
 NO_CI_FAILURE = "no-ci-failure"
 REBASE_FIRST = "rebase-before-investigation"
+PREREQUISITE_FIX = "prerequisite-fix"
 INVESTIGATE = "investigate"
 
 #: Outcomes for a lint suite that reports violations against a candidate.
@@ -41,6 +42,10 @@ REASON_CITATIONS = {
         "Do not read or act on the scrutineer's captured failure logs or failure"
         " summary, post an investigation comment, or dispatch a repair until the"
         " rebased candidate has its own CI result."
+    ),
+    PREREQUISITE_FIX: (
+        "A hosted gate that reports only those findings takes the same"
+        " prerequisite route instead of investigation."
     ),
     INVESTIGATE: (
         "When local gates also fail, or the branch is already up to date,"
@@ -95,6 +100,12 @@ REASON_CONDITIONS = {
         "the same repository commit gates pass locally for that head",
         "the branch is behind its live target",
         "rebase onto the target before investigating the failure",
+    ),
+    PREREQUISITE_FIX: (
+        "The exception is a newer lint suite's out-of-scope violation: it is"
+        " prerequisite work, not an in-scope repair",
+        "A hosted gate that reports only those findings takes the same"
+        " prerequisite route instead of investigation",
     ),
     INVESTIGATE: (
         "When local gates also fail, or the branch is already up to date,"
@@ -160,15 +171,24 @@ CONSTRAINTS = frozenset(CONSTRAINT_CITATIONS)
 
 
 def ci_failure_disposition(
-    *, ci_failing: bool, local_gates_pass: bool, behind_target: bool
+    *,
+    ci_failing: bool,
+    local_gates_pass: bool,
+    behind_target: bool,
+    hosted_out_of_scope_lint: bool,
 ) -> str:
-    """Choose between rebasing and investigating a hosted failure.
+    """Choose how to route a hosted failure.
 
-    The rebase-first rule needs all three facts: the hosted candidate is
-    failing, the same commit gates pass locally, and the target contains
-    commits the branch does not. Reading a local pass alone as evidence of a
-    branch defect would send the agent into logs for a failure the rebased
-    candidate may not reproduce.
+    The rebase-first rule needs three facts: the hosted candidate is failing,
+    the same commit gates pass locally, and the target contains commits the
+    branch does not. Reading a local pass alone as evidence of a branch defect
+    would send the agent into logs for a failure the rebased candidate may not
+    reproduce.
+
+    A red hosted gate that reports only a newer lint suite's out-of-scope
+    findings is not a branch defect to diagnose at all, so it is routed to
+    prerequisite work once the stale-base case is excluded. A failure with any
+    other finding is investigated normally.
 
     Parameters
     ----------
@@ -178,18 +198,26 @@ def ci_failure_disposition(
         Whether the repository's commit gates pass for that same head locally.
     behind_target : bool
         Whether the live target contains commits the branch does not.
+    hosted_out_of_scope_lint : bool
+        Whether the red hosted failure reports only newer-suite, out-of-scope
+        lint findings rather than a defect of the candidate.
 
     Returns
     -------
     str
-        ``rebase-before-investigation`` when all three hold,
-        ``investigate`` when a gate fails or the branch is current, and
-        ``no-ci-failure`` when there is no failure to diagnose.
+        ``rebase-before-investigation`` when the failure is red, the same head
+        passes locally, and the branch is behind its target;
+        ``prerequisite-fix`` when the red failure reports only newer-suite,
+        out-of-scope findings; ``investigate`` when another gate fails or the
+        branch is current with an in-scope failure; and ``no-ci-failure`` when
+        there is no failure to route.
     """
     if not ci_failing:
         return NO_CI_FAILURE
     if local_gates_pass and behind_target:
         return REBASE_FIRST
+    if hosted_out_of_scope_lint:
+        return PREREQUISITE_FIX
     return INVESTIGATE
 
 

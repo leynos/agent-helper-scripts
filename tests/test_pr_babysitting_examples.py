@@ -13,6 +13,7 @@ import pytest
 from pr_babysitting_error_model import (
     BASE_ON_EXISTING_FIX,
     INVESTIGATE,
+    PREREQUISITE_FIX,
     REBASE_FIRST,
     ci_failure_disposition,
     lint_violation_disposition,
@@ -179,6 +180,7 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
             ci_failing=True,
             local_gates_pass=True,
             behind_target=behind_target,
+            hosted_out_of_scope_lint=False,
         )
         == REBASE_FIRST
     ), "the observed stale base with a local pass must rebase before diagnosis"
@@ -188,6 +190,7 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
                 ci_failing=True,
                 local_gates_pass=local_gates_pass,
                 behind_target=behind,
+                hosted_out_of_scope_lint=False,
             )
             == INVESTIGATE
         ), "a local failure or a current branch must be investigated, not rebased"
@@ -210,6 +213,7 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
             ci_failing=True,
             local_gates_pass=True,
             behind_target=not fixture.is_ancestor(fix),
+            hosted_out_of_scope_lint=False,
         )
         == INVESTIGATE
     ), "after the replay the same red result is investigated, not rebased again"
@@ -251,6 +255,24 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     assert (
         fixture.git("diff", "--name-only", "main...lint-fix") == "lint_target.py"
     ), "the fix branch must hold exactly the repair"
+    assert (
+        ci_failure_disposition(
+            ci_failing=True,
+            local_gates_pass=True,
+            behind_target=False,
+            hosted_out_of_scope_lint=True,
+        )
+        == PREREQUISITE_FIX
+    ), "a hosted gate reporting only the out-of-scope finding is prerequisite work"
+    assert (
+        ci_failure_disposition(
+            ci_failing=True,
+            local_gates_pass=True,
+            behind_target=False,
+            hosted_out_of_scope_lint=False,
+        )
+        == INVESTIGATE
+    ), "the same red state with any other finding is investigated"
     for stack_tooling in (False, True):
         assert (
             lint_violation_disposition(

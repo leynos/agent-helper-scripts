@@ -20,8 +20,8 @@ Which shipped sentences each group guards:
   inverting one fails the guard.
 - ``test_model_ci_disposition_is_exhaustive_over_its_fact_space`` and
   ``test_model_lint_disposition_is_exhaustive_over_its_fact_space`` enumerate
-  all 8 CI and 32 lint fact combinations, so the parameterized tables above are
-  samples of a space whose every point satisfies the stated rule.
+  all 16 CI and 32 lint fact combinations, so the parameterized tables above
+  are samples of a space whose every point satisfies the stated rule.
 - ``test_rebase_reference_*`` guards the stale-base and prerequisite procedures
   in ``references/rebase.md``, not only their headings.
 - ``test_pr_babysitting_examples.py`` runs the documented procedure against a
@@ -44,6 +44,7 @@ from pr_babysitting_error_model import (
     CREATE_FIX_STACK_AND_RETARGET,
     INVESTIGATE,
     NO_CI_FAILURE,
+    PREREQUISITE_FIX,
     REASON_CITATIONS,
     REASON_CONDITIONS,
     REASONS,
@@ -62,13 +63,22 @@ REBASE = ROOT / "skills/pr-babysitting/references/rebase.md"
 
 
 def ci_case(
-    *, ci_failing: bool, local_gates_pass: bool, behind_target: bool
+    *,
+    ci_failing: bool,
+    local_gates_pass: bool,
+    behind_target: bool,
+    hosted_out_of_scope_lint: bool = False,
 ) -> str:
-    """Return the CI disposition for one set of observed facts."""
+    """Return the CI disposition for one set of observed facts.
+
+    ``hosted_out_of_scope_lint`` defaults to ``False`` so a case that does not
+    mention a newer lint suite states that its red failure is an ordinary one.
+    """
     return ci_failure_disposition(
         ci_failing=ci_failing,
         local_gates_pass=local_gates_pass,
         behind_target=behind_target,
+        hosted_out_of_scope_lint=hosted_out_of_scope_lint,
     )
 
 
@@ -91,14 +101,23 @@ def lint_case(
 
 
 @pytest.mark.parametrize(
-    ("ci_failing", "local_gates_pass", "behind_target", "expected"),
+    (
+        "ci_failing",
+        "local_gates_pass",
+        "behind_target",
+        "hosted_out_of_scope_lint",
+        "expected",
+    ),
     [
-        (False, True, True, NO_CI_FAILURE),
-        (False, False, False, NO_CI_FAILURE),
-        (True, True, True, REBASE_FIRST),
-        (True, True, False, INVESTIGATE),
-        (True, False, True, INVESTIGATE),
-        (True, False, False, INVESTIGATE),
+        (False, True, True, False, NO_CI_FAILURE),
+        (False, False, False, False, NO_CI_FAILURE),
+        (True, True, True, False, REBASE_FIRST),
+        (True, True, False, False, INVESTIGATE),
+        (True, False, True, False, INVESTIGATE),
+        (True, False, False, False, INVESTIGATE),
+        (True, True, False, True, PREREQUISITE_FIX),
+        (True, False, True, True, PREREQUISITE_FIX),
+        (True, False, False, True, PREREQUISITE_FIX),
     ],
     ids=[
         "green-passing-behind",
@@ -107,10 +126,17 @@ def lint_case(
         "current-branch",
         "local-failure",
         "local-failure-current",
+        "current-branch-out-of-scope-lint",
+        "local-failure-out-of-scope-lint",
+        "local-failure-current-out-of-scope-lint",
     ],
 )
 def test_model_ci_disposition_rebases_only_a_stale_base_with_a_local_pass(
-    ci_failing: bool, local_gates_pass: bool, behind_target: bool, expected: str
+    ci_failing: bool,
+    local_gates_pass: bool,
+    behind_target: bool,
+    hosted_out_of_scope_lint: bool,
+    expected: str,
 ) -> None:
     """All three facts are required before a red run is diagnosed through a rebase."""
     assert (
@@ -118,9 +144,46 @@ def test_model_ci_disposition_rebases_only_a_stale_base_with_a_local_pass(
             ci_failing=ci_failing,
             local_gates_pass=local_gates_pass,
             behind_target=behind_target,
+            hosted_out_of_scope_lint=hosted_out_of_scope_lint,
         )
         == expected
     )
+
+
+def test_model_hosted_out_of_scope_lint_is_prerequisite_work() -> None:
+    """A red hosted gate reporting only newer-suite out-of-scope findings never investigates.
+
+    The finding is prerequisite work wherever the failing gate sits, so the
+    current-branch case that would otherwise investigate is routed beneath the
+    feature instead. The stale-base rule still runs first: a behind-target
+    branch is rebased and re-observed whatever the failure reports, and a green
+    result needs no routing at all.
+    """
+    current = {
+        "ci_failing": True,
+        "local_gates_pass": True,
+        "behind_target": False,
+    }
+    assert ci_case(**current, hosted_out_of_scope_lint=False) == INVESTIGATE
+    assert ci_case(**current, hosted_out_of_scope_lint=True) == PREREQUISITE_FIX
+    assert (
+        ci_case(
+            ci_failing=True,
+            local_gates_pass=True,
+            behind_target=True,
+            hosted_out_of_scope_lint=True,
+        )
+        == REBASE_FIRST
+    ), "the stale-base rebase rule must stay ahead of the lint exception"
+    assert (
+        ci_case(
+            ci_failing=False,
+            local_gates_pass=True,
+            behind_target=True,
+            hosted_out_of_scope_lint=True,
+        )
+        == NO_CI_FAILURE
+    ), "a green hosted result needs no routing"
 
 
 def test_model_ci_conditions_are_load_bearing() -> None:
@@ -216,9 +279,13 @@ def test_model_lint_conditions_are_load_bearing() -> None:
 
 
 def expected_ci_disposition(
-    *, ci_failing: bool, local_gates_pass: bool, behind_target: bool
+    *,
+    ci_failing: bool,
+    local_gates_pass: bool,
+    behind_target: bool,
+    hosted_out_of_scope_lint: bool,
 ) -> str:
-    """State the rebase rule independently of the model under test.
+    """State the routing rule independently of the model under test.
 
     This is a second written statement of the prose, not a call to
     ``ci_failure_disposition``, so the exhaustive test compares two
@@ -228,6 +295,8 @@ def expected_ci_disposition(
         return NO_CI_FAILURE
     if local_gates_pass and behind_target:
         return REBASE_FIRST
+    if hosted_out_of_scope_lint:
+        return PREREQUISITE_FIX
     return INVESTIGATE
 
 
@@ -254,25 +323,34 @@ def expected_lint_disposition(
 
 
 def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
-    """Enumerate all eight CI fact combinations against the stated rule.
+    """Enumerate all sixteen CI fact combinations against the stated rule.
 
     The parameterized cases above sample the space; this covers all of it, so
-    no combination of the three facts reaches a disposition the prose does not
+    no combination of the four facts reaches a disposition the prose does not
     state. ``rebase-before-investigation`` is returned exactly when the run is
-    red, the same head passes locally, and the branch is behind its target.
+    red, the same head passes locally, and the branch is behind its target;
+    ``prerequisite-fix`` when a red run reporting only newer-suite, out-of-scope
+    findings is not already covered by that rebase rule.
     """
     seen = set()
-    for facts in product((False, True), repeat=3):
-        ci_failing, local_gates_pass, behind_target = facts
+    for facts in product((False, True), repeat=4):
+        (
+            ci_failing,
+            local_gates_pass,
+            behind_target,
+            hosted_out_of_scope_lint,
+        ) = facts
         expected = expected_ci_disposition(
             ci_failing=ci_failing,
             local_gates_pass=local_gates_pass,
             behind_target=behind_target,
+            hosted_out_of_scope_lint=hosted_out_of_scope_lint,
         )
         outcome = ci_failure_disposition(
             ci_failing=ci_failing,
             local_gates_pass=local_gates_pass,
             behind_target=behind_target,
+            hosted_out_of_scope_lint=hosted_out_of_scope_lint,
         )
         assert outcome in REASONS, (
             f"unstated CI disposition {outcome!r} for facts {facts}; expected {expected!r}"
@@ -281,9 +359,12 @@ def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
             f"CI facts {facts}: expected {expected!r}, got {outcome!r}"
         )
         seen.add(outcome)
-    assert seen == {NO_CI_FAILURE, REBASE_FIRST, INVESTIGATE}, (
-        f"the CI fact space reached {sorted(seen)}"
-    )
+    assert seen == {
+        NO_CI_FAILURE,
+        REBASE_FIRST,
+        PREREQUISITE_FIX,
+        INVESTIGATE,
+    }, f"the CI fact space reached {sorted(seen)}"
 
 
 def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
@@ -427,6 +508,12 @@ REACHABLE = {
     ),
     "rebase-before-investigation": (
         ci_case(ci_failing=True, local_gates_pass=True, behind_target=True)
+    ),
+    "prerequisite-fix": ci_case(
+        ci_failing=True,
+        local_gates_pass=True,
+        behind_target=False,
+        hosted_out_of_scope_lint=True,
     ),
     "investigate": (
         ci_case(ci_failing=True, local_gates_pass=False, behind_target=False)
