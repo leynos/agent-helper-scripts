@@ -275,7 +275,7 @@ def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
             behind_target=behind_target,
         )
         assert outcome in REASONS, (
-            f"unstated CI disposition {outcome!r} for facts {facts}"
+            f"unstated CI disposition {outcome!r} for facts {facts}; expected {expected!r}"
         )
         assert outcome == expected, (
             f"CI facts {facts}: expected {expected!r}, got {outcome!r}"
@@ -317,14 +317,14 @@ def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
             stack_tooling=stack_tooling,
         )
         assert outcome in REASONS, (
-            f"unstated lint disposition {outcome!r} for facts {facts}"
+            f"unstated lint disposition {outcome!r} for facts {facts}; expected {expected!r}"
         )
         assert outcome == expected, (
             f"lint facts {facts}: expected {expected!r}, got {outcome!r}"
         )
         if newer_suite and out_of_scope and existing_fix_pr and not in_managed_stack:
             assert outcome == BASE_ON_EXISTING_FIX, (
-                f"an existing fix PR reached {outcome!r} for facts {facts}"
+                f"an existing fix PR reached {outcome!r} for facts {facts}, expected {BASE_ON_EXISTING_FIX!r}"
             )
         seen.add(outcome)
     assert seen == {

@@ -778,15 +778,21 @@ def _assert_lifecycle_chart(chart: Flowchart) -> None:
     )
     _assert_predecessors(
         chart,
-        "Investigate the failure",
+        "Hosted failure is only newer-suite out-of-scope findings?",
         ("Branch behind target?", "No"),
+    )
+    _assert_predecessors(
+        chart,
+        "Investigate the failure",
         ("Out-of-scope finding from a newer lint suite?", "No"),
+        ("Hosted failure is only newer-suite out-of-scope findings?", "No"),
     )
     _assert_predecessors(
         chart,
         "Base on existing fix PR or create one and retarget or restack",
         ("Newer lint suite reports out-of-scope violations?", "Yes"),
         ("Out-of-scope finding from a newer lint suite?", "Yes"),
+        ("Hosted failure is only newer-suite out-of-scope findings?", "Yes"),
     )
     _assert_predecessors(
         chart,
@@ -828,6 +834,7 @@ def test_lifecycle_flowchart_returns_every_head_to_the_trust_decision() -> None:
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    R --> C"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    V --> D"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    Q --> X"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    P --> X"),
     ),
 )
 def test_flowchart_checks_reject_trust_bypasses(

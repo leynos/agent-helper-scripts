@@ -778,7 +778,9 @@ flowchart TD
         red hosted check whose local gates pass on a branch behind its target
         is rebased onto the target and returns to the trust decision, so the
         rebased candidate has its gates rerun before hosted CI is observed
-        again. Any other red hosted check is investigated and repaired. A
+        again. Any other red hosted check is investigated and repaired unless
+        it reports only a newer lint suite's out-of-scope findings, which are
+        prerequisite work. A
         newer lint suite's out-of-scope violations move into a prerequisite
         fix PR, and the changed candidate also returns to the trust decision.
         The agent then clears every CodeScene issue, resolves applicable
@@ -801,10 +803,12 @@ flowchart TD
     S -->|Yes| C[Clear every CodeScene issue]
     S -->|No| P{Branch behind target?}
     P -->|Yes| R[Rebase onto live target]
-    P -->|No| X[Investigate the failure]
+    P -->|No| Y{Hosted failure is only newer-suite out-of-scope findings?}
     R --> T
     W -->|Yes| V[Base on existing fix PR or create one and retarget or restack]
-    W -->|No| X
+    W -->|No| X[Investigate the failure]
+    Y -->|Yes| V
+    Y -->|No| X
     X --> H[Repair, validate, and push]
     N --> C
     C --> U{Newer lint suite reports out-of-scope violations?}
