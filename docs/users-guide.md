@@ -772,7 +772,9 @@ flowchart TD
         PR babysitting starts with the candidate trust decision. A trusted
         candidate has its gates run sequentially on the host; an untrusted
         one is checked by observing hosted CI and reviewing the diff. A
-        failing local gate is investigated and repaired before readiness. A
+        failing local gate that reports only a newer lint suite's
+        out-of-scope findings is prerequisite work; any other failing local
+        gate is investigated and repaired before readiness. A
         red hosted check whose local gates pass on a branch behind its target
         is rebased onto the target and returns to the trust decision, so the
         rebased candidate has its gates rerun before hosted CI is observed
@@ -794,18 +796,20 @@ flowchart TD
     T -->|Yes| B[Run candidate gates sequentially]
     T -->|No| N[Observe hosted CI and review diff]
     B --> Q{Local gates pass?}
-    Q -->|No| X[Investigate the failure]
+    Q -->|No| W{Out-of-scope finding from a newer lint suite?}
     Q -->|Yes| S{Hosted CI green?}
     S -->|Yes| C[Clear every CodeScene issue]
     S -->|No| P{Branch behind target?}
     P -->|Yes| R[Rebase onto live target]
-    P -->|No| X
+    P -->|No| X[Investigate the failure]
     R --> T
+    W -->|Yes| V[Base on existing fix PR or create one and retarget or restack]
+    W -->|No| X
     X --> H[Repair, validate, and push]
     N --> C
     C --> U{Newer lint suite reports out-of-scope violations?}
     U -->|No| D[Resolve applicable assessments]
-    U -->|Yes| V[Base on existing fix PR or create one and retarget or restack]
+    U -->|Yes| V
     V --> T
     D --> E[Mark PR ready with lifecycle identity]
     E --> F[Observe CodeRabbit status and summary comment]
@@ -1096,31 +1100,33 @@ A red hosted run is not diagnosed in place when the same commit gates pass
 locally and the branch is behind its target. The agent rebases onto the live
 target first and re-observes, because a moved base can fail a check the branch
 does not fail on its own base. Only a local failure, or a branch that already
-contains the target head, goes straight to failure investigation.
+contains the target head, goes straight to failure investigation, and then only
+when the failing gate reports no newer lint suite's out-of-scope findings;
+those findings are classified as prerequisite work before any repair.
 
 A newer lint-suite release, such as a new Whitaker version, can report
 violations outside this PR's accepted scope, commonly in code it did not
 change. Those violations are prerequisite work, not feature repairs; a
 violation the accepted scope covers stays in this PR's diff. The agent bases
-this PR on an existing fix PR that targets `main`, or creates a new base PR for
-the fixes and retargets this PR onto it. A base branch must live in the same
-repository, so a fix PR whose head is in a fork is used through a temporary
-base-repository branch at that head, or its fix waits until it lands. An
-existing fix PR is reused only as a plain base branch: a PR can belong to only
-one stack, and that fix PR may already be in one. When the agent creates the
-new base PR, a managed stack through `github-stacks` links the chain if the
-tooling is available; otherwise the prerequisite branch relationship carries
-the same topology. When this PR is already a stack layer, the whole stack moves
-onto the new fix PR, or onto a temporary copy of an existing fix PR that
-becomes obsolete when that PR merges. Every layer's own commits are replayed
-onto the copy bottom to top and validated before the layer joins the stack.
-Because `gh stack` fixes a stack's trunk at creation, that move means
-recreating the stack, which restarts its merge-queue position and review state.
-The old stack does not dissolve on its own: `gh stack unstack` cannot remove
-merged, merging, or queued PRs, and the stack dissolves only once every PR is
-removed, so those states are reconciled before recreating. The feature diff
-does not absorb unrelated lint repairs, suppress the new rule, or pin the older
-tool version.
+this PR on an existing fix PR that targets this PR's own live target branch, or
+creates a new base PR for the fixes and retargets this PR onto it. A base
+branch must live in the same repository, so a fix PR whose head is in a fork is
+used through a temporary base-repository branch at that head, or its fix waits
+until it lands. An existing fix PR is reused only as a plain base branch: a PR
+can belong to only one stack, and that fix PR may already be in one. When the
+agent creates the new base PR, a managed stack through `github-stacks` links
+the chain if the tooling is available; otherwise the prerequisite branch
+relationship carries the same topology. When this PR is already a stack layer,
+the whole stack moves onto the new fix PR, or onto a temporary copy of an
+existing fix PR that becomes obsolete when that PR merges. Every layer's own
+commits are replayed onto the copy bottom to top and validated before the layer
+joins the stack. Because `gh stack` fixes a stack's trunk at creation, that
+move means recreating the stack, which restarts its merge-queue position and
+review state. The old stack does not dissolve on its own: `gh stack unstack`
+cannot remove merged, merging, or queued PRs, and the stack dissolves only once
+every PR is removed, so those states are reconciled before recreating. The
+feature diff does not absorb unrelated lint repairs, suppress the new rule, or
+pin the older tool version.
 
 A green check, a posted review request, an approval, a queue entry, and a
 completed merge are separate outcomes. The skill never merges with applicable

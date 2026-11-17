@@ -117,6 +117,11 @@ PR's base to its branch. Replay only this PR's own commits onto the fix branch,
 then verify both review diffs and the remote target relationship. A violation
 the candidate's accepted scope covers stays in this PR's diff.
 
+This classification does not wait for a green local gate. When the gate that
+reports the violation is red, the out-of-scope violation still becomes
+prerequisite work rather than an in-scope repair, so classify it before routing
+the failed gate to investigation.
+
 A base branch must live in the same repository. When the fix PR's head is in a
 fork, base this PR on a temporary branch in the base repository created at that
 head, and delete the temporary branch when the fix PR merges; if the repository

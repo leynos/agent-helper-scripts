@@ -215,6 +215,44 @@ def test_model_lint_conditions_are_load_bearing() -> None:
     ), "stack tooling must change whether a managed stack is created"
 
 
+def expected_ci_disposition(
+    *, ci_failing: bool, local_gates_pass: bool, behind_target: bool
+) -> str:
+    """State the rebase rule independently of the model under test.
+
+    This is a second written statement of the prose, not a call to
+    ``ci_failure_disposition``, so the exhaustive test compares two
+    calculations instead of the model with itself.
+    """
+    if not ci_failing:
+        return NO_CI_FAILURE
+    if local_gates_pass and behind_target:
+        return REBASE_FIRST
+    return INVESTIGATE
+
+
+def expected_lint_disposition(
+    *,
+    newer_suite: bool,
+    out_of_scope: bool,
+    existing_fix_pr: bool,
+    in_managed_stack: bool,
+    stack_tooling: bool,
+) -> str:
+    """State the prerequisite rule independently of the model under test."""
+    if not (newer_suite and out_of_scope):
+        return REPAIR_IN_SCOPE
+    if in_managed_stack:
+        if existing_fix_pr:
+            return TEMPORARY_FIX_COPY
+        return CREATE_FIX_AND_REBASE_STACK
+    if existing_fix_pr:
+        return BASE_ON_EXISTING_FIX
+    if stack_tooling:
+        return CREATE_FIX_STACK_AND_RETARGET
+    return CREATE_FIX_AND_RETARGET
+
+
 def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
     """Enumerate all eight CI fact combinations against the stated rule.
 
@@ -224,23 +262,28 @@ def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
     red, the same head passes locally, and the branch is behind its target.
     """
     seen = set()
-    for ci_failing, local_gates_pass, behind_target in product(
-        (False, True), repeat=3
-    ):
+    for facts in product((False, True), repeat=3):
+        ci_failing, local_gates_pass, behind_target = facts
+        expected = expected_ci_disposition(
+            ci_failing=ci_failing,
+            local_gates_pass=local_gates_pass,
+            behind_target=behind_target,
+        )
         outcome = ci_failure_disposition(
             ci_failing=ci_failing,
             local_gates_pass=local_gates_pass,
             behind_target=behind_target,
         )
-        assert outcome in REASONS, f"unstated CI disposition {outcome!r}"
-        if not ci_failing:
-            assert outcome == NO_CI_FAILURE
-        elif local_gates_pass and behind_target:
-            assert outcome == REBASE_FIRST
-        else:
-            assert outcome == INVESTIGATE
+        assert outcome in REASONS, (
+            f"unstated CI disposition {outcome!r} for facts {facts}"
+        )
+        assert outcome == expected, (
+            f"CI facts {facts}: expected {expected!r}, got {outcome!r}"
+        )
         seen.add(outcome)
-    assert seen == {NO_CI_FAILURE, REBASE_FIRST, INVESTIGATE}
+    assert seen == {NO_CI_FAILURE, REBASE_FIRST, INVESTIGATE}, (
+        f"the CI fact space reached {sorted(seen)}"
+    )
 
 
 def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
@@ -251,13 +294,21 @@ def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
     reports, and only an existing stack changes how the fix is applied.
     """
     seen = set()
-    for (
-        newer_suite,
-        out_of_scope,
-        existing_fix_pr,
-        in_managed_stack,
-        stack_tooling,
-    ) in product((False, True), repeat=5):
+    for facts in product((False, True), repeat=5):
+        (
+            newer_suite,
+            out_of_scope,
+            existing_fix_pr,
+            in_managed_stack,
+            stack_tooling,
+        ) = facts
+        expected = expected_lint_disposition(
+            newer_suite=newer_suite,
+            out_of_scope=out_of_scope,
+            existing_fix_pr=existing_fix_pr,
+            in_managed_stack=in_managed_stack,
+            stack_tooling=stack_tooling,
+        )
         outcome = lint_violation_disposition(
             newer_suite=newer_suite,
             out_of_scope=out_of_scope,
@@ -265,23 +316,16 @@ def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
             in_managed_stack=in_managed_stack,
             stack_tooling=stack_tooling,
         )
-        assert outcome in REASONS, f"unstated lint disposition {outcome!r}"
-        if not (newer_suite and out_of_scope):
-            assert outcome == REPAIR_IN_SCOPE
-        elif in_managed_stack:
-            assert outcome == (
-                TEMPORARY_FIX_COPY
-                if existing_fix_pr
-                else CREATE_FIX_AND_REBASE_STACK
-            )
-        elif existing_fix_pr:
+        assert outcome in REASONS, (
+            f"unstated lint disposition {outcome!r} for facts {facts}"
+        )
+        assert outcome == expected, (
+            f"lint facts {facts}: expected {expected!r}, got {outcome!r}"
+        )
+        if newer_suite and out_of_scope and existing_fix_pr and not in_managed_stack:
             assert outcome == BASE_ON_EXISTING_FIX, (
-                "an existing fix PR was moved into a new stack"
+                f"an existing fix PR reached {outcome!r} for facts {facts}"
             )
-        elif stack_tooling:
-            assert outcome == CREATE_FIX_STACK_AND_RETARGET
-        else:
-            assert outcome == CREATE_FIX_AND_RETARGET
         seen.add(outcome)
     assert seen == {
         REPAIR_IN_SCOPE,
@@ -290,7 +334,7 @@ def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
         CREATE_FIX_STACK_AND_RETARGET,
         TEMPORARY_FIX_COPY,
         CREATE_FIX_AND_REBASE_STACK,
-    }
+    }, f"the lint fact space reached {sorted(seen)}"
 
 
 #: The clauses that choose between an existing stack, a new stack, and a plain
@@ -459,6 +503,8 @@ def test_rebase_reference_retargets_and_restacks_onto_the_prerequisite() -> None
     body = section(REBASE.read_text(), "Retarget onto a prerequisite fix branch")
     required = (
         "A violation the candidate's accepted scope covers stays in this PR's diff.",
+        "classify it before"
+        " routing the failed gate to investigation",
         "base this PR on a temporary branch in the base repository created at that"
         " head",
         "a PR can belong to only one stack, so reuse that PR as a plain base branch"

@@ -239,9 +239,15 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     assert (
         fixture.git("diff", "--name-only", "lint-fix...HEAD") == "feature.py"
     ), "the repair must not enter the feature diff"
-    assert fixture.git("rev-list", "--count", "lint-fix..HEAD") == "1"
-    assert fixture.git("rev-parse", "HEAD") != feature_only
-    assert fixture.git("show", "lint-fix:lint_target.py") == "fixed"
+    assert fixture.git("rev-list", "--count", "lint-fix..HEAD") == "1", (
+        "the retargeted feature must own exactly its own commit"
+    )
+    assert fixture.git("rev-parse", "HEAD") != feature_only, (
+        "the retargeted head must be a rewritten commit"
+    )
+    assert fixture.git("show", "lint-fix:lint_target.py") == "fixed", (
+        "the base branch must keep the repair"
+    )
     assert (
         fixture.git("diff", "--name-only", "main...lint-fix") == "lint_target.py"
     ), "the fix branch must hold exactly the repair"
@@ -279,22 +285,37 @@ def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
     fixture.commit("two.py", "two\n", "layer one, second commit")
     fixture.git("switch", "-c", "layer-two")
     fixture.commit("three.py", "three\n", "layer two")
+    original_lower = fixture.git("rev-parse", "layer-one")
     fixture.git("switch", "layer-one")
     fixture.git("rebase", "--onto", "fix-copy", "main")
     assert fixture.is_ancestor(fix), "the bottom layer must sit on the fix copy"
-    assert fixture.git("rev-list", "--count", "fix-copy..HEAD") == "2"
+    assert fixture.git("rev-list", "--count", "fix-copy..HEAD") == "2", (
+        "the bottom layer must replay exactly its two own commits"
+    )
     assert fixture.git("diff", "--name-only", "fix-copy...HEAD").splitlines() == [
         "one.py",
         "two.py",
     ], "the bottom layer must replay only its own commits"
-    assert (fixture.work / "lint_target.py").read_text() == "fixed\n"
+    assert (fixture.work / "lint_target.py").read_text() == "fixed\n", (
+        "the bottom layer must carry the fix"
+    )
     fixture.git("switch", "layer-two")
-    fixture.git("rebase", "--onto", "layer-one", "main")
-    assert fixture.is_ancestor("layer-one", "layer-two")
-    assert fixture.git("rev-list", "--count", "layer-one..HEAD") == "1"
-    assert fixture.git("diff", "--name-only", "layer-one...HEAD") == "three.py"
-    assert (fixture.work / "one.py").read_text() == "one\n", "the upper layer keeps the lower work"
-    assert (fixture.work / "lint_target.py").read_text() == "fixed\n"
+    fixture.git("rebase", "--onto", "layer-one", original_lower)
+    assert fixture.is_ancestor("layer-one", "layer-two"), (
+        "the upper layer must sit on the replayed lower layer"
+    )
+    assert fixture.git("rev-list", "--count", "layer-one..HEAD") == "1", (
+        "the upper layer must replay exactly its own commit"
+    )
+    assert fixture.git("diff", "--name-only", "layer-one...HEAD") == "three.py", (
+        "the upper layer must replay only its own commit"
+    )
+    assert (fixture.work / "one.py").read_text() == "one\n", (
+        "the upper layer keeps the lower work"
+    )
+    assert (fixture.work / "lint_target.py").read_text() == "fixed\n", (
+        "the upper layer keeps the fix"
+    )
 
 
 def test_lock_restore_example_preserves_combined_manifest_during_replay(local_git: GitFixture) -> None:
@@ -752,9 +773,20 @@ def _assert_lifecycle_chart(chart: Flowchart) -> None:
     )
     _assert_predecessors(
         chart,
-        "Investigate the failure",
+        "Out-of-scope finding from a newer lint suite?",
         ("Local gates pass?", "No"),
+    )
+    _assert_predecessors(
+        chart,
+        "Investigate the failure",
         ("Branch behind target?", "No"),
+        ("Out-of-scope finding from a newer lint suite?", "No"),
+    )
+    _assert_predecessors(
+        chart,
+        "Base on existing fix PR or create one and retarget or restack",
+        ("Newer lint suite reports out-of-scope violations?", "Yes"),
+        ("Out-of-scope finding from a newer lint suite?", "Yes"),
     )
     _assert_predecessors(
         chart,
@@ -795,6 +827,7 @@ def test_lifecycle_flowchart_returns_every_head_to_the_trust_decision() -> None:
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    B --> C"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    R --> C"),
         (LIFECYCLE_CHART, _assert_lifecycle_chart, "    V --> D"),
+        (LIFECYCLE_CHART, _assert_lifecycle_chart, "    Q --> X"),
     ),
 )
 def test_flowchart_checks_reject_trust_bypasses(

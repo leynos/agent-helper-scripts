@@ -227,9 +227,10 @@ Refresh the skills with `install-skills` to pick up the changes.
   target, is now rebased onto the target before the agent reads the failure
   logs, posts an investigation comment, or dispatches a repair. The rebased
   candidate is re-observed first, because a moved base can fail a check the
-  branch does not fail on its own base. A green result, a local gate failure,
-  or a branch that already contains the target head keeps the previous
-  diagnosis path.
+  branch does not fail on its own base. A green result, or a branch that
+  already contains the target head, keeps the previous diagnosis path, and so
+  does a local gate failure unless that gate reports a newer suite's
+  out-of-scope violation, which is classified as prerequisite work instead.
 - **Newer lint suites are prerequisite work.** Violations a newer suite reports
   outside the PR's accepted scope — commonly in code the PR did not change —
   move into a prerequisite fix PR. The agent bases this PR on an existing fix

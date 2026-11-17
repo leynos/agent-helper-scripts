@@ -142,11 +142,18 @@ REASON_CONDITIONS = {
 
 #: Constraints the dispositions must respect. A PR belongs to only one stack,
 #: so an existing fix PR is reused as a plain base branch rather than added to
-#: this feature's stack. The citation keeps that reason next to the model.
+#: this feature's stack. A newer suite's out-of-scope violation is classified
+#: before a red local gate is routed to investigation. The citations keep both
+#: rules next to the model.
 CONSTRAINT_CITATIONS = {
     "one-stack-per-pr": (
         "Reuse it as a base branch, not as a new stack layer: a PR can belong to"
         " only one stack, and the existing fix PR may already be in one."
+    ),
+    "prerequisite-before-repair": (
+        "The exception is a newer lint suite's out-of-scope violation: it is"
+        " prerequisite work, not an in-scope repair, even when the local gate"
+        " that reports it is red."
     ),
 }
 CONSTRAINTS = frozenset(CONSTRAINT_CITATIONS)

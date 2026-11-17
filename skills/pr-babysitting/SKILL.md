@@ -311,7 +311,9 @@ base, so a local pass plus a behind-target branch is not evidence of a branch
 defect. Rebase and re-observe first. A green hosted result needs no diagnosis,
 and this rebase rule applies only to a red current candidate. When local gates
 also fail, or the branch is already up to date, diagnose the failure normally,
-including the CodeRabbit investigation route below.
+including the CodeRabbit investigation route below. The exception is a newer
+lint suite's out-of-scope violation: it is prerequisite work, not an in-scope
+repair, even when the local gate that reports it is red.
 
 For an obvious failure, make the smallest systemic correction and an
 appropriate regression test or contract check. For a failure whose cause or
