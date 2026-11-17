@@ -10,6 +10,13 @@ import subprocess
 
 import pytest
 
+from pr_babysitting_error_model import (
+    BASE_ON_EXISTING_FIX,
+    INVESTIGATE,
+    REBASE_FIRST,
+    ci_failure_disposition,
+    lint_violation_disposition,
+)
 from pr_babysitting_flowchart_support import (
     LIFECYCLE_CHART,
     TRUST_CHART,
@@ -77,6 +84,19 @@ class GitFixture:
         self.git("add", "--", path)
         self.git("commit", "-m", message)
         return self.git("rev-parse", "HEAD")
+
+    def is_ancestor(self, ancestor: str, descendant: str = "HEAD") -> bool:
+        """Return whether ``ancestor`` is contained in ``descendant``'s history.
+
+        ``git merge-base --is-ancestor`` answers through its exit status, so it
+        cannot use :meth:`git` without turning ``False`` into a test failure.
+        """
+        probe = subprocess.run(
+            ["/usr/bin/git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=self.work, env=self.env, check=False, timeout=30,
+        )
+        assert probe.returncode in (0, 1), probe.stderr
+        return probe.returncode == 0
 
     def example(self, marker: str, **variables: str) -> subprocess.CompletedProcess[str]:
         """Run the actual documented fence under its check-each-command precondition."""
@@ -152,7 +172,25 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
     fixture.git("push", "target", "main")
     fixture.git("switch", "feature")
     assert not (fixture.work / "gate.sh").exists(), "candidate must start without the target fix"
-    fixture.git("merge-base", "--is-ancestor", fix, "HEAD", check=False)
+    behind_target = not fixture.is_ancestor(fix)
+    assert behind_target, "candidate must start behind the target"
+    assert (
+        ci_failure_disposition(
+            ci_failing=True,
+            local_gates_pass=True,
+            behind_target=behind_target,
+        )
+        == REBASE_FIRST
+    ), "the observed stale base with a local pass must rebase before diagnosis"
+    for local_gates_pass, behind in ((False, True), (True, False)):
+        assert (
+            ci_failure_disposition(
+                ci_failing=True,
+                local_gates_pass=local_gates_pass,
+                behind_target=behind,
+            )
+            == INVESTIGATE
+        ), "a local failure or a current branch must be investigated, not rebased"
     script = git_example('git check-ref-format') + '\nprintf "%s\\n" "$TARGET"\n'
     result = subprocess.run(
         ["/bin/bash", "-e", "-c", script], cwd=fixture.work,
@@ -166,6 +204,97 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
     assert (fixture.work / "feature.txt").read_text() == "feature\n", "replay must preserve feature work"
     assert fixture.git("rev-parse", "HEAD~1") == fix, "replayed candidate must sit on the target"
     assert fixture.git("rev-parse", "HEAD") != feature, "replay must rewrite the candidate head"
+    assert fixture.is_ancestor(fix), "the replayed candidate must contain the target head"
+    assert (
+        ci_failure_disposition(
+            ci_failing=True,
+            local_gates_pass=True,
+            behind_target=not fixture.is_ancestor(fix),
+        )
+        == INVESTIGATE
+    ), "after the replay the same red result is investigated, not rebased again"
+
+
+def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
+    local_git: GitFixture,
+) -> None:
+    """An existing fix PR supplies a base only; its repairs stay out of the feature diff.
+
+    This is the offline boundary for the retarget rule. The feature branch is
+    replayed onto the fix branch, so the repair is an ancestor and the feature's
+    own diff contains only its own commits. Stack membership itself is a hosted
+    ``gh stack`` operation, so the recorded facts for this fixture are fed to
+    the disposition: for either value of the stack tooling, an existing fix PR
+    selects a plain base rather than a new stack layer.
+    """
+    fixture = local_git
+    fixture.git("switch", "-c", "lint-fix")
+    repair = fixture.commit("lint_target.py", "fixed\n", "repair the new lint rule")
+    fixture.git("push", "push", "lint-fix")
+    fixture.git("switch", "-c", "feature", "main")
+    feature_only = fixture.commit("feature.py", "feature\n", "feature work")
+    assert not fixture.is_ancestor(repair), "the feature must start without the repair"
+    fixture.git("rebase", "lint-fix")
+    assert fixture.is_ancestor(repair), "the feature must be based on the fix branch"
+    assert (
+        fixture.git("diff", "--name-only", "lint-fix...HEAD") == "feature.py"
+    ), "the repair must not enter the feature diff"
+    assert fixture.git("rev-list", "--count", "lint-fix..HEAD") == "1"
+    assert fixture.git("rev-parse", "HEAD") != feature_only
+    assert fixture.git("show", "lint-fix:lint_target.py") == "fixed"
+    assert (
+        fixture.git("diff", "--name-only", "main...lint-fix") == "lint_target.py"
+    ), "the fix branch must hold exactly the repair"
+    for stack_tooling in (False, True):
+        assert (
+            lint_violation_disposition(
+                newer_suite=True,
+                out_of_scope=True,
+                existing_fix_pr=True,
+                in_managed_stack=False,
+                stack_tooling=stack_tooling,
+            )
+            == BASE_ON_EXISTING_FIX
+        ), "an existing fix PR must stay a plain base when the tooling is available"
+
+
+def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
+    local_git: GitFixture,
+) -> None:
+    """Each stack layer replays onto the temporary fix copy in order, alone.
+
+    The fixture recreates the documented replay: the fix is frozen as a copy
+    branch, then every layer's own commits are replayed onto it bottom to top.
+    Each replayed layer is checked before the next is replayed, which is where
+    the split procedure validates a layer before it joins the stack. Removing
+    the old hosted stack is a ``gh stack`` operation, so only the Git-visible
+    prerequisite is asserted here; the ordering is guarded in the prose tests.
+    """
+    fixture = local_git
+    fixture.git("switch", "-c", "fix-copy")
+    fix = fixture.commit("lint_target.py", "fixed\n", "fix the new lint rule")
+    fixture.git("push", "push", "fix-copy")
+    fixture.git("switch", "-c", "layer-one", "main")
+    fixture.commit("one.py", "one\n", "layer one, first commit")
+    fixture.commit("two.py", "two\n", "layer one, second commit")
+    fixture.git("switch", "-c", "layer-two")
+    fixture.commit("three.py", "three\n", "layer two")
+    fixture.git("switch", "layer-one")
+    fixture.git("rebase", "--onto", "fix-copy", "main")
+    assert fixture.is_ancestor(fix), "the bottom layer must sit on the fix copy"
+    assert fixture.git("rev-list", "--count", "fix-copy..HEAD") == "2"
+    assert fixture.git("diff", "--name-only", "fix-copy...HEAD").splitlines() == [
+        "one.py",
+        "two.py",
+    ], "the bottom layer must replay only its own commits"
+    assert (fixture.work / "lint_target.py").read_text() == "fixed\n"
+    fixture.git("switch", "layer-two")
+    fixture.git("rebase", "--onto", "layer-one", "main")
+    assert fixture.is_ancestor("layer-one", "layer-two")
+    assert fixture.git("rev-list", "--count", "layer-one..HEAD") == "1"
+    assert fixture.git("diff", "--name-only", "layer-one...HEAD") == "three.py"
+    assert (fixture.work / "one.py").read_text() == "one\n", "the upper layer keeps the lower work"
+    assert (fixture.work / "lint_target.py").read_text() == "fixed\n"
 
 
 def test_lock_restore_example_preserves_combined_manifest_during_replay(local_git: GitFixture) -> None:

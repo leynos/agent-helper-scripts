@@ -116,6 +116,8 @@ REASON_CONDITIONS = {
         "Otherwise, create a new base PR targeting the target branch that fixes"
         " exactly the newly reported violations, rebase this PR onto it, and"
         " retarget this PR to the new branch.",
+        "A plain prerequisite branch relationship is the fallback when stacks"
+        " are unavailable",
     ),
     CREATE_FIX_STACK_AND_RETARGET: (
         _OUT_OF_SCOPE_TRIGGER,
@@ -125,12 +127,16 @@ REASON_CONDITIONS = {
     TEMPORARY_FIX_COPY: (
         "If an existing fix PR applies, base the stack on a temporary copy of"
         " that fix PR.",
+        "When this PR is already a layer in a managed stack, apply the fix"
+        " underneath the whole stack, not between two layers:",
         "Replay every layer's own commits onto the copy bottom to top, and"
         " validate each replayed layer before it joins the stack.",
     ),
     CREATE_FIX_AND_REBASE_STACK: (
         "If no existing fix PR applies, create the fix PR and rebase the whole"
         " stack onto it with `github-stacks`.",
+        "When this PR is already a layer in a managed stack, apply the fix"
+        " underneath the whole stack, not between two layers:",
     ),
 }
 

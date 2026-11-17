@@ -16,7 +16,12 @@ Which shipped sentences each group guards:
 - ``test_each_reason_states_its_trigger_conditions`` and
   ``test_dropping_any_trigger_condition_is_detected`` guard the trigger and
   selection clauses: the three rebase conditions, the out-of-scope condition,
-  and the fix-PR selection rule. Dropping or inverting one fails the guard.
+  the fix-PR selection rule, and the stack-selection clauses. Dropping or
+  inverting one fails the guard.
+- ``test_model_ci_disposition_is_exhaustive_over_its_fact_space`` and
+  ``test_model_lint_disposition_is_exhaustive_over_its_fact_space`` enumerate
+  all 8 CI and 32 lint fact combinations, so the parameterized tables above are
+  samples of a space whose every point satisfies the stated rule.
 - ``test_rebase_reference_*`` guards the stale-base and prerequisite procedures
   in ``references/rebase.md``, not only their headings.
 - ``test_pr_babysitting_examples.py`` runs the documented procedure against a
@@ -25,6 +30,7 @@ Which shipped sentences each group guards:
 
 from __future__ import annotations
 
+from itertools import product
 from pathlib import Path
 
 import pytest
@@ -40,6 +46,7 @@ from pr_babysitting_error_model import (
     NO_CI_FAILURE,
     REASON_CITATIONS,
     REASON_CONDITIONS,
+    REASONS,
     REBASE_FIRST,
     REPAIR_IN_SCOPE,
     TEMPORARY_FIX_COPY,
@@ -208,6 +215,131 @@ def test_model_lint_conditions_are_load_bearing() -> None:
     ), "stack tooling must change whether a managed stack is created"
 
 
+def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
+    """Enumerate all eight CI fact combinations against the stated rule.
+
+    The parameterized cases above sample the space; this covers all of it, so
+    no combination of the three facts reaches a disposition the prose does not
+    state. ``rebase-before-investigation`` is returned exactly when the run is
+    red, the same head passes locally, and the branch is behind its target.
+    """
+    seen = set()
+    for ci_failing, local_gates_pass, behind_target in product(
+        (False, True), repeat=3
+    ):
+        outcome = ci_failure_disposition(
+            ci_failing=ci_failing,
+            local_gates_pass=local_gates_pass,
+            behind_target=behind_target,
+        )
+        assert outcome in REASONS, f"unstated CI disposition {outcome!r}"
+        if not ci_failing:
+            assert outcome == NO_CI_FAILURE
+        elif local_gates_pass and behind_target:
+            assert outcome == REBASE_FIRST
+        else:
+            assert outcome == INVESTIGATE
+        seen.add(outcome)
+    assert seen == {NO_CI_FAILURE, REBASE_FIRST, INVESTIGATE}
+
+
+def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
+    """Enumerate all 32 lint fact combinations against the stated rule.
+
+    Only a newer suite's out-of-scope finding leaves the feature diff. An
+    existing fix PR is never added to a new stack, whatever the stack tooling
+    reports, and only an existing stack changes how the fix is applied.
+    """
+    seen = set()
+    for (
+        newer_suite,
+        out_of_scope,
+        existing_fix_pr,
+        in_managed_stack,
+        stack_tooling,
+    ) in product((False, True), repeat=5):
+        outcome = lint_violation_disposition(
+            newer_suite=newer_suite,
+            out_of_scope=out_of_scope,
+            existing_fix_pr=existing_fix_pr,
+            in_managed_stack=in_managed_stack,
+            stack_tooling=stack_tooling,
+        )
+        assert outcome in REASONS, f"unstated lint disposition {outcome!r}"
+        if not (newer_suite and out_of_scope):
+            assert outcome == REPAIR_IN_SCOPE
+        elif in_managed_stack:
+            assert outcome == (
+                TEMPORARY_FIX_COPY
+                if existing_fix_pr
+                else CREATE_FIX_AND_REBASE_STACK
+            )
+        elif existing_fix_pr:
+            assert outcome == BASE_ON_EXISTING_FIX, (
+                "an existing fix PR was moved into a new stack"
+            )
+        elif stack_tooling:
+            assert outcome == CREATE_FIX_STACK_AND_RETARGET
+        else:
+            assert outcome == CREATE_FIX_AND_RETARGET
+        seen.add(outcome)
+    assert seen == {
+        REPAIR_IN_SCOPE,
+        BASE_ON_EXISTING_FIX,
+        CREATE_FIX_AND_RETARGET,
+        CREATE_FIX_STACK_AND_RETARGET,
+        TEMPORARY_FIX_COPY,
+        CREATE_FIX_AND_REBASE_STACK,
+    }
+
+
+#: The clauses that choose between an existing stack, a new stack, and a plain
+#: prerequisite branch. Each is guarded on its own below, as well as by the
+#: generic clause-deletion control.
+STACK_SELECTION_CLAUSES = (
+    (
+        TEMPORARY_FIX_COPY,
+        "When this PR is already a layer in a managed stack, apply the fix"
+        " underneath the whole stack, not between two layers:",
+    ),
+    (
+        CREATE_FIX_AND_REBASE_STACK,
+        "When this PR is already a layer in a managed stack, apply the fix"
+        " underneath the whole stack, not between two layers:",
+    ),
+    (
+        CREATE_FIX_AND_RETARGET,
+        "A plain prerequisite branch relationship is the fallback when stacks"
+        " are unavailable",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("reason", "clause"),
+    STACK_SELECTION_CLAUSES,
+    ids=[f"{reason}-stack-selection" for reason, _ in STACK_SELECTION_CLAUSES],
+)
+def test_each_stack_selection_clause_is_stated_and_load_bearing(
+    reason: str, clause: str
+) -> None:
+    """The stack-selection clause is in the model, the prose, and the guard.
+
+    Deleting the shipped sentence must leave that reason's conditions
+    unsatisfied, so the clause cannot be dropped from the skill while the model
+    keeps deciding between an existing stack and a new base branch.
+    """
+    assert clause in REASON_CONDITIONS[reason]
+    assert not _missing(SKILL.read_text(), (clause,)), (
+        f"reason {reason!r} cites a stack-selection clause the skill does not"
+        f" state: {clause}"
+    )
+    mutated = mutate_one_clause(SKILL.read_text(), clause, "")
+    assert clause in _missing(mutated, (clause,)), (
+        f"dropping {clause!r} left reason {reason!r} satisfied"
+    )
+
+
 @pytest.mark.parametrize("reason", sorted(REASON_CITATIONS))
 def test_each_reason_cites_a_sentence_in_the_skill(reason: str) -> None:
     """No decision may outlive the prose that states it."""
@@ -332,7 +464,9 @@ def test_rebase_reference_retargets_and_restacks_onto_the_prerequisite() -> None
         "a PR can belong to only one stack, so reuse that PR as a plain base branch"
         " instead",
         "Replay every layer's own commits onto the copy bottom to top",
+        "validate each replayed layer before it joins the new stack",
         "`gh stack unstack` cannot remove merged, merging, or queued PRs",
+        "Reconcile those states before recreating",
     )
     missing = _missing(body, required)
     assert not missing, f"prerequisite procedure no longer states {missing}"
