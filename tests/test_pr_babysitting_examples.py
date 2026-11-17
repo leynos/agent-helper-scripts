@@ -1,4 +1,18 @@
-"""Exercise documented Git operations and section-local delivery obligations."""
+"""Exercise documented Git operations and section-local delivery obligations.
+
+The module runs the Git-visible steps of the shipped procedures against
+temporary repositories. Where a step is fenced in
+`skills/pr-babysitting/references/rebase.md`, the test extracts that fence and
+runs it, so removing or altering the documented command fails the test rather
+than leaving an equivalent command authored in Python. Fixture setup, such as
+creating branches and commits, is test-authored and is not part of the
+procedure under test.
+
+Hosted operations are not verified here: changing a PR's base, `gh stack init`,
+`gh stack submit`, `gh stack unstack`, and reconciling merged, merging or
+queued PRs happen on GitHub rather than in the fixture's file-transport
+remotes. Tests that stop at a hosted boundary say so in their own docstrings.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +27,7 @@ import pytest
 from pr_babysitting_error_model import (
     BASE_ON_EXISTING_FIX,
     INVESTIGATE,
+    NO_CI_FAILURE,
     PREREQUISITE_FIX,
     REBASE_FIRST,
     ci_failure_disposition,
@@ -106,6 +121,22 @@ class GitFixture:
             env=self.env | variables, text=True, capture_output=True, check=False, timeout=30,
         )
 
+    def gate_passes(self, path: str) -> bool:
+        """Return whether a gate script exists in the checkout and exits successfully.
+
+        The fixture observes a committed script instead of an injected boolean,
+        so a stale-base test derives the hosted and local results from the tree
+        it actually replayed.
+        """
+        script = self.work / path
+        if not script.exists():
+            return False
+        result = subprocess.run(
+            ["/bin/bash", str(script)], cwd=self.work, env=self.env,
+            text=True, capture_output=True, check=False, timeout=30,
+        )
+        return result.returncode == 0
+
 
 @pytest.fixture
 def local_git(tmp_path: Path) -> GitFixture:
@@ -159,64 +190,71 @@ def test_fetch_example_freezes_nondefault_target_on_distinct_remote(local_git: G
 def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitFixture) -> None:
     """A behind-target candidate gains the target fix only through the documented replay.
 
-    The fixture models the stale-base rule: the candidate passes its own gates,
-    the live target contains the change that the red hosted run needs, and the
-    documented freeze and replay bring that change into the candidate without
-    dropping the feature work. Investigation happens only after this state.
+    The candidate's own local gate passes and the hosted gate fails because the
+    live target holds the script the hosted run needs; both results are read
+    from the replayed tree rather than asserted as literals. The documented
+    freeze and replay land that fix without dropping the feature work, and the
+    rebased candidate's own result then decides whether anything is
+    investigated. The gate scripts stand in for the hosted run; the hosted CI
+    service itself is not verified here.
     """
     fixture = local_git
     fixture.git("switch", "-c", "feature")
-    feature = fixture.commit("feature.txt", "feature\n", "feature work")
+    feature = fixture.commit("local-gate.sh", "exit 0\n", "local gate the candidate passes")
+    fixture.commit("feature.txt", "feature\n", "feature work")
     fixture.git("push", "push", "feature")
     fixture.git("switch", "main")
     fix = fixture.commit("gate.sh", "exit 0\n", "target fix for the red check")
     fixture.git("push", "target", "main")
     fixture.git("switch", "feature")
     assert not (fixture.work / "gate.sh").exists(), "candidate must start without the target fix"
+    assert fixture.gate_passes("local-gate.sh"), "the candidate's local gate must pass"
+    assert not fixture.gate_passes("gate.sh"), "the hosted gate must be red before the replay"
     behind_target = not fixture.is_ancestor(fix)
     assert behind_target, "candidate must start behind the target"
     assert (
         ci_failure_disposition(
-            ci_failing=True,
-            local_gates_pass=True,
+            ci_failing=not fixture.gate_passes("gate.sh"),
+            local_gates_pass=fixture.gate_passes("local-gate.sh"),
             behind_target=behind_target,
             hosted_out_of_scope_lint=False,
         )
         == REBASE_FIRST
     ), "the observed stale base with a local pass must rebase before diagnosis"
-    for local_gates_pass, behind in ((False, True), (True, False)):
-        assert (
-            ci_failure_disposition(
-                ci_failing=True,
-                local_gates_pass=local_gates_pass,
-                behind_target=behind,
-                hosted_out_of_scope_lint=False,
-            )
-            == INVESTIGATE
-        ), "a local failure or a current branch must be investigated, not rebased"
-    script = git_example('git check-ref-format') + '\nprintf "%s\\n" "$TARGET"\n'
-    result = subprocess.run(
-        ["/bin/bash", "-e", "-c", script], cwd=fixture.work,
-        env=fixture.env | {"target_remote": "target", "target_branch": "main"},
-        text=True, capture_output=True, check=False, timeout=30,
+    result = fixture.example(
+        "git check-ref-format", target_remote="target", target_branch="main"
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == fix, "freeze must select the moved target"
-    fixture.git("rebase", fix)
+    target = fixture.git("rev-parse", "refs/remotes/target/main")
+    assert target == fix, "freeze must select the moved target"
+    replay = fixture.example("stale-base-replay", TARGET=target)
+    assert replay.returncode == 0, replay.stderr
     assert (fixture.work / "gate.sh").read_text() == "exit 0\n", "replay must land the target fix"
     assert (fixture.work / "feature.txt").read_text() == "feature\n", "replay must preserve feature work"
-    assert fixture.git("rev-parse", "HEAD~1") == fix, "replayed candidate must sit on the target"
+    assert fixture.git("rev-parse", "HEAD~2") == fix, "replayed candidate must sit on the target"
     assert fixture.git("rev-parse", "HEAD") != feature, "replay must rewrite the candidate head"
     assert fixture.is_ancestor(fix), "the replayed candidate must contain the target head"
+    assert fixture.gate_passes("gate.sh"), "the rebased candidate's hosted gate must pass"
     assert (
         ci_failure_disposition(
-            ci_failing=True,
-            local_gates_pass=True,
+            ci_failing=not fixture.gate_passes("gate.sh"),
+            local_gates_pass=fixture.gate_passes("local-gate.sh"),
+            behind_target=not fixture.is_ancestor(fix),
+            hosted_out_of_scope_lint=False,
+        )
+        == NO_CI_FAILURE
+    ), "the rebased candidate's own green result leaves nothing to investigate"
+    fixture.commit("gate.sh", "exit 1\n", "regress the hosted gate after the replay")
+    assert not fixture.gate_passes("gate.sh"), "the regressed hosted gate must fail"
+    assert (
+        ci_failure_disposition(
+            ci_failing=not fixture.gate_passes("gate.sh"),
+            local_gates_pass=fixture.gate_passes("local-gate.sh"),
             behind_target=not fixture.is_ancestor(fix),
             hosted_out_of_scope_lint=False,
         )
         == INVESTIGATE
-    ), "after the replay the same red result is investigated, not rebased again"
+    ), "a current branch whose rebased result is red is investigated, not rebased again"
 
 
 def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
@@ -225,11 +263,12 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     """An existing fix PR supplies a base only; its repairs stay out of the feature diff.
 
     This is the offline boundary for the retarget rule. The feature branch is
-    replayed onto the fix branch, so the repair is an ancestor and the feature's
-    own diff contains only its own commits. Stack membership itself is a hosted
-    ``gh stack`` operation, so the recorded facts for this fixture are fed to
-    the disposition: for either value of the stack tooling, an existing fix PR
-    selects a plain base rather than a new stack layer.
+    replayed onto the fix branch by the reference's own fenced command, so the
+    repair is an ancestor and the feature's own diff contains only its own
+    commits. The hosted step that changes the PR's base to the fix branch is
+    not verified here; the disposition is fed the resulting facts instead, and
+    for either value of the stack tooling an existing fix PR selects a plain
+    base rather than a new stack layer.
     """
     fixture = local_git
     fixture.git("switch", "-c", "lint-fix")
@@ -238,7 +277,8 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     fixture.git("switch", "-c", "feature", "main")
     feature_only = fixture.commit("feature.py", "feature\n", "feature work")
     assert not fixture.is_ancestor(repair), "the feature must start without the repair"
-    fixture.git("rebase", "lint-fix")
+    replay = fixture.example("prerequisite-replay", FIX_BRANCH="lint-fix")
+    assert replay.returncode == 0, replay.stderr
     assert fixture.is_ancestor(repair), "the feature must be based on the fix branch"
     assert (
         fixture.git("diff", "--name-only", "lint-fix...HEAD") == "feature.py"
@@ -292,11 +332,13 @@ def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
     """Each stack layer replays onto the temporary fix copy in order, alone.
 
     The fixture recreates the documented replay: the fix is frozen as a copy
-    branch, then every layer's own commits are replayed onto it bottom to top.
-    Each replayed layer is checked before the next is replayed, which is where
-    the split procedure validates a layer before it joins the stack. Removing
-    the old hosted stack is a ``gh stack`` operation, so only the Git-visible
-    prerequisite is asserted here; the ordering is guarded in the prose tests.
+    branch, then every layer's own commits are replayed onto it bottom to top by
+    the reference's own fenced commands. Each replayed layer is checked before
+    the next is replayed, which is where the split procedure validates a layer
+    before it joins the stack. Hosted stack recreation is not verified: `gh
+    stack init`, `gh stack submit`, `gh stack unstack`, and reconciling merged,
+    merging or queued PRs all happen on GitHub, and only the Git-visible
+    prerequisite is asserted here.
     """
     fixture = local_git
     fixture.git("switch", "-c", "fix-copy")
@@ -308,8 +350,13 @@ def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
     fixture.git("switch", "-c", "layer-two")
     fixture.commit("three.py", "three\n", "layer two")
     original_lower = fixture.git("rev-parse", "layer-one")
-    fixture.git("switch", "layer-one")
-    fixture.git("rebase", "--onto", "fix-copy", "main")
+    bottom = fixture.example(
+        "stack-copy-replay-bottom",
+        COPY_BRANCH="fix-copy",
+        STACK_BASE="main",
+        BOTTOM_LAYER="layer-one",
+    )
+    assert bottom.returncode == 0, bottom.stderr
     assert fixture.is_ancestor(fix), "the bottom layer must sit on the fix copy"
     assert fixture.git("rev-list", "--count", "fix-copy..HEAD") == "2", (
         "the bottom layer must replay exactly its two own commits"
@@ -321,8 +368,13 @@ def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
     assert (fixture.work / "lint_target.py").read_text() == "fixed\n", (
         "the bottom layer must carry the fix"
     )
-    fixture.git("switch", "layer-two")
-    fixture.git("rebase", "--onto", "layer-one", original_lower)
+    upper = fixture.example(
+        "stack-copy-replay-upper",
+        BOTTOM_LAYER="layer-one",
+        ORIGINAL_BOTTOM=original_lower,
+        UPPER_LAYER="layer-two",
+    )
+    assert upper.returncode == 0, upper.stderr
     assert fixture.is_ancestor("layer-one", "layer-two"), (
         "the upper layer must sit on the replayed lower layer"
     )

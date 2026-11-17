@@ -24,8 +24,10 @@ Which shipped sentences each group guards:
   are samples of a space whose every point satisfies the stated rule.
 - ``test_rebase_reference_*`` guards the stale-base and prerequisite procedures
   in ``references/rebase.md``, not only their headings.
-- ``test_pr_babysitting_examples.py`` runs the documented procedure against a
-  temporary Git repository and checks the rehearsal rows and lifecycle diagram.
+- ``test_pr_babysitting_examples.py`` runs the reference's fenced Git commands
+  against a temporary Git repository and checks the rehearsal rows and
+  lifecycle diagram. It does not verify the hosted operations, which are named
+  in its own docstrings.
 """
 
 from __future__ import annotations
@@ -325,6 +327,9 @@ def expected_lint_disposition(
 def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
     """Enumerate all sixteen CI fact combinations against the stated rule.
 
+    This is a specification-only test: it asserts what the model decides, not
+    what the shipped skill does.
+
     The parameterized cases above sample the space; this covers all of it, so
     no combination of the four facts reaches a disposition the prose does not
     state. ``rebase-before-investigation`` is returned exactly when the run is
@@ -369,6 +374,9 @@ def test_model_ci_disposition_is_exhaustive_over_its_fact_space() -> None:
 
 def test_model_lint_disposition_is_exhaustive_over_its_fact_space() -> None:
     """Enumerate all 32 lint fact combinations against the stated rule.
+
+    This is a specification-only test: it asserts what the model decides, not
+    what the shipped skill does.
 
     Only a newer suite's out-of-scope finding leaves the feature diff. An
     existing fix PR is never added to a new stack, whatever the stack tooling
@@ -566,6 +574,198 @@ def test_dropping_any_trigger_condition_is_detected(
     mutated = mutate_one_clause(SKILL.read_text(), clause, "")
     assert clause in _missing(mutated, REASON_CONDITIONS[reason]), (
         f"dropping {clause!r} left reason {reason!r} satisfied"
+    )
+
+
+#: The reasons the CI model decides, as opposed to the lint model. The clause
+#: map below uses this to pick the model that owns each reason.
+CI_REASONS = frozenset({NO_CI_FAILURE, REBASE_FIRST, PREREQUISITE_FIX, INVESTIGATE})
+
+
+def _ci_facts(**overrides: bool) -> dict[str, bool]:
+    """Return a red hosted fact set with passing local gates on a current branch."""
+    facts = {
+        "ci_failing": True,
+        "local_gates_pass": True,
+        "behind_target": False,
+        "hosted_out_of_scope_lint": False,
+    }
+    facts.update(overrides)
+    return facts
+
+
+def _lint_facts(**overrides: bool) -> dict[str, bool]:
+    """Return a newer-suite, out-of-scope violation with no fix PR or stack yet."""
+    facts = {
+        "newer_suite": True,
+        "out_of_scope": True,
+        "existing_fix_pr": False,
+        "in_managed_stack": False,
+        "stack_tooling": True,
+    }
+    facts.update(overrides)
+    return facts
+
+
+def decision_for(reason: str, facts: dict[str, bool]) -> str:
+    """Return the decision the model owning ``reason`` makes for ``facts``."""
+    if reason in CI_REASONS:
+        return ci_case(**facts)
+    return lint_case(**facts)
+
+
+#: For each trigger or selection clause, the facts it guards: the set that
+#: satisfies the reason, and the same set with that clause's fact flipped.
+#: Clauses are named by their position in ``REASON_CONDITIONS`` so the map
+#: cannot drift from the model's own clause list. The test below asserts that
+#: flipping the guarded fact changes the decision, so a clause that survives as
+#: decorative prose fails the suite instead of passing a presence check.
+GUARDED_DECISIONS = {
+    (NO_CI_FAILURE, 0): (
+        _ci_facts(ci_failing=False),
+        _ci_facts(),
+    ),
+    (REBASE_FIRST, 0): (
+        _ci_facts(behind_target=True),
+        _ci_facts(behind_target=True, ci_failing=False),
+    ),
+    (REBASE_FIRST, 1): (
+        _ci_facts(behind_target=True),
+        _ci_facts(behind_target=True, local_gates_pass=False),
+    ),
+    (REBASE_FIRST, 2): (
+        _ci_facts(behind_target=True),
+        _ci_facts(behind_target=False),
+    ),
+    (REBASE_FIRST, 3): (
+        _ci_facts(behind_target=True),
+        _ci_facts(behind_target=True, local_gates_pass=False),
+    ),
+    (PREREQUISITE_FIX, 0): (
+        _ci_facts(hosted_out_of_scope_lint=True),
+        _ci_facts(),
+    ),
+    (PREREQUISITE_FIX, 1): (
+        _ci_facts(hosted_out_of_scope_lint=True),
+        _ci_facts(),
+    ),
+    (INVESTIGATE, 0): (
+        _ci_facts(local_gates_pass=False),
+        _ci_facts(local_gates_pass=True, behind_target=True),
+    ),
+    (REPAIR_IN_SCOPE, 0): (
+        _lint_facts(newer_suite=False),
+        _lint_facts(newer_suite=True),
+    ),
+    (REPAIR_IN_SCOPE, 1): (
+        _lint_facts(out_of_scope=False),
+        _lint_facts(out_of_scope=True),
+    ),
+    (BASE_ON_EXISTING_FIX, 0): (
+        _lint_facts(existing_fix_pr=True),
+        _lint_facts(existing_fix_pr=True, newer_suite=False),
+    ),
+    (BASE_ON_EXISTING_FIX, 1): (
+        _lint_facts(existing_fix_pr=True),
+        _lint_facts(existing_fix_pr=False),
+    ),
+    (CREATE_FIX_AND_RETARGET, 0): (
+        _lint_facts(stack_tooling=False),
+        _lint_facts(stack_tooling=False, newer_suite=False),
+    ),
+    (CREATE_FIX_AND_RETARGET, 1): (
+        _lint_facts(stack_tooling=False),
+        _lint_facts(stack_tooling=True),
+    ),
+    (CREATE_FIX_AND_RETARGET, 2): (
+        _lint_facts(stack_tooling=False),
+        _lint_facts(stack_tooling=True),
+    ),
+    (CREATE_FIX_STACK_AND_RETARGET, 0): (
+        _lint_facts(),
+        _lint_facts(newer_suite=False),
+    ),
+    (CREATE_FIX_STACK_AND_RETARGET, 1): (
+        _lint_facts(),
+        _lint_facts(stack_tooling=False),
+    ),
+    (TEMPORARY_FIX_COPY, 0): (
+        _lint_facts(existing_fix_pr=True, in_managed_stack=True),
+        _lint_facts(existing_fix_pr=False, in_managed_stack=True),
+    ),
+    (TEMPORARY_FIX_COPY, 1): (
+        _lint_facts(existing_fix_pr=True, in_managed_stack=True),
+        _lint_facts(existing_fix_pr=True, in_managed_stack=False),
+    ),
+    (TEMPORARY_FIX_COPY, 2): (
+        _lint_facts(existing_fix_pr=True, in_managed_stack=True),
+        _lint_facts(existing_fix_pr=False, in_managed_stack=True),
+    ),
+    (CREATE_FIX_AND_REBASE_STACK, 0): (
+        _lint_facts(in_managed_stack=True),
+        _lint_facts(existing_fix_pr=True, in_managed_stack=True),
+    ),
+    (CREATE_FIX_AND_REBASE_STACK, 1): (
+        _lint_facts(in_managed_stack=True),
+        _lint_facts(in_managed_stack=False),
+    ),
+}
+
+
+def test_each_trigger_clause_guards_a_model_decision() -> None:
+    """Flipping the fact a clause names changes the decision it states.
+
+    The presence check in ``test_dropping_any_trigger_condition_is_detected``
+    only proves the sentence exists. This test binds each clause to the fact it
+    guards, so a clause whose fact no longer affects the model is reported as
+    decorative. These are specification-only cases: they constrain the model,
+    not the shipped skill's behaviour.
+    """
+    expected = {
+        (reason, index)
+        for reason, clauses in REASON_CONDITIONS.items()
+        for index in range(len(clauses))
+    }
+    assert set(GUARDED_DECISIONS) == expected, (
+        "the guarded-fact map must cover every trigger clause exactly once"
+    )
+    for (reason, index), (baseline, flipped) in GUARDED_DECISIONS.items():
+        clause = REASON_CONDITIONS[reason][index]
+        baseline_decision = decision_for(reason, baseline)
+        flipped_decision = decision_for(reason, flipped)
+        assert baseline_decision == reason, (
+            f"baseline for {clause!r} reached {baseline_decision!r}, not {reason!r}"
+        )
+        assert flipped_decision != reason, (
+            f"{clause!r} is decorative: flipping its fact still reached"
+            f" {reason!r}"
+        )
+
+
+def test_reference_states_replay_and_stack_steps_in_order() -> None:
+    """The reference orders the prerequisite, replay, validation, and stack steps.
+
+    Independent substring checks would accept the same sentences in any order.
+    The staged replay is only correct if the fix PR is found or created before
+    the feature is replayed, and if each replayed layer is validated before the
+    next one is replayed and before the old stack's merged, merging, or queued
+    PRs are reconciled.
+    """
+    body = section(REBASE.read_text(), "Retarget onto a prerequisite fix branch")
+    ordered = (
+        "look for an open fix PR",
+        "create one that fixes exactly those violations",
+        'git rebase "$FIX_BRANCH"',
+        "Replay every layer's own commits onto the copy bottom to top",
+        'git rebase --onto "$COPY_BRANCH"',
+        "Replay the next layer only after that validation",
+        'git rebase --onto "$BOTTOM_LAYER"',
+        "`gh stack unstack` cannot remove merged, merging, or queued PRs",
+        "Reconcile those states before recreating",
+    )
+    positions = [body.index(step) for step in ordered]
+    assert positions == sorted(positions), (
+        f"the documented steps are out of order: {ordered}"
     )
 
 

@@ -54,6 +54,13 @@ an investigation comment, or dispatching a repair. The scrutineer still
 collects those logs under its own procedure; the summoning agent withholds them
 until the rebased candidate has its own CI result.
 
+Once `TARGET` is frozen, replay the candidate's own commits onto it:
+
+```bash
+# stale-base-replay: land the frozen target beneath the candidate's own commits
+git rebase "$TARGET"
+```
+
 Re-observe the rebased candidate's CI before investigating. When local gates
 also fail, or the branch already contains the target head, continue with normal
 failure diagnosis. Do not rebase merely because a check is red: the local pass
@@ -117,6 +124,11 @@ PR's base to its branch. Replay only this PR's own commits onto the fix branch,
 then verify both review diffs and the remote target relationship. A violation
 the candidate's accepted scope covers stays in this PR's diff.
 
+```bash
+# prerequisite-replay: replay only this PR's own commits onto the fix branch
+git rebase "$FIX_BRANCH"
+```
+
 This classification does not wait for a green local gate. When the gate that
 reports the violation is red, the out-of-scope violation still becomes
 prerequisite work rather than an in-scope repair, so classify it before routing
@@ -136,10 +148,24 @@ When this PR is already a stack layer, replay the whole stack onto the new fix
 PR rather than inserting the fix between two layers. If an existing fix PR is
 the base, take a temporary copy of its branch for the stack, because the
 original branch will move and then become obsolete when it merges. Replay every
-layer's own commits onto the copy bottom to top and validate each replayed
+layer's own commits onto the copy bottom to top, and validate each replayed
 layer before it joins the new stack; restack onto the merged target after the
-fix PR lands. `gh stack` fixes a stack's trunk at creation only, so moving the
-stack onto the copy means recreating it with
+fix PR lands.
+
+```bash
+# stack-copy-replay-bottom: replay the bottom layer's own commits onto the copy
+git rebase --onto "$COPY_BRANCH" "$STACK_BASE" "$BOTTOM_LAYER"
+```
+
+Replay the next layer only after that validation:
+
+```bash
+# stack-copy-replay-upper: replay an upper layer's own commits onto the layer below
+git rebase --onto "$BOTTOM_LAYER" "$ORIGINAL_BOTTOM" "$UPPER_LAYER"
+```
+
+`gh stack` fixes a stack's trunk at creation only, so moving the stack onto the
+copy means recreating it with
 `gh stack init -b <copy-branch> <branches bottom to top>` and
 `gh stack submit`. That creates a new stack object, so any merge-queue position
 and review state restart. The old stack does not dissolve on its own:
