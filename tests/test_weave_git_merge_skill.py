@@ -155,8 +155,9 @@ def test_skill_guards_each_commit_in_a_multi_commit_rebase() -> None:
     assert (
         "Do not rely solely on the full test suite after the final commit" in skill
     ), "the workflow must reject end-of-rebase-only validation"
-    assert "Run a per-replay guard only on commits you trust to execute" in _prose(
-        skill
+    assert (
+        "Run a per-replay guard only on commits trusted to execute as the local user"
+        in _prose(skill)
     ), (
         "`--exec` runs a replayed commit's build scripts as the local user, so "
         "the guard must be limited to trusted commits"
@@ -291,12 +292,24 @@ def test_skill_describes_the_v051_managed_user_wide_estate_baseline() -> None:
     assert "do not run `weave setup --global`" in prose, (
         "the baseline prohibits writes outside managed enrolment"
     )
+    assert (
+        "write `merge.weave.driver` to the repository's local Git config" in prose
+    ), "per-repository setup replaces the managed registration locally"
+    assert "`git config --show-origin --get merge.weave.driver`" in prose, (
+        "the effective driver must be checked after any per-repository setup"
+    )
     assert "`merge.default` must not name `weave`" in prose, (
         "an unspecified path falls back to merge.default, so the host check "
         "must reject a Weave fallback"
     )
-    assert "`merge.text.driver` is also a finding" in prose, (
-        "a custom text driver redirects every merge=text rule"
+    assert "Any `merge.text.*` key is also a finding" in prose, (
+        "every key in the text-driver section registers a custom driver"
+    )
+    assert "custom merge driver text lacks command line" in prose, (
+        "a name-only text driver aborts rather than restoring the built-in"
+    )
+    assert "any other failure is a configuration read error" in prose, (
+        "the probe must distinguish an absent section from a failed read"
     )
     assert "the registry minus the extensions it declines at the source" in prose, (
         "the setup prohibition must subtract the declined extensions from the "
@@ -345,6 +358,18 @@ def test_skill_bypasses_an_opted_in_driver_with_a_command_scoped_override() -> N
     assert "Do not confuse this with `--ours` or `--theirs`" in _prose(skill), (
         "the override must be distinguished from side-discarding options"
     )
+    assert "The override also does not forward `-X` options" in _prose(skill), (
+        "strategy options reach Git's merge strategy, not an external driver"
+    )
+    assert "which honours `-X`" in _prose(skill), (
+        "paths needing native `-X` behaviour must have the attribute-level route"
+    )
+    assert "names the driver Git uses to build virtual ancestors" in _prose(skill), (
+        "the recursive driver's role in criss-cross merges must be stated"
+    )
+    assert (
+        "prints nothing before using the override" in _prose(skill)
+    ), "the recursive `text` driver must be qualified by an absent section"
 
 
 def test_skill_requires_semantic_post_operation_audit() -> None:
@@ -505,6 +530,13 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
     assert 'rebase --onto "$TARGET" "$OLD_BASE" --exec' in skill, (
         "an --onto replay must keep its recorded boundary and its per-commit guard"
     )
+    assert (
+        "Carry an original `--exec` guard forward only when the replayed "
+        "commits are trusted to execute as the local user" in _prose(skill)
+    ), "a retry must reapply the same trust condition as the first attempt"
+    assert "its guard only for" in skill, (
+        "the --onto example must qualify its guard in place"
+    )
     assert "every continuation starts a new merge" in _prose(skill), (
         "each --continue and authorized --skip must repeat the override"
     )
@@ -514,6 +546,9 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
     assert "`Cannot merge binary files`" in _prose(skill), (
         "the override must state that git merge-file rejects NUL-containing input"
     )
+    assert "looks for NUL only in the first 8,000 bytes" in _prose(skill), (
+        "the binary check must be limited to the window Git actually scans"
+    )
 
 
 def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
@@ -521,7 +556,8 @@ def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
     _, skill = _skill_frontmatter()
 
     assert (
-        "git config --get-all merge.text.driver   # must print nothing\n"
+        "git config --get-regexp '^merge\\.text\\.'   # must print nothing and "
+        "exit 1\n"
         "git -c core.attributesFile=/dev/null \\\n"
         "    -c merge.default=text \\\n"
         "    -c merge.conflictStyle=zdiff3 \\\n"
@@ -532,7 +568,11 @@ def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
     )
     assert "custom drivers before its built-ins" in _prose(skill), (
         "the narrower route must say why `merge.default=text` can run a "
-        "host-defined `merge.text.driver`"
+        "host-defined `text` driver"
+    )
+    assert "a `merge.text.name` on its own aborts the operation" in _prose(skill), (
+        "the narrower route must distinguish a name-only section from an absent "
+        "one"
     )
     assert "does not disable the system attributes file" in _prose(skill), (
         "`core.attributesFile=/dev/null` leaves the system attributes file active"
@@ -591,6 +631,10 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
     assert "| Global | Configured global attributes file" in _prose(skill), (
         "the scope matrix must cover the global attributes file"
     )
+    assert (
+        "With `GIT_ATTR_NOSYSTEM=1` set when the system file had to be excluded"
+        in _prose(skill)
+    ), "the global row's verification must exclude the system file it relies on"
     assert "| Tracked | Repository `.gitattributes`" in _prose(skill), (
         "the scope matrix must cover tracked repository attributes"
     )
@@ -627,9 +671,9 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
         "the built-in text merge needs a form that a custom `text` driver "
         "cannot redirect"
     )
-    assert "`git config --get merge.text.driver` prints nothing" in _prose(skill), (
-        "`merge=text` must be qualified by the absence of a custom text driver"
-    )
+    assert "`git config --get-regexp '^merge\\.text\\.'` prints nothing" in _prose(
+        skill
+    ), "`merge=text` must be qualified by the absence of a custom text driver"
     assert "`merge: set`" in _prose(skill), (
         "the check must distinguish a set attribute from a driver name"
     )
@@ -802,8 +846,14 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "`*.rs merge` rule selects Git's built-in text merge directly" in _prose(
         behaviour
     ), "the reference must offer a form a custom `text` driver cannot redirect"
-    assert "the form is safe only when that setting is absent" in _prose(behaviour), (
-        "`merge=text` must be qualified by the absence of `merge.text.driver`"
+    assert "the form is safe only when that section is absent" in _prose(behaviour), (
+        "`merge=text` must be qualified by the absence of `merge.text.*`"
+    )
+    assert "custom merge driver text lacks command line" in _prose(behaviour), (
+        "the reference must record the name-only abort"
+    )
+    assert "searches only the first 8,000 bytes" in _prose(behaviour), (
+        "the NUL check must be limited to the window Git actually scans"
     )
     assert "not `.lock`" in _prose(behaviour), (
         "setup does not claim `.lock`, so the prohibition must not say it does"

@@ -181,11 +181,13 @@ The driver rejects NUL-containing input before reaching the core fallback. This
 produces exit `2`, allowing Git or the operator to handle the binary path
 instead of accepting a text merge. Replacing the driver with `git merge-file`
 changes that behaviour: the override hands the path to a line merge, which
-refuses NUL-containing input with `Cannot merge binary files` and exits
-non-zero, so Git reports a merge error rather than the ordinary binary
-conflict. For a path that may be binary, use the attribute-level route: the
-narrower prefix leaves it to native Git, or a `-merge` rule selects Git's
-built-in binary driver and leaves the conflict for the operator to resolve.
+searches only the first 8,000 bytes of each input for NUL and refuses a file
+with one in that window (`Cannot merge binary files`) with a non-zero exit, so
+Git reports a merge error rather than the ordinary binary conflict. A NUL
+beyond that window is not detected, so the check cannot classify a large file.
+For a path that may be binary, use the attribute-level route: the narrower
+prefix leaves it to native Git, or a `-merge` rule selects Git's built-in
+binary driver and leaves the conflict for the operator to resolve.
 
 Validation is intended to send an unsafe clean reconstruction through the
 line-level fallback. A successful driver exit is not proof that this happened:
@@ -358,8 +360,9 @@ dev-env-rocky ADR 011 and PR #231:
   higher-precedence attribute source still selects Weave, and
   `git check-attr merge` reports `merge: set`; a `*.rs merge=text` rule in
   `.gitattributes` names the `text` driver instead, which Git resolves through
-  custom drivers first, so a host `merge.text.driver` runs in its place and the
-  form is safe only when that setting is absent. Verify the effective value with
+  custom drivers first, so a host `merge.text.*` section runs in its place, or
+  aborts when the section has no driver command, and the form is safe only when
+  that section is absent. Verify the effective value with
   `git check-attr merge`. A command-scoped `merge.weave.driver` override
   bypasses Weave for one unattended rebase without editing any attributes.
   `info/attributes` is not inside `.git` when the checkout is a linked
@@ -367,15 +370,25 @@ dev-env-rocky ADR 011 and PR #231:
   note that every worktree of the clone shares it.
 - A host must leave `merge.default` unset or set to something other than
   `weave`: `git check-attr` still reports `unspecified` for an unselected path,
-  but Git consults that fallback and an unspecified path then runs Weave. A
-  configured `merge.text.driver` is also a host fault, because it redirects
-  every `merge=text` rule to the custom driver.
+  but Git consults that fallback and an unspecified path then runs Weave. Any
+  `merge.text.*` key is also a host fault: the section registers a custom
+  `text` driver that redirects every `merge=text` rule, and a section with only
+  `merge.text.name` set aborts the selection with
+  `custom merge driver text lacks command line`. Probe the whole section,
+  treating its no-match exit status as the clean state and any other failure as
+  a configuration read error.
 - `weave setup --global` is prohibited. It writes user-wide attributes outside
   the managed block, claims nearly every extension the parser registry supports
   — the registry minus the extensions it declines at the source (`.hs`, `.vue`,
   `.erb`, and the `.svelte*` family) — including refused Markdown and data
   formats such as `*.md` and `*.csv` though not `.lock`, and rewrites user-wide
   Git configuration, which can replace the managed driver registration.
+- Both per-repository setup scopes write `merge.weave.driver` to the
+  repository's local Git config as the bare driver path plus `%O %A %B %L %P`,
+  without `WEAVE_EVENT=1` and without quoting. Local config outranks the
+  managed global registration for every Weave-selected path, so verify
+  `git config --show-origin --get merge.weave.driver` after any setup, and
+  reverse an unexpected local value with `weave unsetup`.
 - Unattended long-lived branch rebases use Git's text merge unless dogfooding
   is explicitly requested. The sanctioned bypass for an opted-in repository is
   a command-scoped

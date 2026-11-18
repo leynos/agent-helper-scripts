@@ -797,12 +797,51 @@ def test_a_bare_merge_attribute_cannot_be_redirected_by_a_custom_text_driver(
         "the rule must resolve to the attribute state being tested"
     )
 
-    _git(repository, "merge", "topic", check=False)
+    merged = _git(repository, "merge", "topic", check=False)
 
     assert marker.exists() is custom_driver_runs, (
         "Git resolves custom drivers before its built-ins, so `merge=text` runs "
         "a host `merge.text.driver`, while a bare `merge` attribute always "
         "selects the built-in text merge"
+    )
+    if custom_driver_runs:
+        assert merged.returncode != 0, (
+            "the stub driver reports a conflict, so that merge must not complete"
+        )
+    else:
+        assert merged.returncode == 0, (
+            f"the built-in text merge must succeed: {merged.stderr}"
+        )
+        assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+            "a bare `merge` attribute must resolve the file with Git's own text "
+            "merge rather than merely avoiding the custom driver"
+        )
+
+
+def test_a_name_only_text_section_aborts_a_merge_equals_text_selection(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """`merge.text.*` is a custom driver even when no command is configured."""
+    repository, _source, _attributes = diverged
+    (repository / ".gitattributes").write_text("*.py merge=text\n", encoding="utf-8")
+    _git(repository, "add", ".gitattributes")
+    _diverge(repository, _source)
+    _git(repository, "config", "merge.text.name", "custom text")
+
+    probe = _git(repository, "config", "--get-regexp", "^merge\\.text\\.")
+    assert probe.returncode == 0 and "merge.text.name" in probe.stdout, (
+        "the whole-section probe must see a name-only entry, which a "
+        "`merge.text.driver` lookup would miss"
+    )
+
+    merged = _git(repository, "merge", "topic", check=False)
+
+    assert merged.returncode != 0, (
+        "a name-only section registers a driver with no command, so the merge "
+        "cannot fall back to Git's built-in text merge"
+    )
+    assert "custom merge driver text lacks command line" in merged.stderr, (
+        "the abort is the documented symptom the host preflight must prevent"
     )
 
 
@@ -826,6 +865,78 @@ def test_driver_override_survives_a_tracked_rule_added_during_the_replay(
             "the target's `.gitattributes` selects Weave only once the replay "
             "starts, so a pre-rebase check cannot see it; the command-scoped "
             "driver override must still keep Weave out"
+        )
+
+    assert rebased.returncode == 0, f"the override rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "the overridden driver must produce Git's text result"
+    )
+
+
+def _enrol_weave_from_the_topic(repository: Path, source: Path) -> None:
+    """Commit a tracked Weave rule, then a content change, on `topic`.
+
+    The rule arrives in the first commit the replay has to apply, so only the
+    later commit's merge can observe it. `main` changes a different function, so
+    that merge resolves cleanly once the driver is out of the way.
+    """
+    _git(repository, "commit", "--quiet", "-m", "base")
+    _git(repository, "switch", "--quiet", "--create", "topic")
+    (repository / ".gitattributes").write_text("*.py merge=weave\n", encoding="utf-8")
+    _git(repository, "add", ".gitattributes")
+    _git(repository, "commit", "--quiet", "-m", "topic enrols weave")
+    source.write_text(TOPIC_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "topic change")
+    _git(repository, "switch", "--quiet", "main")
+    source.write_text(MAIN_SOURCE, encoding="utf-8")
+    _git(repository, "commit", "--quiet", "--all", "-m", "main change")
+
+
+def test_a_rule_replayed_from_the_topic_selects_weave_for_a_later_commit(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Control: a rule the topic replays governs the commits replayed after it."""
+    repository, source, _attributes = diverged
+    _enrol_weave_from_the_topic(repository, source)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, "rebase", "main", check=False)
+
+        assert spy.call_count > 0, (
+            "the first replayed commit installs the rule, so the next commit's "
+            "merge must reach the driver; otherwise the override test below "
+            "would prove nothing"
+        )
+
+    assert rebased.returncode == 0, f"the driver resolved rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == CORRUPT_OUTPUT, (
+        "the driver's output must land, proving the replayed rule was in force"
+    )
+
+
+def test_driver_override_survives_a_rule_replayed_from_the_topic(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A rule the topic itself delivers cannot outrun the command-scoped override."""
+    repository, source, _attributes = diverged
+    _enrol_weave_from_the_topic(repository, source)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, *DRIVER_OVERRIDE, "rebase", "main", check=False)
+
+        assert spy.call_count == 0, (
+            "the rule exists only after the replay starts, so the command-scoped "
+            "override must still keep Weave out of the later commit's merge"
         )
 
     assert rebased.returncode == 0, f"the override rebase must succeed: {rebased.stderr}"

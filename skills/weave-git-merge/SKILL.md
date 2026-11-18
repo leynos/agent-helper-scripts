@@ -59,7 +59,7 @@ type -a weave weave-driver
 git config --show-origin --show-scope --get-all merge.weave.driver
 git config --show-origin --show-scope --get-all merge.conflictStyle
 git config --show-origin --show-scope --get-all merge.default
-git config --show-origin --show-scope --get-all merge.text.driver
+git config --show-origin --show-scope --get-regexp '^merge\.text\.'
 git check-attr merge -- src/lib.rs app.py app.ts app.tsx README.md Cargo.toml
 ```
 
@@ -73,13 +73,18 @@ unexpected Weave selection for a refused category such as Markdown, data, or
 lock files. `merge.default` must not name `weave`: `check-attr` still reports
 `unspecified` for an unselected path, yet Git consults that fallback and runs
 Weave on it, so a `!merge` opt-out does not bypass Weave while the setting
-stands. A configured `merge.text.driver` is also a finding: it redirects every
-`merge=text` rule to that custom driver instead of Git's built-in text merge. A
-repository's own reviewed attribute rule, and dogfooding the task explicitly
-requests, are deliberate enrolment rather than host faults. A host that reports
-`0.3.6` has not been reconciled either. Record any unexpected selection as an
-environment finding and apply the unattended bypass below rather than assuming
-the baseline.
+stands. Any `merge.text.*` key is also a finding. Git treats that section as a
+custom driver named `text` and resolves custom drivers before its built-ins, so
+`merge.text.driver` redirects every `merge=text` rule to its command, and with
+only `merge.text.name` set the selection aborts with
+`custom merge driver text lacks command line` instead of falling back. The
+probe must therefore cover the whole section: printing nothing and exiting 1
+means no custom `text` driver, while any other failure is a configuration read
+error rather than an absent driver. A repository's own reviewed attribute rule,
+and dogfooding the task explicitly requests, are deliberate enrolment rather
+than host faults. A host that reports `0.3.6` has not been reconciled either.
+Record any unexpected selection as an environment finding and apply the
+unattended bypass below rather than assuming the baseline.
 
 ## Establish the operation and evidence boundary
 
@@ -181,22 +186,39 @@ git -c merge.conflictStyle=zdiff3 \
     rebase --exec 'cargo check --workspace' "$TARGET"
 ```
 
-Run `--exec` only on commits you trust to execute as your user. The guard
+Run `--exec` only on commits trusted to execute as the local user. The guard
 compiles the replayed tree, so a contributor's `build.rs` or test harness runs
-with your credentials; for an untrusted branch, omit `--exec` and run the same
-checks after review in an isolated checkout.
+with the operator's credentials; for an untrusted branch, omit `--exec` and run
+the same checks after review in an isolated checkout.
+
+`-c merge.weave.recursive=text` names the driver Git uses to build virtual
+ancestors in a criss-cross merge, and that name resolves like any other. A host
+`merge.text.*` section would therefore run for virtual-ancestor creation even
+though the Weave driver is overridden. Confirm
+`git config --get-regexp '^merge\.text\.'` prints nothing before using the
+override. A single-base rebase creates no virtual ancestor, but a criss-cross
+merge does.
 
 Repeat the same `-c` overrides on every `git rebase --continue`; Git reads the
 driver configuration again for each replayed commit. Do not confuse this with
 `--ours` or `--theirs`, which discard one side of a conflict. The override
 targets Weave only; other custom merge drivers need their own policy.
 
+The override also does not forward `-X` options. Git passes `-Xours`,
+`-Xtheirs`, and the other strategy options to its own merge strategy, never to
+an external driver, so a path the override resolves with `git merge-file` can
+leave conflict markers where native `-Xours` would have taken the current side.
+Where native `-X` behaviour matters for particular paths, add a bare `merge`
+rule for them in the clone-local attributes file: it selects Git's built-in
+text merge, which honours `-X`. Keep the driver override for ordinary text
+replays.
+
 A narrower alternative is safe only when no tracked, clone-local, or system
 rule can select Weave for any path in the replay, and no custom `text` driver
 is configured:
 
 ```bash
-git config --get-all merge.text.driver   # must print nothing
+git config --get-regexp '^merge\.text\.'   # must print nothing and exit 1
 git -c core.attributesFile=/dev/null \
     -c merge.default=text \
     -c merge.conflictStyle=zdiff3 \
@@ -206,16 +228,17 @@ git -c core.attributesFile=/dev/null \
 `-c merge.default=text` closes the other route to Weave: disabling the user
 attributes file leaves each formerly enrolled path unspecified, and Git then
 consults `merge.default`. The value `text` is a driver name, and Git resolves
-custom drivers before its built-ins, so a host `merge.text.driver` would run
-instead; that is why the preflight must print nothing.
-`core.attributesFile=/dev/null` does not disable the system attributes file, so
-also confirm that file selects nothing for the replay, or run the operation with
-`GIT_ATTR_NOSYSTEM=1` as well. `check-attr` reports the working tree's
-attributes at the moment it runs, not those Git applies to a later replayed
-commit, so a `.gitattributes` rule that the target or a replay introduces is
-invisible to that check. Verify every path the replay can already see, and use
-the driver override for any replay that can add such a rule: `/dev/null` alone
-cannot override those rules.
+custom drivers before its built-ins, so a host `merge.text.*` section registers
+a custom driver that runs instead; a `merge.text.name` on its own aborts the
+operation rather than restoring the built-in. That is why the preflight must
+print nothing and exit 1. `core.attributesFile=/dev/null` does not disable the
+system attributes file, so also confirm that file selects nothing for the
+replay, or run the operation with `GIT_ATTR_NOSYSTEM=1` as well. `check-attr`
+reports the working tree's attributes at the moment it runs, not those Git
+applies to a later replayed commit, so a `.gitattributes` rule that the target
+or a replay introduces is invisible to that check. Verify every path the replay
+can already see, and use the driver override for any replay that can add such a
+rule: `/dev/null` alone cannot override those rules.
 
 This prefix belongs on every command of the operation, not only the first:
 repeat the same `-c` overrides — and `GIT_ATTR_NOSYSTEM=1`, when the system
@@ -261,6 +284,17 @@ files to an experiment by default.
 Pass `--driver /absolute/path/to/weave-driver` when auto-detection is
 unreliable. Prefer a stable installed path over a versioned build directory.
 
+Both per-repository scopes also write `merge.weave.driver` to the repository's
+local Git config. That command is the bare driver path followed by
+`%O %A %B %L %P`, without `WEAVE_EVENT=1` and without shell quoting, and local
+config outranks the global registration for every path Git sends to Weave,
+including paths selected only by the managed block. A repository-local setup
+therefore replaces event capture and the quoted canonical path for that clone,
+whatever attributes select. On a managed host, verify the effective value with
+`git config --show-origin --get merge.weave.driver`; it must keep
+`WEAVE_EVENT=1` and the quoted absolute path, or the local setup has to be
+reversed with `weave unsetup`.
+
 Repository attributes take precedence over the managed user-wide block, so a
 repository can opt out persistently. `*.rs !merge` in `.git/info/attributes`
 makes the attribute unspecified for this clone without sharing the change.
@@ -271,13 +305,13 @@ merge directly: a bare `merge` attribute (`*.rs merge`) does that, and
 `git check-attr merge` reports `merge: set`. `*.rs merge=text` in
 `.gitattributes` is tracked and opts out every clone that does not already
 select Weave from a higher-precedence source, but it names the `text` driver,
-and Git resolves custom drivers before its built-ins, so a host
-`merge.text.driver` runs instead; use that form only when
-`git config --get merge.text.driver` prints nothing. `merge=text` is unaffected
-by `merge.default`, and so is the bare form. Attribute precedence still decides
-the result: a `.git/info/attributes` rule, or a closer `.gitattributes` rule,
-can keep Weave selected, so verify the change with
-`git check-attr merge -- path/to/file.rs`.
+and Git resolves custom drivers before its built-ins, so a host `merge.text.*`
+section runs instead, or aborts when the section has no driver command; use
+that form only when `git config --get-regexp '^merge\.text\.'` prints nothing.
+`merge=text` is unaffected by `merge.default`, and so is the bare form.
+Attribute precedence still decides the result: a `.git/info/attributes` rule,
+or a closer `.gitattributes` rule, can keep Weave selected, so verify the
+change with `git check-attr merge -- path/to/file.rs`.
 
 `info/attributes` is not always inside a `.git` directory: a linked worktree
 has a `.git` file, so resolve the real path with
@@ -290,12 +324,12 @@ bypasses below, which leave attribute files untouched.
 Use this compact matrix when bypassing Weave after preserving the current
 attribute state:
 
-| Setup scope           | Rule location                                                                 | Make `merge` unspecified                                                                                                                                                                                     | Verify, then retry                                                                                                                                                                                                                                                          |
-| --------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any (driver override) | Any attribute source; the rule stays in place                                 | Run Git with `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text`. `merge` stays `weave`; the named driver is replaced for that command.                | `git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text config --get merge.weave.driver` must print the `git merge-file` command; rerun the original operation, and every `--continue`, under the same `-c` overrides. |
-| Global                | Configured global attributes file's managed block (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`, and confirm no system attributes file selects Weave (`GIT_ATTR_NOSYSTEM=1` for the command).                                                                | `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments under the same `-c`.                                                                                             |
-| Tracked               | Repository `.gitattributes`                                                   | Preserve the clone-local attributes file, resolved with `git rev-parse --git-path info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore it only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                  |
-| Clone-local           | The clone's `info/attributes`, shared by its worktrees                        | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore it only after the operation completes.                                                                                        | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                  |
+| Setup scope           | Rule location                                                                 | Make `merge` unspecified                                                                                                                                                                                     | Verify, then retry                                                                                                                                                                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Any (driver override) | Any attribute source; the rule stays in place                                 | Run Git with `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text`. `merge` stays `weave`; the named driver is replaced for that command.                | `git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' -c merge.weave.recursive=text config --get merge.weave.driver` must print the `git merge-file` command; rerun the original operation, and every `--continue`, under the same `-c` overrides.    |
+| Global                | Configured global attributes file's managed block (or the default path above) | Run Git with `-c core.attributesFile=/dev/null`, and confirm no system attributes file selects Weave (`GIT_ATTR_NOSYSTEM=1` for the command).                                                                | With `GIT_ATTR_NOSYSTEM=1` set when the system file had to be excluded, `git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments and the same environment and `-c` settings. |
+| Tracked               | Repository `.gitattributes`                                                   | Preserve the clone-local attributes file, resolved with `git rev-parse --git-path info/attributes`; add a later path-specific `path/to/file.py !merge` there; restore it only after the operation completes. | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                     |
+| Clone-local           | The clone's `info/attributes`, shared by its worktrees                        | Preserve the file; add a later path-specific `path/to/file.py !merge`; restore it only after the operation completes.                                                                                        | `git check-attr merge -- path/to/file.py` must report `unspecified`; rerun the original operation with the same arguments.                                                                                                                                                     |
 
 Prefer the driver override for an opted-in repository: it leaves the tracked
 and clone-local attribute files untouched and needs no restore step. Use the
@@ -446,10 +480,10 @@ multi-commit rebase. Use `git rebase --exec` with the repository's cheapest
 credible structural gate, rather than reserving this only for import-relocation
 branches.
 
-Run a per-replay guard only on commits you trust to execute as your user.
+Run a per-replay guard only on commits trusted to execute as the local user.
 `--exec` runs in the replayed tree, so a contributor's `build.rs` or test
-harness executes with your credentials; for an untrusted branch, omit `--exec`
-and run the same gate on the reviewed result in an isolated checkout.
+harness executes with the operator's credentials; for an untrusted branch, omit
+`--exec` and run the same gate on the reviewed result in an isolated checkout.
 
 For Python, for example:
 
@@ -725,10 +759,14 @@ For a retry, use the command-scoped driver override for the rebase, merge, or
 cherry-pick. It replaces the named driver for the whole operation whichever
 attribute source selects Weave, including a tracked rule that a replayed commit
 introduces, so it does not depend on inspecting a representative path. Repeat
-the original operation's arguments, including any `--onto` boundary and any
-`--exec` guard, and add only the `-c` overrides: aborting an `--onto` replay
-and retrying with a plain `rebase "$TARGET"` can replay inherited parent
-commits and drops the original per-commit checks.
+the original operation's arguments, including any `--onto` boundary, and add
+only the `-c` overrides: aborting an `--onto` replay and retrying with a plain
+`rebase "$TARGET"` can replay inherited parent commits. Carry an original
+`--exec` guard forward only when the replayed commits are trusted to execute as
+the local user, on the same condition as the first attempt; otherwise omit it
+and run the checks on the reviewed result. Confirm
+`git config --get-regexp '^merge\.text\.'` prints nothing before using the
+`merge.weave.recursive=text` override.
 
 ```bash
 # Only after recovery evidence is verified. Use the abort for an interrupted
@@ -742,7 +780,8 @@ git -c merge.conflictStyle=zdiff3 \
     -c merge.weave.recursive=text \
     rebase "$TARGET"
 
-# An --onto replay keeps its recorded boundaries and its guards:
+# An --onto replay keeps its recorded boundaries, and its guard only for
+# commits trusted to execute as the local user:
 git -c merge.conflictStyle=zdiff3 \
     -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
     -c merge.weave.recursive=text \
@@ -783,14 +822,17 @@ with `git rev-parse --git-path info/attributes`, outranks every attribute
 source for that path, so it remains the attribute-level bypass when the goal is
 for Git to report the path as unselected.
 
-The override assumes text input. `git merge-file` refuses a NUL-containing file
-(`Cannot merge binary files`) and exits non-zero, so Git reports a merge error
+The override assumes text input. `git merge-file` looks for NUL only in the
+first 8,000 bytes of each input, so a file with a NUL in that window is refused
+(`Cannot merge binary files`) and exits non-zero, and Git reports a merge error
 instead of leaving the ordinary binary conflict that running without Weave
-would produce. For a path that may be binary, keep the attribute-level route
-instead: when Weave selected it only through the managed user-wide block, the
-narrower prefix leaves it to native Git, or add `path/to/file -merge` to the
-clone-local attributes file to select Git's built-in binary driver for that
-path, which leaves the conflict for you to resolve.
+would produce. A NUL beyond that window is not detected and can pass into a
+line merge, so do not rely on this check to classify a large file. For a path
+that may be binary, keep the attribute-level route instead: when Weave selected
+it only through the managed user-wide block, the narrower prefix leaves it to
+native Git, or add `path/to/file -merge` to the clone-local attributes file to
+select Git's built-in binary driver for that path, which leaves the conflict
+for the operator to resolve.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and

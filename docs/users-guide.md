@@ -508,8 +508,8 @@ policy refuses data, Markdown, and lock-file extensions user-wide (`csv`,
 `yaml`, and `yml`), although a repository may enrol reviewed paths through its
 own attributes. The skill shows how to verify a host against that baseline
 before trusting it; that check also reads `merge.default`, because an
-unspecified path falls back to it, and `merge.text.driver`, because it
-redirects every `merge=text` rule to a custom driver.
+unspecified path falls back to it, and the whole `merge.text.*` section,
+because it registers a custom driver for every `merge=text` rule.
 
 Repository attributes take precedence over the managed global block, so a
 repository can bypass enrolment with `*.rs !merge` or `*.rs merge` in the
@@ -517,10 +517,11 @@ clone's `info/attributes`, or `*.rs merge=text` in `.gitattributes`. Because an
 unspecified `merge` attribute falls back to `merge.default`, `!merge` bypasses
 Weave only when that setting does not name Weave; a bare `merge` attribute
 selects Git's built-in text merge and reports `merge: set`, while `merge=text`
-names the `text` driver, so a host `merge.text.driver` takes its place and
-`merge=text` is safe only when none is configured. Attribute precedence still
-applies, so confirm the effective value with `git check-attr merge`.
-`info/attributes` lives outside `.git` in a linked worktree, so resolve it with
+names the `text` driver, so a host `merge.text.*` section takes its place, or
+aborts the merge when it has no driver command, and `merge=text` is safe only
+when that section is absent. Attribute precedence still applies, so confirm the
+effective value with `git check-attr merge`. `info/attributes` lives outside
+`.git` in a linked worktree, so resolve it with
 `git rev-parse --git-path info/attributes`; every worktree of the clone shares
 it. See the [detailed skill](../skills/weave-git-merge/SKILL.md) for the scope
 differences and the command-scoped alternatives.

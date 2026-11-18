@@ -1348,21 +1348,28 @@ take precedence over the global block, so a repository can bypass enrolment with
 back to `merge.default`, so `!merge` bypasses Weave only when that setting does
 not name Weave; a bare `merge` attribute selects Git's built-in text merge and
 reports `merge: set`, while `merge=text` names the `text` driver, so a host
-`merge.text.driver` takes its place and the form is safe only when none is
-configured. Attribute precedence still applies, so verify the effective value
-with `git check-attr merge`. `info/attributes` lives outside `.git` in a linked
+`merge.text.*` section takes its place, or aborts when the section has no
+driver command, and the form is safe only when that section is absent.
+Attribute precedence still applies, so verify the effective value with
+`git check-attr merge`. `info/attributes` lives outside `.git` in a linked
 worktree; resolve it with `git rev-parse --git-path info/attributes`, and note
 that every worktree of the clone shares it. The host preflight also reads
-`merge.default` and `merge.text.driver`, because the first turns an unspecified
-path back into Weave and the second redirects every `merge=text` rule. The
-sanctioned command-scoped bypass replaces the named driver for one command
-rather than editing attribute files:
+`merge.default` and the whole `merge.text.*` section, because the first turns
+an unspecified path back into Weave and the second registers a custom driver
+for every `merge=text` rule; a section with only `merge.text.name` set aborts
+the selection rather than restoring the built-in. The sanctioned command-scoped
+bypass replaces the named driver for one command rather than editing attribute
+files:
 `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
 -c merge.weave.recursive=text`,
 repeated on every `--continue` or authorized `--skip`; any `--exec` guard runs
-only on commits trusted to execute as the local user. The scope matrix keeps
-the attribute-level rows for hosts that have not been reconciled. Tests must
-keep both routes executable against real Git.
+only on commits trusted to execute as the local user, and the recursive driver
+name requires the `merge.text.*` section to be absent because a criss-cross
+merge uses it to build virtual ancestors. The override does not forward `-X`
+options to the external driver, so paths that need native `-X` behaviour belong
+on a bare `merge` attribute instead. The scope matrix keeps the attribute-level
+rows for hosts that have not been reconciled. Tests must keep both routes
+executable against real Git.
 
 ### Setup scopes
 
@@ -1382,6 +1389,18 @@ keep both routes executable against real Git.
   source (`.hs`, `.vue`, `.erb`, and the `.svelte*` family) — including refused
   Markdown and data formats such as `*.md` and `*.csv` though not `.lock`, and
   can replace the managed driver registration.
+
+Both per-repository scopes also write `merge.weave.driver` into the
+repository's local Git config as the bare driver path followed by
+`%O %A %B %L %P`, without `WEAVE_EVENT=1` and without shell quoting. Local
+config outranks the global registration for every path Git sends to Weave,
+including paths selected only by the managed block, so a repository-local setup
+replaces event capture and the quoted canonical path for that clone whatever
+attributes select. On a managed host, opt in through attributes alone, or
+verify the effective command with
+`git config --show-origin --get merge.weave.driver` and require it to keep
+`WEAVE_EVENT=1` and the quoted absolute path; reverse an unexpected local setup
+with `weave unsetup`.
 
 ### Driver contract
 
