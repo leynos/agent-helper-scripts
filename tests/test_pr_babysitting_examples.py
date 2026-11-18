@@ -27,7 +27,10 @@ Relationships
 Hosted operations are not verified here: changing a PR's base, `gh stack init`,
 `gh stack submit`, `gh stack unstack`, and reconciling merged, merging or
 queued PRs happen on GitHub rather than in the fixture's file-transport
-remotes. Tests that stop at a hosted boundary say so in their own docstrings.
+remotes. Routing and stack decisions are prose-verified only: this module runs
+the documented Git commands where the reference fences them, and the decision
+functions it calls restate the skill's prose rather than executing it. Tests
+that stop at a hosted boundary say so in their own docstrings.
 """
 
 from __future__ import annotations
@@ -213,7 +216,8 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
     freeze and replay land that fix without dropping the feature work, and the
     rebased candidate's own result then decides whether anything is
     investigated. The gate scripts stand in for the hosted run; the hosted CI
-    service itself is not verified here.
+    service itself is not verified here, and the routing between rebase,
+    re-observation and investigation is prose-verified only.
     """
     fixture = local_git
     fixture.git("switch", "-c", "feature")
@@ -284,6 +288,8 @@ def test_stale_base_routing_does_not_rebase_without_a_local_pass(
     gate fails keeps its history and routes to investigation. The facts are read
     from the fixture tree rather than asserted as literals, and the branch head
     is compared before and after so the test shows that no replay took place.
+    The routing itself is prose-verified only: the documented procedure is an
+    instruction to the agent, and this module runs only its Git commands.
     """
     fixture = local_git
     fixture.git("switch", "-c", "feature")
@@ -323,10 +329,11 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     the same commit, so the candidate's base and the shared branch point are the
     same object. The feature branch is replayed onto the fix branch by the
     reference's own fenced command, so the repair is an ancestor and the
-    feature's own diff contains only its own commits. The hosted step that changes the PR's base to the fix branch is
-    not verified here; the disposition is fed the resulting facts instead, and
-    for either value of the stack tooling an existing fix PR selects a plain
-    base rather than a new stack layer.
+    feature's own diff contains only its own commits. The hosted step that
+    changes the PR's base to the fix branch is not verified here; the
+    disposition is fed the resulting facts instead, and for either value of the
+    stack tooling an existing fix PR selects a plain base rather than a new
+    stack layer. Those routing and stack decisions are prose-verified only.
     """
     fixture = local_git
     fixture.git("switch", "-c", "lint-fix")
@@ -401,7 +408,8 @@ def test_prerequisite_replay_excludes_target_commits_the_fix_branch_predates(
     that unbounded form first, so the fixture is shown to contain the commits at
     issue; the documented replay then names the candidate's base as the
     upstream boundary, and only the candidate's own commit enters the feature
-    diff. The hosted step that changes the PR's base is not verified here.
+    diff. The hosted step that changes the PR's base is not verified here, and
+    the routing that selects this replay is prose-verified only.
     """
     fixture = local_git
     fixture.git("switch", "-c", "lint-fix")
@@ -462,7 +470,8 @@ def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(
     before it joins the stack. Hosted stack recreation is not verified: `gh
     stack init`, `gh stack submit`, `gh stack unstack`, and reconciling merged,
     merging or queued PRs all happen on GitHub, and only the Git-visible
-    prerequisite is asserted here.
+    prerequisite is asserted here. The decision to recreate the stack, and the
+    order in which the hosted steps run, are prose-verified only.
     """
     fixture = local_git
     fixture.git("switch", "-c", "fix-copy")
@@ -1206,12 +1215,16 @@ def test_examples_module_docstring_names_its_coverage_and_helper_inputs() -> Non
     unread.
     """
     docstring = ast.get_docstring(ast.parse(Path(__file__).read_text())) or ""
+    # The docstring is hard-wrapped, so a phrase can straddle a line break.
+    # Matching on collapsed whitespace asserts the record itself rather than
+    # the wrap width, and a phrase that is genuinely absent still fails.
+    text = normalize(docstring)
     for coverage in (
         "sources-and-rehearsal.md",
         "flowchart",
         "assessment contract guards",
         "mutation cases",
     ):
-        assert coverage in docstring, f"module docstring must name: {coverage}"
+        assert coverage in text, f"module docstring must name: {coverage}"
     for helper in HELPER_MODULES:
-        assert helper in docstring, f"module docstring must name its helper: {helper}"
+        assert helper in text, f"module docstring must name its helper: {helper}"
