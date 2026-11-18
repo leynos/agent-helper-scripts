@@ -1369,16 +1369,19 @@ keep both routes executable against real Git.
 `weave setup` writes three mutually exclusive scopes:
 
 - default — tracked `.gitattributes`, shared with the whole team. Since Weave
-  0.4.0 the extension list is derived from the parser registry (38 formats), so
-  the output needs review before it is accepted;
-- `--local` — untracked `.git/info/attributes`, this clone only;
+  0.4.0 the extension list is derived from the parser registry with the
+  extensions it declines at the source subtracted, so the output needs review
+  before it is accepted;
+- `--local` — untracked clone-local `info/attributes`, this clone only;
 - `--global` — global Git config plus a global attributes file. When
   `core.attributesFile` is unset, Git falls back to
   `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`. The
   estate baseline prohibits this scope: it writes user-wide attributes outside
-  the managed enrolment block, claims every extension the parser registry
-  supports, including refused Markdown and data formats such as `*.md` and
-  `*.csv` though not `.lock`, and can replace the managed driver registration.
+  the managed enrolment block, claims nearly every extension the parser
+  registry supports — the registry minus the extensions it declines at the
+  source (`.hs`, `.vue`, `.erb`, and the `.svelte*` family) — including refused
+  Markdown and data formats such as `*.md` and `*.csv` though not `.lock`, and
+  can replace the managed driver registration.
 
 ### Driver contract
 

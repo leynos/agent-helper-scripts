@@ -371,10 +371,11 @@ dev-env-rocky ADR 011 and PR #231:
   configured `merge.text.driver` is also a host fault, because it redirects
   every `merge=text` rule to the custom driver.
 - `weave setup --global` is prohibited. It writes user-wide attributes outside
-  the managed block, claims every extension the parser registry supports,
-  including refused Markdown and data formats such as `*.md` and `*.csv` though
-  not `.lock`, and rewrites user-wide Git configuration, which can replace the
-  managed driver registration.
+  the managed block, claims nearly every extension the parser registry supports
+  — the registry minus the extensions it declines at the source (`.hs`, `.vue`,
+  `.erb`, and the `.svelte*` family) — including refused Markdown and data
+  formats such as `*.md` and `*.csv` though not `.lock`, and rewrites user-wide
+  Git configuration, which can replace the managed driver registration.
 - Unattended long-lived branch rebases use Git's text merge unless dogfooding
   is explicitly requested. The sanctioned bypass for an opted-in repository is
   a command-scoped

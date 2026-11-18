@@ -298,9 +298,12 @@ def test_skill_describes_the_v051_managed_user_wide_estate_baseline() -> None:
     assert "`merge.text.driver` is also a finding" in prose, (
         "a custom text driver redirects every merge=text rule"
     )
-    assert "claims every extension the parser registry supports" in prose, (
-        "the setup prohibition must describe the registry-derived claim"
+    assert "the registry minus the extensions it declines at the source" in prose, (
+        "the setup prohibition must subtract the declined extensions from the "
+        "registry-derived claim"
     )
+    for extension in ("`.hs`", "`.vue`", "`.erb`", "`.svelte*`"):
+        assert extension in prose, f"the declined set must name {extension}"
     assert "src/*.rs merge=weave" in prose, (
         "the skill must show deliberate enrolment for reviewed paths"
     )
@@ -546,6 +549,12 @@ def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
     assert "use the driver override for any replay that can add such a rule" in (
         _prose(skill)
     ), "a rule arriving mid-replay must switch to the driver override"
+    assert "This prefix belongs on every command of the operation" in _prose(skill), (
+        "the narrower prefix must not be presented as a one-off opening command"
+    )
+    assert "on each `git rebase --continue` and any authorized `git rebase --skip`" in (
+        _prose(skill)
+    ), "the narrower prefix must be repeated on continuation and on an authorized skip"
 
 
 def test_skill_recovers_a_completed_operation_by_resetting_the_candidate() -> None:
@@ -598,6 +607,10 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
         "a linked worktree has a `.git` file, so the attributes path must be "
         "resolved through Git rather than assumed under `.git/info`"
     )
+    assert (
+        "Inspect the clone's `info/attributes`, resolved with "
+        "`git rev-parse --git-path info/attributes`" in _prose(skill)
+    ), "the diagnosis step itself must resolve the clone-local attributes path"
     assert "shared by every worktree of the clone" in _prose(skill), (
         "the clone-local file is not scoped to one worktree"
     )
@@ -795,6 +808,9 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "not `.lock`" in _prose(behaviour), (
         "setup does not claim `.lock`, so the prohibition must not say it does"
     )
+    assert "the registry minus the extensions it declines at the source" in _prose(
+        behaviour
+    ), "the prohibition must subtract the declined extensions from its claim"
     assert "`*.rs merge=text` rule in `.gitattributes`" in _prose(behaviour), (
         "the tracked persistent opt-out must be recorded"
     )

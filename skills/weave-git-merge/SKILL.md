@@ -146,10 +146,12 @@ weave --version
 
 Expect `git check-attr` to report `merge: weave` when selected.
 `git check-attr -a -- path` reports only effective attribute values, not which
-source supplied them. Inspect `.git/info/attributes`, applicable
-`.gitattributes` files, and the configured global attributes file directly (or
-the default `$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes`
-when no file is configured). Locate an explicitly configured file with
+source supplied them. Inspect the clone's `info/attributes`, resolved with
+`git rev-parse --git-path info/attributes` (a linked worktree has no
+`.git/info/attributes`), the applicable `.gitattributes` files, and the
+configured global attributes file directly (or the default
+`$XDG_CONFIG_HOME/git/attributes` / `$HOME/.config/git/attributes` when no file
+is configured). Locate an explicitly configured file with
 `git config --path --get core.attributesFile`. That command prints nothing and
 exits non-zero when the setting is absent, which means the default path
 applies, not that no global rule exists; read the default path before
@@ -215,6 +217,13 @@ invisible to that check. Verify every path the replay can already see, and use
 the driver override for any replay that can add such a rule: `/dev/null` alone
 cannot override those rules.
 
+This prefix belongs on every command of the operation, not only the first:
+repeat the same `-c` overrides — and `GIT_ATTR_NOSYSTEM=1`, when the system
+attributes file had to be excluded — on each `git rebase --continue` and any
+authorized `git rebase --skip`. Git reads the merge configuration again for
+each replayed commit, so a prefix applied only to the opening invocation does
+not cover the rest of the replay.
+
 If tracked `.gitattributes` selects Weave, that is explicit repository policy
 for attended merges and for dogfooding the repository has asked for. Do not
 silently bypass it for attended work. The estate baseline still routes an
@@ -236,16 +245,18 @@ weave setup --global
 ```
 
 Under the estate baseline, do not run `weave setup --global`: it writes
-user-wide attributes outside the managed block, claims every extension the
-parser registry supports, which includes refused data and Markdown formats such
-as `*.csv` and `*.md` but not `.lock`, and rewrites user-wide Git
-configuration, which can replace the managed driver registration. Managed
-provisioning owns user-wide enrolment. Review the output of a bare
-`weave setup` before accepting it; since 0.4.0 it claims every extension the
-parser registry supports, 38 formats in total. Prefer a handwritten, narrow
-tracked or clone-local rule for reviewed paths beyond the managed defaults,
-such as `src/*.rs merge=weave`, and do not add JSON, TOML, YAML, Markdown, or
-lock files to an experiment by default.
+user-wide attributes outside the managed block, claims nearly every extension
+the parser registry supports — the registry minus the extensions it declines at
+the source (`.hs`, `.vue`, `.erb`, and the `.svelte*` family) — which includes
+refused data and Markdown formats such as `*.csv` and `*.md` but not `.lock`,
+and rewrites user-wide Git configuration, which can replace the managed driver
+registration. Managed provisioning owns user-wide enrolment. Review the output
+of a bare `weave setup` before accepting it; since 0.4.0 its claim set is
+derived from the parser registry with the same declines subtracted, so it grows
+whenever a grammar is added upstream. Prefer a handwritten, narrow tracked or
+clone-local rule for reviewed paths beyond the managed defaults, such as
+`src/*.rs merge=weave`, and do not add JSON, TOML, YAML, Markdown, or lock
+files to an experiment by default.
 
 Pass `--driver /absolute/path/to/weave-driver` when auto-detection is
 unreliable. Prefer a stable installed path over a versioned build directory.
