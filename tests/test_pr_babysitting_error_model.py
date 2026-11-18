@@ -570,7 +570,12 @@ def test_every_reason_states_its_trigger_conditions() -> None:
 def test_dropping_any_trigger_condition_is_detected(
     reason: str, clause: str
 ) -> None:
-    """Removing or inverting one trigger clause fails the condition contract."""
+    """Removing one trigger clause fails the condition contract.
+
+    This covers deletion only. Inverting a clause is a different mutation and
+    is not attempted here; the guarded-fact test covers the model side by
+    flipping the fact each clause names.
+    """
     mutated = mutate_one_clause(SKILL.read_text(), clause, "")
     assert clause in _missing(mutated, REASON_CONDITIONS[reason]), (
         f"dropping {clause!r} left reason {reason!r} satisfied"
@@ -614,14 +619,15 @@ def decision_for(reason: str, facts: dict[str, bool]) -> str:
     return lint_case(**facts)
 
 
-#: For each trigger or selection clause, the facts it guards: the set that
-#: satisfies the reason, and the same set with that clause's fact flipped.
-#: Clauses are named by their position in ``REASON_CONDITIONS`` so the map
-#: cannot drift from the model's own clause list. Each pair differs in exactly
-#: one fact, so a changed decision is attributable to the clause under test.
-#: The test below asserts both properties, so a clause that survives as
-#: decorative prose, or a pair whose changed decision could belong to another
-#: fact, fails the suite instead of passing a presence check.
+#: For each condition clause, the fact it guards: the fact set that satisfies
+#: the reason, and the same set with that clause's fact flipped. Clauses are
+#: named by their position in ``REASON_CONDITIONS`` so the map cannot drift
+#: from the model's own clause list. Each pair differs in exactly one fact, and
+#: no two clauses of one reason bind the same fact, so a changed decision is
+#: attributable to the clause under test. The test below asserts all three
+#: properties, so a clause that survives as decorative prose, or a second
+#: clause credited with another clause's fact, fails the suite instead of
+#: passing a presence check.
 GUARDED_DECISIONS = {
     (NO_CI_FAILURE, 0): (
         _ci_facts(ci_failing=False),
@@ -639,15 +645,7 @@ GUARDED_DECISIONS = {
         _ci_facts(behind_target=True),
         _ci_facts(behind_target=False),
     ),
-    (REBASE_FIRST, 3): (
-        _ci_facts(behind_target=True),
-        _ci_facts(behind_target=True, local_gates_pass=False),
-    ),
     (PREREQUISITE_FIX, 0): (
-        _ci_facts(hosted_out_of_scope_lint=True),
-        _ci_facts(),
-    ),
-    (PREREQUISITE_FIX, 1): (
         _ci_facts(hosted_out_of_scope_lint=True),
         _ci_facts(),
     ),
@@ -675,10 +673,6 @@ GUARDED_DECISIONS = {
         _lint_facts(stack_tooling=False),
         _lint_facts(stack_tooling=False, newer_suite=False),
     ),
-    (CREATE_FIX_AND_RETARGET, 1): (
-        _lint_facts(stack_tooling=False),
-        _lint_facts(stack_tooling=True),
-    ),
     (CREATE_FIX_AND_RETARGET, 2): (
         _lint_facts(stack_tooling=False),
         _lint_facts(stack_tooling=True),
@@ -699,10 +693,6 @@ GUARDED_DECISIONS = {
         _lint_facts(existing_fix_pr=True, in_managed_stack=True),
         _lint_facts(existing_fix_pr=True, in_managed_stack=False),
     ),
-    (TEMPORARY_FIX_COPY, 2): (
-        _lint_facts(existing_fix_pr=True, in_managed_stack=True),
-        _lint_facts(existing_fix_pr=False, in_managed_stack=True),
-    ),
     (CREATE_FIX_AND_REBASE_STACK, 0): (
         _lint_facts(in_managed_stack=True),
         _lint_facts(existing_fix_pr=True, in_managed_stack=True),
@@ -713,32 +703,53 @@ GUARDED_DECISIONS = {
     ),
 }
 
+#: Clauses that state the action a trigger selects, or restate a condition the
+#: same reason already states, rather than naming a fact of their own, with the
+#: reason no separate fact exists. The condition contract above still requires
+#: every one of them in the shipped skill; this map only exempts them from the
+#: one-fact binding, where a second clause credited with another clause's fact
+#: would make the map's attribution claim false.
+NON_FACT_CLAUSES = {
+    (REBASE_FIRST, 3): "states the action the trigger facts select",
+    (PREREQUISITE_FIX, 1): "restates the route the exception sentence states",
+    (CREATE_FIX_AND_RETARGET, 1): "states the action the trigger facts select",
+    (TEMPORARY_FIX_COPY, 2): "states the replay action that follows",
+}
+
 
 def test_each_trigger_clause_guards_a_model_decision() -> None:
     """Flipping the fact a clause names changes the decision it states.
 
     The presence check in ``test_dropping_any_trigger_condition_is_detected``
-    only proves the sentence exists. This test binds each clause to the fact it
-    guards, so a clause whose fact no longer affects the model is reported as
-    decorative. Each pair must also differ in exactly one fact: a pair that
-    flips two facts cannot say which one moved the decision, and the clause
-    would pass on the other fact's strength. These are specification-only
-    cases: they constrain the model, not the shipped skill's behaviour.
+    only proves the sentence exists. This test binds each condition clause to
+    the fact it guards, so a clause whose fact no longer affects the model is
+    reported as decorative. Each pair must also differ in exactly one fact: a
+    pair that flips two facts cannot say which one moved the decision, and the
+    clause would pass on the other fact's strength. No two clauses of one
+    reason may bind the same fact, because the second would be credited with a
+    decision the first makes. Every clause is either bound here or listed in
+    ``NON_FACT_CLAUSES``. These are specification-only cases: they constrain
+    the model, not the shipped skill's behaviour.
     """
     expected = {
         (reason, index)
         for reason, clauses in REASON_CONDITIONS.items()
         for index in range(len(clauses))
     }
-    assert set(GUARDED_DECISIONS) == expected, (
-        "the guarded-fact map must cover every trigger clause exactly once"
+    assert set(GUARDED_DECISIONS).isdisjoint(NON_FACT_CLAUSES), (
+        "a clause must be either fact-bound or explicitly exempt, not both"
     )
+    assert set(GUARDED_DECISIONS) | set(NON_FACT_CLAUSES) == expected, (
+        "every trigger clause must be fact-bound or listed as naming no fact"
+    )
+    bound: dict[str, list[str]] = {}
     for (reason, index), (baseline, flipped) in GUARDED_DECISIONS.items():
         clause = REASON_CONDITIONS[reason][index]
         differing = [fact for fact in baseline if baseline[fact] != flipped[fact]]
         assert len(differing) == 1, (
             f"{clause!r} must flip exactly one fact, but flips {differing}"
         )
+        bound.setdefault(reason, []).append(differing[0])
         baseline_decision = decision_for(reason, baseline)
         flipped_decision = decision_for(reason, flipped)
         assert baseline_decision == reason, (
@@ -747,6 +758,10 @@ def test_each_trigger_clause_guards_a_model_decision() -> None:
         assert flipped_decision != reason, (
             f"{clause!r} is decorative: flipping its fact still reached"
             f" {reason!r}"
+        )
+    for reason, facts in bound.items():
+        assert len(facts) == len(set(facts)), (
+            f"{reason!r} credits two clauses with one fact: {facts}"
         )
 
 

@@ -285,11 +285,13 @@ def test_stale_base_routing_does_not_rebase_without_a_local_pass(
 
     The documented procedure requires both a local pass and a moved base before
     it replays anything, so a candidate that is behind the target while its own
-    gate fails keeps its history and routes to investigation. The facts are read
-    from the fixture tree rather than asserted as literals, and the branch head
-    is compared before and after so the test shows that no replay took place.
-    The routing itself is prose-verified only: the documented procedure is an
-    instruction to the agent, and this module runs only its Git commands.
+    gate fails routes to investigation instead. The four facts handed to the
+    model are read from the fixture tree rather than asserted as literals: the
+    hosted gate fails, the local gate fails, and the target holds a commit the
+    candidate lacks. The test stops at that routing decision. It runs no replay,
+    so it does not assert that the branch was left alone; the routing is
+    prose-verified only, because the documented procedure is an instruction to
+    the agent and this module runs only its Git commands.
     """
     fixture = local_git
     fixture.git("switch", "-c", "feature")
@@ -300,7 +302,6 @@ def test_stale_base_routing_does_not_rebase_without_a_local_pass(
     fix = fixture.commit("gate.sh", "exit 0\n", "target fix for the red check")
     fixture.git("push", "target", "main")
     fixture.git("switch", "feature")
-    head = fixture.git("rev-parse", "HEAD")
     assert not fixture.gate_passes("local-gate.sh"), "the local gate must fail"
     assert not fixture.gate_passes("gate.sh"), "the hosted gate must be red"
     behind_target = not fixture.is_ancestor(fix)
@@ -314,10 +315,6 @@ def test_stale_base_routing_does_not_rebase_without_a_local_pass(
         )
         == INVESTIGATE
     ), "a behind-target candidate whose local gate fails is investigated, not rebased"
-    assert fixture.git("rev-parse", "HEAD") == head, "routing must leave the branch alone"
-    assert not (fixture.work / "gate.sh").exists(), (
-        "no replay may run when the local gate has not passed"
-    )
 
 
 def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
@@ -329,11 +326,15 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     the same commit, so the candidate's base and the shared branch point are the
     same object. The feature branch is replayed onto the fix branch by the
     reference's own fenced command, so the repair is an ancestor and the
-    feature's own diff contains only its own commits. The hosted step that
-    changes the PR's base to the fix branch is not verified here; the
-    disposition is fed the resulting facts instead, and for either value of the
-    stack tooling an existing fix PR selects a plain base rather than a new
-    stack layer. Those routing and stack decisions are prose-verified only.
+    feature's own diff contains only its own commits.
+
+    That replay establishes ancestry and diff contents only. The disposition
+    calls below read none of its results: they pass explicit CI-status,
+    lint-scope and PR-state inputs, and vary only whether the stack tooling is
+    available, so an existing fix PR selecting a plain base is shown for both
+    values of that one fact. The hosted step that changes the PR's base to the
+    fix branch is not verified here. Those routing and stack decisions are
+    prose-verified only.
     """
     fixture = local_git
     fixture.git("switch", "-c", "lint-fix")
