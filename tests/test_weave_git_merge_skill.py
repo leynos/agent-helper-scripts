@@ -488,8 +488,12 @@ def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
     assert "closes the other route to Weave" in _prose(skill), (
         "the example must explain why the fallback is pinned to the text driver"
     )
-    assert "confirm `unspecified` before starting" in _prose(skill), (
-        "the example must verify that no higher-precedence source selects Weave"
+    assert "verify every path the replay can touch" in _prose(skill), (
+        "one representative path is not enough: another path can still select "
+        "Weave from a tracked or clone-local rule"
+    )
+    assert "use the driver override below for the whole rebase" in _prose(skill), (
+        "a still-selected path must switch the whole rebase to the driver override"
     )
 
 
@@ -679,12 +683,17 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "ANSIBLE MANAGED BLOCK - weave merge driver" in _prose(behaviour), (
         "the removed legacy block must be identifiable by its marker"
     )
-    assert "one-time migration of the default path" in _prose(behaviour), (
+    assert "That removal was a one-time migration" in _prose(behaviour), (
         "the legacy block removal must read as migration, not current policy"
     )
-    assert "an inactive default path is neither read nor changed" in _prose(
-        behaviour
-    ), "a custom attributes file must not imply the default path is written"
+    assert (
+        "a default-path file Git no longer read was inert and left alone"
+        in _prose(behaviour)
+    ), "the migration must record the inactive default path was left alone"
+    assert (
+        "a default-path file Git no longer reads is inert and left alone"
+        in _prose(behaviour)
+    ), "managed enrolment must not imply an inactive default path is written"
     assert "Registration does not activate the driver" in _prose(behaviour), (
         "registration and activation must be stated as separate"
     )

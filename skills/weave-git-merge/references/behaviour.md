@@ -312,11 +312,12 @@ dev-env-rocky ADR 011 and PR #231:
   with `~/.local/bin` ahead of `~/.cargo/bin`. A shadowing binary fails
   verification and is reported, not deleted.
 - The September 2026 migration removed the legacy thirty-extension block from
-  `~/.config/git/attributes`, delimited by
+  the global Git attributes file Git read at the time, delimited by
   `ANSIBLE MANAGED BLOCK - weave merge driver` markers. That removal was a
-  one-time migration of the default path, not the current write policy: other
-  entries in that file, repository attributes, and custom global attributes
-  files were left alone, so they still need inspection.
+  one-time migration, not the current write policy: it cleaned historical lines
+  in a custom `core.attributesFile` too, while a default-path file Git no
+  longer read was inert and left alone. Other entries in the file, repository
+  attributes, and unrelated custom attributes files still need inspection.
 - Global Git configuration registers the driver with its path shell-quoted,
   and sets `merge.conflictStyle = zdiff3`. Registration does not activate the
   driver:
@@ -330,9 +331,9 @@ dev-env-rocky ADR 011 and PR #231:
   Git attributes file that Git reads: `core.attributesFile` when set, otherwise
   `$XDG_CONFIG_HOME/git/attributes`, falling back to
   `~/.config/git/attributes`. When `core.attributesFile` names another file,
-  enrolment targets that file; an inactive default path is neither read nor
-  changed, so its contents are not evidence of the current policy. The block
-  selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default.
+  enrolment targets that file; a default-path file Git no longer reads is inert
+  and left alone, so its contents are not evidence of the current policy. The
+  block selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default.
   Provisioning owns only that block and refuses data, Markdown, and lock-file
   extensions user-wide: `csv`, `json`, `json5`, `jsonc`, `lock`, `markdown`,
   `md`, `mdx`, `toml`, `xml`, `yaml`, and `yml`. A repository may still enrol

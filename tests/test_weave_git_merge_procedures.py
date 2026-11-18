@@ -588,6 +588,8 @@ UNATTENDED_PREFIX = (
     "-c",
     "core.attributesFile=/dev/null",
     "-c",
+    "merge.default=text",
+    "-c",
     "merge.conflictStyle=zdiff3",
 )
 
@@ -685,6 +687,35 @@ def test_unattended_prefix_keeps_an_ambient_global_rule_out_of_the_rebase(
     assert rebased.returncode == 0, f"the built-in rebase must succeed: {rebased.stderr}"
     assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
         "Git's built-in merge must produce the result, not the corrupt driver output"
+    )
+
+
+def test_unattended_prefix_closes_the_merge_default_fallback(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """`merge.default=weave` must not reintroduce the driver for a bare path."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+    _git(repository, "config", "merge.default", "weave")
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, *UNATTENDED_PREFIX, "rebase", "main", check=False)
+
+        assert spy.call_count == 0, (
+            "disabling the global attributes file leaves the path unspecified, "
+            "so `merge.default=weave` still selects Weave unless the prefix "
+            "pins `merge.default=text`"
+        )
+
+    assert rebased.returncode == 0, f"the built-in rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "the pinned text fallback must produce the built-in merge result"
     )
 
 

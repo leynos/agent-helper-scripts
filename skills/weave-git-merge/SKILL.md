@@ -173,10 +173,12 @@ git -c core.attributesFile=/dev/null \
 attributes file leaves each formerly enrolled path unspecified, and Git then
 consults `merge.default`; if that setting names Weave, the rebase still runs
 it. Pinning the fallback to `text` selects Git's built-in text merge
-explicitly. Neither option overrides tracked or clone-local rules, so also run
-`git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` and
-confirm `unspecified` before starting. When it still reports `weave`, use the
-driver override below.
+explicitly. Neither option overrides tracked or clone-local rules, so verify
+every path the replay can touch, not one representative path:
+`git -c core.attributesFile=/dev/null check-attr merge -- path` must report
+`unspecified` for each. If any path still reports `weave`, use the driver
+override below for the whole rebase, repeating it on every `--continue`; it
+replaces the named driver regardless of which attribute source selected it.
 
 If tracked `.gitattributes` selects Weave, that is explicit repository policy
 for attended merges and for dogfooding the repository has asked for. Do not
