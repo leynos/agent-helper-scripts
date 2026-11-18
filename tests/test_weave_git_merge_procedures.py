@@ -1017,14 +1017,16 @@ def test_recovery_evidence_must_cover_staged_unstaged_and_untracked_work(
     )
 
 
-# --- v0.5.1 opt-in baseline --------------------------------------------------
+# --- v0.5.1 managed user-wide baseline ---------------------------------------
 #
-# The estate baseline registers the driver globally, activates it only through
-# repository attributes, and bypasses an opted-in driver with a command-scoped
-# override of the named driver rather than by editing attribute files. The
-# tests below execute those documented commands against real Git. The stubbed
-# `weave check` transcript reproduces the 0.5.1 no-scope sentence so the
-# documented fail-closed guard is exercised without a Weave installation.
+# The estate baseline registers the driver globally and selects it through a
+# managed global attributes block for `rs`, `py`, `ts`, and `tsx` by default.
+# A repository opt-in through tracked attributes, or an unexpected host
+# selection, is bypassed with a command-scoped override of the named driver
+# rather than by editing attribute files. The tests below execute those
+# documented commands against real Git. The stubbed `weave check` transcript
+# reproduces the 0.5.1 no-scope sentence so the documented fail-closed guard is
+# exercised without a Weave installation.
 
 DRIVER_OVERRIDE = (
     "-c",

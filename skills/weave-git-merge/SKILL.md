@@ -164,9 +164,19 @@ therefore starts as:
 
 ```bash
 git -c core.attributesFile=/dev/null \
+    -c merge.default=text \
     -c merge.conflictStyle=zdiff3 \
     rebase origin/main
 ```
+
+`-c merge.default=text` closes the other route to Weave. Disabling the user
+attributes file leaves each formerly enrolled path unspecified, and Git then
+consults `merge.default`; if that setting names Weave, the rebase still runs
+it. Pinning the fallback to `text` selects Git's built-in text merge
+explicitly. Neither option overrides tracked or clone-local rules, so also run
+`git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py` and
+confirm `unspecified` before starting. When it still reports `weave`, use the
+driver override below.
 
 If tracked `.gitattributes` selects Weave, that is explicit repository policy
 for attended merges and for dogfooding the repository has asked for. Do not
@@ -615,9 +625,10 @@ candidate again when any of these occurs:
   record the result as clean;
 - the installed `weave` and `weave-driver` versions disagree unexpectedly, or
   the required post-merge checker is unavailable;
-- a host expected at the opt-in baseline still selects Weave for an ordinary
-  path from the global attributes file, or resolves a driver on `PATH` that
-  differs from the canonical `~/.cargo/bin` binary;
+- a host selects Weave unexpectedly: outside the managed defaults for `rs`,
+  `py`, `ts`, and `tsx`, for a refused category such as Markdown, data, or a
+  lock file, or from a source the receipt has not classified; or it resolves a
+  driver on `PATH` that differs from the canonical `~/.cargo/bin` binary;
 - source or compiled artefact provenance disagrees;
 - recovery evidence omits staged, unstaged, or intended untracked work;
 - the rebase changes the candidate head while old gate/review evidence is still

@@ -418,10 +418,17 @@ def test_skill_declares_andon_triggers() -> None:
         "new duplication",
         "versions disagree unexpectedly",
         "recovery evidence omits staged, unstaged, or intended untracked work",
+        "selects Weave unexpectedly",
+        "outside the managed defaults",
+        "refused category",
     ):
         assert trigger in skill, f"the andon list must include {trigger!r}"
     assert "not an instruction to guess a repair" in _prose(skill), (
         "an andon event must preserve evidence before remediation"
+    )
+    assert "expected at the opt-in baseline" not in _prose(skill), (
+        "managed enrolment makes selection of the default extensions expected, "
+        "so the andon trigger must fire only for unexpected selection"
     )
 
 
@@ -462,6 +469,27 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
     ), (
         "the retry must resolve the recorded target, not re-read a remote ref "
         "that may have moved since the candidate identities were recorded"
+    )
+
+
+def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
+    """Disabling the user attributes file must not reopen the fallback."""
+    _, skill = _skill_frontmatter()
+
+    assert (
+        "git -c core.attributesFile=/dev/null \\\n"
+        "    -c merge.default=text \\\n"
+        "    -c merge.conflictStyle=zdiff3 \\\n"
+        "    rebase origin/main"
+    ) in skill, (
+        "an ambient-rule rebase must pin `merge.default` as well as disable the "
+        "user attributes file, because an unspecified path falls back to it"
+    )
+    assert "closes the other route to Weave" in _prose(skill), (
+        "the example must explain why the fallback is pinned to the text driver"
+    )
+    assert "confirm `unspecified` before starting" in _prose(skill), (
+        "the example must verify that no higher-precedence source selects Weave"
     )
 
 
@@ -651,6 +679,12 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "ANSIBLE MANAGED BLOCK - weave merge driver" in _prose(behaviour), (
         "the removed legacy block must be identifiable by its marker"
     )
+    assert "one-time migration of the default path" in _prose(behaviour), (
+        "the legacy block removal must read as migration, not current policy"
+    )
+    assert "an inactive default path is neither read nor changed" in _prose(
+        behaviour
+    ), "a custom attributes file must not imply the default path is written"
     assert "Registration does not activate the driver" in _prose(behaviour), (
         "registration and activation must be stated as separate"
     )

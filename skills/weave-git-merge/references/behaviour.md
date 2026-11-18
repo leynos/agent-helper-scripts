@@ -311,10 +311,12 @@ dev-env-rocky ADR 011 and PR #231:
   `weave check --help`, and checks the versions resolved on the managed `PATH`
   with `~/.local/bin` ahead of `~/.cargo/bin`. A shadowing binary fails
   verification and is reported, not deleted.
-- The legacy thirty-extension block in `~/.config/git/attributes`, delimited
-  by `ANSIBLE MANAGED BLOCK - weave merge driver` markers, is removed. Other
+- The September 2026 migration removed the legacy thirty-extension block from
+  `~/.config/git/attributes`, delimited by
+  `ANSIBLE MANAGED BLOCK - weave merge driver` markers. That removal was a
+  one-time migration of the default path, not the current write policy: other
   entries in that file, repository attributes, and custom global attributes
-  files are left alone, so they still need inspection.
+  files were left alone, so they still need inspection.
 - Global Git configuration registers the driver with its path shell-quoted,
   and sets `merge.conflictStyle = zdiff3`. Registration does not activate the
   driver:
@@ -327,12 +329,15 @@ dev-env-rocky ADR 011 and PR #231:
 - Managed user-wide enrolment writes a marker-delimited block to the global
   Git attributes file that Git reads: `core.attributesFile` when set, otherwise
   `$XDG_CONFIG_HOME/git/attributes`, falling back to
-  `~/.config/git/attributes`. The block selects `merge=weave` for `rs`, `py`,
-  `ts`, and `tsx` by default. Provisioning owns only that block and refuses
-  data, Markdown, and lock-file extensions user-wide: `csv`, `json`, `json5`,
-  `jsonc`, `lock`, `markdown`, `md`, `mdx`, `toml`, `xml`, `yaml`, and `yml`. A
-  repository may still enrol such paths through its own reviewed attributes,
-  and a later global line that disables an enrolled type fails provisioning.
+  `~/.config/git/attributes`. When `core.attributesFile` names another file,
+  enrolment targets that file; an inactive default path is neither read nor
+  changed, so its contents are not evidence of the current policy. The block
+  selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default.
+  Provisioning owns only that block and refuses data, Markdown, and lock-file
+  extensions user-wide: `csv`, `json`, `json5`, `jsonc`, `lock`, `markdown`,
+  `md`, `mdx`, `toml`, `xml`, `yaml`, and `yml`. A repository may still enrol
+  such paths through its own reviewed attributes, and a later global line that
+  disables an enrolled type fails provisioning.
 - The earlier per-repository-only activation policy is superseded: enrolment
   is now user-wide by default. Repository attributes take precedence over the
   global block, so a repository can bypass enrolment persistently.
