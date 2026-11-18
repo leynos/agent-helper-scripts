@@ -10,6 +10,8 @@ from pathlib import Path
 
 import yaml
 
+from skill_contract_support import normalize
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = REPO_ROOT / "skills" / "weave-git-merge"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
@@ -24,8 +26,8 @@ def _read(path: Path) -> str:
 
 
 def _prose(text: str) -> str:
-    """Collapse whitespace so phrase checks survive the estate's 80-column wrap."""
-    return " ".join(text.split())
+    """Collapse whitespace through the shared skill-contract helper."""
+    return normalize(text)
 
 
 def _mapping(document: str) -> dict[str, object]:
@@ -153,6 +155,16 @@ def test_skill_guards_each_commit_in_a_multi_commit_rebase() -> None:
     assert (
         "Do not rely solely on the full test suite after the final commit" in skill
     ), "the workflow must reject end-of-rebase-only validation"
+    assert (
+        "Run a per-replay guard only on commits trusted to execute as the local user"
+        in _prose(skill)
+    ), (
+        "`--exec` runs a replayed commit's build scripts as the local user, so "
+        "the guard must be limited to trusted commits"
+    )
+    assert "for an untrusted branch, omit `--exec`" in _prose(skill), (
+        "an untrusted replay must drop the guard rather than execute its code"
+    )
 
 
 def test_skill_bypasses_ambient_weave_for_unattended_long_rebases() -> None:
@@ -231,37 +243,97 @@ def test_skill_reads_driver_stderr_and_supports_event_capture() -> None:
     )
 
 
-def test_skill_describes_the_v051_opt_in_estate_baseline() -> None:
-    """The skill states the deployment it assumes and how to verify a host."""
+def test_skill_describes_the_v051_managed_user_wide_estate_baseline() -> None:
+    """The skill states managed user-wide enrolment and how to verify a host."""
     _, skill = _skill_frontmatter()
+    prose = _prose(skill)
 
-    assert "## Know the estate baseline" in _prose(skill), (
+    assert "## Know the estate baseline" in prose, (
         "the skill must describe the deployment baseline it assumes"
     )
     assert "`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`" in skill, (
         "the registered driver command must be quoted exactly"
     )
-    assert "No global attributes rule selects Weave" in _prose(skill), (
-        "global registration without activation is the baseline's key property"
+    assert "Registration defines `merge.weave` and does not select it" in prose, (
+        "registration must be distinguished from attribute-based activation"
     )
-    assert "type -a weave weave-driver" in _prose(skill), (
+    assert "managed, marker-delimited block in the global Git attributes file" in prose, (
+        "the managed global attributes block must be named as the selector"
+    )
+    assert "selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default" in prose, (
+        "the default enrolled extensions must be documented"
+    )
+    for extension in ("`rs`", "`py`", "`ts`", "`tsx`"):
+        assert extension in prose, f"default enrolment must name {extension}"
+    assert "refuses data, Markdown, and lock-file extensions" in prose, (
+        "the refused categories must be documented"
+    )
+    for extension in ("`csv`", "`json`", "`lock`", "`markdown`", "`toml`", "`yaml`"):
+        assert extension in prose, f"the refused set must name {extension}"
+    assert "Provisioning owns only its managed block" in prose, (
+        "block ownership must not imply control of the whole attributes file"
+    )
+    assert (
+        "`merge: weave` for enrolled Rust, Python, TypeScript, and TSX paths" in prose
+    ), "the host check must require the managed defaults to resolve"
+    assert "A repository's own reviewed attribute rule" in prose, (
+        "reviewed repository enrolment must be distinguished from a host fault"
+    )
+    assert "are deliberate enrolment rather than host faults" in prose, (
+        "reviewed opt-ins and requested dogfooding must not be host failures"
+    )
+    assert "type -a weave weave-driver" in prose, (
         "PATH shadowing must be checked before trusting a version"
     )
     assert (
         "git config --show-origin --show-scope --get-all merge.weave.driver"
-        in _prose(skill)
+        in prose
     ), "the effective driver must be inspected with its scope and origin"
-    assert "do not run `weave setup --global`" in _prose(skill), (
-        "the baseline prohibits recreating ambient global activation"
+    assert "do not run `weave setup --global`" in prose, (
+        "the baseline prohibits writes outside managed enrolment"
     )
-    assert "src/*.rs merge=weave" in _prose(skill), (
-        "the skill must show the narrow tracked opt-in the baseline prefers"
+    assert (
+        "write `merge.weave.driver` to the repository's local Git config" in prose
+    ), "per-repository setup replaces the managed registration locally"
+    assert "`git config --show-origin --get merge.weave.driver`" in prose, (
+        "the effective driver must be checked after any per-repository setup"
     )
-    assert "WEAVE_TIMEOUT" in _prose(skill) and "0.5.x removed the watchdog" in skill, (
+    assert "`merge.default` must not name `weave`" in prose, (
+        "an unspecified path falls back to merge.default, so the host check "
+        "must reject a Weave fallback"
+    )
+    assert "Any `merge.text.*` key is also a finding" in prose, (
+        "every key in the text-driver section registers a custom driver"
+    )
+    assert "custom merge driver text lacks command line" in prose, (
+        "a name-only text driver aborts rather than restoring the built-in"
+    )
+    assert "any other failure is a configuration read error" in prose, (
+        "the probe must distinguish an absent section from a failed read"
+    )
+    assert "the registry minus the extensions it declines at the source" in prose, (
+        "the setup prohibition must subtract the declined extensions from the "
+        "registry-derived claim"
+    )
+    for extension in ("`.hs`", "`.vue`", "`.erb`", "`.svelte*`"):
+        assert extension in prose, f"the declined set must name {extension}"
+    assert "src/*.rs merge=weave" in prose, (
+        "the skill must show deliberate enrolment for reviewed paths"
+    )
+    assert "No global attributes rule selects Weave" not in prose, (
+        "the superseded repository-only baseline must not survive"
+    )
+    assert "Global registration alone must not select Weave" not in prose, (
+        "the superseded registration-only rationale must not survive"
+    )
+    assert "ambient activation the deployment removed" not in prose, (
+        "the superseded prohibition rationale must not survive"
+    )
+    assert "WEAVE_TIMEOUT" in prose and "0.5.x removed the watchdog" in skill, (
         "the 0.3.x-only timeout must be marked as removed rather than documented "
         "as current behaviour"
     )
-    assert "WEAVE_STATS=1" in _prose(skill) and "WEAVE_MAX_DUPLICATES" in skill, (
+    assert "WEAVE_STATS=1" in prose and "WEAVE_MAX_DUPLICATES" in skill, (
         "the 0.5.x environment switches must be documented"
     )
 
@@ -286,6 +358,18 @@ def test_skill_bypasses_an_opted_in_driver_with_a_command_scoped_override() -> N
     assert "Do not confuse this with `--ours` or `--theirs`" in _prose(skill), (
         "the override must be distinguished from side-discarding options"
     )
+    assert "The override also does not forward `-X` options" in _prose(skill), (
+        "strategy options reach Git's merge strategy, not an external driver"
+    )
+    assert "which honours `-X`" in _prose(skill), (
+        "paths needing native `-X` behaviour must have the attribute-level route"
+    )
+    assert "names the driver Git uses to build virtual ancestors" in _prose(skill), (
+        "the recursive driver's role in criss-cross merges must be stated"
+    )
+    assert (
+        "prints nothing before using the override" in _prose(skill)
+    ), "the recursive `text` driver must be qualified by an absent section"
 
 
 def test_skill_requires_semantic_post_operation_audit() -> None:
@@ -381,10 +465,17 @@ def test_skill_declares_andon_triggers() -> None:
         "new duplication",
         "versions disagree unexpectedly",
         "recovery evidence omits staged, unstaged, or intended untracked work",
+        "selects Weave unexpectedly",
+        "outside the managed defaults",
+        "refused category",
     ):
         assert trigger in skill, f"the andon list must include {trigger!r}"
     assert "not an instruction to guess a repair" in _prose(skill), (
         "an andon event must preserve evidence before remediation"
+    )
+    assert "expected at the opt-in baseline" not in _prose(skill), (
+        "managed enrolment makes selection of the default extensions expected, "
+        "so the andon trigger must fire only for unexpected selection"
     )
 
 
@@ -407,18 +498,25 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
     """Each interrupted Git operation is aborted before its retry."""
     _, skill = _skill_frontmatter()
 
+    driver_override = (
+        "-c merge.weave.driver='git merge-file --zdiff3 "
+        "--marker-size=%L %A %O %B' \\\n"
+        "    -c merge.weave.recursive=text"
+    )
     required_commands = (
         "git rebase --abort",
-        'git -c core.attributesFile=/dev/null rebase "$TARGET"',
+        "git -c merge.conflictStyle=zdiff3 \\\n"
+        f"    {driver_override} \\\n"
+        '    rebase "$TARGET"',
         "git merge --abort",
-        "git -c core.attributesFile=/dev/null merge <same-original-arguments>",
+        f"git {driver_override} \\\n    merge <same-original-arguments>",
         "git cherry-pick --abort",
-        "git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>",
+        f"git {driver_override} \\\n    cherry-pick <same-original-arguments>",
     )
     for command in required_commands:
         assert command in skill, (
-            f"the fallback must document `{command}` so each operation is "
-            "aborted before its own retry"
+            f"the fallback must document `{command}` so each operation uses "
+            "the driver override for the whole retry"
         )
     assert "git -c core.attributesFile=/dev/null rebase origin/main" not in _prose(
         skill
@@ -426,6 +524,77 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
         "the retry must resolve the recorded target, not re-read a remote ref "
         "that may have moved since the candidate identities were recorded"
     )
+    assert "check-attr merge -- path" in _prose(skill), (
+        "the pre-rebase check remains as diagnosis, not as the safeguard"
+    )
+    assert 'rebase --onto "$TARGET" "$OLD_BASE" --exec' in skill, (
+        "an --onto replay must keep its recorded boundary and its per-commit guard"
+    )
+    assert (
+        "Carry an original `--exec` guard forward only when the replayed "
+        "commits are trusted to execute as the local user" in _prose(skill)
+    ), "a retry must reapply the same trust condition as the first attempt"
+    assert "its guard only for" in skill, (
+        "the --onto example must qualify its guard in place"
+    )
+    assert "every continuation starts a new merge" in _prose(skill), (
+        "each --continue and authorized --skip must repeat the override"
+    )
+    assert "`git cherry-pick --continue`" in _prose(skill), (
+        "a cherry-pick sequence resumes without the override unless it is repeated"
+    )
+    assert "`Cannot merge binary files`" in _prose(skill), (
+        "the override must state that git merge-file rejects NUL-containing input"
+    )
+    assert "looks for NUL only in the first 8,000 bytes" in _prose(skill), (
+        "the binary check must be limited to the window Git actually scans"
+    )
+
+
+def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
+    """Disabling the user attributes file must not reopen the fallback."""
+    _, skill = _skill_frontmatter()
+
+    assert (
+        "git config --get-regexp '^merge\\.text\\.'   # must print nothing and "
+        "exit 1\n"
+        "git -c core.attributesFile=/dev/null \\\n"
+        "    -c merge.default=text \\\n"
+        "    -c merge.conflictStyle=zdiff3 \\\n"
+        '    rebase "$TARGET"'
+    ) in skill, (
+        "an ambient-rule rebase must pin `merge.default` as well as disable the "
+        "user attributes file, and must resolve the recorded target"
+    )
+    assert "custom drivers before its built-ins" in _prose(skill), (
+        "the narrower route must say why `merge.default=text` can run a "
+        "host-defined `text` driver"
+    )
+    assert "a `merge.text.name` on its own aborts the operation" in _prose(skill), (
+        "the narrower route must distinguish a name-only section from an absent "
+        "one"
+    )
+    assert "does not disable the system attributes file" in _prose(skill), (
+        "`core.attributesFile=/dev/null` leaves the system attributes file active"
+    )
+    assert "`GIT_ATTR_NOSYSTEM=1`" in _prose(skill), (
+        "the narrower route must name the switch that also drops system rules"
+    )
+    assert "closes the other route to Weave" in _prose(skill), (
+        "the example must explain why the fallback is pinned to the text driver"
+    )
+    assert "reports the working tree's attributes at the moment it runs" in _prose(
+        skill
+    ), "the check must be limited to attributes the replay can already see"
+    assert "use the driver override for any replay that can add such a rule" in (
+        _prose(skill)
+    ), "a rule arriving mid-replay must switch to the driver override"
+    assert "This prefix belongs on every command of the operation" in _prose(skill), (
+        "the narrower prefix must not be presented as a one-off opening command"
+    )
+    assert "on each `git rebase --continue` and any authorized `git rebase --skip`" in (
+        _prose(skill)
+    ), "the narrower prefix must be repeated on continuation and on an authorized skip"
 
 
 def test_skill_recovers_a_completed_operation_by_resetting_the_candidate() -> None:
@@ -462,20 +631,76 @@ def test_skill_distinguishes_attribute_sources_and_bypass_scopes() -> None:
     assert "| Global | Configured global attributes file" in _prose(skill), (
         "the scope matrix must cover the global attributes file"
     )
+    assert (
+        "With `GIT_ATTR_NOSYSTEM=1` set when the system file had to be excluded"
+        in _prose(skill)
+    ), "the global row's verification must exclude the system file it relies on"
     assert "| Tracked | Repository `.gitattributes`" in _prose(skill), (
         "the scope matrix must cover tracked repository attributes"
     )
-    assert "| Clone-local | `.git/info/attributes`" in _prose(skill), (
+    assert "| Clone-local | The clone's `info/attributes`" in _prose(skill), (
         "the scope matrix must cover clone-local attributes"
     )
     assert "path/to/file.py !merge" in _prose(skill), (
         "the workflow must show the per-path merge-driver opt-out"
     )
+    assert "restore it only after the operation completes" in skill, (
+        "the clone-local bypass must not be reverted mid-operation"
+    )
+    assert "git rev-parse --git-path info/attributes" in _prose(skill), (
+        "a linked worktree has a `.git` file, so the attributes path must be "
+        "resolved through Git rather than assumed under `.git/info`"
+    )
     assert (
-        "restore `.git/info/attributes` only after the operation completes" in skill
-    ), "the clone-local bypass must not be reverted mid-operation"
+        "Inspect the clone's `info/attributes`, resolved with "
+        "`git rev-parse --git-path info/attributes`" in _prose(skill)
+    ), "the diagnosis step itself must resolve the clone-local attributes path"
+    assert "shared by every worktree of the clone" in _prose(skill), (
+        "the clone-local file is not scoped to one worktree"
+    )
     assert "`/dev/null` alone cannot override those rules" in _prose(skill), (
         "the workflow must state the limits of the global-file override"
+    )
+    assert "`*.rs !merge` in `.git/info/attributes`" in _prose(skill), (
+        "the persistent clone-local opt-out must be documented"
+    )
+    assert "`*.rs merge=text` in `.gitattributes`" in _prose(skill), (
+        "the persistent shared opt-out must be documented"
+    )
+    assert "a bare `merge` attribute (`*.rs merge`)" in _prose(skill), (
+        "the built-in text merge needs a form that a custom `text` driver "
+        "cannot redirect"
+    )
+    assert "`git config --get-regexp '^merge\\.text\\.'` prints nothing" in _prose(
+        skill
+    ), "`merge=text` must be qualified by the absence of a custom text driver"
+    assert "`merge: set`" in _prose(skill), (
+        "the check must distinguish a set attribute from a driver name"
+    )
+    assert (
+        "Repository attributes take precedence over the managed user-wide block"
+        in _prose(skill)
+    ), "the precedence that makes a repository opt-out effective must be stated"
+    assert (
+        "These persistent forms differ from the command-scoped bypasses"
+        in _prose(skill)
+    ), "persistent opt-outs must be distinguished from transient overrides"
+    assert "Git then consults `merge.default`" in _prose(skill), (
+        "an unspecified `merge` attribute must be shown to fall back to "
+        "`merge.default`, which can still select Weave"
+    )
+    assert "is unaffected by `merge.default`" in _prose(skill), (
+        "`merge=text` must be presented as the explicit text-driver opt-out"
+    )
+    assert "git config --get merge.default" in _prose(skill), (
+        "recovery must check the fallback driver before treating `unspecified` "
+        "as a bypass"
+    )
+    assert "a closer `.gitattributes` rule" in _prose(skill), (
+        "the tracked opt-out must acknowledge higher-precedence attribute sources"
+    )
+    assert "verify the change with" in _prose(skill), (
+        "an attribute opt-out must be verified with `check-attr` after the change"
     )
 
 
@@ -583,9 +808,69 @@ def test_behaviour_reference_records_the_estate_baseline_and_version_drift() -> 
     assert "ANSIBLE MANAGED BLOCK - weave merge driver" in _prose(behaviour), (
         "the removed legacy block must be identifiable by its marker"
     )
+    assert "That removal was a one-time migration" in _prose(behaviour), (
+        "the legacy block removal must read as migration, not current policy"
+    )
+    assert (
+        "a default-path file Git no longer read was inert and left alone"
+        in _prose(behaviour)
+    ), "the migration must record the inactive default path was left alone"
+    assert (
+        "a default-path file Git no longer reads is inert and left alone"
+        in _prose(behaviour)
+    ), "managed enrolment must not imply an inactive default path is written"
     assert "Registration does not activate the driver" in _prose(behaviour), (
         "registration and activation must be stated as separate"
     )
+    assert (
+        "repository-level-only activation clause is superseded" in _prose(behaviour)
+    ), "the legacy opt-in activation policy must be marked superseded"
+    assert "dev-env-rocky ADR 011 and PR #231" in _prose(behaviour), (
+        "the managed enrolment decision must cite its upstream record"
+    )
+    assert "Managed user-wide enrolment writes a marker-delimited block" in _prose(
+        behaviour
+    ), "the managed block must be recorded in the baseline"
+    assert "selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default" in (
+        _prose(behaviour)
+    ), "the default enrolled extensions must be recorded"
+    assert "refuses data, Markdown, and lock-file extensions user-wide" in _prose(
+        behaviour
+    ), "the refused categories must be recorded"
+    assert "`*.rs !merge` in the clone's `info/attributes`" in _prose(behaviour), (
+        "the clone-local persistent opt-out must be recorded"
+    )
+    assert "An unattended long rebase that did not request dogfooding applies" in (
+        _prose(behaviour)
+    ), "a tracked opt-in must not survive an unrequested unattended rebase"
+    assert "`*.rs merge` rule selects Git's built-in text merge directly" in _prose(
+        behaviour
+    ), "the reference must offer a form a custom `text` driver cannot redirect"
+    assert "the form is safe only when that section is absent" in _prose(behaviour), (
+        "`merge=text` must be qualified by the absence of `merge.text.*`"
+    )
+    assert "custom merge driver text lacks command line" in _prose(behaviour), (
+        "the reference must record the name-only abort"
+    )
+    assert "searches only the first 8,000 bytes" in _prose(behaviour), (
+        "the NUL check must be limited to the window Git actually scans"
+    )
+    assert "not `.lock`" in _prose(behaviour), (
+        "setup does not claim `.lock`, so the prohibition must not say it does"
+    )
+    assert "the registry minus the extensions it declines at the source" in _prose(
+        behaviour
+    ), "the prohibition must subtract the declined extensions from its claim"
+    assert "`*.rs merge=text` rule in `.gitattributes`" in _prose(behaviour), (
+        "the tracked persistent opt-out must be recorded"
+    )
+    assert "because Git then consults `merge.default`" in _prose(behaviour), (
+        "the reference must state the merge.default fallback for `!merge`"
+    )
+    assert (
+        "unless a higher-precedence attribute source still selects Weave"
+        in _prose(behaviour)
+    ), "the reference must qualify the tracked opt-out by attribute precedence"
     assert "removed the watchdog thread and the `WEAVE_TIMEOUT` variable" in _prose(
         behaviour
     ), "the timeout must be recorded as a 0.3.x-only behaviour"

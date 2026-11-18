@@ -1332,15 +1332,42 @@ below exists.
 ### Estate baseline and driver override
 
 The skill assumes the `dev-env-rocky` deployment that pins Weave to `v0.5.1`
-and makes activation opt-in: the driver is registered globally as
-`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, no global
-attributes rule selects it, `merge.conflictStyle=zdiff3` is global, and each
-repository opts in through its own attributes. The sanctioned bypass for an
-opted-in repository replaces the named driver for one command rather than
-editing attribute files:
+and separates registration from attribute-based activation: the driver is
+registered globally as
+`WEAVE_EVENT=1 '<home>/.cargo/bin/weave-driver' %O %A %B %L %P`, and
+`merge.conflictStyle=zdiff3` is global. Registration does not select Weave.
+Managed user-wide enrolment writes a marker-delimited block to the global Git
+attributes file that Git reads (`core.attributesFile`, otherwise
+`$XDG_CONFIG_HOME/git/attributes`, otherwise `~/.config/git/attributes`) and
+selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default. Data,
+Markdown, and lock-file extensions are refused user-wide; repositories may
+still enrol reviewed paths through their own attributes. Repository attributes
+take precedence over the global block, so a repository can bypass enrolment with
+`*.rs !merge` or `*.rs merge` in the clone's `info/attributes`, or
+`*.rs merge=text` in `.gitattributes`. An unspecified `merge` attribute falls
+back to `merge.default`, so `!merge` bypasses Weave only when that setting does
+not name Weave; a bare `merge` attribute selects Git's built-in text merge and
+reports `merge: set`, while `merge=text` names the `text` driver, so a host
+`merge.text.*` section takes its place, or aborts when the section has no
+driver command, and the form is safe only when that section is absent.
+Attribute precedence still applies, so verify the effective value with
+`git check-attr merge`. `info/attributes` lives outside `.git` in a linked
+worktree; resolve it with `git rev-parse --git-path info/attributes`, and note
+that every worktree of the clone shares it. The host preflight also reads
+`merge.default` and the whole `merge.text.*` section, because the first turns
+an unspecified path back into Weave and the second registers a custom driver
+for every `merge=text` rule; a section with only `merge.text.name` set aborts
+the selection rather than restoring the built-in. The sanctioned command-scoped
+bypass replaces the named driver for one command rather than editing attribute
+files:
 `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
 -c merge.weave.recursive=text`,
-repeated on every `--continue`. The scope matrix keeps the attribute-level
+repeated on every `--continue` or authorized `--skip`; any `--exec` guard runs
+only on commits trusted to execute as the local user, and the recursive driver
+name requires the `merge.text.*` section to be absent because a criss-cross
+merge uses it to build virtual ancestors. The override does not forward `-X`
+options to the external driver, so paths that need native `-X` behaviour belong
+on a bare `merge` attribute instead. The scope matrix keeps the attribute-level
 rows for hosts that have not been reconciled. Tests must keep both routes
 executable against real Git.
 
@@ -1349,13 +1376,31 @@ executable against real Git.
 `weave setup` writes three mutually exclusive scopes:
 
 - default — tracked `.gitattributes`, shared with the whole team. Since Weave
-  0.4.0 the extension list is derived from the parser registry (38 formats), so
-  the output needs review before it is accepted;
-- `--local` — untracked `.git/info/attributes`, this clone only;
+  0.4.0 the extension list is derived from the parser registry with the
+  extensions it declines at the source subtracted, so the output needs review
+  before it is accepted;
+- `--local` — untracked clone-local `info/attributes`, this clone only;
 - `--global` — global Git config plus a global attributes file. When
   `core.attributesFile` is unset, Git falls back to
   `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`. The
-  estate baseline prohibits this scope.
+  estate baseline prohibits this scope: it writes user-wide attributes outside
+  the managed enrolment block, claims nearly every extension the parser
+  registry supports — the registry minus the extensions it declines at the
+  source (`.hs`, `.vue`, `.erb`, and the `.svelte*` family) — including refused
+  Markdown and data formats such as `*.md` and `*.csv` though not `.lock`, and
+  can replace the managed driver registration.
+
+Both per-repository scopes also write `merge.weave.driver` into the
+repository's local Git config as the bare driver path followed by
+`%O %A %B %L %P`, without `WEAVE_EVENT=1` and without shell quoting. Local
+config outranks the global registration for every path Git sends to Weave,
+including paths selected only by the managed block, so a repository-local setup
+replaces event capture and the quoted canonical path for that clone whatever
+attributes select. On a managed host, opt in through attributes alone, or
+verify the effective command with
+`git config --show-origin --get merge.weave.driver` and require it to keep
+`WEAVE_EVENT=1` and the quoted absolute path; reverse an unexpected local setup
+with `weave unsetup`.
 
 ### Driver contract
 

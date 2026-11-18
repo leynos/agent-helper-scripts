@@ -370,3 +370,46 @@ upstream text separately, as the library README describes. The converter also
 refuses a source that already carries the canonical note outside protected
 text, so a previously vendored file cannot serve as input. Repositories that
 refresh by merging the library edition are unaffected by this change.
+
+## Weave managed user-wide enrolment
+
+The `dev-env-rocky` deployment now enrols Weave user-wide, superseding the
+repository-only activation described under
+[Weave v0.5.1 opt-in baseline](v0-2-0-migration-guide.md#weave-v051-opt-in-baseline)
+in the previous guide. The `weave-git-merge` skill and both guides record the
+new baseline.
+
+### Previous model
+
+The driver was registered globally and a repository selected it only through
+its own reviewed attributes, such as `src/*.rs merge=weave`.
+
+### New model
+
+Driver registration still defines `merge.weave` and does not select it. A
+managed, marker-delimited block in the global attributes file Git reads now
+selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default. Provisioning
+owns only that block and refuses data, Markdown, and lock-file extensions
+user-wide. The deployment also leaves `merge.default` unset and configures no
+`merge.text.driver`.
+
+### Migrating
+
+- Expect `git check-attr merge` to report `merge: weave` for enrolled paths in
+  a repository without its own attributes. That selection is ambient, not
+  repository consent for an unattended multi-commit replay.
+- Keep bypassing Weave for unattended long-lived branch rebases. The
+  command-scoped
+  `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
+  -c merge.weave.recursive=text`
+  override replaces the driver without editing any attribute file, and must be
+  repeated on every `--continue` and any authorized `--skip`.
+- To bypass Weave persistently in one clone, prefer a bare `merge` rule in the
+  clone's `info/attributes`, resolved with
+  `git rev-parse --git-path info/attributes`. A `!merge` rule still leaves the
+  path to `merge.default`, and `merge=text` still resolves a host custom
+  `merge.text.driver` first.
+- Check `merge.default` and `merge.text.driver` on a host before relying on
+  either bypass. Neither setting is present on a reconciled host.
+- Do not run `weave setup --global`. Managed provisioning owns user-wide
+  enrolment, and the command writes outside the managed block.
