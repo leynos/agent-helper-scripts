@@ -719,18 +719,53 @@ def test_unattended_prefix_closes_the_merge_default_fallback(
     )
 
 
-def test_driver_override_survives_a_tracked_rule_added_during_the_replay(
-    diverged: tuple[Path, Path, Path],
-) -> None:
-    """A `.gitattributes` rule the target delivers cannot outrun the override."""
-    repository, source, attributes = diverged
-    _select_scope(repository, "global", attributes)
-    _diverge(repository, source)
-
+def _enrol_weave_from_the_target(repository: Path) -> None:
+    """Commit a tracked Weave rule on `main`, after `topic` has already diverged."""
     _git(repository, "switch", "--quiet", "main")
     (repository / ".gitattributes").write_text("*.py merge=weave\n", encoding="utf-8")
     _git(repository, "add", ".gitattributes")
     _git(repository, "commit", "--quiet", "-m", "target enrols weave")
+
+
+def test_a_tracked_rule_added_during_the_replay_selects_weave_unless_overridden(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """Control: the target's rule is invisible to a pre-rebase check but real."""
+    repository, source, _attributes = diverged
+    _diverge(repository, source)
+    _enrol_weave_from_the_target(repository)
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        selected = _git(repository, "check-attr", "merge", "--", "example.py")
+        rebased = _git(repository, "rebase", "main", check=False)
+
+        assert "merge: unspecified" in selected.stdout, (
+            "the control is only meaningful while the working tree still reports "
+            "the path as unselected before the replay starts"
+        )
+        assert spy.call_count > 0, (
+            "without the override the target's rule must reach the driver, which "
+            "is what makes the override test evidence of a bypass"
+        )
+
+    assert rebased.returncode == 0, f"the driver resolved rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == CORRUPT_OUTPUT, (
+        "the driver's output must land, proving the tracked rule was in force"
+    )
+
+
+def test_driver_override_survives_a_tracked_rule_added_during_the_replay(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A `.gitattributes` rule the target delivers cannot outrun the override."""
+    repository, source, _attributes = diverged
+    _diverge(repository, source)
+    _enrol_weave_from_the_target(repository)
 
     environment = EnvironmentManager()
     with CmdMox(environment=environment) as mox:
