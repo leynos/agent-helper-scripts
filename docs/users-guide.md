@@ -507,17 +507,23 @@ policy refuses data, Markdown, and lock-file extensions user-wide (`csv`,
 `json`, `json5`, `jsonc`, `lock`, `markdown`, `md`, `mdx`, `toml`, `xml`,
 `yaml`, and `yml`), although a repository may enrol reviewed paths through its
 own attributes. The skill shows how to verify a host against that baseline
-before trusting it.
+before trusting it; that check also reads `merge.default`, because an
+unspecified path falls back to it, and `merge.text.driver`, because it
+redirects every `merge=text` rule to a custom driver.
 
 Repository attributes take precedence over the managed global block, so a
-repository can bypass enrolment with `*.rs !merge` in `.git/info/attributes` or
-`*.rs merge=text` in `.gitattributes`. Because an unspecified `merge` attribute
-falls back to `merge.default`, `!merge` bypasses Weave only when that setting
-does not name Weave; `merge=text` selects the built-in text merge explicitly.
-Attribute precedence still applies, so confirm the effective value with
-`git check-attr merge`. See the
-[detailed skill](../skills/weave-git-merge/SKILL.md) for the scope differences
-and the command-scoped alternatives.
+repository can bypass enrolment with `*.rs !merge` or `*.rs merge` in the
+clone's `info/attributes`, or `*.rs merge=text` in `.gitattributes`. Because an
+unspecified `merge` attribute falls back to `merge.default`, `!merge` bypasses
+Weave only when that setting does not name Weave; a bare `merge` attribute
+selects Git's built-in text merge and reports `merge: set`, while `merge=text`
+names the `text` driver, so a host `merge.text.driver` takes its place and
+`merge=text` is safe only when none is configured. Attribute precedence still
+applies, so confirm the effective value with `git check-attr merge`.
+`info/attributes` lives outside `.git` in a linked worktree, so resolve it with
+`git rev-parse --git-path info/attributes`; every worktree of the clone shares
+it. See the [detailed skill](../skills/weave-git-merge/SKILL.md) for the scope
+differences and the command-scoped alternatives.
 
 For unattended multi-commit or long-lived-branch rebases, the workflow bypasses
 Weave by default, using Git's built-in merge machinery with
@@ -525,11 +531,13 @@ Weave by default, using Git's built-in merge machinery with
 ambient global or clone-local selection are never repository consent; a tracked
 `.gitattributes` rule is explicit opt-in for attended merges and requested
 dogfooding, and for unattended replays the skill bypasses it with a
-command-scoped override of the named driver, repeated on every `--continue`,
-rather than by editing attribute files. This matters because Weave 0.3.6 has
-recorded clean-exit corruption modes that pass parsers, compilers, and tests,
-so a clean exit and a green suite are never acceptance evidence on their own,
-and the 0.5.1 pin is not a claim that those modes are fixed.
+command-scoped override of the named driver, repeated on every `--continue` or
+authorized `--skip`, rather than by editing attribute files. A `--exec` guard
+runs only on commits trusted to execute as the local user, because it compiles
+the replayed tree. This matters because Weave 0.3.6 has recorded clean-exit
+corruption modes that pass parsers, compilers, and tests, so a clean exit and a
+green suite are never acceptance evidence on their own, and the 0.5.1 pin is
+not a claim that those modes are fixed.
 
 When Weave is deliberately kept active, per-replay structural checks via
 `git rebase --exec` are the default, and driver stderr — including

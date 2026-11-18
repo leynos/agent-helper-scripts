@@ -759,6 +759,53 @@ def test_a_tracked_rule_added_during_the_replay_selects_weave_unless_overridden(
     )
 
 
+@pytest.mark.parametrize(
+    ("rule", "attribute_value", "custom_driver_runs"),
+    (
+        ("*.py merge=text\n", "text", True),
+        ("*.py merge\n", "set", False),
+    ),
+)
+def test_a_bare_merge_attribute_cannot_be_redirected_by_a_custom_text_driver(
+    diverged: tuple[Path, Path, Path],
+    rule: str,
+    attribute_value: str,
+    custom_driver_runs: bool,
+) -> None:
+    """`merge=text` names a driver; a bare `merge` attribute does not."""
+    repository, source, _attributes = diverged
+    (repository / ".gitattributes").write_text(rule, encoding="utf-8")
+    _git(repository, "add", ".gitattributes")
+    _diverge(repository, source)
+
+    marker = repository / "custom-text-driver-ran"
+    text_driver = repository / "custom-text-driver.sh"
+    text_driver.write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(marker))}\nexit 1\n", encoding="utf-8"
+    )
+    text_driver.chmod(0o755)
+    _git(repository, "config", "merge.text.name", "custom text")
+    _git(
+        repository,
+        "config",
+        "merge.text.driver",
+        f"{shlex.quote(str(text_driver))} %O %A %B %L %P",
+    )
+
+    selected = _git(repository, "check-attr", "merge", "--", "example.py")
+    assert selected.stdout.rstrip().endswith(f"merge: {attribute_value}"), (
+        "the rule must resolve to the attribute state being tested"
+    )
+
+    _git(repository, "merge", "topic", check=False)
+
+    assert marker.exists() is custom_driver_runs, (
+        "Git resolves custom drivers before its built-ins, so `merge=text` runs "
+        "a host `merge.text.driver`, while a bare `merge` attribute always "
+        "selects the built-in text merge"
+    )
+
+
 def test_driver_override_survives_a_tracked_rule_added_during_the_replay(
     diverged: tuple[Path, Path, Path],
 ) -> None:

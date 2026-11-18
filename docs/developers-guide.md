@@ -1343,18 +1343,26 @@ selects `merge=weave` for `rs`, `py`, `ts`, and `tsx` by default. Data,
 Markdown, and lock-file extensions are refused user-wide; repositories may
 still enrol reviewed paths through their own attributes. Repository attributes
 take precedence over the global block, so a repository can bypass enrolment with
-`*.rs !merge` in `.git/info/attributes` or `*.rs merge=text` in
-`.gitattributes`. An unspecified `merge` attribute falls back to
-`merge.default`, so `!merge` bypasses Weave only when that setting does not
-name Weave; `merge=text` selects the built-in text merge explicitly. Attribute
-precedence still applies, so verify the effective value with
-`git check-attr merge`. The sanctioned command-scoped bypass replaces the named
-driver for one command rather than editing attribute files:
+`*.rs !merge` or `*.rs merge` in the clone's `info/attributes`, or
+`*.rs merge=text` in `.gitattributes`. An unspecified `merge` attribute falls
+back to `merge.default`, so `!merge` bypasses Weave only when that setting does
+not name Weave; a bare `merge` attribute selects Git's built-in text merge and
+reports `merge: set`, while `merge=text` names the `text` driver, so a host
+`merge.text.driver` takes its place and the form is safe only when none is
+configured. Attribute precedence still applies, so verify the effective value
+with `git check-attr merge`. `info/attributes` lives outside `.git` in a linked
+worktree; resolve it with `git rev-parse --git-path info/attributes`, and note
+that every worktree of the clone shares it. The host preflight also reads
+`merge.default` and `merge.text.driver`, because the first turns an unspecified
+path back into Weave and the second redirects every `merge=text` rule. The
+sanctioned command-scoped bypass replaces the named driver for one command
+rather than editing attribute files:
 `-c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B'
 -c merge.weave.recursive=text`,
-repeated on every `--continue`. The scope matrix keeps the attribute-level
-rows for hosts that have not been reconciled. Tests must keep both routes
-executable against real Git.
+repeated on every `--continue` or authorized `--skip`; any `--exec` guard runs
+only on commits trusted to execute as the local user. The scope matrix keeps
+the attribute-level rows for hosts that have not been reconciled. Tests must
+keep both routes executable against real Git.
 
 ### Setup scopes
 
@@ -1368,8 +1376,9 @@ executable against real Git.
   `core.attributesFile` is unset, Git falls back to
   `$XDG_CONFIG_HOME/git/attributes` or `$HOME/.config/git/attributes`. The
   estate baseline prohibits this scope: it writes user-wide attributes outside
-  the managed enrolment block, claims refused categories, and can replace the
-  managed driver registration.
+  the managed enrolment block, claims every extension the parser registry
+  supports, including refused Markdown and data formats such as `*.md` and
+  `*.csv` though not `.lock`, and can replace the managed driver registration.
 
 ### Driver contract
 
