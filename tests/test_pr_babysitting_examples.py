@@ -262,10 +262,11 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
 ) -> None:
     """An existing fix PR supplies a base only; its repairs stay out of the feature diff.
 
-    This is the offline boundary for the retarget rule. The feature branch is
-    replayed onto the fix branch by the reference's own fenced command, so the
-    repair is an ancestor and the feature's own diff contains only its own
-    commits. The hosted step that changes the PR's base to the fix branch is
+    This is the offline boundary for the retarget rule. Both branches start at
+    the same commit, so the candidate's base and the shared branch point are the
+    same object. The feature branch is replayed onto the fix branch by the
+    reference's own fenced command, so the repair is an ancestor and the
+    feature's own diff contains only its own commits. The hosted step that changes the PR's base to the fix branch is
     not verified here; the disposition is fed the resulting facts instead, and
     for either value of the stack tooling an existing fix PR selects a plain
     base rather than a new stack layer.
@@ -276,8 +277,14 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
     fixture.git("push", "push", "lint-fix")
     fixture.git("switch", "-c", "feature", "main")
     feature_only = fixture.commit("feature.py", "feature\n", "feature work")
+    old_base = fixture.git("rev-parse", "main")
     assert not fixture.is_ancestor(repair), "the feature must start without the repair"
-    replay = fixture.example("prerequisite-replay", FIX_BRANCH="lint-fix")
+    assert fixture.git("merge-base", "lint-fix", "feature") == old_base, (
+        "the shared-base case must have one branch point for both branches"
+    )
+    replay = fixture.example(
+        "prerequisite-replay", FIX_BRANCH="lint-fix", OLD_BASE=old_base
+    )
     assert replay.returncode == 0, replay.stderr
     assert fixture.is_ancestor(repair), "the feature must be based on the fix branch"
     assert (
@@ -324,6 +331,66 @@ def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
             )
             == BASE_ON_EXISTING_FIX
         ), "an existing fix PR must stay a plain base when the tooling is available"
+
+
+def test_prerequisite_replay_excludes_target_commits_the_fix_branch_predates(
+    local_git: GitFixture,
+) -> None:
+    """Only the candidate's own commits replay when the fix branch predates its base.
+
+    The fix branch branches from an earlier trunk commit than the candidate's
+    own base, which is the case where naming only the fix branch would select
+    every target commit between the two branch points. A throwaway branch runs
+    that unbounded form first, so the fixture is shown to contain the commits at
+    issue; the documented replay then names the candidate's base as the
+    upstream boundary, and only the candidate's own commit enters the feature
+    diff. The hosted step that changes the PR's base is not verified here.
+    """
+    fixture = local_git
+    fixture.git("switch", "-c", "lint-fix")
+    repair = fixture.commit("lint_target.py", "fixed\n", "repair the new lint rule")
+    fixture.git("push", "push", "lint-fix")
+    fixture.git("switch", "main")
+    fixture.commit("target_one.txt", "one\n", "target commit the fix branch predates")
+    old_base = fixture.commit(
+        "target_two.txt", "two\n", "target head when the candidate starts"
+    )
+    fixture.git("switch", "-c", "feature", "main")
+    feature_only = fixture.commit("feature.py", "feature\n", "feature work")
+    assert old_base != repair, "fixture must distinguish the fix and the candidate base"
+    assert not fixture.is_ancestor(old_base, "lint-fix"), (
+        "the fix branch must predate the candidate's base"
+    )
+    fixture.git("switch", "-c", "naive", feature_only)
+    naive = subprocess.run(
+        ["/usr/bin/git", "rebase", "lint-fix"], cwd=fixture.work, env=fixture.env,
+        text=True, capture_output=True, check=False, timeout=30,
+    )
+    assert naive.returncode == 0, naive.stderr
+    assert set(fixture.git("diff", "--name-only", "lint-fix", "HEAD").splitlines()) == {
+        "feature.py",
+        "target_one.txt",
+        "target_two.txt",
+    }, "the fixture must make an unbounded replay import target commits"
+    fixture.git("switch", "feature")
+    replay = fixture.example("prerequisite-replay", FIX_BRANCH="lint-fix", OLD_BASE=old_base)
+    assert replay.returncode == 0, replay.stderr
+    assert fixture.git("diff", "--name-only", "lint-fix", "HEAD") == "feature.py", (
+        "only the candidate's own commit may enter the feature diff"
+    )
+    assert fixture.git("rev-list", "--count", "lint-fix..HEAD") == "1", (
+        "the retargeted candidate must own exactly its own commit"
+    )
+    assert fixture.git("show", "lint-fix:lint_target.py") == "fixed", (
+        "the base branch must keep the repair"
+    )
+    assert fixture.is_ancestor(repair), "the candidate must sit on the fix branch"
+    assert not fixture.is_ancestor(old_base), (
+        "the candidate's base must become the fix branch, not the old target"
+    )
+    assert fixture.git("rev-parse", "HEAD") != feature_only, (
+        "the retargeted head must be a rewritten commit"
+    )
 
 
 def test_stack_layers_replay_onto_a_temporary_fix_copy_bottom_to_top(

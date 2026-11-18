@@ -126,8 +126,13 @@ the candidate's accepted scope covers stays in this PR's diff.
 
 ```bash
 # prerequisite-replay: replay only this PR's own commits onto the fix branch
-git rebase "$FIX_BRANCH"
+git rebase --onto "$FIX_BRANCH" "$OLD_BASE"
 ```
+
+The fix branch can predate this PR's own base, so naming only the fix branch
+would replay every commit between the two branch points, including target
+commits this PR did not author. `--onto` separates the replay target from the
+upstream that bounds the selected commits, and `OLD_BASE` supplies that bound.
 
 This classification does not wait for a green local gate. When the gate that
 reports the violation is red, the out-of-scope violation still becomes

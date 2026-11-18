@@ -1116,7 +1116,9 @@ this PR on an existing fix PR that targets this PR's own live target branch, or
 creates a new base PR for the fixes and retargets this PR onto it. A base
 branch must live in the same repository, so a fix PR whose head is in a fork is
 used through a temporary base-repository branch at that head, or its fix waits
-until it lands. An existing fix PR is reused only as a plain base branch: a PR
+until it lands. The replay onto that base is bounded at this PR's previous
+base, so a fix branch that predates it does not pull target commits into the
+feature diff. An existing fix PR is reused only as a plain base branch: a PR
 can belong to only one stack, and that fix PR may already be in one. When the
 agent creates the new base PR, a managed stack through `github-stacks` links
 the chain if the tooling is available; otherwise the prerequisite branch

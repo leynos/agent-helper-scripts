@@ -617,9 +617,11 @@ def decision_for(reason: str, facts: dict[str, bool]) -> str:
 #: For each trigger or selection clause, the facts it guards: the set that
 #: satisfies the reason, and the same set with that clause's fact flipped.
 #: Clauses are named by their position in ``REASON_CONDITIONS`` so the map
-#: cannot drift from the model's own clause list. The test below asserts that
-#: flipping the guarded fact changes the decision, so a clause that survives as
-#: decorative prose fails the suite instead of passing a presence check.
+#: cannot drift from the model's own clause list. Each pair differs in exactly
+#: one fact, so a changed decision is attributable to the clause under test.
+#: The test below asserts both properties, so a clause that survives as
+#: decorative prose, or a pair whose changed decision could belong to another
+#: fact, fails the suite instead of passing a presence check.
 GUARDED_DECISIONS = {
     (NO_CI_FAILURE, 0): (
         _ci_facts(ci_failing=False),
@@ -650,7 +652,7 @@ GUARDED_DECISIONS = {
         _ci_facts(),
     ),
     (INVESTIGATE, 0): (
-        _ci_facts(local_gates_pass=False),
+        _ci_facts(local_gates_pass=False, behind_target=True),
         _ci_facts(local_gates_pass=True, behind_target=True),
     ),
     (REPAIR_IN_SCOPE, 0): (
@@ -718,8 +720,10 @@ def test_each_trigger_clause_guards_a_model_decision() -> None:
     The presence check in ``test_dropping_any_trigger_condition_is_detected``
     only proves the sentence exists. This test binds each clause to the fact it
     guards, so a clause whose fact no longer affects the model is reported as
-    decorative. These are specification-only cases: they constrain the model,
-    not the shipped skill's behaviour.
+    decorative. Each pair must also differ in exactly one fact: a pair that
+    flips two facts cannot say which one moved the decision, and the clause
+    would pass on the other fact's strength. These are specification-only
+    cases: they constrain the model, not the shipped skill's behaviour.
     """
     expected = {
         (reason, index)
@@ -731,6 +735,10 @@ def test_each_trigger_clause_guards_a_model_decision() -> None:
     )
     for (reason, index), (baseline, flipped) in GUARDED_DECISIONS.items():
         clause = REASON_CONDITIONS[reason][index]
+        differing = [fact for fact in baseline if baseline[fact] != flipped[fact]]
+        assert len(differing) == 1, (
+            f"{clause!r} must flip exactly one fact, but flips {differing}"
+        )
         baseline_decision = decision_for(reason, baseline)
         flipped_decision = decision_for(reason, flipped)
         assert baseline_decision == reason, (
@@ -755,7 +763,7 @@ def test_reference_states_replay_and_stack_steps_in_order() -> None:
     ordered = (
         "look for an open fix PR",
         "create one that fixes exactly those violations",
-        'git rebase "$FIX_BRANCH"',
+        'git rebase --onto "$FIX_BRANCH"',
         "Replay every layer's own commits onto the copy bottom to top",
         'git rebase --onto "$COPY_BRANCH"',
         "Replay the next layer only after that validation",
