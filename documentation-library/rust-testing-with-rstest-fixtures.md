@@ -898,6 +898,9 @@ like `tempfile` or `test-temp-dir`. A fixture can create a temporary file,
 directory, or similar resource, expose whichever locator the test requires, and
 ensure cleanup (often via Resource Acquisition Is Initialization (RAII)). That
 locator might be a filesystem path or an open handle depending on the scenario.
+When the resource is a temporary directory, the fixture should expose the
+locator together with the value that owns the directory, rather than the
+locator alone.
 
 Here's an illustrative example using the `tempfile` crate:
 
@@ -915,24 +918,36 @@ fn temp_directory() -> TempDir {
     tempdir().expect("Failed to create temporary directory")
 }
 
-// Fixture that creates a temporary file with specific content within a temp directory.
-// It depends on the temp_directory fixture.
+// Fixture that creates a temporary file with specific content within a temp
+// directory. It depends on the temp_directory fixture.
+//
+// The result owns the directory as well as the file path, so the directory
+// stays alive for as long as the test holds the value.
+struct TempFileWithContent {
+    // Never read directly: this field exists to keep the directory alive.
+    // Dropping it removes the directory and the file inside it.
+    _dir: TempDir,
+    path: PathBuf,
+}
+
 #[fixture]
 fn temp_file_with_content(
     #[from(temp_directory)] // Use #[from] if name differs or for clarity
-    temp_dir: &TempDir, // Take a reference to ensure TempDir outlives this fixture's direct use
+    temp_dir: TempDir, // Take ownership so the directory outlives this fixture
     #[default("Hello, rstest from a temp file!")] content: &str
-) -> PathBuf {
-    let file_path = temp_dir.path().join("my_temp_file.txt");
-    let mut file = File::create(&file_path).expect("Failed to create temporary file");
+) -> TempFileWithContent {
+    let path = temp_dir.path().join("my_temp_file.txt");
+    let mut file = File::create(&path).expect("Failed to create temporary file");
     file.write_all(content.as_bytes()).expect("Failed to write to temporary file");
-    file_path
+    TempFileWithContent { _dir: temp_dir, path }
 }
 
 #[rstest]
-fn test_read_from_temp_file(temp_file_with_content: PathBuf) {
-    assert!(temp_file_with_content.exists());
-    let mut file = File::open(temp_file_with_content).expect("Failed to open temp file");
+fn test_read_from_temp_file(temp_file_with_content: TempFileWithContent) {
+    // This binding owns the directory, so it stays alive until the test
+    // returns. The directory is removed when the binding is dropped.
+    assert!(temp_file_with_content.path.exists());
+    let mut file = File::open(&temp_file_with_content.path).expect("Failed to open temp file");
     let mut read_content = String::new();
     file.read_to_string(&mut read_content).expect("Failed to read temp file");
     assert_eq!(read_content, "Hello, rstest from a temp file!");
@@ -950,6 +965,17 @@ return value goes out of scope. This localizes resource management logic to the
 fixture, keeping the test focused on its assertions. For temporary resources,
 regular (per-test) fixtures are generally preferred over `#[once]` fixtures to
 ensure proper cleanup, as `#[once]` fixtures are never dropped.
+
+Ownership, not the path, is what keeps the directory alive. A `PathBuf` records
+where a file lives, but it does not own the directory that contains the file.
+Likewise, borrowing the directory as `&TempDir` during fixture setup cannot
+extend its lifetime beyond the fixture call. In the version of `rstest` this
+guide documents, that borrow also fails to compile, because `rstest` passes the
+dependency to the fixture by value. A dependent fixture should therefore take
+`TempDir` by value and return it as part of its result, as
+`temp_file_with_content` does above, and the test should hold that result until
+it has finished reading the file. Cleanup then happens when the owning value is
+dropped at the end of the test.
 
 ### B. Mocking external services (e.g., database connections, HTTP APIs)
 
