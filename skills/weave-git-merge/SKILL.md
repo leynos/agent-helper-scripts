@@ -159,35 +159,11 @@ instead. Use Weave for such an operation only when the repository explicitly
 opts in through tracked attributes and the task explicitly requests Weave
 dogfooding/evidence collection.
 
-For a global ambient rule on an unreconciled host, a typical unattended rebase
-therefore starts as:
-
-```bash
-git -c core.attributesFile=/dev/null \
-    -c merge.default=text \
-    -c merge.conflictStyle=zdiff3 \
-    rebase origin/main
-```
-
-`-c merge.default=text` closes the other route to Weave. Disabling the user
-attributes file leaves each formerly enrolled path unspecified, and Git then
-consults `merge.default`; if that setting names Weave, the rebase still runs
-it. Pinning the fallback to `text` selects Git's built-in text merge
-explicitly. Neither option overrides tracked or clone-local rules, so verify
-every path the replay can touch, not one representative path:
-`git -c core.attributesFile=/dev/null check-attr merge -- path` must report
-`unspecified` for each. If any path still reports `weave`, use the driver
-override below for the whole rebase, repeating it on every `--continue`; it
-replaces the named driver regardless of which attribute source selected it.
-
-If tracked `.gitattributes` selects Weave, that is explicit repository policy
-for attended merges and for dogfooding the repository has asked for. Do not
-silently bypass it. The estate baseline still routes an unattended long-lived
-branch rebase through Git's text merge unless the operator explicitly requests
-dogfooding, so in that case bypass the driver with the command-scoped override
-below and record the decision in the operation receipt. The override replaces
-the named driver for those commands only; it does not edit the repository's
-attribute files:
+For an unattended rebase, use the command-scoped driver override. It replaces
+the named driver for every path, whichever attribute source selected Weave,
+including a tracked `.gitattributes` rule that a replayed commit introduces
+part-way through the operation, so it does not depend on a pre-rebase check. It
+does not edit the repository's attribute files:
 
 ```bash
 git -c merge.conflictStyle=zdiff3 \
@@ -200,6 +176,32 @@ Repeat the same `-c` overrides on every `git rebase --continue`; Git reads the
 driver configuration again for each replayed commit. Do not confuse this with
 `--ours` or `--theirs`, which discard one side of a conflict. The override
 targets Weave only; other custom merge drivers need their own policy.
+
+A narrower alternative is safe only when no tracked or clone-local rule can
+select Weave for any path in the replay:
+
+```bash
+git -c core.attributesFile=/dev/null \
+    -c merge.default=text \
+    -c merge.conflictStyle=zdiff3 \
+    rebase origin/main
+```
+
+`-c merge.default=text` closes the other route to Weave: disabling the user
+attributes file leaves each formerly enrolled path unspecified, and Git then
+consults `merge.default`. `check-attr` reports the working tree's attributes at
+the moment it runs, not those Git applies to a later replayed commit, so a
+`.gitattributes` rule that the target or a replay introduces is invisible to
+that check. Verify every path the replay can already see, and use the driver
+override for any replay that can add such a rule: `/dev/null` alone cannot
+override those rules.
+
+If tracked `.gitattributes` selects Weave, that is explicit repository policy
+for attended merges and for dogfooding the repository has asked for. Do not
+silently bypass it for attended work. The estate baseline still routes an
+unattended long-lived branch rebase through Git's text merge unless the
+operator explicitly requests dogfooding, so record the override in the
+operation receipt.
 
 Choose one setup scope deliberately when configuring Weave:
 
@@ -671,9 +673,10 @@ mutable and may have moved since the candidate identities were recorded, so
 reusing it would silently retry against different history than the audit
 covered.
 
-For managed user-wide enrolment, first verify that ignoring the user attributes
-file makes `merge` unspecified for a representative affected path, then use the
-same override for the rebase, merge, or cherry-pick:
+For a retry, use the command-scoped driver override for the rebase, merge, or
+cherry-pick. It replaces the named driver for the whole operation whichever
+attribute source selects Weave, including a tracked rule that a replayed commit
+introduces, so it does not depend on inspecting a representative path:
 
 ```bash
 # Only after recovery evidence is verified. Use the abort for an interrupted
@@ -681,55 +684,42 @@ same override for the rebase, merge, or cherry-pick:
 git rebase --abort
 git reset --hard "$OLD_HEAD"
 
-git -c core.attributesFile=/dev/null check-attr merge -- path/to/file.py
-# path/to/file.py: merge: unspecified
-git -c core.attributesFile=/dev/null rebase "$TARGET"
-
-# For a merge, abort it or reset to "$OLD_HEAD", then retry with the same
-# original arguments resolved against the recorded target:
-git merge --abort
-git -c core.attributesFile=/dev/null merge <same-original-arguments>
-
-# For a cherry-pick, likewise:
-git cherry-pick --abort
-git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>
-```
-
-Unspecified paths fall back to `merge.default`, so also run
-`git config --get merge.default` before trusting that check. If it names Weave,
-add `-c merge.default=text` to each command, or select `merge=text` in the
-repository's attributes.
-
-For unattended rebase recovery, also force the expected conflict style for the
-retry without mutating persistent Git configuration:
-
-```bash
-git -c core.attributesFile=/dev/null \
-    -c merge.conflictStyle=zdiff3 \
-    rebase "$TARGET"
-```
-
-This override disables only the user attributes file for those commands.
-Repository-tracked `.gitattributes` and `.git/info/attributes` still apply, so
-it preserves unrelated repository merge rules. It is suitable when the managed
-user-wide block supplied the `merge=weave` rule and no higher-precedence source
-selects Weave. For tracked or clone-local setup, use the driver override or the
-corresponding matrix row above, because `/dev/null` alone cannot override those
-rules. A later path-specific `!merge` line in `.git/info/attributes` outranks
-every attribute source for that path, which is why it is the attribute-level
-bypass for tracked and clone-local rules.
-
-For an opted-in repository, the retry with the driver override is:
-
-```bash
 git -c merge.conflictStyle=zdiff3 \
     -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
     -c merge.weave.recursive=text \
     rebase "$TARGET"
+
+# For a merge, abort it or reset to "$OLD_HEAD", then retry with the same
+# original arguments resolved against the recorded target:
+git merge --abort
+git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
+    -c merge.weave.recursive=text \
+    merge <same-original-arguments>
+
+# For a cherry-pick, likewise:
+git cherry-pick --abort
+git -c merge.weave.driver='git merge-file --zdiff3 --marker-size=%L %A %O %B' \
+    -c merge.weave.recursive=text \
+    cherry-pick <same-original-arguments>
 ```
 
 Carry the same overrides on each `git rebase --continue` until the operation
 completes.
+
+To diagnose why Weave ran at all,
+`git -c core.attributesFile=/dev/null check-attr merge -- path` shows what the
+working tree selects once the user attributes file is ignored, and
+`git config --get merge.default` shows the fallback for an unspecified path.
+Neither check sees a `.gitattributes` rule that a replayed commit has not yet
+delivered, which is why the override, not the pre-rebase check, is the
+safeguard for the whole operation.
+
+This override preserves unrelated repository merge rules: it replaces only the
+`merge.weave` driver command, so a path still selected as `merge=weave` in
+tracked or clone-local attributes runs Git's text merge through the override. A
+later path-specific `!merge` line in `.git/info/attributes` outranks every
+attribute source for that path, so it remains the attribute-level bypass when
+the goal is for Git to report the path as unselected.
 
 Remove repository configuration with `weave unsetup`. It removes the local
 `merge.weave` section and Weave rules from `.gitattributes` and

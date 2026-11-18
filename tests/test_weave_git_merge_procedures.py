@@ -719,6 +719,39 @@ def test_unattended_prefix_closes_the_merge_default_fallback(
     )
 
 
+def test_driver_override_survives_a_tracked_rule_added_during_the_replay(
+    diverged: tuple[Path, Path, Path],
+) -> None:
+    """A `.gitattributes` rule the target delivers cannot outrun the override."""
+    repository, source, attributes = diverged
+    _select_scope(repository, "global", attributes)
+    _diverge(repository, source)
+
+    _git(repository, "switch", "--quiet", "main")
+    (repository / ".gitattributes").write_text("*.py merge=weave\n", encoding="utf-8")
+    _git(repository, "add", ".gitattributes")
+    _git(repository, "commit", "--quiet", "-m", "target enrols weave")
+
+    environment = EnvironmentManager()
+    with CmdMox(environment=environment) as mox:
+        spy = mox.spy(DRIVER_NAME).runs(_writing_handler(repository, CORRUPT_OUTPUT, 0))
+        mox.replay()
+        _wire_driver(repository, environment)
+        _git(repository, "switch", "--quiet", "topic")
+        rebased = _git(repository, *DRIVER_OVERRIDE, "rebase", "main", check=False)
+
+        assert spy.call_count == 0, (
+            "the target's `.gitattributes` selects Weave only once the replay "
+            "starts, so a pre-rebase check cannot see it; the command-scoped "
+            "driver override must still keep Weave out"
+        )
+
+    assert rebased.returncode == 0, f"the override rebase must succeed: {rebased.stderr}"
+    assert source.read_text(encoding="utf-8") == MERGED_SOURCE, (
+        "the overridden driver must produce Git's text result"
+    )
+
+
 def test_unattended_prefix_still_honours_a_tracked_repository_opt_in(
     diverged: tuple[Path, Path, Path],
 ) -> None:

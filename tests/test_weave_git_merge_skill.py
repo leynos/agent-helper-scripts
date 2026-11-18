@@ -451,24 +451,34 @@ def test_skill_keeps_operation_specific_global_fallbacks() -> None:
     """Each interrupted Git operation is aborted before its retry."""
     _, skill = _skill_frontmatter()
 
+    driver_override = (
+        "-c merge.weave.driver='git merge-file --zdiff3 "
+        "--marker-size=%L %A %O %B' \\\n"
+        "    -c merge.weave.recursive=text"
+    )
     required_commands = (
         "git rebase --abort",
-        'git -c core.attributesFile=/dev/null rebase "$TARGET"',
+        "git -c merge.conflictStyle=zdiff3 \\\n"
+        f"    {driver_override} \\\n"
+        '    rebase "$TARGET"',
         "git merge --abort",
-        "git -c core.attributesFile=/dev/null merge <same-original-arguments>",
+        f"git {driver_override} \\\n    merge <same-original-arguments>",
         "git cherry-pick --abort",
-        "git -c core.attributesFile=/dev/null cherry-pick <same-original-arguments>",
+        f"git {driver_override} \\\n    cherry-pick <same-original-arguments>",
     )
     for command in required_commands:
         assert command in skill, (
-            f"the fallback must document `{command}` so each operation is "
-            "aborted before its own retry"
+            f"the fallback must document `{command}` so each operation uses "
+            "the driver override for the whole retry"
         )
     assert "git -c core.attributesFile=/dev/null rebase origin/main" not in _prose(
         skill
     ), (
         "the retry must resolve the recorded target, not re-read a remote ref "
         "that may have moved since the candidate identities were recorded"
+    )
+    assert "check-attr merge -- path" in _prose(skill), (
+        "the pre-rebase check remains as diagnosis, not as the safeguard"
     )
 
 
@@ -488,13 +498,12 @@ def test_skill_pins_merge_default_in_the_ambient_rebase_example() -> None:
     assert "closes the other route to Weave" in _prose(skill), (
         "the example must explain why the fallback is pinned to the text driver"
     )
-    assert "verify every path the replay can touch" in _prose(skill), (
-        "one representative path is not enough: another path can still select "
-        "Weave from a tracked or clone-local rule"
-    )
-    assert "use the driver override below for the whole rebase" in _prose(skill), (
-        "a still-selected path must switch the whole rebase to the driver override"
-    )
+    assert "reports the working tree's attributes at the moment it runs" in _prose(
+        skill
+    ), "the check must be limited to attributes the replay can already see"
+    assert "use the driver override for any replay that can add such a rule" in (
+        _prose(skill)
+    ), "a rule arriving mid-replay must switch to the driver override"
 
 
 def test_skill_recovers_a_completed_operation_by_resetting_the_candidate() -> None:
