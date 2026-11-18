@@ -8,6 +8,22 @@ than leaving an equivalent command authored in Python. Fixture setup, such as
 creating branches and commits, is test-authored and is not part of the
 procedure under test.
 
+Function
+    Beyond the Git-visible procedures, the module checks the rehearsal rows in
+    `skills/pr-babysitting/references/sources-and-rehearsal.md` for both the
+    trust and the error rules, the lifecycle and trust flowchart assertions in
+    `docs/users-guide.md` and the shipped skill, and the assessment contract
+    guards together with their mutation cases.
+
+Relationships
+    `pr_babysitting_error_model` supplies the executable dispositions that the
+    replay and rehearsal tests exercise.
+    `pr_babysitting_flowchart_support` supplies the parser for the lifecycle
+    and trust charts. `assessment_mutation_cases` supplies the mutation cases
+    that prove the assessment contract guards cannot be waived or misplaced,
+    and `skill_contract_support` supplies the helpers that extract sections,
+    fenced requests and clauses from the skill text.
+
 Hosted operations are not verified here: changing a PR's base, `gh stack init`,
 `gh stack submit`, `gh stack unstack`, and reconciling merged, merging or
 queued PRs happen on GitHub rather than in the fixture's file-transport
@@ -16,6 +32,7 @@ remotes. Tests that stop at a hosted boundary say so in their own docstrings.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -255,6 +272,46 @@ def test_stale_base_replay_lands_the_target_fix_before_diagnosis(local_git: GitF
         )
         == INVESTIGATE
     ), "a current branch whose rebased result is red is investigated, not rebased again"
+
+
+def test_stale_base_routing_does_not_rebase_without_a_local_pass(
+    local_git: GitFixture,
+) -> None:
+    """A behind-target candidate with a failing local gate is investigated in place.
+
+    The documented procedure requires both a local pass and a moved base before
+    it replays anything, so a candidate that is behind the target while its own
+    gate fails keeps its history and routes to investigation. The facts are read
+    from the fixture tree rather than asserted as literals, and the branch head
+    is compared before and after so the test shows that no replay took place.
+    """
+    fixture = local_git
+    fixture.git("switch", "-c", "feature")
+    fixture.commit("local-gate.sh", "exit 1\n", "local gate the candidate fails")
+    fixture.commit("feature.txt", "feature\n", "feature work")
+    fixture.git("push", "push", "feature")
+    fixture.git("switch", "main")
+    fix = fixture.commit("gate.sh", "exit 0\n", "target fix for the red check")
+    fixture.git("push", "target", "main")
+    fixture.git("switch", "feature")
+    head = fixture.git("rev-parse", "HEAD")
+    assert not fixture.gate_passes("local-gate.sh"), "the local gate must fail"
+    assert not fixture.gate_passes("gate.sh"), "the hosted gate must be red"
+    behind_target = not fixture.is_ancestor(fix)
+    assert behind_target, "the candidate must start behind the target"
+    assert (
+        ci_failure_disposition(
+            ci_failing=not fixture.gate_passes("gate.sh"),
+            local_gates_pass=fixture.gate_passes("local-gate.sh"),
+            behind_target=behind_target,
+            hosted_out_of_scope_lint=False,
+        )
+        == INVESTIGATE
+    ), "a behind-target candidate whose local gate fails is investigated, not rebased"
+    assert fixture.git("rev-parse", "HEAD") == head, "routing must leave the branch alone"
+    assert not (fixture.work / "gate.sh").exists(), (
+        "no replay may run when the local gate has not passed"
+    )
 
 
 def test_prerequisite_replay_keeps_an_existing_fix_pr_as_a_plain_base(
@@ -1130,3 +1187,31 @@ def test_codescene_unevaluable_contract_rejects_weakened_wording(
     assert mutation in unevaluable_contract(mutated), (
         "the contract accepted wording that permits waiving an unevaluable source"
     )
+
+
+HELPER_MODULES = (
+    "pr_babysitting_error_model",
+    "pr_babysitting_flowchart_support",
+    "assessment_mutation_cases",
+    "skill_contract_support",
+)
+
+
+def test_examples_module_docstring_names_its_coverage_and_helper_inputs() -> None:
+    """The module records what it checks and which helper supplies each input.
+
+    The docstring is how a reader learns that this module is not only a Git
+    fixture, so an expansion that drops the rehearsal, flowchart or assessment
+    coverage, or that stops naming a helper, fails here rather than passing
+    unread.
+    """
+    docstring = ast.get_docstring(ast.parse(Path(__file__).read_text())) or ""
+    for coverage in (
+        "sources-and-rehearsal.md",
+        "flowchart",
+        "assessment contract guards",
+        "mutation cases",
+    ):
+        assert coverage in docstring, f"module docstring must name: {coverage}"
+    for helper in HELPER_MODULES:
+        assert helper in docstring, f"module docstring must name its helper: {helper}"
