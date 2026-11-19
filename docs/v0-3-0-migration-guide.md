@@ -216,6 +216,44 @@ Host-wide agent instructions that require the lifecycle account for GitHub
 operations should name the comment pool as an explicit exception; see the
 [manual-comment identity contract](../skills/pr-babysitting/SKILL.md#manual-comment-identity-contract).
 
+### Stale bases and newer lint suites
+
+Two further `pr-babysitting` rules change what an assignment does when a hosted
+run is red and when a newer lint suite reports code the PR did not change.
+Refresh the skills with `install-skills` to pick up the changes.
+
+- **Rebase a stale base before reading logs.** A red hosted run whose same
+  commit passes the repository gates locally, on a branch behind its live
+  target, is now rebased onto the target before the agent reads the failure
+  logs, posts an investigation comment, or dispatches a repair. The rebased
+  candidate is re-observed first, because a moved base can fail a check the
+  branch does not fail on its own base. A green result, or a branch that
+  already contains the target head, keeps the previous diagnosis path, and so
+  does a red current candidate unless the failing gate reports only a newer
+  suite's out-of-scope violation, which is classified as prerequisite work
+  instead of investigated.
+- **Newer lint suites are prerequisite work.** Violations a newer suite reports
+  outside the PR's accepted scope — commonly in code the PR did not change —
+  move into a prerequisite fix PR. The agent bases this PR on an existing fix
+  PR that addresses them, or creates a new fix PR and retargets or restacks
+  onto it. A violation the accepted scope covers stays in the feature diff even
+  when the PR did not touch that file.
+- **What to expect.** An existing fix PR is reused only as a plain base branch,
+  because a PR can belong to only one stack and that fix PR may already be in
+  one; only a newly created fix PR becomes a stack layer. A fix PR whose head
+  lives in a fork is reached through a temporary branch in the base repository,
+  deleted when the fix merges, or the fix waits until it lands. A managed stack
+  moves onto the fix as a whole: each layer is replayed onto a temporary copy
+  and validated, the stack is recreated with `gh stack` because its trunk is
+  fixed at creation, and it is restacked onto the merged target afterwards.
+  Recreating restarts the stack's merge-queue position and review state, and
+  `gh stack unstack` cannot remove merged, merging, or queued PRs, so those
+  states are reconciled first.
+
+See the [users' guide](users-guide.md#what-to-expect) and the
+[`pr-babysitting` rebase reference](../skills/pr-babysitting/references/rebase.md)
+for the procedure.
+
 ## Repository scratch sidecars
 
 The `scratch` skill standardizes repository-specific experiments, recovery

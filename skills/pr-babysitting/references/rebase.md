@@ -43,6 +43,29 @@ ordinary merge-base does not establish a squash-restack boundary. Execute only
 the reviewed replay plan from that skill, with the fetched `TARGET` as its
 explicit target, the merge backend, and `merge.conflictStyle=zdiff3`.
 
+## Diagnose a stale base before reading logs
+
+A failing hosted check on a branch that is behind its target is not evidence of
+a branch defect until the branch has been rebased. When the same repository
+commit gates pass locally for the current head and the live target contains
+commits the branch does not, freeze and replay onto that target before reading
+or acting on the scrutineer's captured failure logs or failure summary, posting
+an investigation comment, or dispatching a repair. The scrutineer still
+collects those logs under its own procedure; the summoning agent withholds them
+until the rebased candidate has its own CI result.
+
+Once `TARGET` is frozen, replay the candidate's own commits onto it:
+
+```bash
+# stale-base-replay: land the frozen target beneath the candidate's own commits
+git rebase "$TARGET"
+```
+
+Re-observe the rebased candidate's CI before investigating. When local gates
+also fail, or the branch already contains the target head, continue with normal
+failure diagnosis. Do not rebase merely because a check is red: the local pass
+and the behind-target condition are both required.
+
 ## Plan each conflict before editing
 
 At every stop, inspect `git status`, unmerged paths and index stages, the
@@ -90,6 +113,72 @@ lock-generation command. Regenerate sooner as well if a per-replay gate
 requires a coherent manifest/lock pair. Review the resulting dependency diff,
 preserve both branches' requirements, and avoid unrelated upgrades. A target
 baseline is not the final lockfile when the feature changes dependencies.
+
+## Retarget onto a prerequisite fix branch
+
+A newer lint suite can report violations outside the candidate's accepted
+scope, commonly in code it did not change. The replay target then becomes the
+fix PR rather than the repository's trunk: look for an open fix PR for the same
+violations, or create one that fixes exactly those violations, and change this
+PR's base to its branch. Replay only this PR's own commits onto the fix branch,
+then verify both review diffs and the remote target relationship. A violation
+the candidate's accepted scope covers stays in this PR's diff.
+
+```bash
+# prerequisite-replay: replay only this PR's own commits onto the fix branch
+git rebase --onto "$FIX_BRANCH" "$OLD_BASE"
+```
+
+The fix branch can predate this PR's own base, so naming only the fix branch
+would replay every commit between the two branch points, including target
+commits this PR did not author. `--onto` separates the replay target from the
+upstream that bounds the selected commits, and `OLD_BASE` supplies that bound.
+
+This classification does not wait for a green local gate. When the gate that
+reports the violation is red, the out-of-scope violation still becomes
+prerequisite work rather than an in-scope repair, so classify it before routing
+the failed gate to investigation.
+
+A base branch must live in the same repository. When the fix PR's head is in a
+fork, base this PR on a temporary branch in the base repository created at that
+head, and delete the temporary branch when the fix PR merges; if the repository
+does not permit that branch, wait for the fix to land before retargeting.
+
+When a new fix PR is created and `github-stacks` is available and enabled,
+create the chain as a managed stack instead of an unlinked prerequisite pair.
+Do not add an existing fix PR to this feature's stack: a PR can belong to only
+one stack, so reuse that PR as a plain base branch instead.
+
+When this PR is already a stack layer, replay the whole stack onto the new fix
+PR rather than inserting the fix between two layers. If an existing fix PR is
+the base, take a temporary copy of its branch for the stack, because the
+original branch will move and then become obsolete when it merges. Replay every
+layer's own commits onto the copy bottom to top, and validate each replayed
+layer before it joins the new stack; restack onto the merged target after the
+fix PR lands.
+
+```bash
+# stack-copy-replay-bottom: replay the bottom layer's own commits onto the copy
+git rebase --onto "$COPY_BRANCH" "$STACK_BASE" "$BOTTOM_LAYER"
+```
+
+Replay the next layer only after that validation:
+
+```bash
+# stack-copy-replay-upper: replay an upper layer's own commits onto the layer below
+git rebase --onto "$BOTTOM_LAYER" "$ORIGINAL_BOTTOM" "$UPPER_LAYER"
+```
+
+`gh stack` fixes a stack's trunk at creation only, so moving the stack onto the
+copy means recreating it with
+`gh stack init -b <copy-branch> <branches bottom to top>` and
+`gh stack submit`. That creates a new stack object, so any merge-queue position
+and review state restart. The old stack does not dissolve on its own:
+`gh stack unstack` cannot remove merged, merging, or queued PRs, which remain
+in it, and it dissolves only once every PR is removed. Reconcile those states
+before recreating, and keep each layer PR in exactly one stack. A merged fix
+PR's squash SHA is evidence of landing, not the replay boundary for the rebased
+stack.
 
 ## Validate, finish outstanding work, and publish with a lease
 

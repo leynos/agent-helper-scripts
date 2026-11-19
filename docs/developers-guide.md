@@ -840,7 +840,8 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
-`tests/test_pr_readiness_model.py`, `tests/test_pr_readiness_workflow.py`, and
+`tests/test_pr_babysitting_error_model.py`, `tests/test_pr_readiness_model.py`,
+`tests/test_pr_readiness_workflow.py`, and
 `tests/test_sdlc_milestone_review.py`. See the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
@@ -876,6 +877,14 @@ share, and each takes and returns plain strings without touching the filesystem:
 `tests/assessment_mutation_cases.py` keeps the mutation table as data, and
 `tests/pr_readiness_model.py` restates the documented draft-to-ready gate as an
 executable specification over candidate-bound verdicts.
+`tests/pr_babysitting_error_model.py` restates the two error dispositions the
+skill states: a red hosted run is rebased before diagnosis only when the same
+commit gates pass locally and the branch is behind its target, and a newer lint
+suite's out-of-scope violations become a prerequisite fix PR, or a new base of
+a managed stack, rather than feature repairs. An existing fix PR is reused only
+as a base branch, because a PR belongs to one stack; only a newly created fix
+PR becomes a stack layer. Its contract test keeps every decision and constraint
+cited by the shipped skill, and proves each input changes the result.
 `tests/test_pr_readiness_model.py` requires each reason it can return to cite a
 sentence the shipped documents still state, so the model cannot outlive the
 prose it encodes, and it pairs every rule with a mutation control that drops or
