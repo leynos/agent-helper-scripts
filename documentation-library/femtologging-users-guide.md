@@ -813,6 +813,7 @@ def request_filter(record: logging.LogRecord) -> bool:
         "service",
         femtologging
         .LoggerConfigBuilder()
+        .with_level("INFO")
         .with_filters(["request_enrichment"])
         .with_handlers(["console"]),
     )
@@ -821,6 +822,7 @@ def request_filter(record: logging.LogRecord) -> bool:
 
 logger = femtologging.get_logger("service")
 logger.log("INFO", "request accepted")
+logger.flush_handlers()
 ```
 
 Collisions and invalid values are rejected before the record enters the worker
