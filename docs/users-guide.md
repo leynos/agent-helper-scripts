@@ -291,7 +291,11 @@ it entirely. A directory the walk cannot read fails the gate instead of being
 skipped. Linting nothing is a failure: the gate stops with a diagnostic when
 discovery finds no Markdown file or when the linter is not installed. It is one
 of the gates `make ci` runs, in order: `check-fmt`, `markdownlint`, `lint`,
-`typecheck`, `test`, then `spelling`.
+`typecheck`, `model-check`, `test`, then `spelling`. `model-check` verifies the
+`pr-babysitting` readiness protocol with a pinned model checker; run
+`make fizzbee` once to fetch it, as the
+[developers' guide](developers-guide.md#pr-readiness-behavioural-specification)
+describes.
 
 `make nixie` validates Mermaid diagrams with `nixie` over the same discovered
 files. It is deliberately not part of `make ci`, because it renders through an

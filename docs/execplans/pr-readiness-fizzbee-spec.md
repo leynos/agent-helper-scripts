@@ -177,10 +177,26 @@ is no history of revised limits to learn from.
   and the FizzBee model agrees on every row. The 68 single-deviation rows are
   the routine `snapshot-regression-table`; the full set is the extended
   `snapshot-comparison-table`.
-- [ ] `EP-M4` obligation mapping, its contract test, and the fixture mapping.
-- [ ] `EP-M5` Python retirement and documentation updates.
-- [ ] `EP-M6` lessons document, independent review, final gates, PR and
-  handoff to `pr-babysitting`.
+- [x] (2026-11-20 06:10Z) `EP-M4` `obligations.toml` (36 obligations) and
+  `tests/test_pr_readiness_obligations.py`; `fixtures.toml`, four scenario
+  traces, the `fixture-snapshots` table and
+  `tests/test_pr_readiness_fixture_mapping.py`;
+  `tests/test_readiness_handoff_boundary.py` and the two handoff tests of
+  `tests/test_sdlc_implementation_skill.py` refactored to abstract and look up
+  instead of deciding.
+- [x] (2026-11-20 06:20Z) First commit, `7e1b74f`, with the Python model
+  still present and the comparison script beside it.
+- [x] (2026-11-20 06:50Z) `EP-M5` Python model, workflow double, their three
+  test modules and the comparison script removed; `AGENTS.md`, the developers'
+  guide and the users' guide updated.
+- [x] (2026-11-20 07:00Z) `EP-M6` lessons document written. Extended tier
+  measured: 74 runs, 100 s, 2.57 GiB peak.
+- [x] (2026-11-20 07:00Z) Live rehearsals attempted and not performed: the
+  runner's isolation checks passed, then the agent failed to start because
+  `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` were not set in this session.
+  No recording was produced or changed.
+- [ ] `EP-M6` independent review of the formal claims, full gate sequence on
+  the final candidate, PR and handoff to `pr-babysitting`.
 
 ## Surprises & discoveries
 
@@ -310,9 +326,59 @@ is no history of revised limits to learn from.
   stack's all-layers-ready merge rule. Date/Author: 2026-11-20, implementing
   agent.
 
+- D9. Decision: continue past the size tolerances, and report the breach.
+  The code budget of 2,500 added lines and the configuration budget of 900 were
+  set before the launcher and the suite existed and are exceeded: the
+  specification is about 1,100 lines, the launcher about 1,500, its tests about
+  700, the contract tests about 530, and the suite and mapping data about
+  1,800. The options were to stop and await direction, to cut controls or
+  launcher checks to fit, or to continue. Cutting would remove exactly the
+  fail-closed checks and controls the assignment requires, and this session has
+  no interactive reviewer to await. The work continued, and the breach is
+  stated in the PR description for the maintainer to accept or reject.
+  Date/Author: 2026-11-20, implementing agent.
+- D10. Decision: gate interim commits with the fast gates, `make model-check`
+  and the affected test modules, and run the full `make test` once on the final
+  candidate. Rationale: under the host's load the full suite takes about an
+  hour, and a run started mid-work was stopped at 9 % after six minutes.
+  Date/Author: 2026-11-20, implementing agent.
+- D11. Decision: `RequestIsNotRepeated` forbids repeating an unanswered
+  request, as the contract says, and nothing more. Rationale: the
+  `superseded-revision` recording shows an agent following up an answered
+  question; the first, stronger statement would have called a recorded,
+  contract-permitted action a violation. The model's agent never follows up,
+  which the README states as an exclusion. Date/Author: 2026-11-20,
+  implementing agent.
+- D12. Decision: do not edit the skills. Three contract observations are
+  reported for the policy owner instead: the re-fetch before acceptance names
+  base/head and not the plan revision; the re-fetch is stated only in the
+  waiting procedure; and whether an answered question may be followed up on an
+  unchanged candidate is unstated. Date/Author: 2026-11-20, implementing agent.
+
 ## Outcomes & retrospective
 
-Not yet complete. To be written at `EP-M6`.
+The Python decision model, its workflow double and their tests are gone, and
+the same obligations are stated in `specs/pr-readiness/readiness.fizz` and
+checked by `make model-check`, which `make ci` runs. The routine suite is 73
+runs. Every obligation in the inventory has an assertion and a routine run, or
+is recorded as retired without replacement with the reason.
+
+Against the purpose: the model answers the questions the snapshot model could
+not. It reproduces five counterexamples to the strong freshness properties,
+shows the head-only merge guard closing the one race it can close, checks
+re-entry after interruption, and states progress conditionally. It found no
+case in which following the documented policy produces a forbidden transition.
+
+What would be done differently: probe the pinned release's failure reporting
+before writing any model, since four separate behaviours of the checker would
+each have produced a false pass; budget for the launcher, which is larger than
+the specification; and set size tolerances after a prototype, not before. See
+`docs/lessons-from-modelling-the-pr-babysitting-skill.md` for the findings in
+full.
+
+Gaps: the strong properties fail by design; two properties of the Python
+model's own strings have no replacement; live agent rehearsals were not
+performed; and hosted CI time is unmeasured until the PR's first run.
 
 ## Context and orientation
 
@@ -463,3 +529,7 @@ exercise an agent, GitHub, CodeScene or the review service.
 
 - 2026-11-20: initial plan written after the toolchain probes and the first
   model run. Remaining work is `EP-M2` onwards.
+- 2026-11-20: recorded `EP-M2` to `EP-M5`, the tolerance breach (D9), the
+  gating decision (D10), the corrected request property (D11) and the decision
+  to leave the skills unedited (D12). Remaining work is the independent review,
+  the full gate run and delivery.

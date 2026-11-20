@@ -1,7 +1,7 @@
 # Behavioural specification of the pr-babysitting draft-to-ready protocol.
 #
 # The skill is the normative contract; this file is the executable
-# specification of the obligations listed in OBLIGATIONS.md. It models four
+# specification of the obligations listed in obligations.toml. It models four
 # separate layers and never lets one stand in for another:
 #
 #   authority   - the accepted assignment (`cfg`): applicability, authority,
