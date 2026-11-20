@@ -274,10 +274,17 @@ def test_an_unobserved_step_is_really_absent(name: str) -> None:
         (["pr-view", "discussion-read", "ready-command", "pr-view"], False),
         (["discussion-read", "pr-view"], True),
     ],
-    ids=["re-fetched", "reply-read-after-re-fetch", "read-back-only", "no-transition"],
+    ids=["re-fetched", "discussion-read-after-re-fetch", "read-back-only", "no-transition"],
 )
-def test_the_refetch_must_follow_the_reply_read(concrete: list[str], expected: bool) -> None:
-    """A PR read counts only after the discussion read that supplied the replies."""
+def test_the_refetch_must_follow_the_last_discussion_read(
+    concrete: list[str], expected: bool
+) -> None:
+    """A PR read counts only after the last discussion read before the end.
+
+    This compares kinds of read and their order. It cannot tell which
+    discussion read returned a reply; the last one is the latest that could
+    have.
+    """
     assert refetched(concrete) is expected
 
 
