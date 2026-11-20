@@ -206,7 +206,20 @@ is no history of revised limits to learn from.
   (80 runs, 97 s, 1.93 GiB peak), `test` (2,001 passed in 435 s) and `spelling`
   all exited zero, and the tree was clean afterwards. `typecheck` runs only the
   syntax check; the repository configures no type checker.
-- [ ] `EP-M6` draft PR and handoff to `pr-babysitting`.
+- [x] (2026-11-20 09:20Z) Draft PR #291 opened; hosted CI passed on
+  `6acb82c` (Makefile gates, 5m49s). Handed to `pr-babysitting` with merge
+  authorized at equilibrium.
+- [x] (2026-11-20 10:30Z) `pr-babysitting` section 4: the repository has no
+  hosted CodeScene check, and the local `cs delta` (cs 1.0.56) of
+  `006e8d5..6acb82c` reported new issues in six files, chiefly
+  `scripts/model_check.py` at code health 4.91. The launcher was split into
+  `model_check_suite.py`, `model_check_judge.py` and `model_check.py`, with
+  class and option rules as data; `check` takes a flattened `CheckOptions`; the
+  handoff test's reply abstraction moved to
+  `tests/readiness_snapshot_support.py`. The delta now reports no new or
+  degraded issue, and every new module scores 10.0.
+- [ ] `pr-babysitting`: completeness and proof assessments, readiness, formal
+  review, findings, approval and merge.
 
 ## Surprises & discoveries
 
@@ -539,6 +552,8 @@ exercise an agent, GitHub, CodeScene or the review service.
 
 - 2026-11-20: initial plan written after the toolchain probes and the first
   model run. Remaining work is `EP-M2` onwards.
+- 2026-11-20: recorded the CodeScene repair made under `pr-babysitting`
+  before readiness, and the PR's lifecycle state.
 - 2026-11-20: recorded `EP-M2` to `EP-M5`, the tolerance breach (D9), the
   gating decision (D10), the corrected request property (D11) and the decision
   to leave the skills unedited (D12). Remaining work is the independent review,

@@ -33,9 +33,26 @@ MAPPING = tomllib.loads(
 OBLIGATIONS = {entry["id"]: entry for entry in MAPPING["obligation"]}
 DECLARED = {**assertions("readiness.fizz"), **assertions("stack.fizz")}
 RUNS = runs()
+#: The scenario builders a readiness run's scenario may call.
+BUILDERS = ("scenario", "snapshot")
+#: The ``scenario()`` expectations that an ``exists`` assertion reads, and the
+#: values that switch each one on.
+WITNESSES = {
+    "expect_ready": ("reachable",),
+    "expect_merge": ("reachable",),
+    "expect_recovery": ("merged", "ready"),
+    "expect_stale_ready": ("reachable",),
+    "expect_reentry": ("reachable",),
+}
 #: Declared outcomes of a configuration rather than obligations with a guard:
 #: each is failed by a property control, not by a mutation.
 STRONG = {"StrongReadyFreshness", "StrongMergeFreshness"}
+
+
+def failed_assertion(run: dict) -> str:
+    """Return the assertion a run is required to fail, or nothing."""
+    expect = run["expect"]
+    return expect.get("assertion", "") if isinstance(expect, dict) else ""
 
 
 def test_the_mapping_names_each_obligation_once() -> None:
@@ -59,11 +76,11 @@ def test_each_obligation_cites_sentences_its_section_still_states(
     assert document.is_file(), f"{identifier} cites a missing document"
     stated = section(document.read_text(encoding="utf-8"), entry["section"])
     assert entry["anchors"], f"{identifier} cites no sentence"
-    for anchor in entry["anchors"]:
-        assert normalize(anchor) in stated, (
-            f"{identifier}: the section {entry['section']!r} of"
-            f" {entry['document']} no longer states: {anchor}"
-        )
+    lost = [anchor for anchor in entry["anchors"] if normalize(anchor) not in stated]
+    assert not lost, (
+        f"{identifier}: the section {entry['section']!r} of {entry['document']}"
+        f" no longer states: {lost}"
+    )
 
 
 @pytest.mark.parametrize("identifier", sorted(OBLIGATIONS))
@@ -71,11 +88,11 @@ def test_each_obligation_names_real_assertions_and_evidence(identifier: str) -> 
     """Every reference an obligation makes resolves."""
     entry = OBLIGATIONS[identifier]
     assert entry["assertions"], f"{identifier} names no assertion"
-    for name in entry["assertions"]:
-        assert name in DECLARED, f"{identifier} names an undeclared assertion {name}"
+    undeclared = sorted(set(entry["assertions"]) - set(DECLARED))
+    assert not undeclared, f"{identifier} names undeclared assertions {undeclared}"
     assert entry["retained"], f"{identifier} names no evidence outside the model"
-    for path in entry["retained"]:
-        assert (REPO_ROOT / path).exists(), f"{identifier} names a missing {path}"
+    missing = [path for path in entry["retained"] if not (REPO_ROOT / path).exists()]
+    assert not missing, f"{identifier} names missing evidence {missing}"
 
 
 @pytest.mark.parametrize("identifier", sorted(OBLIGATIONS))
@@ -86,28 +103,20 @@ def test_each_obligation_is_exercised_by_the_mandatory_suite(identifier: str) ->
     would read as assurance of the property it says the protocol lacks; every
     other obligation is backed by at least one assurance run.
     """
-    backing = [
-        run
-        for run in RUNS.values()
-        if identifier in run.get("obligations", ())
-        and run.get("tier", "routine") == "routine"
-    ]
-    classes = {run["class"] for run in backing}
-    if OBLIGATIONS[identifier].get("limitation"):
-        assert "expected-counterexample" in classes, (
-            f"{identifier} is a limitation with no reproducing counterexample"
-        )
-    else:
-        assert "assurance" in classes, f"{identifier} has no routine assurance run"
+    routine = [run for run in RUNS.values() if run.get("tier", "routine") == "routine"]
+    classes = {run["class"] for run in routine if identifier in run.get("obligations", ())}
+    limitation = OBLIGATIONS[identifier].get("limitation", False)
+    wanted = "expected-counterexample" if limitation else "assurance"
+    assert wanted in classes, f"{identifier} has no routine {wanted} run"
 
 
 def test_every_run_names_obligations_that_exist() -> None:
     """A run is evidence of something the mapping defines."""
-    for run in RUNS.values():
-        named = run.get("obligations", ())
-        assert named, f"run {run['id']} names no obligation"
-        unknown = sorted(set(named) - set(OBLIGATIONS))
-        assert not unknown, f"run {run['id']} names unknown obligations {unknown}"
+    silent = [run["id"] for run in RUNS.values() if not run.get("obligations")]
+    assert not silent, f"runs naming no obligation: {silent}"
+    named = {name for run in RUNS.values() for name in run.get("obligations", ())}
+    unknown = sorted(named - set(OBLIGATIONS))
+    assert not unknown, f"runs name unknown obligations {unknown}"
 
 
 def test_every_assertion_is_accounted_for_by_an_obligation() -> None:
@@ -125,11 +134,7 @@ def test_every_assertion_can_be_seen_to_fail_or_says_why_not() -> None:
     demonstrations; the mapping lists the few assertions that have none, and
     a listed assertion that acquires a control must be removed from the list.
     """
-    failed = {
-        run["expect"]["assertion"]
-        for run in RUNS.values()
-        if isinstance(run["expect"], dict) and "assertion" in run["expect"]
-    }
+    failed = {failed_assertion(run) for run in RUNS.values()} - {""}
     excused = {entry["assertion"]: entry["reason"] for entry in MAPPING["uncontrolled"]}
     assert all(reason.strip() for reason in excused.values())
     assert set(excused) <= set(DECLARED), "an excused assertion is not declared"
@@ -148,12 +153,12 @@ def test_the_strong_properties_are_never_reported_as_assurance() -> None:
     failing only by runs of the expected-counterexample class, and every
     such run must name one of them.
     """
-    for run in RUNS.values():
-        expect = run["expect"]
-        names_strong = isinstance(expect, dict) and expect.get("assertion") in STRONG
-        assert names_strong == (run["class"] == "expected-counterexample"), (
-            f"run {run['id']} mixes a recorded limitation with another class"
-        )
+    mixed = [
+        run["id"]
+        for run in RUNS.values()
+        if (failed_assertion(run) in STRONG) != (run["class"] == "expected-counterexample")
+    ]
+    assert not mixed, f"runs mixing a recorded limitation with another class: {mixed}"
     limited = {
         name
         for entry in OBLIGATIONS.values()
@@ -161,6 +166,42 @@ def test_the_strong_properties_are_never_reported_as_assurance() -> None:
         for name in entry["assertions"]
     }
     assert STRONG <= limited, "a strong property is not mapped to a limitation"
+
+
+def scenario_calls(run: dict) -> list[ast.Call]:
+    """Return the ``scenario()`` and ``snapshot()`` calls of a readiness run.
+
+    A run of another specification, or one with no scenario, has none.
+    """
+    if run.get("spec", "readiness.fizz") != "readiness.fizz" or "scenario" not in run:
+        return []
+    return [
+        node
+        for node in ast.walk(ast.parse(run["scenario"]))
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") in BUILDERS
+    ]
+
+
+def reachability_problems(run_id: str, call: ast.Call) -> list[str]:
+    """Return how one ``scenario()`` call relies on reachability.
+
+    A ``snapshot()`` row states its expectations through the invariants and
+    the progress property by construction, so it has none.
+    """
+    if getattr(call.func, "id", "") == "snapshot":
+        return []
+    stated = {key.arg: ast.literal_eval(key.value) for key in call.keywords}
+    defaulted = [
+        f"run {run_id} leaves {name} at its reachable default"
+        for name in ("expect_ready", "expect_merge")
+        if name not in stated
+    ]
+    switched = [
+        f"run {run_id} asks for {name}={stated[name]!r}"
+        for name, switched_on in WITNESSES.items()
+        if stated.get(name, "unchecked") in switched_on
+    ]
+    return defaulted + switched
 
 
 def test_a_run_with_several_scenarios_declares_nothing_reachable() -> None:
@@ -176,36 +217,13 @@ def test_a_run_with_several_scenarios_declares_nothing_reachable() -> None:
     an ``exists`` assertion reads is switched on. ``snapshot()`` rows do this
     by construction.
     """
-    witnesses = {
-        "expect_ready": ("reachable",),
-        "expect_merge": ("reachable",),
-        "expect_recovery": ("merged", "ready"),
-        "expect_stale_ready": ("reachable",),
-        "expect_reentry": ("reachable",),
-    }
-    for run in RUNS.values():
-        if run.get("spec", "readiness.fizz") != "readiness.fizz" or "scenario" not in run:
-            continue
-        calls = [
-            node
-            for node in ast.walk(ast.parse(run["scenario"]))
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in ("scenario", "snapshot")
-        ]
-        if len(calls) < 2:
-            continue
-        for call in calls:
-            if call.func.id == "snapshot":
-                continue
-            stated = {key.arg: ast.literal_eval(key.value) for key in call.keywords}
-            for name in ("expect_ready", "expect_merge"):
-                assert name in stated, (
-                    f"run {run['id']} leaves {name} at its reachable default in"
-                    " a run with several scenarios"
-                )
-            for name, switched_on in witnesses.items():
-                assert stated.get(name, "unchecked") not in switched_on, (
-                    f"run {run['id']} asks for {name}={stated.get(name)!r}, which"
-                    " another scenario of the same run would satisfy"
-                )
+    problems = [
+        problem
+        for run in RUNS.values()
+        if len(calls := scenario_calls(run)) > 1
+        for call in calls
+        for problem in reachability_problems(run["id"], call)
+    ]
+    assert not problems, (
+        "another scenario of the same run would satisfy these: " + "; ".join(problems)
+    )

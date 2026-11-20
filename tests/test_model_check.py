@@ -190,8 +190,20 @@ new = "require n < 3"
 """
 
 
-def judged(mc: types.ModuleType, suite_text: str, run_id: str, tmp_path: Path, **result):
-    """Judge one doubled checker result against a run of a written suite."""
+def printed(stdout: str) -> dict:
+    """Return a checker result that exited zero after printing ``stdout``.
+
+    That is how the pinned release reports every outcome, failures included.
+    """
+    return {"exit_code": 0, "stdout": stdout, "stderr": ""}
+
+
+def judged(mc: types.ModuleType, tmp_path: Path, target: tuple[str, str], result: dict):
+    """Judge one doubled checker result against a run of a written suite.
+
+    ``target`` is the suite text and the identifier of the run to judge.
+    """
+    suite_text, run_id = target
     suite = mc.load_suite(write_suite(tmp_path, suite_text))
     run = next(run for run in suite.runs if run.id == run_id)
     spec = mc.mutate(SPEC, run.mutations, run.id)
@@ -202,9 +214,7 @@ def test_a_pass_is_accepted_only_with_every_completion_fact(
     mc: types.ModuleType, tmp_path: Path
 ) -> None:
     """The positive control: a real pass line with counts, echo and liveness."""
-    ok, status, detail, reading = judged(
-        mc, ASSURANCE, "base", tmp_path, exit_code=0, stdout=PASSED, stderr=""
-    )
+    ok, status, detail, reading = judged(mc, tmp_path, (ASSURANCE, "base"), printed(PASSED))
     assert (ok, status, detail) == (True, "passed", "exhaustive")
     assert (reading.nodes, reading.unique_states) == (95, 55)
 
@@ -240,9 +250,7 @@ def test_an_assurance_run_fails_closed(
     temporal assertion the release did not report checking, and options it
     did not echo as requested.
     """
-    ok, got, _, _ = judged(
-        mc, ASSURANCE, "base", tmp_path, exit_code=0, stdout=output, stderr=""
-    )
+    ok, got, _, _ = judged(mc, tmp_path, (ASSURANCE, "base"), printed(output))
     assert (ok, got) == (False, status)
 
 
@@ -268,7 +276,7 @@ def test_a_control_is_not_satisfied_by_anything_but_its_named_failure(
     named defect. A checker that exited non-zero, was stopped, passed, or
     failed something else has shown nothing about that assertion.
     """
-    ok, got, _, _ = judged(mc, ASSURANCE + CONTROL, "control", tmp_path, **result)
+    ok, got, _, _ = judged(mc, tmp_path, (ASSURANCE + CONTROL, "control"), result)
     assert (ok, got) == (False, status)
 
 
@@ -276,15 +284,7 @@ def test_a_control_is_satisfied_by_its_named_failure(
     mc: types.ModuleType, tmp_path: Path
 ) -> None:
     """The positive control for the table above."""
-    ok, status, _, _ = judged(
-        mc,
-        ASSURANCE + CONTROL,
-        "control",
-        tmp_path,
-        exit_code=0,
-        stdout=INVARIANT_FAILED,
-        stderr="",
-    )
+    ok, status, _, _ = judged(mc, tmp_path, (ASSURANCE + CONTROL, "control"), printed(INVARIANT_FAILED))
     assert (ok, status) == (True, "failed-as-expected")
 
 
@@ -304,9 +304,7 @@ def test_each_failure_kind_is_recognized(
     suite = ASSURANCE + CONTROL.replace(
         '{ fail = "always", assertion = "Bounded" }', kind
     )
-    ok, status, detail, _ = judged(
-        mc, suite, "control", tmp_path, exit_code=0, stdout=output, stderr=""
-    )
+    ok, status, detail, _ = judged(mc, tmp_path, (suite, "control"), printed(output))
     assert (ok, status) == (True, "failed-as-expected"), detail
 
 
@@ -328,7 +326,7 @@ expect = { fail = "blocked", executed = 2 }
 
 
 @pytest.mark.parametrize(
-    ("run_id", "output", "expected"),
+    "case",
     [
         ("replay", REPLAYED, (True, "replayed")),
         ("replay", REFUSED, (False, "refused")),
@@ -346,14 +344,15 @@ expect = { fail = "blocked", executed = 2 }
 def test_a_replayed_trace_runs_to_its_end_or_is_refused_where_stated(
     mc: types.ModuleType,
     tmp_path: Path,
-    run_id: str,
-    output: str,
-    expected: tuple[bool, str],
+    case: tuple[str, str, tuple[bool, str]],
 ) -> None:
-    """A replay is judged on the steps loaded and the steps executed."""
-    ok, status, _, _ = judged(
-        mc, TRACE_RUNS, run_id, tmp_path, exit_code=0, stdout=output, stderr=""
-    )
+    """A replay is judged on the steps loaded and the steps executed.
+
+    Each case is the run judged, what the checker printed, and the expected
+    ``(ok, status)``.
+    """
+    run_id, output, expected = case
+    ok, status, _, _ = judged(mc, tmp_path, (TRACE_RUNS, run_id), printed(output))
     assert (ok, status) == expected
 
 

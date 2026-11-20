@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -39,7 +40,7 @@ import sys
 import time
 
 import cyclopts
-from cyclopts import App
+from cyclopts import App, Parameter
 from cuprum import (
     ExecutionContext,
     Program,
@@ -168,18 +169,16 @@ def install(*, suite: Path, home: Path = DEFAULT_HOME) -> None:
     print(f"FizzBee {loaded.checker.version} verified at {fizz}")
 
 
-def check(
-    *,
-    suite: Path,
-    tier: str = "routine",
-    only: list[str] | None = None,
-    home: Path = DEFAULT_HOME,
-    report: Path = DEFAULT_REPORT,
-    jobs: int = 0,
-) -> None:
-    """Run a suite and exit non-zero unless every run met its expectation.
+@Parameter(name="*")
+@dataclass(kw_only=True)
+class CheckOptions:
+    """What one ``check`` invocation runs, and where.
 
-    Parameters
+    Cyclopts flattens these fields into the command's own flags and
+    ``MODEL_CHECK_*`` variables, so ``--suite`` and ``--only`` are spelled as
+    if they were separate parameters.
+
+    Attributes
     ----------
     suite
         The suite manifest.
@@ -196,6 +195,66 @@ def check(
     jobs
         Checker processes to run at once; zero selects up to four, bounded
         by the available processors.
+    """
+
+    suite: Path
+    tier: str = "routine"
+    only: list[str] = field(default_factory=list)
+    home: Path = DEFAULT_HOME
+    report: Path = DEFAULT_REPORT
+    jobs: int = 0
+
+
+def _workers(jobs: int) -> int:
+    """Return how many checker processes to run at once."""
+    return jobs or max(1, min(4, os.cpu_count() or 1))
+
+
+def _session(options: CheckOptions) -> tuple[model_check.Session, tuple]:
+    """Load the suite, verify the checker, and return the runs to execute.
+
+    The report directory is emptied first, so a stale run directory cannot
+    be read as part of this invocation's evidence.
+    """
+    loaded = model_check.load_suite(options.suite)
+    problems = model_check.unknown_assertions(loaded)
+    if problems:
+        raise model_check.ModelCheckError("; ".join(problems))
+    fizz = model_check.locate_checker(options.home, loaded.checker)
+    runs = model_check.select(loaded, options.tier, options.only)
+    shutil.rmtree(options.report, ignore_errors=True)
+    options.report.mkdir(parents=True)
+    session = model_check.Session(
+        suite=loaded, fizz=fizz, report=options.report.resolve(), runner=_run_command
+    )
+    return session, runs
+
+
+def _write_report(document: dict, options: CheckOptions) -> None:
+    """Write ``report.json`` and print the one-line run summary.
+
+    The peak resident size is the high-water mark over every checker process
+    this invocation waited for, which is the figure a runner's memory limit
+    has to accommodate per process.
+    """
+    document["peak_child_rss_kib"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    target = options.report / "report.json"
+    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"FizzBee {document['checker']['version']}; tier {options.tier};"
+        f" {document['jobs']} at a time; {document['wall_seconds']}s; peak checker"
+        f" RSS {document['peak_child_rss_kib'] // 1024} MiB; report in {target}"
+    )
+
+
+def check(options: CheckOptions) -> None:
+    """Run a suite and exit non-zero unless every run met its expectation.
+
+    Parameters
+    ----------
+    options
+        The suite, tier, selection, checker home, report directory and
+        parallelism; see ``CheckOptions``.
 
     Returns
     -------
@@ -204,44 +263,17 @@ def check(
         its expectation, was interrupted, or could not be judged.
     """
     _require_platform()
-    loaded = model_check.load_suite(suite)
-    problems = model_check.unknown_assertions(loaded)
-    if problems:
-        raise model_check.ModelCheckError("; ".join(problems))
-    fizz = model_check.locate_checker(home, loaded.checker)
-    runs = model_check.select(loaded, tier, only or ())
-    shutil.rmtree(report, ignore_errors=True)
-    report.mkdir(parents=True)
-    workers = jobs or max(1, min(4, os.cpu_count() or 1))
+    session, runs = _session(options)
+    workers = _workers(options.jobs)
     started = time.monotonic()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        outcomes = list(
-            pool.map(
-                lambda run: model_check.execute(
-                    run, loaded, fizz, report.resolve() / run.id, _run_command
-                ),
-                runs,
-            )
-        )
-    document = model_check.report(loaded, outcomes, tier=tier, partial=bool(only))
+        outcomes = list(pool.map(lambda run: model_check.execute(run, session), runs))
+    partial = bool(options.only)
+    document = model_check.report(session.suite, outcomes, tier=options.tier, partial=partial)
     document["wall_seconds"] = round(time.monotonic() - started, 1)
     document["jobs"] = workers
-    # The high-water mark over every checker process this invocation waited
-    # for, which is the figure a runner's memory limit has to accommodate
-    # per process.
-    document["peak_child_rss_kib"] = resource.getrusage(
-        resource.RUSAGE_CHILDREN
-    ).ru_maxrss
-    (report / "report.json").write_text(
-        json.dumps(document, indent=2) + "\n", encoding="utf-8"
-    )
-    print(model_check.summarize(outcomes, partial=bool(only)))
-    print(
-        f"FizzBee {loaded.checker.version}; tier {tier}; {workers} at a time;"
-        f" {document['wall_seconds']}s; peak checker RSS"
-        f" {document['peak_child_rss_kib'] // 1024} MiB;"
-        f" report in {report / 'report.json'}"
-    )
+    print(model_check.summarize(outcomes, partial=partial))
+    _write_report(document, options)
     if not document["ok"]:
         raise SystemExit(1)
 

@@ -917,22 +917,28 @@ relocates it). `make model-check` downloads nothing and fails, naming
 supports Linux on x86-64 only and needs no GitHub credential, model API or
 other service. The CI workflow runs `make fizzbee` before `make ci`.
 
-`scripts/model_check.py` is the launcher's judgement and
-`scripts/model_check_cli.py` its Cyclopts command line and Cuprum process
-boundary. The launcher exists because the pinned release cannot be trusted to
-report its own result: it exits zero when a property fails, drops liveness
-checking without comment for a `liveness` value it does not recognize, stops at
-`max_actions` without saying so, and prints its pass line for a replayed trace
-whose last step it refused. The launcher therefore reads the output it
-recognizes, requires the checker to echo the options it was given and to name
-every temporal assertion it checked, accepts a pass as exhaustive only when
-fewer nodes were explored than the action bound, and counts the steps of a
-replay from the nodes reported. A crash, a timeout or a syntax error is a gate
-failure and is never counted as a control detecting its defect.
-`tests/test_model_check.py` pins that judgement on output captured from the
-release, drives the real command line against a doubled checker that fails,
-hangs, is killed or is absent, and runs the pinned release itself where it is
-installed.
+The launcher has three standard-library layers and a front end.
+`scripts/model_check_suite.py` loads the suite manifest and refuses one that
+could make a run test less than it says: an unknown key, an unstated or relaxed
+checker option, a class paired with a mutation or expectation it cannot have,
+or a negative control without its twin. `scripts/model_check_judge.py` reads
+the checker's output and judges a run against it. `scripts/model_check.py`
+installs the release, executes runs and reports, and re-exports the names the
+other modules and the tests use. `scripts/model_check_cli.py` is the Cyclopts
+command line and the Cuprum process boundary. The launcher exists because the
+pinned release cannot be trusted to report its own result: it exits zero when a
+property fails, drops liveness checking without comment for a `liveness` value
+it does not recognize, stops at `max_actions` without saying so, and prints its
+pass line for a replayed trace whose last step it refused. The launcher
+therefore reads the output it recognizes, requires the checker to echo the
+options it was given and to name every temporal assertion it checked, accepts a
+pass as exhaustive only when fewer nodes were explored than the action bound,
+and counts the steps of a replay from the nodes reported. A crash, a timeout or
+a syntax error is a gate failure and is never counted as a control detecting
+its defect. `tests/test_model_check.py` pins that judgement on output captured
+from the release, drives the real command line against a doubled checker that
+fails, hangs, is killed or is absent, and runs the pinned release itself where
+it is installed.
 
 Every run in the suite has one class, reported apart: `assurance` runs must
 pass exhaustively; a `negative-control` applies one textual mutation and must
@@ -962,8 +968,9 @@ what the recorded agent did. `tests/test_pr_readiness_fixture_mapping.py`
 applies the concrete-to-abstract event mapping in
 `specs/pr-readiness/fixtures.toml`, so that a recording and its hand-authored
 scenario trace agree on their effects and on the reads that precede them.
-`tests/pr_readiness_spec_support.py` reads the suite as data for all three and
-decides nothing.
+`tests/pr_readiness_spec_support.py` reads the suite as data for all three, and
+`tests/readiness_snapshot_support.py` holds the abstraction from a recorded
+thread to a model reply shape; neither decides anything.
 
 The snapshot tables in the suite carry the answers the retired Python decision
 model gave for 215 bounded snapshots when the two were compared at migration;

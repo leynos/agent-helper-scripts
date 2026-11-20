@@ -49,6 +49,34 @@ def kind_of(source: str, command: str) -> str | None:
     return None
 
 
+def gh_kinds(name: str) -> list[str]:
+    """Return a recording's ``gh`` commands as mapped kinds, in order."""
+    lines = (FIXTURES / "traces" / f"{name}.jsonl").read_text().splitlines()
+    kinds = (kind_of("gh", " ".join(map(str, json.loads(line)))) for line in lines)
+    return [kind for kind in kinds if kind]
+
+
+def cs_kinds(name: str) -> tuple[list[str], list[str], bool]:
+    """Return a recording's ``cs`` kinds before and after the ready marker.
+
+    The third value says whether the stand-in wrote a ``pr-ready`` marker at
+    all. Without one, every local delta is in the second list.
+    """
+    lines = (FIXTURES / "traces" / f"{name}-cs.jsonl").read_text().splitlines()
+    entries = [json.loads(line) for line in lines]
+    markers = [index for index, entry in enumerate(entries) if entry.get("event") == "pr-ready"]
+
+    def kinds(part: list[dict]) -> list[str]:
+        """Return the mapped kinds of some ``cs`` entries."""
+        found = (kind_of("cs", " ".join(entry.get("argv", []))) for entry in part)
+        return [kind for kind in found if kind]
+
+    if not markers:
+        return [], kinds(entries), False
+    last = markers[-1]
+    return kinds(entries[:last]), kinds(entries[last + 1 :]), True
+
+
 def recorded(name: str) -> list[str]:
     """Return a recording as mapped kinds, in the order the run made them.
 
@@ -59,26 +87,12 @@ def recorded(name: str) -> list[str]:
     against the remaining ``gh`` reads is not recorded, and no check below
     depends on it except the one before a ready command.
     """
-    gh = [
-        kind_of("gh", " ".join(map(str, json.loads(line))))
-        for line in (FIXTURES / "traces" / f"{name}.jsonl").read_text().splitlines()
-    ]
-    before_ready, unordered, marked = [], [], False
-    for line in (FIXTURES / "traces" / f"{name}-cs.jsonl").read_text().splitlines():
-        entry = json.loads(line)
-        if entry.get("event") == "pr-ready":
-            marked = True
-            before_ready, unordered = before_ready + unordered, []
-            continue
-        kind = kind_of("cs", " ".join(entry.get("argv", [])))
-        if kind:
-            unordered.append(kind)
+    before_ready, unordered, marked = cs_kinds(name)
     sequence = list(unordered)
-    for kind in gh:
+    for kind in gh_kinds(name):
         if kind == "ready-command" and marked:
             sequence.extend(before_ready)
-        if kind:
-            sequence.append(kind)
+        sequence.append(kind)
     return sequence
 
 
@@ -143,32 +157,41 @@ def test_a_recording_and_its_trace_make_the_same_effects(name: str) -> None:
     )
 
 
+def reads_before_effects(name: str) -> tuple[list[tuple[str, set[str]]], set[str]]:
+    """Return each effect of a fixture's trace with the reads made before it.
+
+    The second value is every read the trace makes. Internal steps make no
+    read, and a step the fixture lists as unobserved is excluded here and
+    checked separately.
+    """
+    unobserved = set(fixture(name)["unobserved"])
+    needed: set[str] = set()
+    effects: list[tuple[str, set[str]]] = []
+    for action in modelled(name):
+        if action in EFFECT_ACTIONS:
+            effects.append((next(iter(kinds_for(action))), set(needed)))
+        elif action not in INTERNAL | unobserved:
+            needed |= kinds_for(action) - EFFECT_KINDS
+    return effects, needed
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_every_modelled_read_precedes_the_effect_it_supports(name: str) -> None:
     """No recorded effect, and no recorded hold, rests on a read never made.
 
     For each effect of the trace, every kind of read the model performs
     before it must appear before the corresponding recorded effect. For a
-    trace that ends without an effect, the reads must appear at all. A step
-    the fixture lists as unobserved is excluded, and checked separately.
+    trace that ends without an effect, the reads must appear at all. The
+    cross-file order of a local delta is recorded only against the ready
+    command, so it is owed only there.
     """
     concrete = recorded(name)
-    unobserved = set(fixture(name)["unobserved"])
-    needed: set[str] = set()
+    effects, needed = reads_before_effects(name)
     cursor = 0
-    for action in modelled(name):
-        if action in INTERNAL:
-            continue
-        if action not in EFFECT_ACTIONS:
-            if action not in unobserved:
-                needed |= kinds_for(action) - EFFECT_KINDS
-            continue
-        effect = next(iter(kinds_for(action)))
+    for effect, reads in effects:
         position = concrete.index(effect, cursor)
-        seen = set(concrete[:position])
-        # The cross-file order of a local delta is recorded only against the
-        # ready command.
-        owed = needed - seen - ({"local-delta"} if effect != "ready-command" else set())
+        unordered = set() if effect == "ready-command" else {"local-delta"}
+        owed = reads - set(concrete[:position]) - unordered
         assert not owed, f"{name}: {effect} was made before any {sorted(owed)}"
         cursor = position + 1
     assert needed <= set(concrete), (

@@ -469,11 +469,14 @@ on x86-64 is supported by this gate.
 
 **Size.** The change removes 3,572 lines of Python specification and tests. It
 adds 1,148 lines of specification, about 1,900 lines of suite and mapping data,
-1,485 lines of launcher, 694 lines of launcher tests and about 580 lines of
-contract tests and support. The total is larger than what it replaced. Fewer
-lines was never the aim and is not evidence of anything here; the launcher
-exists only because the checker cannot be trusted to report its own result, and
-it is the part most likely to need attention when the pin moves.
+about 1,800 lines of launcher in four modules, 693 lines of launcher tests and
+about 930 lines of contract tests and support. The launcher grew when it was
+split for code health: the PR's local CodeScene delta flagged its first,
+single-module form at a health score of 4.91, and it now scores 10.0. The total
+is larger than what it replaced. Fewer lines was never the aim and is not
+evidence of anything here; the launcher exists only because the checker cannot
+be trusted to report its own result, and it is the part most likely to need
+attention when the pin moves.
 
 **Review burden.** The specification is one long file in an unfamiliar
 language. What made it reviewable in practice was not its length but three
