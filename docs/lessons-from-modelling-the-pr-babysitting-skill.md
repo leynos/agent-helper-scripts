@@ -457,7 +457,8 @@ nodes and peaked at 1.33 GiB; the largest,
 configuration, the full 215-row comparison table. Measured before the review's
 fixes, that table was 5,930 states in 64 seconds and the largest checker
 process reached 2.57 GiB. On the hosted runner the whole `make ci` job,
-including the checker download, took under six minutes.
+including the checker download, took between six and seven minutes (5m49s and
+6m36s on two heads).
 
 **Per-state cost.** The release costs roughly 9 ms of processor time and 200
 KiB of resident memory per explored node on this host. Removing every assertion

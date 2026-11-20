@@ -5,7 +5,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE (implementation and validation; PR delivery is owned by
+`pr-babysitting` on PR #291)
 
 Branch: `pr-readiness-fizzbee-spec`
 
@@ -231,8 +232,15 @@ is no history of revised limits to learn from.
   arrive in an injected `Host`; the applicability rules moved to
   `tests/readiness_applicability.py` with one control each. The routine suite
   is 82 runs. Aggregate concurrent checker memory peaked at 2.25 GiB.
-- [ ] `pr-babysitting`: follow-up assessment confirmation on the repaired
-  candidate, readiness, formal review, findings, approval and merge.
+- [x] (2026-11-20 11:44Z) Follow-up assessments on `9e24fbe` (comments
+  7038587210 and 7038588134). Proof: "Yes, for the stated bounded
+  model-checking claims", with the read-order concern resolved and the recorded
+  limits restated. Completeness: substantially complete with no remaining
+  correctness defect, naming one stale statement in this plan's outcomes about
+  hosted CI time, corrected in the next commit.
+- [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
+  readiness, the formal review, its findings, approval and merge are owned by
+  `pr-babysitting` and recorded on PR #291, not in this plan.
 
 ## Surprises & discoveries
 
@@ -435,8 +443,12 @@ the specification; and set size tolerances after a prototype, not before. See
 full.
 
 Gaps: the strong properties fail by design; two properties of the Python
-model's own strings have no replacement; live agent rehearsals were not
-performed; and hosted CI time is unmeasured until the PR's first run.
+model's own strings have no replacement; and live agent rehearsals were not
+performed. Hosted CI time is measured: the `Makefile gates` job took 5m49s on
+`6acb82c` and 6m36s on `9e24fbe`, including the checker download. On the hosted
+runner 2,005 tests pass and 10 are skipped, against 2,015 passing on the
+development host; the skipped tests are installer and Markdown-gate tests that
+need tools the runner does not provide.
 
 ## Context and orientation
 
@@ -587,6 +599,9 @@ exercise an agent, GitHub, CodeScene or the review service.
 
 - 2026-11-20: initial plan written after the toolchain probes and the first
   model run. Remaining work is `EP-M2` onwards.
+- 2026-11-20: recorded the follow-up assessment outcomes, corrected the
+  stale statement about hosted CI time, and marked implementation and
+  validation complete, with delivery owned by `pr-babysitting`.
 - 2026-11-20: recorded the CodeScene repair made under `pr-babysitting`
   before readiness, and the PR's lifecycle state.
 - 2026-11-20: recorded `EP-M2` to `EP-M5`, the tolerance breach (D9), the
