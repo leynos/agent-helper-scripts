@@ -414,6 +414,11 @@ def test_a_counterexample_must_pass_through_the_named_step(
     )
     assert mc.missing_steps(expected, ("Init", "Step")) == ["EnvChanges"]
     assert mc.missing_steps(expected, ("Init", "EnvChanges", "Step")) == []
+    ordered = mc.Expectation(
+        passes=False, kind="always", assertion="Bounded", via=("EnvChanges", "Step")
+    )
+    assert mc.missing_steps(ordered, ("Init", "EnvChanges", "Step")) == []
+    assert mc.missing_steps(ordered, ("Init", "Step", "EnvChanges")) == ["Step"]
 
 
 def test_the_extended_tier_includes_the_routine_runs(

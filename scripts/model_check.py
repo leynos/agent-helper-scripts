@@ -934,13 +934,16 @@ def _judge_failure(run: Run, reading: Reading) -> tuple[bool, str, str, Reading]
 
 
 def missing_steps(expected: Expectation, trace: Sequence[str]) -> list[str]:
-    """Return the `via` steps the counterexample does not pass through.
+    """Return the `via` steps the counterexample does not pass through in order.
 
     A control fails for its intended reason only when its counterexample
     uses the behaviour the control was written about: the reply shape it
-    names, or the environment event it names.
+    names, or the environment event it names. The steps are matched as an
+    ordered subsequence, so "the head moves, then the command runs" is not
+    satisfied by a trace in which the command ran first.
     """
-    return [step for step in expected.via if step not in trace]
+    remaining = iter(trace)
+    return [step for step in expected.via if step not in remaining]
 
 
 def _trace(output: Path) -> tuple[str, ...]:

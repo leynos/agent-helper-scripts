@@ -186,7 +186,7 @@ monkeypatched mutant has a textual mutation of the specification that must fail
 one named assertion through a counterexample that uses the behaviour the
 control names. For example, with the whole-plan subject rule deleted, the
 checker reports `ReadyNeedsCurrentEvidence` on a trace containing
-`Any:shape="subset-clear"`. Evidence: the 27 `mutant-*` runs.
+`Any:shape="subset-clear"`. Evidence: the 31 `mutant-*` runs.
 
 **R3. The recordings are the snapshots the model was checked on.** Each of the
 eleven agent-boundary recordings, read through the shipped stand-in, abstracts
@@ -211,8 +211,10 @@ move and the ledger records an observed, not a verified, transition, and the
 merge still needs renewed evidence. Classification: a missing enforcement
 capability, not an incorrect skill. `gh pr ready` and the GraphQL mutation
 behind it take no expected head, so no ordering of reads closes the window.
-Residue: unresolved by design, and recorded. The same class holds for a reply
-edited from clear to not clear after it was read
+Residue: unresolved by design, and recorded. The same class holds for the base
+(`expected-counterexample-base-moves-before-ready`), for a proof joining the
+inventory (`expected-counterexample-inventory-grows-before-ready`), and for a
+reply edited from clear to not clear after it was read
 (`expected-counterexample-reply-edited-before-ready`).
 
 **L2. The plan revision's window is the whole pass, not the gap after the
@@ -235,8 +237,9 @@ step. That would shrink this window to the size of L1's. It was not checked in
 the model, and it would not close the window.
 
 **L3. The merge guard protects the head and nothing else.** Witnesses:
-`expected-counterexample-plan-revision-moves-before-merge` and
-`expected-counterexample-base-moves-before-merge`, each ending
+`expected-counterexample-plan-revision-moves-before-merge`,
+`expected-counterexample-base-moves-before-merge` and
+`expected-counterexample-reply-edited-before-merge`, each ending
 `AgentRechecksCandidate -> (change) -> AgentDecides -> AgentRunsMergeCommand`.
 Obligation: `PRR-TOCTOU-02`. The skill's operations reference already says that
 the head guard "protects against a changed PR head, not every possible base,
@@ -320,6 +323,33 @@ forbids.
 All four were caught by a run that failed, three of them by a property that was
 meant to pass.
 
+An independent review of the specification, by a reviewer who was given the
+files and the assertion names and not the author's conclusions, then found
+defects that no run had failed on:
+
+- `ReadyFollowsFreshReads` checked two flags that the agent's own steps set.
+  Replacing the re-fetch's comparison with a constant, or keeping an old ledger
+  entry instead of re-reading an answered request, left every assurance run
+  passing. The reply read and the re-fetch now leave what they returned, the
+  properties compare those records, a sibling property covers the merge, and
+  the reviewer's three edits are kept as controls
+  (`mutant-recheck-compares-nothing`, `mutant-answered-reply-not-reread`,
+  `mutant-merge-decided-without-rechecking`).
+- The local CodeScene result was bound to the head and not to the base, so a
+  clean delta survived a retarget. It is now bound to the comparison.
+- Two reachability witnesses were satisfiable without the event they were
+  named for: recovery by a change before the agent's first read, and re-entry
+  by an interruption before anything was posted. Both now require it.
+- One assertion called a predicate the agent uses, against the suite's own
+  rule, and one stated reason for leaving an assertion without a control was
+  false; that assertion now has one.
+- A run with several scenarios would have satisfied a reachability assertion
+  through any one of them. No run did, and a test now forbids it.
+
+The checker passing was not evidence that these properties discriminated. Every
+one of them was found by reading the specification against the question "what
+edit would this fail to notice?".
+
 ### Tool and harness limitations
 
 All of these were observed in FizzBee v0.5.4 and each has a test in
@@ -335,8 +365,7 @@ All of these were observed in FizzBee v0.5.4 and each has a test in
   warning. Three blocking traces were first reported as passing.
 - The published reference documents temporal formulas (`leadsto`, `possibly`)
   that the release rejects as a syntax error; the site postdates the release.
-- When a mutant breaks a reachability and a progress expectation, only the
-  liveness failure is reported.
+- An assignment of the form `xs[i] = oneof choices` is silently ignored.
 
 ## Migration and residual assurance gaps
 
@@ -360,7 +389,7 @@ obligations to the section that states each, with sentences that section must
 still contain, the assertions that express it and evidence kept outside the
 model. A contract test fails when a quoted sentence leaves its section, when an
 assertion or run has no obligation, and when an assertion has no control that
-must fail it and no stated reason. Four assertions are in that last, excused
+must fail it and no stated reason. Three assertions are in that last, excused
 group.
 
 What this does not give is semantic agreement. A quoted sentence shows that a
@@ -403,17 +432,17 @@ one PR.
 
 ## Cost and maintainability
 
-**Routine suite.** 73 runs: 25 assurance, 27 negative controls, 12 property
-controls, 4 scenario traces and 5 expected counterexamples. On the loaded
-development host, four at a time, it took 86 seconds of wall-clock time and 342
-seconds summed over runs, and the largest checker process reached 1.33 GiB of
-resident memory. The assurance runs explore 10,122 distinct states in 19,268
-nodes between them; the largest, `interacting-changes-and-interruption`, is
-3,231 states and took 41 seconds.
+**Routine suite.** 80 runs: 25 assurance, 31 negative controls, 12 property
+controls, 4 scenario traces and 8 expected counterexamples. On the loaded
+development host, four at a time, it took 124 seconds of wall-clock time and
+the largest checker process reached 1.96 GiB of resident memory. Before the
+review's fixes added recorded reads to the state, the same assurance runs
+explored 10,122 distinct states in 19,268 nodes and peaked at 1.33 GiB; the
+largest, `interacting-changes-and-interruption`, was 3,231 states.
 
 **Extended suite.** The extended tier runs the routine suite and one more
-configuration, the full 215-row comparison table: 5,930 states in 64 seconds.
-With it the suite took 100 seconds of wall-clock time and the largest checker
+configuration, the full 215-row comparison table. Measured before the review's
+fixes, that table was 5,930 states in 64 seconds and the largest checker
 process reached 2.57 GiB. Hosted CI cost was not measured before this document
 was written; the pull request records it.
 

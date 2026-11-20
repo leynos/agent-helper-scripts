@@ -195,8 +195,14 @@ is no history of revised limits to learn from.
   runner's isolation checks passed, then the agent failed to start because
   `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` were not set in this session.
   No recording was produced or changed.
-- [ ] `EP-M6` independent review of the formal claims, full gate sequence on
-  the final candidate, PR and handoff to `pr-babysitting`.
+- [x] (2026-11-20 08:10Z) `EP-M6` independent review of the formal claims by
+  a reviewer given the files and assertion names only. Its blocking finding
+  (fresh-read properties checked flags the agent set) and its should-fix
+  findings on the local delta's base, two weak witnesses, a shared predicate, a
+  false excuse and overstated purposes were fixed; its remaining notes are
+  declared in the specification's README. The routine suite is now 80 runs.
+- [ ] `EP-M6` full gate sequence on the final candidate, PR and handoff to
+  `pr-babysitting`.
 
 ## Surprises & discoveries
 
@@ -246,12 +252,12 @@ is no history of revised limits to learn from.
   `--experimental_processed_queue` changed nothing. Impact: configurations are
   kept focused, the widest combinations are in the extended tier, and the
   launcher runs configurations in parallel.
-- Observation: when a mutant breaks both a reachability and a progress
-  expectation the release reports the liveness failure. Evidence:
-  `mutant-question-identity-ignores-revision` was predicted to fail
-  `RecoveryIsReachable` and failed `ProgressWhenWarranted`, with a trace
-  showing the superseded request adopted and never re-asked. Impact: that
-  control expects the liveness failure, which states the same defect.
+- Observation (modelling mistake): `RecoveryIsReachable` was satisfiable by a
+  change before the agent's first read. Evidence:
+  `mutant-question-identity-ignores-revision` was predicted to fail it and
+  failed only `ProgressWhenWarranted`; the independent review then showed the
+  witness held with no invalidation at all. Impact: the witness now requires a
+  renewed question, and the control fails it as first predicted.
 - Observation: a replayed trace whose last step the model refuses prints
   `PASSED` with no warning. Evidence: three traces written to end in a refused
   `AgentRunsReadyCommand` were reported as passing; the release warns only when
@@ -359,12 +365,12 @@ is no history of revised limits to learn from.
 
 The Python decision model, its workflow double and their tests are gone, and
 the same obligations are stated in `specs/pr-readiness/readiness.fizz` and
-checked by `make model-check`, which `make ci` runs. The routine suite is 73
+checked by `make model-check`, which `make ci` runs. The routine suite is 80
 runs. Every obligation in the inventory has an assertion and a routine run, or
 is recorded as retired without replacement with the reason.
 
 Against the purpose: the model answers the questions the snapshot model could
-not. It reproduces five counterexamples to the strong freshness properties,
+not. It reproduces eight counterexamples to the strong freshness properties,
 shows the head-only merge guard closing the one race it can close, checks
 re-entry after interruption, and states progress conditionally. It found no
 case in which following the documented policy produces a forbidden transition.

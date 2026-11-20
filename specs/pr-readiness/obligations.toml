@@ -24,10 +24,13 @@ retained = ["tests/test_pr_babysitting_examples.py", "tests/fixtures/readiness-a
 
 [[obligation]]
 id = "PRR-DELIV-01"
-title = "CI evidence is bound to the candidate it was read for"
+title = "CI evidence is bound to the candidate it was read for, and only green is green"
 document = "skills/pr-babysitting/SKILL.md"
 section = "2. Observe CI through a scrutineer"
-anchors = ["Pending, cancelled, timed-out, blocked, unavailable, and unknown results are not green."]
+anchors = [
+  "Map synthetic PR-merge checks to the relevant base/head",
+  "Pending, cancelled, timed-out, blocked, unavailable, and unknown results are not green.",
+]
 assertions = ["ReadyNeedsCurrentEvidence", "ObservationsRecordReality"]
 retained = ["tests/test_readiness_agent_boundary_shim.py"]
 
@@ -54,10 +57,13 @@ retained = ["tests/test_readiness_agent_boundary_shim.py", "tests/fixtures/readi
 
 [[obligation]]
 id = "PRR-DELIV-04"
-title = "A clean local delta clears only the tree it was run on"
-document = "skills/pr-babysitting/references/execplan-assessment.md"
-section = "Applicability and ownership"
-anchors = ["Verify remote parity and record its base/head, plan revision, proof inventory, and inspection scope in the shared delivery ledger."]
+title = "A clean local delta clears only the base/head comparison it was run on"
+document = "skills/pr-babysitting/SKILL.md"
+section = "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+anchors = [
+  "every warning or failure reported by `cs delta BASE_SHA HEAD_SHA`",
+  "the same base/head comparison as hosted CI",
+]
 assertions = ["RequestNeedsDeliveryGates", "ReadyNeedsCurrentEvidence", "LocalResultIsWhatWasRun"]
 retained = ["tests/test_readiness_agent_boundary_properties.py"]
 
@@ -85,9 +91,12 @@ retained = ["tests/fixtures/readiness-agent-boundary/traces/superseded-revision.
 [[obligation]]
 id = "PRR-REQ-03"
 title = "Re-entry adopts the outstanding question and consumes its late reply"
-document = "skills/pr-babysitting/references/awaiting-coderabbit.md"
-section = "Bounded issue-comment observation"
-anchors = ["For a resumed assignment, reuse the original baseline; when it is missing, inspect the full discussion and known request instead of advancing a cursor past potentially unread work."]
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Comment routing"
+anchors = [
+  "On ambiguous posting failure, inspect the discussion before retrying.",
+  "preserve the pending request until a response, an explicit service blocker, or the observation deadline",
+]
 assertions = ["ReentryConsumesDelayedReply", "RequestIsNotRepeated"]
 retained = ["tests/fixtures/readiness-agent-boundary/traces/posted-then-answered.jsonl"]
 
@@ -190,7 +199,7 @@ title = "An edited-in-place reply is reconciled as what the thread says when it 
 document = "skills/pr-babysitting/references/execplan-assessment.md"
 section = "Readiness and later changes"
 anchors = ["Reconcile the actual substantive issue-comment responses, including edited-in-place replies."]
-assertions = ["EvidenceIsWhatWasRead", "ReadyFollowsFreshReads", "StrongReadyFreshness"]
+assertions = ["EvidenceIsWhatWasRead", "ReadyFollowsFreshReads", "MergeFollowsFreshReads"]
 retained = ["tests/test_pr_babysitting_examples.py"]
 
 [[obligation]]
@@ -199,7 +208,7 @@ title = "Live base/head is re-fetched after the replies are read and before a re
 document = "skills/pr-babysitting/references/awaiting-coderabbit.md"
 section = "Bounded issue-comment observation"
 anchors = ["Re-fetch live base/head before accepting the result."]
-assertions = ["ReadyFollowsFreshReads"]
+assertions = ["ReadyFollowsFreshReads", "MergeFollowsFreshReads"]
 retained = ["tests/test_readiness_agent_boundary_properties.py"]
 
 [[obligation]]
@@ -296,14 +305,17 @@ retained = ["tests/test_readiness_agent_boundary_properties.py"]
 id = "PRR-HON-05"
 title = "A recorded outcome never outruns the remote state"
 document = "skills/pr-babysitting/SKILL.md"
-section = "11. Report a real outcome"
-anchors = ["Missing credentials, tools, review coverage, or mutation authority require a blocked handoff, not a substitute identity, fabricated pass, or silent policy bypass."]
+section = "10. End cosmetic review churn, then squash-merge safely"
+anchors = [
+  "Enqueued is not merged.",
+  "Verify the merged state, target branch, and squash landing SHA.",
+]
 assertions = ["ClaimsNeverOutrunTheRemote"]
 retained = ["tests/test_readiness_agent_boundary_shim.py"]
 
 [[obligation]]
 id = "PRR-HON-06"
-title = "An impasse is an explicit, named outcome and leaves the draft alone"
+title = "An impasse is an explicit, named outcome; in the model it is terminal, so the draft is left as it was"
 document = "skills/pr-babysitting/SKILL.md"
 section = "Operating contract"
 anchors = ["Name the blocker, its owner, and the next action."]
@@ -361,7 +373,7 @@ retained = ["skills/sdlc-implementation/references/setup.md"]
 
 [[obligation]]
 id = "PRR-TOCTOU-02"
-title = "Recorded limitation: the merge guard protects the head, not the base, the plan revision or a reply"
+title = "Recorded limitation: the merge guard protects the head, not the base, the plan revision or an edited reply"
 document = "skills/pr-babysitting/references/operations.md"
 section = "Exact-head ordinary squash merge"
 anchors = ["The head guard protects against a changed PR head, not every possible base, check, or review race."]
@@ -376,10 +388,6 @@ retained = ["tests/test_pr_babysitting_examples.py"]
 [[uncontrolled]]
 assertion = "NeverReturnsToDraft"
 reason = "No action of the model can return a PR to draft, so there is no guard to mutate. The assertion guards against a later edit adding one."
-
-[[uncontrolled]]
-assertion = "ClaimsNeverOutrunTheRemote"
-reason = "Every defect that would break it breaks VerifiedClaimNeedsMatchingReadBack first, on the step that writes the claim."
 
 [[uncontrolled]]
 assertion = "ImpasseLeavesTheDraftAlone"

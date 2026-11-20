@@ -126,16 +126,39 @@ These are assumptions of the model, not facts it establishes.
 - **Identities are never reused.** Head, base and revision only increase, so
   a superseded value cannot become current again. A snapshot's stand-in for "an
   earlier value" is -1.
-- **Bounded change.** One shared budget, of one or two changes per run,
-  covers head, base, revision and inventory. The budget is also what makes the
-  candidate eventually stable in the progress property. Interruptions are
-  bounded at one or two, outages at one, and a reply is edited at most once.
+- **Bounded change.** One shared budget of one change per run covers head,
+  base, revision and inventory, so a second invalidation during a recovery is
+  not explored. The budget is also what makes the candidate eventually stable
+  in the progress property. Interruptions are bounded at one or two, outages at
+  one, and a reply is edited at most once.
 - **Small domains.** At most two required proofs, two assessment kinds, and
   one PR; `stack.fizz` has two layers.
 - **Fairness.** Agent steps, check completion, service replies and outage
   recovery are weakly fair. No strong fairness is used: an outage is made
   transient by a budget, not by assuming the agent eventually retries at a
-  lucky moment.
+  lucky moment. Every run that declares progress also offers only favourable
+  outcomes (green checks, a clean delta, a sound verdict), so progress never
+  depends on a fair choice among outcomes.
+- **Checks do not regress.** A check leaves `pending` once per candidate. A
+  check that turns red, or a hosted finding that appears, on an unchanged
+  candidate is not modelled.
+- **Commands succeed.** `gh pr ready` and the read-back never fail, and nobody
+  but the agent changes the draft or merged state.
+- **Replies are attributed correctly.** A reply is stored under the marker of
+  the request it answers, so a reply the service attributes to the wrong
+  request, and the contract's "ambiguous attribution remains pending", cannot
+  be represented. A verdict for another candidate differs in its head only.
+- **Every change renews every assessment.** The contract renews the
+  assessments a change affects; the model treats each change as affecting both.
+- **Two scope errors are the model's decision.** The contract states that an
+  applicable completeness assessment with no approved revision is a scope
+  error. That an applicable proof assessment with an empty inventory, and an
+  inapplicable assessment with no justification, also end in a recorded impasse
+  follows the retired Python model and is not quoted from the skill.
+- **A wait never becomes an impasse.** With the local `cs` permanently
+  unavailable the model's agent observes for ever. The contract names a service
+  failure that persists through repeated bounded recovery as an impasse; when a
+  wait becomes one is not modelled.
 
 - **No follow-up question on an unchanged candidate.** The agent asks each
   question once and then waits. The contract forbids repeating an unanswered
@@ -159,18 +182,22 @@ conditional on the head alone. The model's commands behave the same way. Two
 families of property therefore exist, and they must not be confused.
 
 The realizable properties (`ReadyNeedsCurrentEvidence`,
-`ReadyFollowsFreshReads`, `MergeNeedsAuthorityAndRenewedEvidence`) say that,
-when a command is issued, the ledger clears the candidate the agent last
-observed, and that the reads happened in the documented order within one
-uninterrupted pass. They hold in every assurance run.
+`ReadyFollowsFreshReads`, `MergeFollowsFreshReads`,
+`MergeNeedsAuthorityAndRenewedEvidence`) say that, when a command is issued,
+the ledger clears the candidate the agent last observed, that the ledger holds
+what this pass's reply read returned, and that this pass's re-fetch returned
+that same candidate. The reply read and the re-fetch each leave what they
+returned, and the properties compare those records; they do not trust a flag.
+They hold in every assurance run.
 
 The strong properties (`StrongReadyFreshness`, `StrongMergeFreshness`) say that
 the evidence is current in reality when the command takes effect. They hold
 under a frozen environment, and under head-only change for the merge, where the
-head guard closes the race. They fail when anything the guard does not name
-changes inside the window, and the `expected-counterexample-*` runs keep those
-failures reproducible. A read-back after the command detects that the candidate
-moved; it does not undo or prevent the transition.
+head guard closes the race. Eight `expected-counterexample-*` runs keep a
+failure reproducible for each of: the head, the base, the plan revision, the
+inventory or a reply changing before the ready command, and the plan revision,
+the base or a reply changing before the merge. A read-back after the command
+detects that the candidate moved; it does not undo or prevent the transition.
 
 ## Changing the specification
 

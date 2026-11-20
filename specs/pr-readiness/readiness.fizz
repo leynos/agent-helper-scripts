@@ -285,9 +285,14 @@ action Init:
     obs = None
     cur = {}
     intent = None
-    read_this_pass = False
-    rechecked = False
+    # What this pass's reply read and re-fetch returned, kept so that the
+    # order properties compare reads, not flags the agent sets for itself.
+    fresh = None
+    recheck = None
     crashes = 0
+    # History for one reachability witness only: an interruption that struck
+    # while a posted question was still unanswered.
+    interrupted_while_waiting = False
 
     # Evidence: the durable delivery ledger.
     l_checks = None
@@ -424,11 +429,12 @@ def plan_step(cfg, obs, seen_rev, seen_proofs, evals):
 
 def delivery_gates_hold(obs, checks, local):
     """Green CI and clear hosted findings for the observed candidate, and a
-    clean local delta of the observed head. An unavailable local result is
-    not clean, and a hosted green check does not stand in for it."""
+    clean local delta of the same base/head comparison. An unavailable local
+    result is not clean, and a hosted green check does not stand in for it."""
     return (checks != None and local != None
             and checks.base == obs.base and checks.head == obs.head
             and checks.ci == "green" and checks.hosted == "clear"
+            and local.base == obs.base
             and local.tree == obs.head and local.value == "clear")
 
 
@@ -513,8 +519,8 @@ def next_step(cfg, obs, clears):
 atomic fair action AgentObservesPullRequest:
     require pc == "start"
     # One `gh pr view`: base, head, draft and merged state together.
-    read_this_pass = False
-    rechecked = False
+    fresh = None
+    recheck = None
     cur = {}
     intent = None
     obs = record(base=base, head=head, draft=draft, rev=None, proofs=())
@@ -540,13 +546,14 @@ atomic fair action AgentReadsChecks:
 atomic fair action AgentRunsLocalDelta:
     require pc == "local"
     cfg = SCENARIOS[sc]
-    # The agent evaluates its own checkout of the observed head. A recorded
-    # clean result is reused only for the tree it was run on.
-    if not (l_local != None and l_local.tree == obs.head and l_local.value == "clear"):
+    # The agent runs `cs delta` between the observed base and its own
+    # checkout of the observed head. A recorded clean result is reused only
+    # for that comparison.
+    if not (l_local != None and l_local.base == obs.base and l_local.tree == obs.head and l_local.value == "clear"):
         value = "unavailable"
         if cs_up:
             value = oneof cfg.local_outcomes
-        l_local = record(tree=obs.head, value=value)
+        l_local = record(base=obs.base, tree=obs.head, value=value)
     pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "start"
 
 atomic fair action AgentInspectsDiscussion:
@@ -568,15 +575,15 @@ atomic fair action AgentPostsRequest:
 atomic fair action AgentReadsReplies:
     require pc == "read"
     l_eval = read_replies(SCENARIOS[sc], cur, requests, replies, l_eval)
-    read_this_pass = True
+    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
     pc = "recheck"
 
 atomic fair action AgentRechecksCandidate:
     require pc == "recheck"
     # Re-fetch live base/head before accepting a result. This narrows the
     # window in which the candidate can move; it cannot close it.
-    rechecked = base == obs.base and head == obs.head and draft == obs.draft and not merged
-    pc = "decide" if rechecked else "start"
+    recheck = record(base=base, head=head, draft=draft, merged=merged)
+    pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"
 
 atomic fair action AgentDecides:
     require pc == "decide"
@@ -611,12 +618,13 @@ atomic action AgentInterrupted:
     # the agent held in memory is gone; the ledger and the remote remain.
     require crashes < SCENARIOS[sc].crash_budget and pc not in TERMINAL
     crashes = crashes + 1
+    interrupted_while_waiting = interrupted_while_waiting or len(requests) > len(replies)
     pc = "start"
     obs = None
     cur = {}
     intent = None
-    read_this_pass = False
-    rechecked = False
+    fresh = None
+    recheck = None
 
 atomic action Settled:
     # The legitimate terminal states: the assignment reached its authorized
@@ -653,8 +661,8 @@ def shortfalls(cfg, ident, checks, local, evals):
     if local == None:
         found.append("local-codescene-unread")
     else:
-        if local.tree != ident.head:
-            found.append("local-codescene-for-another-tree")
+        if local.base != ident.base or local.tree != ident.head:
+            found.append("local-codescene-for-another-comparison")
         if local.value != "clear":
             found.append("local-codescene-" + local.value)
     for kind in KINDS:
@@ -746,16 +754,51 @@ transition assertion ReadyRespectsAuthority(before, after):
         return cfg.authority != "stay-draft"
     return True
 
+def reads_are_fresh(state, cfg):
+    """Whether a command rests on this pass's own reads, in the stated order.
+
+    The reply read and the re-fetch each leave what they returned. The
+    ledger must hold exactly what the reply read returned for every
+    applicable assessment, and the re-fetch must have returned the candidate
+    the pass observed, still unmerged. Neither is a flag: a pass that kept an
+    old ledger entry, or that went on without comparing, fails here.
+    """
+    if state.obs == None or state.intent == None or state.fresh == None or state.recheck == None:
+        return False
+    if state.intent.base != state.obs.base or state.intent.head != state.obs.head:
+        return False
+    seen = state.recheck
+    if seen.base != state.obs.base or seen.head != state.obs.head or seen.draft != state.obs.draft or seen.merged:
+        return False
+    for kind in KINDS:
+        wanted = (kind == "completeness" and cfg.completeness_applies) or (kind == "proof" and cfg.proof_applies)
+        if not wanted:
+            continue
+        read = state.fresh.get(kind)
+        entry = state.l_eval.get(kind)
+        if read == None or entry == None or entry.status == "not-applicable" or entry.marker != read.marker:
+            return False
+        if read.reply == None:
+            if entry.status != "pending":
+                return False
+        elif entry.status != "reply" or entry.edits != read.reply.edits or entry.verdict != read.reply.verdict:
+            return False
+    return True
+
+
 # PRR-ORDER-01: replies are read, then the candidate is re-fetched, in the
-# same uninterrupted pass that issues the command.
+# same uninterrupted pass that issues the ready command.
 transition assertion ReadyFollowsFreshReads(before, after):
     cfg = SCENARIOS[before.sc]
     if before.draft and not after.draft:
-        if before.intent == None or before.obs == None:
-            return False
-        return (before.read_this_pass and before.rechecked
-                and before.intent.base == before.obs.base
-                and before.intent.head == before.obs.head)
+        return reads_are_fresh(before, cfg)
+    return True
+
+# PRR-ORDER-01, PRR-LIFE-03: the same holds immediately before a merge.
+transition assertion MergeFollowsFreshReads(before, after):
+    cfg = SCENARIOS[before.sc]
+    if after.merged and not before.merged:
+        return reads_are_fresh(before, cfg)
     return True
 
 # PRR-LIFE-01.
@@ -797,6 +840,7 @@ transition assertion RequestNeedsDeliveryGates(before, after):
         return False
     return (before.l_checks.base == seen.base and before.l_checks.head == seen.head
             and before.l_checks.ci == "green" and before.l_checks.hosted == "clear"
+            and before.l_local.base == seen.base
             and before.l_local.tree == seen.head and before.l_local.value == "clear")
 
 # PRR-REQ-02: an unanswered question is preserved, not asked again. The
@@ -849,7 +893,7 @@ transition assertion LocalResultIsWhatWasRun(before, after):
     cfg = SCENARIOS[before.sc]
     if after.l_local == before.l_local or after.l_local == None:
         return True
-    if before.obs == None or after.l_local.tree != before.obs.head:
+    if before.obs == None or after.l_local.tree != before.obs.head or after.l_local.base != before.obs.base:
         return False
     if not before.cs_up:
         return after.l_local.value == "unavailable"
@@ -858,6 +902,15 @@ transition assertion LocalResultIsWhatWasRun(before, after):
 # PRR-HON-03: observations and check records are copies of what was there.
 transition assertion ObservationsRecordReality(before, after):
     cfg = SCENARIOS[before.sc]
+    if after.recheck != before.recheck and after.recheck != None:
+        if (after.recheck.base != before.base or after.recheck.head != before.head
+                or after.recheck.draft != before.draft or after.recheck.merged != before.merged):
+            return False
+    if after.fresh != before.fresh and after.fresh != None:
+        for kind in after.fresh:
+            read = after.fresh[kind]
+            if read.reply != before.replies.get(read.marker):
+                return False
     if after.l_checks != before.l_checks and after.l_checks != None:
         if (after.l_checks.base != before.base or after.l_checks.head != before.head
                 or after.l_checks.ci != before.ci or after.l_checks.hosted != before.hosted):
@@ -931,13 +984,17 @@ exists assertion MergeIsReachable:
     cfg = SCENARIOS[sc]
     return cfg.expect_merge != "reachable" or (merged and l_merged)
 
-# PRR-LIFE-02: recovery after invalidation.
+# PRR-LIFE-02: recovery after invalidation. More questions on the thread
+# than assessments means a question was asked, invalidated by a change, and
+# asked again for the candidate that then reached its outcome.
 exists assertion RecoveryIsReachable:
     cfg = SCENARIOS[sc]
+    asked = (1 if cfg.completeness_applies else 0) + (1 if cfg.proof_applies else 0)
     if cfg.expect_recovery == "merged":
-        return changes >= 1 and merged
+        return changes >= 1 and merged and len(requests) > asked
     if cfg.expect_recovery == "ready":
-        return (changes >= 1 and l_claim != None and l_claim.kind == "verified-transition"
+        return (changes >= 1 and len(requests) > asked and l_claim != None
+                and l_claim.kind == "verified-transition"
                 and l_claim.base == base and l_claim.head == head)
     return True
 
@@ -949,17 +1006,15 @@ exists assertion StaleReadyIsReachable:
     return (not draft and not merged and l_claim != None
             and (l_claim.base != base or l_claim.head != head))
 
-# PRR-REQ-03: after an interruption the outstanding question is adopted and
-# its reply consumed, with no replacement question.
+# PRR-REQ-03: an interruption strikes while a posted question is still
+# unanswered; the question is adopted on re-entry, its late reply consumed,
+# and no replacement posted.
 exists assertion ReentryConsumesDelayedReply:
     cfg = SCENARIOS[sc]
     if cfg.expect_reentry != "reachable":
         return True
-    asked = 0
-    for kind in KINDS:
-        if applies(cfg, kind):
-            asked = asked + 1
-    return crashes >= 1 and not draft and len(requests) == asked
+    asked = (1 if cfg.completeness_applies else 0) + (1 if cfg.proof_applies else 0)
+    return interrupted_while_waiting and not draft and len(requests) == asked
 
 # PRR-PROG-01: conditional progress. The conditions are the configuration's
 # own: a bounded change budget (eventual candidate stability), recovering
@@ -988,7 +1043,7 @@ transition assertion StrongReadyFreshness(before, after):
     cfg = SCENARIOS[before.sc]
     if not cfg.check_strong or not (before.draft and not after.draft):
         return True
-    if not ledger_matches_thread(before):
+    if not ledger_matches_thread(before) or before.ci != "green" or before.hosted != "clear":
         return False
     return len(shortfalls(cfg, real_identity(cfg, before), before.l_checks, before.l_local, before.l_eval)) == 0
 
@@ -996,6 +1051,6 @@ transition assertion StrongMergeFreshness(before, after):
     cfg = SCENARIOS[before.sc]
     if not cfg.check_strong or not (after.merged and not before.merged):
         return True
-    if not ledger_matches_thread(before):
+    if not ledger_matches_thread(before) or before.ci != "green" or before.hosted != "clear":
         return False
     return len(shortfalls(cfg, real_identity(cfg, before), before.l_checks, before.l_local, before.l_eval)) == 0

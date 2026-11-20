@@ -19,6 +19,7 @@ review question, and the mapping is what makes it reviewable.
 
 from __future__ import annotations
 
+import ast
 import tomllib
 
 import pytest
@@ -160,3 +161,51 @@ def test_the_strong_properties_are_never_reported_as_assurance() -> None:
         for name in entry["assertions"]
     }
     assert STRONG <= limited, "a strong property is not mapped to a limitation"
+
+
+def test_a_run_with_several_scenarios_declares_nothing_reachable() -> None:
+    """A reachability assertion covers the whole explored graph, not one row.
+
+    Init chooses among the scenarios of a run, and an ``exists`` assertion is
+    satisfied by any state anywhere. One scenario that does not ask for
+    reachability would therefore satisfy it for every other scenario of the
+    same run. A run with more than one scenario must state its per-scenario
+    outcomes through the invariants and the progress property instead, which
+    are checked on every path: each ``scenario()`` call states
+    ``expect_ready`` and ``expect_merge`` explicitly, and no expectation that
+    an ``exists`` assertion reads is switched on. ``snapshot()`` rows do this
+    by construction.
+    """
+    witnesses = {
+        "expect_ready": ("reachable",),
+        "expect_merge": ("reachable",),
+        "expect_recovery": ("merged", "ready"),
+        "expect_stale_ready": ("reachable",),
+        "expect_reentry": ("reachable",),
+    }
+    for run in RUNS.values():
+        if run.get("spec", "readiness.fizz") != "readiness.fizz" or "scenario" not in run:
+            continue
+        calls = [
+            node
+            for node in ast.walk(ast.parse(run["scenario"]))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in ("scenario", "snapshot")
+        ]
+        if len(calls) < 2:
+            continue
+        for call in calls:
+            if call.func.id == "snapshot":
+                continue
+            stated = {key.arg: ast.literal_eval(key.value) for key in call.keywords}
+            for name in ("expect_ready", "expect_merge"):
+                assert name in stated, (
+                    f"run {run['id']} leaves {name} at its reachable default in"
+                    " a run with several scenarios"
+                )
+            for name, switched_on in witnesses.items():
+                assert stated.get(name, "unchecked") not in switched_on, (
+                    f"run {run['id']} asks for {name}={stated.get(name)!r}, which"
+                    " another scenario of the same run would satisfy"
+                )
