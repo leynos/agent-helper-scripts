@@ -1,0 +1,92 @@
+# The managed-stack conflict, reduced to the two rules that produce it.
+#
+# readiness.fizz models one PR in full. A stack adds exactly two facts: each
+# layer is assessed against the whole of the plan it is delivered under, and
+# `gh stack merge` needs every selected layer to be open and not a draft.
+# This file keeps only those, so the conflict is reviewable on one page.
+#
+# A layer is described by one authority fact: does its candidate implement
+# the whole of the approved plan it is assessed against? An honest assessor
+# gives a whole-plan verdict only when it does; for a layer holding part of
+# an undivided plan the most it can say is that the declared subset is clear.
+
+# The stack laid out from one undivided plan: the lower layer holds some
+# milestones and the upper layer holds the remainder.
+UNDIVIDED = (record(whole=False), record(whole=True))
+# The documented alternatives: one independently complete plan per layer...
+SPLIT = (record(whole=True), record(whole=True))
+# ...or the undivided plan delivered in a single PR.
+SINGLE = (record(whole=True),)
+
+LAYERS = UNDIVIDED
+EXPECT_DELIVERY = "never"
+
+
+def honest_verdicts(layer):
+    if layer.whole:
+        return ["whole-clear", "not-clear"]
+    return ["subset-clear", "not-clear"]
+
+
+action Init:
+    verdicts = ["none" for layer in LAYERS]
+    ready = [False for layer in LAYERS]
+    merged = False
+
+atomic action AssessorReplies:
+    index = oneof range(len(LAYERS))
+    # Each layer's question is answered once. A repair and a renewed
+    # question are readiness.fizz's subject, not this file's.
+    require not merged and verdicts[index] == "none"
+    said = oneof honest_verdicts(LAYERS[index])
+    verdicts[index] = said
+
+atomic action AgentMarksLayerReady:
+    index = oneof range(len(LAYERS))
+    require not ready[index]
+    require verdicts[index] == "whole-clear"
+    ready[index] = True
+
+atomic action AgentKeepsObserving:
+    # The documented observation loop: a layer that cannot leave draft is
+    # still being polled. The workflow is busy, not stuck, which is why the
+    # absence of a delivery path has to be stated as a property and cannot
+    # be read off deadlock detection.
+    index = oneof range(len(LAYERS))
+    require not ready[index]
+    pass
+
+atomic action StackMerges:
+    require not merged and all(ready)
+    merged = True
+
+atomic action Settled:
+    require merged
+    pass
+
+
+# PRR-STACK-01: there is no subset or plateau waiver.
+transition assertion LayerReadinessNeedsWholePlanVerdict(before, after):
+    for index in range(len(LAYERS)):
+        if after.ready[index] and not before.ready[index]:
+            if before.verdicts[index] != "whole-clear" or not LAYERS[index].whole:
+                return False
+    return True
+
+# PRR-STACK-01: every selected layer is out of draft before the stack merges.
+transition assertion StackMergeNeedsEveryLayerReady(before, after):
+    if after.merged and not before.merged:
+        return all(before.ready)
+    return True
+
+# PRR-STACK-01: the stack cut from one undivided plan has no delivery path.
+always assertion UndeliverableStackNeverMerges:
+    return EXPECT_DELIVERY != "never" or not merged
+
+# PRR-STACK-01: the subset verdict is recordable as evidence all the same.
+exists assertion SubsetEvidenceIsRecordable:
+    return EXPECT_DELIVERY != "never" or "subset-clear" in verdicts
+
+# PRR-STACK-02: the documented alternatives do deliver.
+exists assertion StackIsDeliverable:
+    return EXPECT_DELIVERY != "reachable" or merged

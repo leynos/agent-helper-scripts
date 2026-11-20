@@ -54,6 +54,13 @@ jobs:
         with:
           version: "0.6.1"
 
+      # `make model-check` runs a pinned FizzBee release and does not fetch
+      # it. This is the only networked step of the model-checking gate: the
+      # launcher verifies the archive and the unpacked files against the
+      # digests in specs/pr-readiness/suite.toml.
+      - name: Install the pinned FizzBee release
+        run: make fizzbee
+
       # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence
         run: make ci CI_SKIP_MARKDOWNLINT=1

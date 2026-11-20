@@ -1,0 +1,90 @@
+# Concrete-to-abstract mapping between the agent-boundary recordings under
+# tests/fixtures/readiness-agent-boundary/ and readiness.fizz.
+#
+# A recording is two ordered files: every `gh` argv the agent issued, and
+# every simulated `cs` invocation, with a marker where `gh pr ready` took
+# effect. Each [[event]] says which recorded command stands for which model
+# actions. One concrete read can stand for several abstract reads: a single
+# comment listing is both the inspection that finds a request and the read of
+# its reply, and one `gh pr view` is the first observation, a re-fetch or a
+# read-back depending on where it falls.
+#
+# Each [[fixture]] names the suite's scenario-trace run that was written, by
+# hand, from that recording. The traces are model-derived reproductions: they
+# were not generated from the recordings and the recordings are not replayed
+# through the model. tests/test_pr_readiness_fixture_mapping.py checks that
+# each recording and its trace agree on the effects, on the reads that come
+# before each effect, and on the read-back after it.
+#
+# `unobserved` lists model steps a recording has no counterpart for. Each is
+# a recorded difference between what one sampled agent run did and the order
+# the model fixes, not a waiver, and the test fails when a listed step turns
+# out to be present.
+
+[[event]]
+kind = "pr-view"
+source = "gh"
+pattern = '^pr view \d+ '
+models = ["AgentObservesPullRequest", "AgentRechecksCandidate", "AgentReadsBackReady"]
+
+[[event]]
+kind = "plan-read"
+source = "gh"
+pattern = '^api \S*/contents/docs/execplans/'
+models = ["AgentObservesPlanAndInventory"]
+
+[[event]]
+kind = "checks-read"
+source = "gh"
+pattern = '^pr checks \d+ |^api \S*/check-runs'
+models = ["AgentReadsChecks"]
+
+[[event]]
+kind = "request-post"
+source = "gh"
+pattern = '^api .*--method POST \S*/issues/\d+/comments'
+models = ["AgentPostsRequest"]
+effect = true
+
+[[event]]
+kind = "discussion-read"
+source = "gh"
+pattern = '^api .*\S*/issues/\d+/comments'
+models = ["AgentInspectsDiscussion", "AgentReadsReplies"]
+
+[[event]]
+kind = "ready-command"
+source = "gh"
+pattern = '^pr ready \d+ '
+models = ["AgentRunsReadyCommand"]
+effect = true
+
+[[event]]
+kind = "local-delta"
+source = "cs"
+pattern = '^delta '
+models = ["AgentRunsLocalDelta"]
+
+[[fixture]]
+name = "current-whole-plan"
+run = "trace-current-whole-plan"
+unobserved = ["AgentRechecksCandidate"]
+note = "The verdict was already on the thread, so the run never waited. It read the PR once, read the discussion, and marked the PR ready without a second `gh pr view` in between. The skill states the re-fetch in its waiting procedure; the model performs it in every pass."
+
+[[fixture]]
+name = "subset-clear"
+run = "trace-subset-clear"
+unobserved = ["AgentRechecksCandidate"]
+note = "The run held the draft on the declared-subset verdict without re-fetching the candidate first. No transition followed, so nothing depended on the re-fetch."
+
+[[fixture]]
+name = "posted-then-answered"
+run = "trace-posted-then-answered"
+unobserved = []
+note = "The run posted the question, read the discussion until the answer arrived, re-fetched the candidate, marked the PR ready and read the transition back."
+
+[[fixture]]
+name = "local-codescene-unavailable"
+run = "trace-local-codescene-unavailable"
+unobserved = ["AgentObservesPlanAndInventory"]
+note = "The run stopped at the unavailable local source before it read the plan. The model reads the plan before the checks; the order of two independent reads is an abstraction."
