@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from model_check_suite import CLASSES, Suite
+from model_check_suite import CLASSES, ModelCheckError, Suite
 
 if TYPE_CHECKING:
     from model_check import Outcome
@@ -44,9 +44,18 @@ def run_line(document: Mapping[str, object], target: Path) -> str:
 
 
 def write_report(document: Mapping[str, object], directory: Path) -> Path:
-    """Write ``report.json`` into the report directory and return its path."""
+    """Write ``report.json`` into the report directory and return its path.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the file, when the report cannot be written.
+    """
     target = directory / "report.json"
-    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    try:
+        target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    except OSError as error:
+        raise ModelCheckError(f"cannot write {target}: {error}") from error
     return target
 
 

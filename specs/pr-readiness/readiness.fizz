@@ -101,7 +101,11 @@ SCENARIOS = [scenario()]
 
 
 def applies(cfg, kind):
-    """Applicability comes from the accepted assignment, never from a reply."""
+    """Applicability comes from the accepted assignment, never from a reply.
+
+    The rule that derives it from recorded facts is
+    tests/readiness_policy.py; this model takes its answer as input.
+    """
     if kind == "completeness":
         return cfg.completeness_applies
     return cfg.proof_applies

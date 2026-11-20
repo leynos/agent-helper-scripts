@@ -121,6 +121,11 @@ These are assumptions of the model, not facts it establishes.
 - **Truthful scope of a whole-plan verdict.** The service gives a whole-plan
   verdict only to a candidate that implements the whole plan. Whether any
   verdict is justified is the assessor's judgement and outside the model.
+- **Applicability is an input.** The model does not derive which assessments
+  apply: the accepted assignment states it. The rule that derives it from a
+  recording's packet, diff and proof inventory is stated once, over facts, in
+  `tests/readiness_policy.py`, with one control per rule. The model checks
+  readiness given that rule's answer and does not check the rule itself.
 - **Atomic reads.** One API response is one step: a `gh pr view`, a check
   rollup, a paginated comment listing. A listing that changed between pages is
   not modelled.

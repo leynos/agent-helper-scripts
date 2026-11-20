@@ -984,20 +984,24 @@ applies the concrete-to-abstract event mapping in
 `specs/pr-readiness/fixtures.toml`, so that a recording and its hand-authored
 scenario trace agree on their effects and on the reads that precede them.
 `tests/pr_readiness_spec_support.py` reads the suite as data for all three. The
-handoff test's adapter has two named seams.
+handoff test's adapter has two named seams and one policy unit.
 `tests/readiness_snapshot_support.py` abstracts a recorded thread into a model
-reply shape. `tests/readiness_applicability.py` derives the model's two
-applicability inputs from the packet, the diff and the proof inventory; those
-are adapter rules, each with a control in
-`tests/test_readiness_applicability.py`. Neither seam decides readiness: the
-model checker does, given those inputs.
+reply shape. `tests/readiness_applicability.py` extracts, from the packet, the
+diff and the proof inventory, the facts that decide which assessments apply.
+`tests/readiness_policy.py` states that applicability rule once, over those
+facts; its answer is the model's two applicability inputs, which the model
+takes from the accepted assignment rather than deriving. Each rule and each
+extraction has a control in `tests/test_readiness_applicability.py`. None of
+them decides readiness: the model checker does, given those inputs.
 
 The snapshot tables in the suite carry the answers the retired Python decision
 model gave for 215 bounded snapshots when the two were compared at migration;
 the FizzBee model agreed on every row. No Python restatement of the readiness
-policy remains, and none should be added: a test that needs to know whether a
-set of facts permits the transition looks the answer up in a model-checked
-table.
+transition policy remains, and none should be added: a test that needs to know
+whether a set of facts permits the transition looks the answer up in a
+model-checked table. The applicability rule is the one piece of policy stated
+in Python, because the model takes applicability as an input rather than
+deciding it.
 
 A passing suite is an exhaustive search of small finite models. It is not an
 unbounded proof, says nothing of larger populations, and does not exercise an

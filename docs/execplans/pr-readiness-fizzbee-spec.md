@@ -285,6 +285,22 @@ is no history of revised limits to learn from.
   `no-proofs` branches of the snapshot adapter have direct tests in
   `tests/test_readiness_applicability.py`. Ten targeted mutations of the code
   under test were each caught.
+- [x] (2026-11-20 23:30Z) After `062268e`, the assessments of that head
+  (comments 7052251422, 7052307137) cleared the proof but held completeness on
+  the re-evaluated pre-merge checks: Unit Architecture failed and Domain
+  Architecture warned. Unit Architecture: `read_trace` now returns no trace
+  only when the error graph is absent and raises a named error when it exists
+  but cannot be read or parsed; directory removal in `reset_report` and
+  `install_checker` raises a named error instead of ignoring failure; artefact
+  persistence moved out of `execute` into `record_artefacts`, the verdict into
+  the I/O-free `judge_run`, and every input, artefact and report write maps its
+  error to `ModelCheckError`. `tests/test_model_check_report.py` became
+  `tests/test_model_check_artefacts.py` and covers each failure path; eight
+  targeted mutations were caught. The CI and CodeScene readers moved out of
+  `tests/readiness_snapshot_support.py` into the boundary test that alone uses
+  them, leaving that module to reply parsing and classification. Domain
+  Architecture: D17. The real checker writes a list for every error graph the
+  87 routine runs produce.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
@@ -481,12 +497,25 @@ is no history of revised limits to learn from.
   Architecture pre-merge check, the adapters were split from the boundary test
   for the same reasons, and the migration note answers the User-Facing
   Documentation pre-merge check. Folding them back would restore the findings
-  those gates raised. The formal review of `698f182` added one more path,
-  `tests/test_model_check_report.py`, for the direct report tests its Testing
-  pre-merge check required, making 33; the other tests that check asked for
-  were added to an existing file. The breach is stated on PR #291 for the
-  maintainer, who may still direct a trim. Date/Author: 2026-11-20,
-  implementing agent.
+  those gates raised. The formal review of `698f182` added
+  `tests/test_model_check_artefacts.py` (first committed as
+  `tests/test_model_check_report.py`) for the direct tests its Testing
+  pre-merge check required, and the re-evaluated Domain Architecture check added
+  `tests/readiness_policy.py` (D17), making 34 (21 added, 5 deleted, 8
+  modified). The other tests those checks asked for were added to existing
+  files. The breach is stated on PR #291 for the maintainer, who may still
+  direct a trim. Date/Author: 2026-11-20, implementing agent.
+- D17. Decision: state the applicability rule once, over facts, in
+  `tests/readiness_policy.py`, and keep `tests/readiness_applicability.py` to
+  extracting those facts from a recording. Rationale: the re-evaluated Domain
+  Architecture pre-merge check found the rule in an adapter that described it
+  as "not readiness policy". The model takes applicability as its assignment
+  input and does not derive it, so moving the rule into `readiness.fizz` would
+  widen the model's scope; a named policy unit keeps one implementation of the
+  rule, which the plan's constraint against two implementations of the
+  readiness policy requires, and the model's input contract and README name it.
+  The readiness transition policy remains stated only in the model.
+  Date/Author: 2026-11-20, implementing agent.
 
 ## Outcomes & retrospective
 

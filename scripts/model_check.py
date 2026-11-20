@@ -104,12 +104,16 @@ __all__ = (
     "execute",
     "install_checker",
     "judge",
+    "judge_run",
     "load_session",
     "load_suite",
     "locate_checker",
     "missing_steps",
     "mutate",
     "read_output",
+    "read_trace",
+    "record_artefacts",
+    "remove_tree",
     "render_options",
     "report",
     "require_platform",
@@ -121,6 +125,7 @@ __all__ = (
     "unknown_assertions",
     "unknown_trace_steps",
     "workers",
+    "write_artefact",
     "write_report",
 )
 
@@ -270,14 +275,53 @@ def load_session(
     return session, runs
 
 
+def remove_tree(directory: Path) -> None:
+    """Delete a directory tree that may be absent, or say why it cannot be.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the directory, when it exists and cannot be removed.
+    """
+    try:
+        shutil.rmtree(directory)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise ModelCheckError(f"cannot remove {directory}: {error}") from error
+
+
+def write_artefact(path: Path, text: str) -> None:
+    """Write one run input or artefact, or say why it cannot be written.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the file, when it cannot be written.
+    """
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as error:
+        raise ModelCheckError(f"cannot write {path}: {error}") from error
+
+
 def reset_report(directory: Path) -> None:
     """Delete the report directory and create it empty.
 
     A stale run directory would otherwise be read as part of this
-    invocation's evidence.
+    invocation's evidence, so a directory that cannot be removed or created
+    stops the invocation rather than being reused.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the directory, when it cannot be removed or created.
     """
-    shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True)
+    remove_tree(directory)
+    try:
+        directory.mkdir(parents=True)
+    except OSError as error:
+        raise ModelCheckError(f"cannot create {directory}: {error}") from error
 
 
 def run_suite(session: Session, runs: Sequence[Run], jobs: int) -> list[Outcome]:
@@ -374,7 +418,7 @@ def install_checker(home: Path, checker: Checker, fetch: Fetcher) -> Path:
                 f"downloaded FizzBee archive has SHA-256 {actual}, expected"
                 f" {checker.archive_sha256}; nothing was unpacked"
             )
-        shutil.rmtree(home / checker.root, ignore_errors=True)
+        remove_tree(home / checker.root)
         with tarfile.open(archive) as bundle:
             bundle.extractall(home, filter="data")
     except (OSError, tarfile.TarError) as error:
@@ -444,15 +488,79 @@ def _step_name(step: object) -> str:
     return "Any:cfg" if name.startswith("Any:cfg=") else name
 
 
-def _trace(output: Path) -> tuple[str, ...]:
-    """Return the action names of the checker's error trace, if it wrote one."""
+def read_trace(output: Path) -> tuple[str, ...]:
+    """Return the action names of the checker's error trace.
+
+    The checker writes ``error-graph.json`` only for a counterexample, so an
+    absent file is no trace. A file that is present and cannot be read, is
+    not JSON, or is not a list of steps is not an empty trace: treating it as
+    one would judge a control on a counterexample nobody could read.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the file, when it exists but cannot be read or parsed.
+    """
+    graph = output / "error-graph.json"
     try:
-        steps = json.loads((output / "error-graph.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        text = graph.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return ()
+    except OSError as error:
+        raise ModelCheckError(f"cannot read the error trace {graph}: {error}") from error
+    return tuple(name for name in map(_step_name, _graph_steps(graph, text)) if name)
+
+
+def _graph_steps(graph: Path, text: str) -> list[object]:
+    """Return the steps of an error graph's text, which must be a JSON list.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming ``graph``, when the text is not JSON or not a list.
+    """
+    try:
+        steps = json.loads(text)
+    except ValueError as error:
+        raise ModelCheckError(f"the error trace {graph} is not JSON: {error}") from error
     if not isinstance(steps, list):
-        return ()
-    return tuple(name for name in map(_step_name, steps) if name)
+        raise ModelCheckError(f"the error trace {graph} is not a list of steps")
+    return steps
+
+
+def record_artefacts(directory: Path, result: ProcessResult) -> tuple[str, ...]:
+    """Keep one run's output in ``directory`` and return its error trace.
+
+    The checker's standard output and error are kept as they were, and the
+    trace's action names, when there is a trace, beside them.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised when an artefact cannot be written or the trace cannot be read.
+    """
+    write_artefact(directory / "stdout.txt", result.stdout)
+    write_artefact(directory / "stderr.txt", result.stderr)
+    trace = read_trace(directory / "out")
+    if trace:
+        write_artefact(directory / "trace.txt", "\n".join(trace) + "\n")
+    return trace
+
+
+def judge_run(
+    run: Run, result: ProcessResult, text: str, trace: tuple[str, ...]
+) -> Judgement:
+    """Judge one run's output, then require its counterexample's named steps.
+
+    This is the whole verdict and does no I/O: the output and the trace are
+    handed in.
+    """
+    ok, status, detail, reading = judge(run, result, text)
+    absent = missing_steps(run.expectation, trace) if ok else []
+    if absent:
+        ok, status = False, "wrong-reason"
+        detail = "the counterexample does not pass through: " + ", ".join(absent)
+    return ok, status, detail, reading
 
 
 def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
@@ -468,9 +576,12 @@ def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
     except OSError as error:
         raise ModelCheckError(f"run `{run.id}`: cannot read {source}: {error}") from error
     text = mutate(original, run.mutations, run.id)
-    work.mkdir(parents=True, exist_ok=True)
-    (work / "spec.fizz").write_text(text, encoding="utf-8")
-    (work / "fizz.yaml").write_text(render_options(run.options), encoding="utf-8")
+    try:
+        work.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise ModelCheckError(f"cannot create {work}: {error}") from error
+    write_artefact(work / "spec.fizz", text)
+    write_artefact(work / "fizz.yaml", render_options(run.options))
     command = ["--test", "--output-dir", "out"]
     inputs = (
         ("scenario.cfg", run.scenario if run.scenario.strip() else "", "--preinit-hook-file"),
@@ -478,7 +589,7 @@ def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
     )
     for name, content, flag in inputs:
         if content:
-            (work / name).write_text(content, encoding="utf-8")
+            write_artefact(work / name, content)
             command += [flag, name]
     return original, text, [*command, "spec.fizz"]
 
@@ -502,23 +613,16 @@ def execute(run: Run, session: Session) -> Outcome:
     Raises
     ------
     ModelCheckError
-        Raised when the specification is unreadable or a mutation anchor
-        does not match exactly once.
+        Raised when the specification is unreadable, a mutation anchor does
+        not match exactly once, an input or artefact cannot be written, or
+        the checker's error trace cannot be read.
     """
     work = session.report / run.id
     original, text, arguments = _prepare(run, session.suite, work)
     command = (str(session.fizz), *arguments)
     result = session.runner(command, work, run.timeout_seconds)
-    (work / "stdout.txt").write_text(result.stdout, encoding="utf-8")
-    (work / "stderr.txt").write_text(result.stderr, encoding="utf-8")
-    ok, status, detail, reading = judge(run, result, text)
-    trace = _trace(work / "out")
-    if trace:
-        (work / "trace.txt").write_text("\n".join(trace) + "\n", encoding="utf-8")
-    absent = missing_steps(run.expectation, trace) if ok else []
-    if absent:
-        ok, status = False, "wrong-reason"
-        detail = "the counterexample does not pass through: " + ", ".join(absent)
+    trace = record_artefacts(work, result)
+    ok, status, detail, reading = judge_run(run, result, text, trace)
     return Outcome(
         run=run,
         ok=ok,

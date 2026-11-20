@@ -46,8 +46,8 @@ from readiness_applicability import (
     changes_a_proof,
     proof_inventory,
     proof_reference,
-    stated_proofs,
 )
+from readiness_policy import stated_proofs
 from readiness_snapshot_support import (
     COMPLETENESS,
     FIXTURES,
@@ -56,8 +56,6 @@ from readiness_snapshot_support import (
     SHIM,
     SHIM_MODULE,
     Bounds,
-    checks,
-    codescene_clear,
     thread_state,
 )
 
@@ -414,10 +412,39 @@ def bounds_of(scenario: str, served: Staged) -> Bounds:
 def applicability(served: Staged, packet: dict[str, str]) -> tuple[bool, bool]:
     """Return whether the two assessments apply to a staged recording.
 
-    The rules are the adapter's, in ``readiness_applicability``; this reads
-    the facts they take from the stand-in.
+    The rule is the policy unit's, in ``readiness_policy``; the adapter in
+    ``readiness_applicability`` extracts the facts it takes from the stand-in.
     """
     return applicability_of(packet, served.body, served.proof_changed())
+
+
+def checks(pr: dict) -> dict[str, str]:
+    """Return each check's conclusion from a served status rollup."""
+    return {
+        str(check.get("name") or check.get("context")): str(
+            check.get("conclusion") or check.get("state")
+        )
+        for check in pr.get("statusCheckRollup") or []
+    }
+
+
+def codescene_clear(pr: dict) -> bool:
+    """Return whether the served CodeScene check reports no finding.
+
+    The check's conclusion alone is not the signal: CodeScene reports its
+    findings in the output title, and a green run that lists advisory findings
+    is exactly what the readiness rule must not clear.
+    """
+    found = [
+        check
+        for check in pr.get("statusCheckRollup") or []
+        if "codescene" in str(check.get("name", "")).casefold()
+    ]
+    if not found:
+        return False
+    output = found[0].get("output") or {}
+    text = f"{output.get('title', '')} {output.get('summary', '')}"
+    return "no issues" in text.casefold() and str(found[0].get("conclusion")) == "SUCCESS"
 
 
 def delivery(served: Staged) -> dict[str, str]:

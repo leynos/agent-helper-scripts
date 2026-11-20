@@ -1,12 +1,14 @@
-"""One control per rule of the readiness adapters.
+"""One control per rule of the readiness policy and its adapters.
 
-``tests/readiness_applicability.py`` derives the readiness model's two
-applicability inputs from recorded facts: the handoff packet, the candidate's
-diff and the completeness request's proof inventory. Each rule here is paired
-with the case that flips it, so a rule that is dropped or hard-coded fails a
-row rather than agreeing with the facts by accident. The end-to-end cases in
-``tests/test_readiness_handoff_boundary.py`` drive the same rules through the
-shipped stand-in.
+``tests/readiness_policy.py`` states which assessments a candidate owes, over
+facts. ``tests/readiness_applicability.py`` extracts those facts from a
+recording: the handoff packet, the candidate's diff and the completeness
+request's proof inventory. Each rule here is paired with the case that flips
+it, so a rule that is dropped or hard-coded fails a row rather than agreeing
+with the facts by accident. The policy rules are tested on facts directly;
+the composed cases then drive extraction and policy together, and the
+end-to-end cases in ``tests/test_readiness_handoff_boundary.py`` drive both
+through the shipped stand-in.
 
 The same holds for the two adapters that sit either side of the snapshot
 lookup: ``tests/readiness_snapshot_support.py``, which turns a recorded thread
@@ -27,10 +29,11 @@ from pr_readiness_spec_support import SNAPSHOT_DEFAULTS, checked_expectation, sn
 from readiness_applicability import (
     affects_a_proof,
     applicability,
+    applicability_facts,
     changes_a_proof,
     proof_inventory,
-    stated_proofs,
 )
+from readiness_policy import ApplicabilityFacts, assessments_that_apply, stated_proofs
 from readiness_snapshot_support import PROOF, Bounds, reply_shape, thread_state
 
 #: The packet lines as the shipped handoff states them.
@@ -45,6 +48,61 @@ WITHDRAWN = {**SHIPPED, "assessment": "ExecPlan completeness/correctness assessm
 UNCONDITIONAL = {**SHIPPED, "proof": "Proof-specific assessment: optional"}
 NONE_AFFECTED = "Proof inventory: none affected.\n"
 NAMES_ONE = "Proof inventory: `proofs/refinement/Theorem.lean` (`refinement_sound`).\n"
+
+
+#: Facts under which the completeness assessment applies and no proof is affected.
+BASE_FACTS = ApplicabilityFacts(
+    completeness_required=True,
+    proof_conditional=True,
+    proof_changed=False,
+    inventory_names_a_proof=False,
+)
+
+#: One policy rule each: the facts it is decided on and the answer it gives.
+POLICY_RULES = (
+    ("the packet requires completeness", {}, (True, False)),
+    ("an unrequired completeness assessment does not apply", {"completeness_required": False}, (False, False)),
+    ("a changed proof makes its assessment apply", {"proof_changed": True}, (True, True)),
+    ("an inventory naming a proof makes it apply", {"inventory_names_a_proof": True}, (True, True)),
+    (
+        "the packet must condition the proof assessment",
+        {"proof_conditional": False, "proof_changed": True, "inventory_names_a_proof": True},
+        (True, False),
+    ),
+    (
+        "an empty inventory cannot remove what the diff requires",
+        {"proof_changed": True, "inventory_names_a_proof": False},
+        (True, True),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [(changes, expected) for _, changes, expected in POLICY_RULES],
+    ids=[rule for rule, _, _ in POLICY_RULES],
+)
+def test_each_policy_rule_decides_on_facts(changes: dict, expected: tuple[bool, bool]) -> None:
+    """The policy unit answers from the facts alone, one rule per row."""
+    facts = ApplicabilityFacts(**{**BASE_FACTS.__dict__, **changes})
+    assert assessments_that_apply(facts) == expected
+
+
+def test_the_adapter_extracts_the_facts_the_policy_takes() -> None:
+    """Packet lines, the diff and the inventory become the policy's facts."""
+    assert applicability_facts(SHIPPED, NAMES_ONE, False) == ApplicabilityFacts(
+        completeness_required=True,
+        proof_conditional=True,
+        proof_changed=False,
+        inventory_names_a_proof=True,
+    )
+    assert applicability_facts(WITHDRAWN, NONE_AFFECTED, True) == ApplicabilityFacts(
+        completeness_required=False,
+        proof_conditional=True,
+        proof_changed=True,
+        inventory_names_a_proof=False,
+    )
+    assert applicability_facts(UNCONDITIONAL, "", False).proof_conditional is False
 
 
 @dataclass(frozen=True)
