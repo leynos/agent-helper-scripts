@@ -1485,3 +1485,29 @@ expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['HeadCh
 [[run.mutation]]
 old = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" and verified else "start"'
 new = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" else "start"'
+
+[[run]]
+id = "mutant-completion-before-the-decision"
+class = "negative-control"
+of = "neither-assessment-applies"
+purpose = "Ending the assignment while inspecting the discussion, with every delivery gate clear and both assessments justified as not applicable, finishes on clear evidence but before the decision and short of the merge the assignment authorizes."
+obligations = ["PRR-PROG-02", "PRR-AUTH-01"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentInspectsDiscussion'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "done"'
+
+[[run]]
+id = "mutant-merge-assignment-stops-at-the-decision"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "A merge assignment that stops at its decision on an already-ready PR, with clearing evidence, never merges although it is authorized to."
+obligations = ["PRR-PROG-02", "PRR-AUTH-01"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentReadsBackReady', 'AgentDecides'] }
+[[run.mutation]]
+old = '''    if cfg.authority == "merge":
+        return "merge-command"
+    return "done"
+'''
+new = '''    return "done"
+'''

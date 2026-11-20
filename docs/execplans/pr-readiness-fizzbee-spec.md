@@ -251,6 +251,18 @@ is no history of revised limits to learn from.
   does not clear; the fixture mapping orders post-ready checks and requires the
   re-fetch after the last reply read; four prose claims narrowed; user-facing
   documentation added. The routine suite is 85 runs.
+- [x] (2026-11-20 15:40Z) Renewed assessments on `bb62ec9` (comments
+  7041061771 and 7041161685) were not clear. Proof: `CompletionIsEarned`
+  cleared any ending whose evidence was clear, so an agent could finish before
+  its decision step, or a merge assignment could stop there. The property now
+  names the step and the authorized stopping condition: an ending from `start`
+  needs a merged PR, from the read-back a matched ready-only claim, and from
+  the decision step a stay-draft or ready-only or no-merge authority over clear
+  evidence. Two controls, `mutant-completion-before-the-decision` and
+  `mutant-merge-assignment-stops-at-the-decision`, fail it; under the old
+  property both were caught only by a reachability assertion. Completeness: the
+  file-count breach is recorded as D16, memory was re-measured (D14) and the PR
+  description was refreshed. The routine suite is 87 runs.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
@@ -422,8 +434,9 @@ is no history of revised limits to learn from.
 - D14. Decision: the memory tolerance is measured as the summed resident
   memory of the checker processes running at once, not the largest one.
   Evidence: sampled every 0.2 s during `make model-check` with four jobs, it
-  peaked at 2,308 MiB, within the 4 GiB tolerance. Date/Author: 2026-11-20,
-  implementing agent.
+  peaked at 2,308 MiB on 82 runs and at 2,310 MiB on the 87-run suite (two
+  processes at the peak, 355 samples, 72.2 s), within the 4 GiB tolerance.
+  Date/Author: 2026-11-20, implementing agent.
 - D15. Decision: proceed with the size delivered (D9). The delivery report
   stated the breach, the figures and the option of trimming the snapshot tables
   and launcher tests, and asked the maintainer to accept or reject it; the
@@ -433,12 +446,27 @@ is no history of revised limits to learn from.
   superseded: the full gate sequence has since run on `02c27bd`, `5c4fa22` and
   each later candidate. Date/Author: 2026-11-20, implementing agent, on the
   maintainer's direction.
+- D16. Decision: the file-count breach grew after the maintainer's direction
+  (D15) and is carried under the same direction rather than trimmed. At
+  `6acb82c`, when the breach was reported, 25 non-ExecPlan paths had changed; at
+  `bb62ec9` there are 32 (19 added, 5 deleted, 8 modified), over the 30-file
+  tolerance. The seven later paths are `docs/v0-3-0-migration-guide.md`,
+  `scripts/model_check_judge.py`, `scripts/model_check_report.py`,
+  `scripts/model_check_suite.py`, `tests/readiness_applicability.py`,
+  `tests/readiness_snapshot_support.py` and
+  `tests/test_readiness_applicability.py`. Each was required by a gate the
+  merge depends on: the launcher was split for the CodeScene delta and the Unit
+  Architecture pre-merge check, the adapters were split from the boundary test
+  for the same reasons, and the migration note answers the User-Facing
+  Documentation pre-merge check. Folding them back would restore the findings
+  those gates raised. The breach is stated on PR #291 for the maintainer, who
+  may still direct a trim. Date/Author: 2026-11-20, implementing agent.
 
 ## Outcomes & retrospective
 
 The Python decision model, its workflow double and their tests are gone, and
 the same obligations are stated in `specs/pr-readiness/readiness.fizz` and
-checked by `make model-check`, which `make ci` runs. The routine suite is 85
+checked by `make model-check`, which `make ci` runs. The routine suite is 87
 runs. Every obligation in the inventory has an assertion and a routine run, or
 is recorded as retired without replacement with the reason.
 

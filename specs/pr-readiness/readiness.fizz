@@ -964,21 +964,35 @@ transition assertion VerifiedClaimNeedsMatchingReadBack(before, after):
             and claim.base == before.obs.base and claim.head == before.obs.head)
 
 # PRR-PROG-02, PRR-AUTH-01: an assignment ends normally only when it has
-# earned it. The agent has read the merge back; or it has just read back the
-# transition it made and verified it; or it decides on evidence that clears
-# the candidate it observed, which is the stay-draft and already-ready stop.
-# A wait (an unanswered question, an unavailable local check, a not-clear
-# verdict) is never an ending, and neither is an unmatched read-back.
+# earned it, and only at a step that can end it. The agent reads the PR and
+# finds it merged; or a ready-only assignment reads back the transition it
+# made and verifies it; or the agent decides on evidence that clears the
+# candidate it observed and the assignment's authority stops there: a
+# stay-draft assignment on a draft, or a ready-only or no-merge assignment
+# on a ready PR. A wait (an unanswered question, an unavailable local check,
+# a not-clear verdict), an unmatched read-back, a merge assignment at its
+# decision, and any other step are never endings.
+def stops_at_decision(cfg, seen):
+    """Whether the assignment's authority ends at a decision on ``seen``."""
+    if seen.draft:
+        return cfg.authority == "stay-draft"
+    return cfg.authority in ("ready-only", "no-merge")
+
+
 transition assertion CompletionIsEarned(before, after):
     if after.pc != "done" or before.pc == "done":
         return True
-    if after.l_merged:
-        return True
+    cfg = SCENARIOS[before.sc]
+    if before.pc == "start":
+        return after.l_merged and before.merged
     if before.pc == "ready-readback":
-        return after.l_claim != None and after.l_claim.kind == "verified-transition"
-    if before.obs == None:
+        return (cfg.authority == "ready-only" and after.l_claim != None
+                and after.l_claim.kind == "verified-transition")
+    if before.pc != "decide" or before.obs == None:
         return False
-    return len(shortfalls(SCENARIOS[before.sc], observed_identity(before.obs), before.l_checks, before.l_local, before.l_eval)) == 0
+    if not stops_at_decision(cfg, before.obs):
+        return False
+    return len(shortfalls(cfg, observed_identity(before.obs), before.l_checks, before.l_local, before.l_eval)) == 0
 
 # PRR-HON-05.
 always assertion ClaimsNeverOutrunTheRemote:

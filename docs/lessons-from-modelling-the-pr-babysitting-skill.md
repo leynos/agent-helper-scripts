@@ -186,7 +186,7 @@ monkeypatched mutant has a textual mutation of the specification that must fail
 one named assertion through a counterexample that uses the behaviour the
 control names. For example, with the whole-plan subject rule deleted, the
 checker reports `ReadyNeedsCurrentEvidence` on a trace containing
-`Any:shape="subset-clear"`. Evidence: the 35 `mutant-*` runs.
+`Any:shape="subset-clear"`. Evidence: the 37 `mutant-*` runs.
 
 **R3. The recordings are the snapshots the model was checked on.** Each of the
 eleven agent-boundary recordings, read through the shipped stand-in, abstracts
@@ -365,7 +365,11 @@ The formal review that followed readiness found three more gaps of the same
 kind, each a way for the gate to accept less than it says. A wait could end the
 assignment: a model whose agent stopped when the local check was unavailable
 kept the PR in draft and merged nothing, so every property held, and
-`CompletionIsEarned` now requires that an ending be earned. A ready-only
+`CompletionIsEarned` now requires that an ending be earned. Its first form was
+still too weak: it cleared any ending over clear evidence, so an agent could
+finish before its decision step and a merge assignment could stop there, and
+only a reachability assertion caught either. The property now names the step an
+ending leaves and the authority that permits stopping there. A ready-only
 assignment finished on a read-back that did not match the candidate it acted
 on. And the launcher credited an unreached-state failure from a search cut
 short by its action bound, which cannot show that a state is unreachable. Each
@@ -453,11 +457,11 @@ one PR.
 
 ## Cost and maintainability
 
-**Routine suite.** 85 runs: 26 assurance, 35 negative controls, 12 property
+**Routine suite.** 87 runs: 26 assurance, 37 negative controls, 12 property
 controls, 4 scenario traces and 8 expected counterexamples. On the loaded
-development host, four at a time, it took 71 seconds of wall-clock time, the
-largest checker process reached 1.96 GiB of resident memory, and the summed
-resident memory of the checker processes running at once peaked at 2.25 GiB,
+development host, four at a time, it took 72 seconds of wall-clock time, the
+largest checker process reached 1.93 GiB of resident memory, and the summed
+resident memory of the checker processes running at once peaked at 2.26 GiB,
 sampled every 0.2 seconds. Before the review's fixes added recorded reads to
 the state, the same assurance runs explored 10,122 distinct states in 19,268
 nodes and peaked at 1.33 GiB; the largest,
