@@ -1,4 +1,4 @@
-"""One control per rule of the applicability adapter.
+"""One control per rule of the readiness adapters.
 
 ``tests/readiness_applicability.py`` derives the readiness model's two
 applicability inputs from recorded facts: the handoff packet, the candidate's
@@ -7,14 +7,23 @@ with the case that flips it, so a rule that is dropped or hard-coded fails a
 row rather than agreeing with the facts by accident. The end-to-end cases in
 ``tests/test_readiness_handoff_boundary.py`` drive the same rules through the
 shipped stand-in.
+
+The same holds for the two adapters that sit either side of the snapshot
+lookup: ``tests/readiness_snapshot_support.py``, which turns a recorded thread
+into a model thread state, and the table readers of
+``tests/pr_readiness_spec_support.py``, which must refuse a table they cannot
+read rather than skip it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 import pytest
 
+import pr_readiness_spec_support
+from pr_readiness_spec_support import SNAPSHOT_DEFAULTS, checked_expectation, snapshot_rows
 from readiness_applicability import (
     affects_a_proof,
     applicability,
@@ -22,6 +31,7 @@ from readiness_applicability import (
     proof_inventory,
     stated_proofs,
 )
+from readiness_snapshot_support import PROOF, Bounds, reply_shape, thread_state
 
 #: The packet lines as the shipped handoff states them.
 SHIPPED = {
@@ -120,3 +130,85 @@ def test_the_inventory_names_references_not_paths() -> None:
     }
     assert proof_inventory(question, "") == ("refinement_sound",)
     assert proof_inventory(None, "") == ()
+
+
+#: The candidate the snapshot-adapter cases are judged against.
+BOUNDS = Bounds(base="b0", head="h1", in_force="rev-2", required=("refinement_sound",))
+
+
+def proof_reply(subject: str, head: str = "h1") -> str:
+    """Return a clear proof reply, for ``base...head``, naming ``subject``."""
+    return (
+        "**Verdict: clear**\n"
+        f"**Assessed base/head:** b0...{head}\n"
+        "**Plan revision:** rev-2\n"
+        f"**Assessed subject:** {subject}\n"
+    )
+
+
+def test_a_proof_reply_naming_no_required_proof_covers_nothing() -> None:
+    """Naming none of the required proofs is ``no-proofs``; naming them all clears."""
+    assert reply_shape(PROOF, proof_reply("`other_sound`"), BOUNDS, "rev-2") == "no-proofs"
+    assert reply_shape(PROOF, proof_reply("`refinement_sound`"), BOUNDS, "rev-2") == "sound-clear"
+
+
+def test_a_reply_for_another_head_says_nothing_about_this_one() -> None:
+    """A clear reply naming another head is ``other-candidate``."""
+    reply = proof_reply("`refinement_sound`", head="h0")
+    assert reply_shape(PROOF, reply, BOUNDS, "rev-2") == "other-candidate"
+
+
+def test_a_request_naming_another_head_asks_about_another_candidate() -> None:
+    """The request's own head decides its state; this head's request is current."""
+    stale = {"body": "Published head: h0; Plan revision: rev-2\nAssessment-ID: p-1"}
+    current = {"body": "Published head: h1; Plan revision: rev-2\nAssessment-ID: p-1"}
+    assert thread_state(PROOF, [], stale, BOUNDS) == "another-candidate:none"
+    assert thread_state(PROOF, [], current, BOUNDS) == "current:none"
+
+
+def scenario(*rows: str) -> str:
+    """Return a scenario assigning ``SCENARIOS`` the given row expressions."""
+    return "SCENARIOS = [" + ", ".join(rows) + "]"
+
+
+@pytest.mark.parametrize(
+    ("run", "refusal"),
+    [
+        ({"tier": "extended", "scenario": scenario("snapshot('a', 'ready')")}, "not checked"),
+        ({"scenario": scenario("other('a', 'ready')")}, "not a snapshot() call"),
+        ({"scenario": scenario("snapshot('a', 'ready', colour='red')")}, "unknown fact"),
+        ({"scenario": scenario("snapshot('a', 'ready')", "snapshot('a', 'draft')")}, "twice"),
+        ({"scenario": "SCENARIOS = []"}, "no snapshot rows"),
+    ],
+    ids=["extended-tier", "not-a-snapshot", "unknown-fact", "duplicate-row", "empty-table"],
+)
+def test_a_table_the_reader_cannot_read_is_refused(
+    monkeypatch: pytest.MonkeyPatch, run: dict, refusal: str
+) -> None:
+    """Each malformed table raises, naming why, rather than yielding fewer rows."""
+    monkeypatch.setattr(pr_readiness_spec_support, "runs", lambda: {"table": run})
+    with pytest.raises(AssertionError, match=re.escape(refusal)):
+        snapshot_rows("table")
+
+
+def test_a_readable_table_fills_the_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A row states only what differs; the reader supplies the rest."""
+    table = {"table": {"scenario": scenario("snapshot('a', 'draft', ci='red')")}}
+    monkeypatch.setattr(pr_readiness_spec_support, "runs", lambda: table)
+    assert snapshot_rows("table") == {"a": ("draft", {**SNAPSHOT_DEFAULTS, "ci": "red"})}
+
+
+def test_a_lookup_answers_only_from_one_agreeing_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unknown facts and disagreeing tables raise; one agreeing answer is returned."""
+    tables = {
+        "one": {"scenario": scenario("snapshot('a', 'ready')")},
+        "two": {"scenario": scenario("snapshot('b', 'draft')")},
+        "same": {"scenario": scenario("snapshot('c', 'ready')")},
+    }
+    monkeypatch.setattr(pr_readiness_spec_support, "runs", lambda: tables)
+    facts = dict(SNAPSHOT_DEFAULTS)
+    assert checked_expectation(facts, ("one", "same")) == "ready"
+    with pytest.raises(AssertionError, match="disagree"):
+        checked_expectation(facts, ("one", "two"))
+    with pytest.raises(AssertionError, match="no model-checked snapshot"):
+        checked_expectation({**facts, "ci": "red"}, ("one",))

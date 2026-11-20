@@ -11,7 +11,9 @@ require it to agree with its trace on what matters about order.
   marked ready.
 - Every kind of read the model performs before an effect happened before
   that effect in the recording, so no effect rests on a read the recorded
-  agent had not made.
+  agent had not made. The local delta is the exception: its `cs` recording
+  is ordered only against the ready-command marker, so it is required before
+  the ready command and not before a posted request.
 - A PR read follows the last discussion read before the ready command,
   which is the position of the model's re-fetch, and a PR read follows the
   ready command, which is its read-back. These compare kinds of read, not

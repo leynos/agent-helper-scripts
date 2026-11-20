@@ -271,6 +271,20 @@ is no history of revised limits to learn from.
   Completeness: substantially complete, naming one overstatement in this plan's
   progress, which described the fixture mapping's re-fetch check as following
   the last reply read; corrected in the next commit.
+- [x] (2026-11-20 22:40Z) The formal review of `698f182` requested changes
+  with one inline finding and one failed pre-merge check. The finding: the
+  fixture-mapping description claimed every read was ordered before every
+  effect, but the local delta is ordered only against the ready-command marker;
+  the description in `fixtures.toml` and the test module now say so. The check
+  (Testing): `scripts/model_check_report.py` had no direct tests.
+  `tests/test_model_check_report.py` now asserts that an expected
+  counterexample is listed only as a limitation, that an empty run list fails
+  both the summary and the report, that each run's replayed steps, temporal
+  checks, expectation and obligations reach the report, and what the run line
+  states. The table readers' refusals and the `another-candidate` and
+  `no-proofs` branches of the snapshot adapter have direct tests in
+  `tests/test_readiness_applicability.py`. Ten targeted mutations of the code
+  under test were each caught.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
@@ -467,8 +481,12 @@ is no history of revised limits to learn from.
   Architecture pre-merge check, the adapters were split from the boundary test
   for the same reasons, and the migration note answers the User-Facing
   Documentation pre-merge check. Folding them back would restore the findings
-  those gates raised. The breach is stated on PR #291 for the maintainer, who
-  may still direct a trim. Date/Author: 2026-11-20, implementing agent.
+  those gates raised. The formal review of `698f182` added one more path,
+  `tests/test_model_check_report.py`, for the direct report tests its Testing
+  pre-merge check required, making 33; the other tests that check asked for
+  were added to an existing file. The breach is stated on PR #291 for the
+  maintainer, who may still direct a trim. Date/Author: 2026-11-20,
+  implementing agent.
 
 ## Outcomes & retrospective
 
