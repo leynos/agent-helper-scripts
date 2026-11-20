@@ -201,8 +201,12 @@ is no history of revised limits to learn from.
   findings on the local delta's base, two weak witnesses, a shared predicate, a
   false excuse and overstated purposes were fixed; its remaining notes are
   declared in the specification's README. The routine suite is now 80 runs.
-- [ ] `EP-M6` full gate sequence on the final candidate, PR and handoff to
-  `pr-babysitting`.
+- [x] (2026-11-20 09:00Z) Full gate sequence run by the scrutineer on
+  `02c27bd`: `check-fmt`, `markdownlint`, `lint`, `typecheck`, `model-check`
+  (80 runs, 97 s, 1.93 GiB peak), `test` (2,001 passed in 435 s) and `spelling`
+  all exited zero, and the tree was clean afterwards. `typecheck` runs only the
+  syntax check; the repository configures no type checker.
+- [ ] `EP-M6` draft PR and handoff to `pr-babysitting`.
 
 ## Surprises & discoveries
 
