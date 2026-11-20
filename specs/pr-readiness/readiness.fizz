@@ -582,7 +582,9 @@ atomic fair action AgentRechecksCandidate:
     require pc == "recheck"
     # Re-fetch live base/head before accepting a result. This narrows the
     # window in which the candidate can move; it cannot close it.
-    recheck = record(base=base, head=head, draft=draft, merged=merged)
+    # The re-fetch also keeps the reply read it followed, if any, so that
+    # the order of the two reads is a recorded fact and not an assumption.
+    recheck = record(base=base, head=head, draft=draft, merged=merged, replies_seen=fresh)
     pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"
 
 atomic fair action AgentDecides:
@@ -760,8 +762,11 @@ def reads_are_fresh(state, cfg):
     The reply read and the re-fetch each leave what they returned. The
     ledger must hold exactly what the reply read returned for every
     applicable assessment, and the re-fetch must have returned the candidate
-    the pass observed, still unmerged. Neither is a flag: a pass that kept an
-    old ledger entry, or that went on without comparing, fails here.
+    the pass observed, still unmerged. The re-fetch also records the reply
+    read it followed, which must be the one the command rests on: a re-fetch
+    made before the replies were read recorded none. Nothing here is a flag:
+    a pass that kept an old ledger entry, went on without comparing, or read
+    in the other order fails.
     """
     if state.obs == None or state.intent == None or state.fresh == None or state.recheck == None:
         return False
@@ -769,6 +774,8 @@ def reads_are_fresh(state, cfg):
         return False
     seen = state.recheck
     if seen.base != state.obs.base or seen.head != state.obs.head or seen.draft != state.obs.draft or seen.merged:
+        return False
+    if seen.replies_seen != state.fresh:
         return False
     for kind in KINDS:
         wanted = (kind == "completeness" and cfg.completeness_applies) or (kind == "proof" and cfg.proof_applies)
@@ -905,6 +912,8 @@ transition assertion ObservationsRecordReality(before, after):
     if after.recheck != before.recheck and after.recheck != None:
         if (after.recheck.base != before.base or after.recheck.head != before.head
                 or after.recheck.draft != before.draft or after.recheck.merged != before.merged):
+            return False
+        if after.recheck.replies_seen != before.fresh:
             return False
     if after.fresh != before.fresh and after.fresh != None:
         for kind in after.fresh:

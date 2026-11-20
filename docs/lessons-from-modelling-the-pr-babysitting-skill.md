@@ -186,7 +186,7 @@ monkeypatched mutant has a textual mutation of the specification that must fail
 one named assertion through a counterexample that uses the behaviour the
 control names. For example, with the whole-plan subject rule deleted, the
 checker reports `ReadyNeedsCurrentEvidence` on a trace containing
-`Any:shape="subset-clear"`. Evidence: the 31 `mutant-*` runs.
+`Any:shape="subset-clear"`. Evidence: the 33 `mutant-*` runs.
 
 **R3. The recordings are the snapshots the model was checked on.** Each of the
 eleven agent-boundary recordings, read through the shipped stand-in, abstracts
@@ -350,6 +350,17 @@ The checker passing was not evidence that these properties discriminated. Every
 one of them was found by reading the specification against the question "what
 edit would this fail to notice?".
 
+The same question, asked again by the assessment service during the PR's
+pre-readiness proof assessment, found one more. The repaired fresh-read
+properties compared what the reply read and the re-fetch returned, but not
+their order: a model that re-fetched the candidate first and read the replies
+second left both records consistent. Two reversed-order controls were written
+and passed the specification unchanged, which confirmed the gap. The re-fetch
+now records the reply read it followed, and both controls
+(`mutant-replies-read-after-recheck` and its merge counterpart) fail their
+named property. A finding of the same class survived one independent review and
+was caught by a second.
+
 ### Tool and harness limitations
 
 All of these were observed in FizzBee v0.5.4 and each has a test in
@@ -432,19 +443,21 @@ one PR.
 
 ## Cost and maintainability
 
-**Routine suite.** 80 runs: 25 assurance, 31 negative controls, 12 property
+**Routine suite.** 82 runs: 25 assurance, 33 negative controls, 12 property
 controls, 4 scenario traces and 8 expected counterexamples. On the loaded
-development host, four at a time, it took 124 seconds of wall-clock time and
-the largest checker process reached 1.96 GiB of resident memory. Before the
-review's fixes added recorded reads to the state, the same assurance runs
-explored 10,122 distinct states in 19,268 nodes and peaked at 1.33 GiB; the
-largest, `interacting-changes-and-interruption`, was 3,231 states.
+development host, four at a time, it took 71 seconds of wall-clock time, the
+largest checker process reached 1.96 GiB of resident memory, and the summed
+resident memory of the checker processes running at once peaked at 2.25 GiB,
+sampled every 0.2 seconds. Before the review's fixes added recorded reads to
+the state, the same assurance runs explored 10,122 distinct states in 19,268
+nodes and peaked at 1.33 GiB; the largest,
+`interacting-changes-and-interruption`, was 3,231 states.
 
 **Extended suite.** The extended tier runs the routine suite and one more
 configuration, the full 215-row comparison table. Measured before the review's
 fixes, that table was 5,930 states in 64 seconds and the largest checker
-process reached 2.57 GiB. Hosted CI cost was not measured before this document
-was written; the pull request records it.
+process reached 2.57 GiB. On the hosted runner the whole `make ci` job,
+including the checker download, took under six minutes.
 
 **Per-state cost.** The release costs roughly 9 ms of processor time and 200
 KiB of resident memory per explored node on this host. Removing every assertion

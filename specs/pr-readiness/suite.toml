@@ -1409,3 +1409,45 @@ expect = { fail = "always", assertion = "ClaimsNeverOutrunTheRemote" }
 [[run.mutation]]
 old = "    l_merged = merged\n"
 new = "    l_merged = True\n"
+
+[[run]]
+id = "mutant-replies-read-after-recheck"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Reading the replies after re-fetching the candidate, instead of before, leaves both records consistent with the candidate; only the order the re-fetch recorded shows that the ready command rests on a re-fetch that preceded the replies."
+obligations = ["PRR-ORDER-01"]
+expect = { fail = "transition", assertion = "ReadyFollowsFreshReads", via = ['AgentRechecksCandidate', 'AgentReadsReplies', 'AgentRunsReadyCommand'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "recheck"'
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+[[run.mutation]]
+old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+new = 'pc = "read" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+
+[[run]]
+id = "mutant-replies-read-after-recheck-before-merge"
+class = "negative-control"
+of = "already-ready-on-assignment"
+purpose = "The same reversal before a merge: the merge rests on a re-fetch that preceded the reply read."
+obligations = ["PRR-ORDER-01", "PRR-LIFE-03"]
+expect = { fail = "transition", assertion = "MergeFollowsFreshReads", via = ['AgentRechecksCandidate', 'AgentReadsReplies', 'AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "recheck"'
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+[[run.mutation]]
+old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+new = 'pc = "read" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'

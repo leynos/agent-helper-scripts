@@ -39,6 +39,15 @@ from pr_readiness_spec_support import (
     checked_expectation,
     snapshot_rows,
 )
+from readiness_applicability import (
+    PROOF_INVENTORY,
+    affects_a_proof,
+    applicability as applicability_of,
+    changes_a_proof,
+    proof_inventory,
+    proof_reference,
+    stated_proofs,
+)
 from readiness_snapshot_support import (
     COMPLETENESS,
     FIXTURES,
@@ -286,7 +295,6 @@ def proof_request(listing: list[dict]) -> dict | None:
 #: The line the completeness request records its affected-proof inventory on.
 #: The shipped template asks the sender for it, and `none affected` is the
 #: recorded form of an empty inventory.
-PROOF_INVENTORY = re.compile(r"^Proof inventory:[^\n]*", re.MULTILINE)
 
 
 def recorded_reference(directory: Path) -> str:
@@ -309,81 +317,6 @@ def recorded_reference(directory: Path) -> str:
     """
     facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
     return proof_reference(str(facts["proof_reference"]))
-
-
-def stated_proofs(
-    inventory: tuple[str, ...], changed: bool, reference: str
-) -> tuple[str, ...]:
-    """Return the inventory a proof assessment must actually cover.
-
-    Applicability and coverage are two facts that have to agree. The diff says
-    the assessment applies; the inventory says what the reply will be compared
-    against. An inventory that owes nothing to a changed proof — it names some
-    other proof, or names none — would let a clear reply for that other proof
-    discharge an assessment of the proof the candidate changed, so the changed
-    proof is added to what the reply must cover.
-
-    The addition is one-way. A non-empty inventory that already names the
-    changed proof is left exactly as recorded, and an empty inventory over an
-    unchanged candidate stays empty: the join only ever adds the proof the
-    diff actually carries.
-
-    Parameters
-    ----------
-    inventory : tuple of str
-        The proofs the request's inventory names.
-    changed : bool
-        Whether the candidate's diff changes the proof the recording names.
-    reference : str
-        The named reference the recording's proof is assessed under.
-
-    Returns
-    -------
-    tuple of str
-        The inventory the reply's subject is compared against.
-    """
-    if not changed:
-        return inventory
-    return tuple(dict.fromkeys((*inventory, reference)))
-
-
-def affects_a_proof(body: str) -> bool:
-    """Return whether a completeness request says the candidate affects a proof.
-
-    The sender records the candidate's affected-proof inventory on the
-    `Proof inventory:` line, which is the handoff's own statement of what the
-    proof assessment would be about. An inventory that says `none affected` is
-    empty; one that names proofs is not. A request carrying no such line
-    establishes nothing, and is read as neither.
-
-    This is the secondary read, and it can only *add* applicability. The
-    candidate's diff is the primary evidence, so an inventory that names a
-    proof the diff does not carry still makes the assessment apply, while an
-    inventory that says `none affected` over a changed proof cannot unmake it.
-    A sender that writes that sentence over its own changed proof has recorded
-    a contradiction, and taking the sentence as authoritative is what let a
-    proof-changing candidate clear on the completeness reply alone.
-
-    The proof question is a different fact again. It says the assessment was
-    asked for, not whether it applies: a candidate that changes a proof and
-    never has its question posted is a candidate with a missing assessment.
-    Reading applicability from the question alone made that state look
-    inapplicable, which cleared the gate on the completeness reply.
-
-    Parameters
-    ----------
-    body : str
-        The completeness request's recorded body.
-
-    Returns
-    -------
-    bool
-        Whether the recorded inventory names at least one affected proof.
-    """
-    stated = PROOF_INVENTORY.search(body)
-    if stated is None:
-        return False
-    return "none affected" not in stated.group(0).casefold()
 
 
 def recorded_proof(directory: Path) -> str:
@@ -411,94 +344,6 @@ def recorded_proof(directory: Path) -> str:
     """
     facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
     return str(facts["proof_path"])
-
-
-def changes_a_proof(changed: list[str], proof: str) -> bool:
-    """Return whether the candidate's own diff carries the proof it names.
-
-    Parameters
-    ----------
-    changed : list of str
-        The paths the candidate changes, as its diff reports them.
-    proof : str
-        The repository-relative proof path the recording names.
-
-    Returns
-    -------
-    bool
-        Whether that proof is among the changed paths.
-    """
-    return bool(proof) and proof in changed
-
-
-def proof_reference(entry: str) -> str:
-    """Return the named proof reference from a `path#reference` inventory entry.
-
-    The shipped proof template asks about "proof file paths with named proof
-    references", so its inventory entry carries both. The recorded replies
-    name the reference alone, which is the same proof and is how the template's
-    own subject line asks for it. An entry with no separator is already a
-    reference, so it is returned unchanged.
-    """
-    return entry.rsplit("#", 1)[-1].strip()
-
-
-def proof_inventory(
-    proof_ask: dict | None, completeness_body: str
-) -> tuple[str, ...]:
-    """Return the named proof references this candidate's inventory holds.
-
-    The completeness request's `Proof inventory:` line is the sender's own
-    statement of what the candidate affects, and it is available whether or
-    not the proof question was ever posted. A missing question is a missing
-    assessment, not a missing inventory, so the line is what a pending proof
-    assessment is pending *about*. Reading the question alone made the two
-    facts the same one: a proof-changing candidate with no question had no
-    inventory either, and the gate then held on `proof-inventory-empty`
-    rather than on the unanswered assessment.
-
-    A proof-only assignment has no completeness request to carry that line, so
-    its inventory comes from the question's opening, which is the shipped
-    template's `(proof file paths with named proof references)`, filled with
-    the proofs the request asks about.
-
-    Parameters
-    ----------
-    proof_ask : dict or None
-        The recorded proof question, when the discussion has one.
-    completeness_body : str
-        The completeness request's body, whose `Proof inventory:` line names
-        the affected proofs.
-
-    Returns
-    -------
-    tuple of str
-        The named references the reply's subject is compared against.
-    """
-    stated = PROOF_INVENTORY.search(completeness_body)
-    if stated is not None:
-        listed = stated.group(0)
-        if "none affected" in listed.casefold():
-            return ()
-        # Each entry is a backticked path and a backticked reference; the path
-        # contains a separator and the reference does not, so the references
-        # are the backticked names without one.
-        named = tuple(
-            name for name in re.findall(r"`([^`]+)`", listed) if "/" not in name
-        )
-        if named:
-            return named
-    if proof_ask is None:
-        return ()
-    opening = re.search(
-        r"introduced proof\(s\)\s*\(([^)]*)\)", str(proof_ask["body"])
-    )
-    assert opening, "the proof request names no inventory"
-    return tuple(
-        proof_reference(name)
-        for name in opening.group(1).split(",")
-        if name.strip()
-    )
 
 
 @dataclass(frozen=True)
@@ -567,26 +412,12 @@ def bounds_of(scenario: str, served: Staged) -> Bounds:
 
 
 def applicability(served: Staged, packet: dict[str, str]) -> tuple[bool, bool]:
-    """Return whether the completeness and the proof assessment apply.
+    """Return whether the two assessments apply to a staged recording.
 
-    The packet conditions the proof assessment, and two independent reads
-    decide whether the condition is met. The candidate's own diff is the
-    primary evidence: a change to the proof the recording names affects it
-    whatever any request says about it. The completeness request's
-    `Proof inventory:` line can only add applicability, by naming a proof the
-    diff does not carry; it can never take it away, because a sender that
-    writes `none affected` over a changed proof has contradicted its own
-    diff, and reading that sentence as authoritative is what let a
-    proof-changing candidate clear on the completeness reply alone.
-
-    A tagged proof question is not applicability evidence in either
-    direction. It says the question was posted, so reading applicability from
-    it made a proof-changing candidate with no question look inapplicable.
-    The question is the assessment, not the condition.
+    The rules are the adapter's, in ``readiness_applicability``; this reads
+    the facts they take from the stand-in.
     """
-    conditional = "required when applicable" in packet["proof"].casefold()
-    affected = served.proof_changed() or affects_a_proof(served.body)
-    return "required" in packet["assessment"].casefold(), conditional and affected
+    return applicability_of(packet, served.body, served.proof_changed())
 
 
 def delivery(served: Staged) -> dict[str, str]:

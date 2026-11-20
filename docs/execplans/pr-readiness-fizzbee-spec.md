@@ -218,8 +218,21 @@ is no history of revised limits to learn from.
   handoff test's reply abstraction moved to
   `tests/readiness_snapshot_support.py`. The delta now reports no new or
   degraded issue, and every new module scores 10.0.
-- [ ] `pr-babysitting`: completeness and proof assessments, readiness, formal
-  review, findings, approval and merge.
+- [x] (2026-11-20 11:14Z) Completeness and proof assessments requested on
+  `5c4fa22` (comments 7037980348 and 7037983922). Both answered "not yet". The
+  proof concern: the fresh-read properties did not assert the order of the
+  reply read and the re-fetch. The completeness concerns: the same gap; the
+  blocking "Unit Architecture" pre-merge check; maintainer direction on D9 and
+  D10; and an aggregate measure of concurrent checker memory.
+- [x] (2026-11-20 12:40Z) Repairs: a reversed-order mutant passed the
+  specification, confirming the gap; the re-fetch now records the reply read it
+  followed, and two reversed-order controls fail their named property. Session
+  loading writes nothing and `reset_report` deletes explicitly; machine facts
+  arrive in an injected `Host`; the applicability rules moved to
+  `tests/readiness_applicability.py` with one control each. The routine suite
+  is 82 runs. Aggregate concurrent checker memory peaked at 2.25 GiB.
+- [ ] `pr-babysitting`: follow-up assessment confirmation on the repaired
+  candidate, readiness, formal review, findings, approval and merge.
 
 ## Surprises & discoveries
 
@@ -378,11 +391,33 @@ is no history of revised limits to learn from.
   waiting procedure; and whether an answered question may be followed up on an
   unchanged candidate is unstated. Date/Author: 2026-11-20, implementing agent.
 
+- D13. Decision: record, in the re-fetch, the reply read it followed, and
+  require it in `ReadyFollowsFreshReads` and `MergeFollowsFreshReads`.
+  Rationale: the assessment service showed that the two records could be
+  consistent with either order; a reversed-order mutant confirmed it. A witness
+  written by the re-fetch step itself is independent of the agent's control
+  flow, which the reversed-order controls mutate. Date/Author: 2026-11-20,
+  implementing agent.
+- D14. Decision: the memory tolerance is measured as the summed resident
+  memory of the checker processes running at once, not the largest one.
+  Evidence: sampled every 0.2 s during `make model-check` with four jobs, it
+  peaked at 2,308 MiB, within the 4 GiB tolerance. Date/Author: 2026-11-20,
+  implementing agent.
+- D15. Decision: proceed with the size delivered (D9). The delivery report
+  stated the breach, the figures and the option of trimming the snapshot tables
+  and launcher tests, and asked the maintainer to accept or reject it; the
+  maintainer then directed that the PR be merged once it reaches equilibrium.
+  That is recorded as direction to proceed, not as an explicit acceptance of
+  the budgets, which remain exceeded. D10's partial interim gating is
+  superseded: the full gate sequence has since run on `02c27bd`, `5c4fa22` and
+  each later candidate. Date/Author: 2026-11-20, implementing agent, on the
+  maintainer's direction.
+
 ## Outcomes & retrospective
 
 The Python decision model, its workflow double and their tests are gone, and
 the same obligations are stated in `specs/pr-readiness/readiness.fizz` and
-checked by `make model-check`, which `make ci` runs. The routine suite is 80
+checked by `make model-check`, which `make ci` runs. The routine suite is 82
 runs. Every obligation in the inventory has an assertion and a routine run, or
 is recorded as retired without replacement with the reason.
 

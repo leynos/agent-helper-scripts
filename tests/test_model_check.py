@@ -691,3 +691,59 @@ def test_the_pinned_checker_rejecting_a_specification_is_not_detection(
     assert result.returncode == 1, result.stdout + result.stderr
     assert detail in result.stdout, result.stdout
     assert "control: error" in result.stdout, result.stdout
+
+
+def described_host(mc: types.ModuleType, home: Path, platform: tuple[str, str]):
+    """Return a host the test describes, rather than the one it runs on."""
+    return mc.Host(
+        platform=platform,
+        cpu_count=64,
+        home=home,
+        clock=lambda: 0.0,
+        peak_child_rss_kib=lambda: 0,
+    )
+
+
+def test_an_unsupported_platform_is_refused(mc: types.ModuleType, tmp_path: Path) -> None:
+    """The gate names the platform it cannot run on, with no patching.
+
+    The pinned archive is built for one platform. The guard reads the
+    platform from the host it is handed, so the refusal is testable on the
+    supported platform too.
+    """
+    with pytest.raises(mc.ModelCheckError, match="supports Linux x86_64 only; this is Darwin arm64"):
+        mc.require_platform(described_host(mc, tmp_path, ("Darwin", "arm64")))
+    mc.require_platform(described_host(mc, tmp_path, mc.SUPPORTED_PLATFORM))
+
+
+def test_loading_a_session_writes_nothing_and_resetting_is_explicit(
+    mc: types.ModuleType, tmp_path: Path
+) -> None:
+    """Loading resolves the report directory; only ``reset_report`` touches it.
+
+    A stale run directory must be removed before a run, and that deletion is
+    a named step at the call site, not a side effect of loading.
+    """
+    pin = fake_release(tmp_path / "home", "true\n")
+    suite = write_suite(tmp_path, ASSURANCE, checker=pin)
+    report = tmp_path / "report"
+    stale = report / "stale-run"
+    stale.mkdir(parents=True)
+    host = described_host(mc, tmp_path / "home", mc.SUPPORTED_PLATFORM)
+    options = mc.CheckOptions(suite=suite, report=report)
+
+    session, runs = mc.load_session(options, host, lambda *_: None)
+
+    assert stale.is_dir(), "loading a session deleted the report directory"
+    assert session.report == report.resolve()
+    assert session.fizz == tmp_path / "home" / "release" / "fizz"
+    assert [run.id for run in runs] == ["base"]
+    mc.reset_report(session.report)
+    assert report.is_dir() and not any(report.iterdir())
+
+
+def test_the_host_bounds_the_parallelism(mc: types.ModuleType, tmp_path: Path) -> None:
+    """Zero jobs selects up to four, bounded by the host's processors."""
+    many = described_host(mc, tmp_path, mc.SUPPORTED_PLATFORM)
+    one = mc.Host(**{**many.__dict__, "cpu_count": 1})
+    assert (mc.workers(0, many), mc.workers(0, one), mc.workers(6, one)) == (4, 1, 6)

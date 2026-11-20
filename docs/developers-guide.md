@@ -924,9 +924,14 @@ checker option, a class paired with a mutation or expectation it cannot have,
 or a negative control without its twin. `scripts/model_check_judge.py` reads
 the checker's output and judges a run against it. `scripts/model_check.py`
 installs the release, executes runs and reports, and re-exports the names the
-other modules and the tests use. `scripts/model_check_cli.py` is the Cyclopts
-command line and the Cuprum process boundary. The launcher exists because the
-pinned release cannot be trusted to report its own result: it exits zero when a
+other modules and the tests use. It also runs a suite: loading a session writes
+nothing, `reset_report` is the one step that deletes the previous report, and
+every fact about the machine (platform, processor count, checker home, clock
+and peak memory) arrives in a `Host` record, so a test can describe an
+unsupported platform without patching. `scripts/model_check_cli.py` is the
+Cyclopts command line and the Cuprum process boundary, and builds the `Host`
+from the running machine at its edge. The launcher exists because the pinned
+release cannot be trusted to report its own result: it exits zero when a
 property fails, drops liveness checking without comment for a `liveness` value
 it does not recognize, stops at `max_actions` without saying so, and prints its
 pass line for a replayed trace whose last step it refused. The launcher
@@ -968,9 +973,14 @@ what the recorded agent did. `tests/test_pr_readiness_fixture_mapping.py`
 applies the concrete-to-abstract event mapping in
 `specs/pr-readiness/fixtures.toml`, so that a recording and its hand-authored
 scenario trace agree on their effects and on the reads that precede them.
-`tests/pr_readiness_spec_support.py` reads the suite as data for all three, and
-`tests/readiness_snapshot_support.py` holds the abstraction from a recorded
-thread to a model reply shape; neither decides anything.
+`tests/pr_readiness_spec_support.py` reads the suite as data for all three. The
+handoff test's adapter has two named seams.
+`tests/readiness_snapshot_support.py` abstracts a recorded thread into a model
+reply shape. `tests/readiness_applicability.py` derives the model's two
+applicability inputs from the packet, the diff and the proof inventory; those
+are adapter rules, each with a control in
+`tests/test_readiness_applicability.py`. Neither seam decides readiness: the
+model checker does, given those inputs.
 
 The snapshot tables in the suite carry the answers the retired Python decision
 model gave for 215 bounded snapshots when the two were compared at migration;

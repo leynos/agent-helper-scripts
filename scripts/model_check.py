@@ -44,6 +44,7 @@ Run the mandatory suite::
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -77,13 +78,17 @@ from model_check_suite import (
 
 __all__ = (
     "CLASSES",
+    "DEFAULT_REPORT",
     "FAILURE_KINDS",
+    "SUPPORTED_PLATFORM",
     "PASS_LINE",
     "REQUIRED_OPTIONS",
     "TIERS",
+    "CheckOptions",
     "Checker",
     "Expectation",
     "Fetcher",
+    "Host",
     "Judgement",
     "ModelCheckError",
     "Outcome",
@@ -96,6 +101,7 @@ __all__ = (
     "execute",
     "install_checker",
     "judge",
+    "load_session",
     "load_suite",
     "locate_checker",
     "missing_steps",
@@ -103,9 +109,15 @@ __all__ = (
     "read_output",
     "render_options",
     "report",
+    "require_platform",
+    "reset_report",
+    "run_line",
+    "run_suite",
     "select",
     "summarize",
     "unknown_assertions",
+    "workers",
+    "write_report",
 )
 
 #: Runs one checker invocation: ``(argv, cwd, timeout_seconds)``.
@@ -113,6 +125,13 @@ Runner = Callable[[Sequence[str], Path, int], ProcessResult]
 
 #: Fetches ``url`` to ``destination``.
 Fetcher = Callable[[str, Path], None]
+
+#: The one platform the pinned archive supports.
+SUPPORTED_PLATFORM = ("Linux", "x86_64")
+
+#: Where run directories, traces and the report are written. ``build`` is
+#: ignored by Git and pruned by the repository's discovery walks.
+DEFAULT_REPORT = Path("build") / "model-check"
 
 #: Summary headings, one per class. Expected counterexamples have their own,
 #: so a recorded limitation is never read as a passing assurance claim.
@@ -155,6 +174,141 @@ class Session:
     fizz: Path
     report: Path
     runner: Runner
+
+
+@dataclass(frozen=True)
+class Host:
+    """The facts about the machine the commands read, supplied by the caller.
+
+    The command line builds one from the running host at its edge; a test
+    builds one for a host it describes. ``home`` is where the pinned release
+    is unpacked unless the options name another directory; ``clock`` is a
+    monotonic clock in seconds; ``peak_child_rss_kib`` reports the
+    high-water mark over every child process waited for so far.
+    """
+
+    platform: tuple[str, str]
+    cpu_count: int
+    home: Path
+    clock: Callable[[], float]
+    peak_child_rss_kib: Callable[[], int]
+
+
+@dataclass(kw_only=True)
+class CheckOptions:
+    """What one ``check`` invocation runs, and where.
+
+    The command line flattens these fields into the command's own flags and
+    ``MODEL_CHECK_*`` variables, so ``--suite`` and ``--only`` are spelled as
+    if they were separate parameters.
+
+    Attributes
+    ----------
+    suite
+        The suite manifest.
+    tier
+        ``routine`` runs the mandatory checks. ``extended`` runs those and
+        the larger explorations.
+    only
+        Run identifiers to restrict the run to while iterating. A subset is
+        reported as partial and is not a gate result.
+    home
+        Directory the pinned release was unpacked into; by default the
+        host's checker home.
+    report
+        Directory for run directories, traces and ``report.json``.
+    jobs
+        Checker processes to run at once; zero selects up to four, bounded
+        by the available processors.
+    """
+
+    suite: Path
+    tier: str = "routine"
+    only: list[str] = field(default_factory=list)
+    home: Path | None = None
+    report: Path = DEFAULT_REPORT
+    jobs: int = 0
+
+
+def require_platform(host: Host) -> None:
+    """Refuse a host the pinned archive was not built for.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised for any platform other than ``SUPPORTED_PLATFORM``.
+    """
+    if host.platform != SUPPORTED_PLATFORM:
+        raise ModelCheckError(
+            f"the pinned FizzBee archive supports {SUPPORTED_PLATFORM[0]}"
+            f" {SUPPORTED_PLATFORM[1]} only; this is {host.platform[0]}"
+            f" {host.platform[1]}. The model-check gate is unsupported here."
+        )
+
+
+def workers(jobs: int, host: Host) -> int:
+    """Return how many checker processes to run at once."""
+    return jobs or max(1, min(4, host.cpu_count))
+
+
+def load_session(
+    options: CheckOptions, host: Host, runner: Runner
+) -> tuple[Session, tuple[Run, ...]]:
+    """Load the suite, verify the checker, and return the runs to execute.
+
+    Nothing is written: the report directory is resolved but neither
+    created nor emptied. ``reset_report`` does that, at the caller.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised for an invalid suite, an expectation naming an undeclared
+        assertion, a missing or altered checker, or an unknown run.
+    """
+    loaded = load_suite(options.suite)
+    problems = unknown_assertions(loaded)
+    if problems:
+        raise ModelCheckError("; ".join(problems))
+    fizz = locate_checker(options.home or host.home, loaded.checker)
+    runs = select(loaded, options.tier, options.only)
+    session = Session(
+        suite=loaded, fizz=fizz, report=options.report.resolve(), runner=runner
+    )
+    return session, runs
+
+
+def reset_report(directory: Path) -> None:
+    """Delete the report directory and create it empty.
+
+    A stale run directory would otherwise be read as part of this
+    invocation's evidence.
+    """
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir(parents=True)
+
+
+def run_suite(session: Session, runs: Sequence[Run], jobs: int) -> list[Outcome]:
+    """Execute every run, ``jobs`` at a time, and return their outcomes in order."""
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        return list(pool.map(lambda run: execute(run, session), runs))
+
+
+def write_report(document: Mapping[str, object], directory: Path) -> Path:
+    """Write ``report.json`` into the report directory and return its path."""
+    target = directory / "report.json"
+    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return target
+
+
+def run_line(document: Mapping[str, object], target: Path) -> str:
+    """Return the one-line account of an invocation: checker, tier, cost, report."""
+    checker = document["checker"]
+    peak = int(document["peak_child_rss_kib"]) // 1024  # type: ignore[call-overload]
+    return (
+        f"FizzBee {checker['version']}; tier {document['tier']};"  # type: ignore[index]
+        f" {document['jobs']} at a time; {document['wall_seconds']}s;"
+        f" peak checker RSS {peak} MiB; report in {target}"
+    )
 
 
 def _sha256(path: Path) -> str:

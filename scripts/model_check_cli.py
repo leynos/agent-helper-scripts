@@ -27,17 +27,14 @@ checker and ``MODEL_CHECK_JOBS`` sets the parallelism.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
-import json
+from collections.abc import Callable, Sequence
 import os
 from pathlib import Path
 import platform
 import resource
-import shutil
 import sys
 import time
+from typing import Annotated
 
 import cyclopts
 from cyclopts import App, Parameter
@@ -52,102 +49,104 @@ from cuprum import (
 
 import model_check
 
-#: Where the pinned release is unpacked unless ``--home`` says otherwise. The
-#: directory name keeps the 680 MB tree out of code indexes and the Markdown
-#: gate's walk.
-DEFAULT_HOME = Path.home() / ".cache" / "fizzbee"
-
-#: Where run directories, traces and the report are written. ``build`` is
-#: ignored by Git and pruned by the repository's discovery walks.
-DEFAULT_REPORT = Path("build") / "model-check"
-
-#: The one platform the pinned archive supports.
-SUPPORTED_PLATFORM = ("Linux", "x86_64")
+#: How long one download may take.
+DOWNLOAD_TIMEOUT_SECONDS = 1800
 
 
-def _run_command(command: Sequence[str], cwd: Path, timeout: int) -> model_check.ProcessResult:
-    """Run one command through Cuprum, cancelling it at the timeout.
+def current_host() -> model_check.Host:
+    """Return the facts about the running machine the commands read.
+
+    This is the only place the commands read the platform, the processor
+    count, the home directory, the clock or the resource counters. The
+    checker home is under ``~/.cache``, whose name keeps the 680 MB tree out
+    of code indexes and the Markdown gate's walk.
+    """
+    return model_check.Host(
+        platform=(platform.system(), platform.machine()),
+        cpu_count=os.cpu_count() or 1,
+        home=Path.home() / ".cache" / "fizzbee",
+        clock=time.monotonic,
+        peak_child_rss_kib=lambda: resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,
+    )
+
+
+def _process_result(result: object, seconds: float) -> model_check.ProcessResult:
+    """Return what Cuprum reported, with a signal read as no exit status.
 
     A signal's exit status is reported as no exit status at all, so the
     judgement cannot mistake an interrupted checker for one that finished.
     """
-    executable, *arguments = command
-    program = Program(executable)
-    catalogue = ProgramCatalogue.from_programs(program, name="model-check")
-    # The checker's launcher creates a scratch file with mktemp and leaves
-    # it; pointing TMPDIR at the run directory keeps it with the run.
-    context = ExecutionContext(cwd=cwd, env={"TMPDIR": str(cwd)})
-    started = time.monotonic()
-
-    async def bounded() -> model_check.ProcessResult:
-        """Await the command, or cancel it when the timeout expires."""
-        with scoped(catalogue=catalogue):
-            task = sh.make(program)(*arguments).run(
-                context=context,
-                output=RunOutputOptions(capture=True, echo=False),
-            )
-            try:
-                result = await asyncio.wait_for(task, timeout=timeout)
-            except TimeoutError:
-                return model_check.ProcessResult(
-                    exit_code=None,
-                    stdout="",
-                    stderr="",
-                    timed_out=True,
-                    seconds=time.monotonic() - started,
-                )
-        code = result.exit_code
-        return model_check.ProcessResult(
-            exit_code=None if code is None or code < 0 or code > 128 else code,
-            stdout=result.stdout or "",
-            stderr=result.stderr or "",
-            seconds=time.monotonic() - started,
-        )
-
-    try:
-        return asyncio.run(bounded())
-    except FileNotFoundError as error:
-        raise model_check.ModelCheckError(
-            f"'{executable}' is required, but not installed"
-        ) from error
-
-
-def _fetch(url: str, destination: Path) -> None:
-    """Download ``url`` with curl, failing on an HTTP error or a short read."""
-    result = _run_command(
-        (
-            "curl",
-            "--fail",
-            "--location",
-            "--silent",
-            "--show-error",
-            "--retry",
-            "3",
-            "--output",
-            str(destination),
-            url,
-        ),
-        destination.parent,
-        1800,
+    code = getattr(result, "exit_code", None)
+    stopped = code is None or not 0 <= code <= 128
+    return model_check.ProcessResult(
+        exit_code=None if stopped else code,
+        stdout=getattr(result, "stdout", None) or "",
+        stderr=getattr(result, "stderr", None) or "",
+        seconds=seconds,
     )
-    if result.timed_out or result.exit_code != 0:
-        raise model_check.ModelCheckError(
-            f"download of {url} failed: {result.stderr.strip() or 'no diagnostic'}"
+
+
+def process_runner(clock: Callable[[], float]) -> model_check.Runner:
+    """Return a runner that executes one command through Cuprum.
+
+    The runner cancels the command when its timeout expires, which Cuprum
+    turns into ``SIGTERM`` and then ``SIGKILL``, and times it with ``clock``.
+    """
+
+    def run(command: Sequence[str], cwd: Path, timeout: int) -> model_check.ProcessResult:
+        """Run ``command`` in ``cwd``, cancelling it after ``timeout`` seconds."""
+        executable, *arguments = command
+        program = Program(executable)
+        catalogue = ProgramCatalogue.from_programs(program, name="model-check")
+        # The checker's launcher creates a scratch file with mktemp and
+        # leaves it; pointing TMPDIR at the run directory keeps it there.
+        context = ExecutionContext(cwd=cwd, env={"TMPDIR": str(cwd)})
+        started = clock()
+
+        async def bounded() -> model_check.ProcessResult:
+            """Await the command, or report a timeout when it expires."""
+            with scoped(catalogue=catalogue):
+                task = sh.make(program)(*arguments).run(
+                    context=context, output=RunOutputOptions(capture=True, echo=False)
+                )
+                try:
+                    result = await asyncio.wait_for(task, timeout=timeout)
+                except TimeoutError:
+                    return model_check.ProcessResult(
+                        exit_code=None, stdout="", stderr="", timed_out=True,
+                        seconds=clock() - started,
+                    )
+            return _process_result(result, clock() - started)
+
+        try:
+            return asyncio.run(bounded())
+        except FileNotFoundError as error:
+            raise model_check.ModelCheckError(
+                f"'{executable}' is required, but not installed"
+            ) from error
+
+    return run
+
+
+def fetcher(runner: model_check.Runner) -> model_check.Fetcher:
+    """Return a downloader that runs curl through ``runner``."""
+
+    def fetch(url: str, destination: Path) -> None:
+        """Download ``url``, failing on an HTTP error or a short read."""
+        command = (
+            "curl", "--fail", "--location", "--silent", "--show-error",
+            "--retry", "3", "--output", str(destination), url,
         )
+        result = runner(command, destination.parent, DOWNLOAD_TIMEOUT_SECONDS)
+        if result.timed_out or result.exit_code != 0:
+            raise model_check.ModelCheckError(
+                f"download of {url} failed: {result.stderr.strip() or 'no diagnostic'}"
+            )
+
+    return fetch
 
 
-def _require_platform() -> None:
-    """Refuse a platform the pinned archive was not built for."""
-    here = (platform.system(), platform.machine())
-    if here != SUPPORTED_PLATFORM:
-        raise model_check.ModelCheckError(
-            f"the pinned FizzBee archive supports {SUPPORTED_PLATFORM[0]}"
-            f" {SUPPORTED_PLATFORM[1]} only; this is {here[0]} {here[1]}."
-            " The model-check gate is unsupported here."
-        )
-
-
-def install(*, suite: Path, home: Path = DEFAULT_HOME) -> None:
+def install(*, suite: Path, home: Path | None = None) -> None:
     """Fetch, verify and unpack the checker a suite pins.
 
     Parameters
@@ -155,7 +154,8 @@ def install(*, suite: Path, home: Path = DEFAULT_HOME) -> None:
     suite
         The suite manifest naming the release and its digests.
     home
-        Directory the release is unpacked into.
+        Directory the release is unpacked into; by default
+        ``~/.cache/fizzbee``.
 
     Returns
     -------
@@ -163,91 +163,15 @@ def install(*, suite: Path, home: Path = DEFAULT_HOME) -> None:
         Prints the verified launcher's path. Nothing is downloaded when the
         pinned release is already present and intact.
     """
-    _require_platform()
+    host = current_host()
+    model_check.require_platform(host)
     loaded = model_check.load_suite(suite)
-    fizz = model_check.install_checker(home, loaded.checker, _fetch)
+    fetch = fetcher(process_runner(host.clock))
+    fizz = model_check.install_checker(home or host.home, loaded.checker, fetch)
     print(f"FizzBee {loaded.checker.version} verified at {fizz}")
 
 
-@Parameter(name="*")
-@dataclass(kw_only=True)
-class CheckOptions:
-    """What one ``check`` invocation runs, and where.
-
-    Cyclopts flattens these fields into the command's own flags and
-    ``MODEL_CHECK_*`` variables, so ``--suite`` and ``--only`` are spelled as
-    if they were separate parameters.
-
-    Attributes
-    ----------
-    suite
-        The suite manifest.
-    tier
-        ``routine`` runs the mandatory checks. ``extended`` runs those and
-        the larger explorations.
-    only
-        Run identifiers to restrict the run to while iterating. A subset is
-        reported as partial and is not a gate result.
-    home
-        Directory the pinned release was unpacked into.
-    report
-        Directory for run directories, traces and ``report.json``.
-    jobs
-        Checker processes to run at once; zero selects up to four, bounded
-        by the available processors.
-    """
-
-    suite: Path
-    tier: str = "routine"
-    only: list[str] = field(default_factory=list)
-    home: Path = DEFAULT_HOME
-    report: Path = DEFAULT_REPORT
-    jobs: int = 0
-
-
-def _workers(jobs: int) -> int:
-    """Return how many checker processes to run at once."""
-    return jobs or max(1, min(4, os.cpu_count() or 1))
-
-
-def _session(options: CheckOptions) -> tuple[model_check.Session, tuple]:
-    """Load the suite, verify the checker, and return the runs to execute.
-
-    The report directory is emptied first, so a stale run directory cannot
-    be read as part of this invocation's evidence.
-    """
-    loaded = model_check.load_suite(options.suite)
-    problems = model_check.unknown_assertions(loaded)
-    if problems:
-        raise model_check.ModelCheckError("; ".join(problems))
-    fizz = model_check.locate_checker(options.home, loaded.checker)
-    runs = model_check.select(loaded, options.tier, options.only)
-    shutil.rmtree(options.report, ignore_errors=True)
-    options.report.mkdir(parents=True)
-    session = model_check.Session(
-        suite=loaded, fizz=fizz, report=options.report.resolve(), runner=_run_command
-    )
-    return session, runs
-
-
-def _write_report(document: dict, options: CheckOptions) -> None:
-    """Write ``report.json`` and print the one-line run summary.
-
-    The peak resident size is the high-water mark over every checker process
-    this invocation waited for, which is the figure a runner's memory limit
-    has to accommodate per process.
-    """
-    document["peak_child_rss_kib"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-    target = options.report / "report.json"
-    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-    print(
-        f"FizzBee {document['checker']['version']}; tier {options.tier};"
-        f" {document['jobs']} at a time; {document['wall_seconds']}s; peak checker"
-        f" RSS {document['peak_child_rss_kib'] // 1024} MiB; report in {target}"
-    )
-
-
-def check(options: CheckOptions) -> None:
+def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> None:
     """Run a suite and exit non-zero unless every run met its expectation.
 
     Parameters
@@ -262,18 +186,24 @@ def check(options: CheckOptions) -> None:
         Prints the summary. Exits with status one when a run did not meet
         its expectation, was interrupted, or could not be judged.
     """
-    _require_platform()
-    session, runs = _session(options)
-    workers = _workers(options.jobs)
-    started = time.monotonic()
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        outcomes = list(pool.map(lambda run: model_check.execute(run, session), runs))
+    host = current_host()
+    model_check.require_platform(host)
+    session, runs = model_check.load_session(options, host, process_runner(host.clock))
+    model_check.reset_report(session.report)
+    jobs = model_check.workers(options.jobs, host)
+    started = host.clock()
+    outcomes = model_check.run_suite(session, runs, jobs)
     partial = bool(options.only)
     document = model_check.report(session.suite, outcomes, tier=options.tier, partial=partial)
-    document["wall_seconds"] = round(time.monotonic() - started, 1)
-    document["jobs"] = workers
+    document["wall_seconds"] = round(host.clock() - started, 1)
+    document["jobs"] = jobs
+    # The high-water mark over every checker process this invocation waited
+    # for, which is the figure a runner's memory limit has to accommodate
+    # per process.
+    document["peak_child_rss_kib"] = host.peak_child_rss_kib()
+    target = model_check.write_report(document, options.report)
     print(model_check.summarize(outcomes, partial=partial))
-    _write_report(document, options)
+    print(model_check.run_line(document, target))
     if not document["ok"]:
         raise SystemExit(1)
 

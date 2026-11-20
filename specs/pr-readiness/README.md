@@ -186,9 +186,12 @@ The realizable properties (`ReadyNeedsCurrentEvidence`,
 `MergeNeedsAuthorityAndRenewedEvidence`) say that, when a command is issued,
 the ledger clears the candidate the agent last observed, that the ledger holds
 what this pass's reply read returned, and that this pass's re-fetch returned
-that same candidate. The reply read and the re-fetch each leave what they
-returned, and the properties compare those records; they do not trust a flag.
-They hold in every assurance run.
+that same candidate after the replies were read. The reply read and the
+re-fetch each leave what they returned, and the re-fetch also keeps the reply
+read it followed, so the order of the two reads is a recorded fact. The
+properties compare those records; they do not trust a flag, and a pass that
+re-fetched before reading the replies fails them. They hold in every assurance
+run.
 
 The strong properties (`StrongReadyFreshness`, `StrongMergeFreshness`) say that
 the evidence is current in reality when the command takes effect. They hold
