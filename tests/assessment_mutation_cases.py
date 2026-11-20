@@ -54,9 +54,15 @@ HANDOFF_DEFERS = (
     "handoff must defer the stack's clearing conditions to pr-babysitting"
     " instead of restating them"
 )
+ISSUE_BODY = "issue assessment must name the recorded issue body"
+ISSUE_NOT_APPLICABLE = "issue assessment must keep no not-applicable route"
+ISSUE_READINESS = "issue assessment must precede readiness"
+ISSUE_REQUEST = "issue request must carry the issue body template"
 
 COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
 PROOF_HEADING = "Proof inventory and specific scrutiny"
+ISSUE_HEADING = "Original issue completeness and correctness"
+ISSUE_BODY_FIELD = "<issue body here>"
 
 LIMITATIONS_FIELD = (
     "Known limitations: <evidential limits only: checks not run, inspection not"
@@ -135,6 +141,12 @@ REQUEST_FENCE_MUTATIONS = (
         PROOF_ECHO_REVISION,
         id="moved-proof-echo-to-section-prose",
     ),
+    pytest.param(
+        ISSUE_HEADING,
+        ISSUE_BODY_FIELD,
+        ISSUE_REQUEST,
+        id="moved-issue-body-to-section-prose",
+    ),
 )
 
 @dataclass(frozen=True)
@@ -155,8 +167,8 @@ class Mutation:
 
 
 ASSESSMENT_MUTATIONS = (
-    Mutation("assessment", "Both applicable assessments must clear",
-             "Both applicable assessments need not clear",
+    Mutation("assessment", "Every applicable assessment must clear",
+             "Every applicable assessment need not clear",
              "applicable assessments must precede readiness",
              ident="inverted-readiness"),
     Mutation("assessment",
@@ -172,7 +184,7 @@ ASSESSMENT_MUTATIONS = (
              "assessment follow-ups must not enter the review queue",
              ident="queued-assessment"),
     Mutation("assessment",
-             "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.",
+             "Every applicable assessment must clear for the accepted candidate before its draft-to-ready transition.",
              "", "applicable assessments must precede readiness", move=True,
              ident="moved-readiness"),
     Mutation("skill", "all applicable pre-readiness assessments hold",
@@ -184,7 +196,7 @@ ASSESSMENT_MUTATIONS = (
              "", "parent must preserve ready state and merge blocker",
              move=True, ident="moved-parent-preservation"),
     Mutation("skill",
-             "7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.",
+             "7. Applicable ExecPlan completeness/correctness, proof-specific, and original-issue assessments cover the accepted candidate, with no unresolved substantive concern.",
              "", "merge checklist must require candidate-bound assessments",
              move=True, ident="moved-merge-guard"),
     Mutation("assessment",
@@ -322,4 +334,16 @@ ASSESSMENT_MUTATIONS = (
              "A managed-stack layer may record a declared-subset verdict as evidence for that layer's actual scope only",
              "", REQUEST_SUBSET_EVIDENCE, move=True,
              ident="moved-subset-evidence-rule"),
+    Mutation("assessment",
+             "An issue-derived PR must record the original issue body it was assessed against; without it there is no question to ask.",
+             "", ISSUE_BODY, ident="issue-body-requirement-dropped"),
+    Mutation("assessment",
+             "An issue-derived PR cannot record the original-issue assessment as not applicable.",
+             "An issue-derived PR may record the original-issue assessment as not applicable.",
+             ISSUE_NOT_APPLICABLE, ident="issue-assessment-may-be-excused"),
+    Mutation("assessment",
+             "For an issue-derived PR, readiness also requires a clear original-issue completeness and correctness verdict for the same base/head;",
+             "", ISSUE_READINESS, ident="issue-readiness-dropped"),
+    Mutation("assessment", ISSUE_BODY_FIELD, "", ISSUE_REQUEST,
+             ident="issue-request-omits-body"),
 )

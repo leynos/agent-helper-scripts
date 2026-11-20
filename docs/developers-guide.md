@@ -821,12 +821,17 @@ on it.
 The assessment questions are bound to what they are about, so a verdict cannot
 be reused for a question nobody asked. A completeness verdict clears the gate
 only when it covers the **whole approved plan**: a declared-subset verdict is
-evidence for its own scope and never a readiness waiver. Every verdict must
-also be bound to the current candidate and to the plan revision in force, so a
-reply that echoes an earlier head or an earlier revision is stale rather than
-clear. An applicable completeness assessment therefore needs an approved
-revision to bind to; a candidate that records none is refused as a scope error
-rather than cleared on its base/head. A managed stack gets no exception — a
+evidence for its own scope and never a readiness waiver. An original-issue
+verdict clears the gate only when it answers the recorded issue body and the
+issue comments that fed the requirements, and an issue-derived candidate with
+no issue text or no issue verdict is refused rather than cleared on its other
+assessments. Every verdict must also be bound to the current candidate and to
+the plan revision in force, so a reply that echoes an earlier head or an
+earlier revision is stale rather than clear. The original-issue assessment
+names no plan revision, so that binding does not apply to it. An applicable
+completeness assessment therefore needs an approved revision to bind to; a
+candidate that records none is refused as a scope error rather than cleared on
+its base/head. A managed stack gets no exception — a
 lower layer stays in draft until a whole-plan verdict covers its candidate,
 which leaves a stack cut from one undivided plan with no delivery path; that
 constraint is documented rather than worked around. See the

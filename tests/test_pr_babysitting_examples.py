@@ -64,6 +64,12 @@ from assessment_mutation_cases import (
     ASSESSMENT_MUTATIONS,
     COMPLETENESS_HEADING,
     COMPLETENESS_REQUEST_FIELDS,
+    ISSUE_BODY,
+    ISSUE_BODY_FIELD,
+    ISSUE_HEADING,
+    ISSUE_NOT_APPLICABLE,
+    ISSUE_READINESS,
+    ISSUE_REQUEST,
     PROOF_CONDITIONAL_ECHO_FIELD,
     PROOF_HEADING,
     PROOF_REQUEST_FIELDS,
@@ -613,6 +619,32 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert PROOF_CONDITIONAL_ECHO_FIELD in proof_request, (
         "proof echo must stay conditional on an ExecPlan"
     )
+    issue = section(assessment, ISSUE_HEADING)
+    assert (
+        "An issue-derived PR must record the original issue body it was assessed"
+        " against; without it there is no question to ask."
+    ) in issue, ISSUE_BODY
+    assert (
+        "For an issue-derived PR, readiness also requires a clear original-issue"
+        " completeness and correctness verdict for the same base/head; a clear"
+        " ExecPlan or proof verdict alone does not satisfy the gate."
+    ) in issue, ISSUE_READINESS
+    assert (
+        "An issue-derived PR cannot record the original-issue assessment as not"
+        " applicable."
+    ) in issue, ISSUE_NOT_APPLICABLE
+    issue_request = fenced_request(assessment, ISSUE_HEADING)
+    assert ISSUE_BODY_FIELD in issue_request, ISSUE_REQUEST
+    for field in (
+        "@coderabbitai please assess the implementation in this PR for completeness and correctness against the original issue:",
+        "Published head: <full head SHA>; comparison base: <full base SHA>.",
+        'Original issue: <issue URL>. Incorporated comments: <comment URLs, or "none fed the requirements">.',
+        "Assessment-ID: <unique request marker>.",
+        "Please echo the Assessment-ID, the assessed base/head, and the issue text you assessed in your substantive reply.",
+    ):
+        assert field in issue_request, (
+            f"issue request must name: {field}"
+        )
     routing = section(assessment, "Comment routing")
     assert "Assessments are conversations through tagged issue comments, not formal CodeRabbit reviews" in routing, "assessments must remain distinct from formal reviews"
     assert "assigned token procedure" in routing, "initial comments must use assigned token route"
@@ -634,7 +666,10 @@ def assessment_contract(assessment: str, skill: str) -> None:
     ):
         assert requirement in ledger, f"ledger section must state: {requirement}"
     readiness = section(assessment, "Readiness and later changes")
-    assert "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
+    assert "Every applicable assessment must clear for the accepted candidate before its draft-to-ready transition" in readiness, "applicable assessments must precede readiness"
+    assert "includes the original-issue assessment of an issue-derived PR" in readiness, (
+        "readiness section must carry the issue assessment into the gate"
+    )
     assert "An already-ready PR stays ready; obtain missing assessments before merge" in readiness, "missing assessment must block merge without redrafting"
     assert "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged" in readiness, "readiness section must compare the currently approved plan revision"
     assert "Reconcile the revision a reply echoes with the revision in force" in readiness, "readiness section must reconcile the echoed plan revision"
@@ -653,7 +688,7 @@ def assessment_contract(assessment: str, skill: str) -> None:
     assert "all applicable pre-readiness assessments hold" in parent_ready, "parent readiness condition must include assessments"
     assert "An already-ready PR remains ready while missing or invalidated assessments block merge" in parent_ready, "parent must preserve ready state and merge blocker"
     merge = section(skill, "10. End cosmetic review churn, then squash-merge safely")
-    assert "Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern" in merge, "merge checklist must require candidate-bound assessments"
+    assert "Applicable ExecPlan completeness/correctness, proof-specific, and original-issue assessments cover the accepted candidate, with no unresolved substantive concern" in merge, "merge checklist must require candidate-bound assessments"
 
 
 def test_assessment_guards_control_the_real_workflow_sections() -> None:

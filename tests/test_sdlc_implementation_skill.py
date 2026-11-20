@@ -391,13 +391,19 @@ def test_handoff_accepts_red_draft_candidate() -> None:
 
 
 def test_assessments_remain_in_babysitting() -> None:
-    """The lifecycle owner retains both original questions and proof criteria."""
+    """The lifecycle owner retains each question and the proof criteria."""
     text = _read(DELIVERY / "execplan-assessment.md")
     assert (
         "@coderabbitai please assess the implementation in this PR for "
         "completeness and correctness against the execplan:"
     ) in text, (
         "missing ExecPlan completeness and correctness assessment question"
+    )
+    assert (
+        "@coderabbitai please assess the implementation in this PR for "
+        "completeness and correctness against the original issue:"
+    ) in text, (
+        "missing original-issue completeness and correctness assessment question"
     )
     assert (
         "@coderabbitai are you satisfied that the introduced proof(s) "
@@ -410,7 +416,7 @@ def test_assessments_remain_in_babysitting() -> None:
     for requirement in (
         "CrossHair, Kani, Verus, LemmaScript",
         "non-vacuity",
-        "Both applicable assessments must clear",
+        "Every applicable assessment must clear",
         "before its draft-to-ready transition",
         "Assessment conversations never go through `comenq`",
         "`comenq-coderabbit`",

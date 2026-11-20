@@ -217,7 +217,8 @@ Record which reviewers and checks are configured and which are required.
 For an ExecPlan implementation assignment, read
 [ExecPlan assessments](references/execplan-assessment.md) and record its plan
 revision, implementation status, acceptance mapping, and assessment state.
-Record that state for each applicable assessment:
+Record that state for each applicable assessment, including the original-issue
+assessment of an issue-derived PR:
 
 - A verdict of `clear`, `not clear`, or `pending`, with a justified
   `not applicable` for an assessment that does not apply.
@@ -244,6 +245,12 @@ Record that state for each applicable assessment:
 - When the proof assessment applies, readiness also requires its clear verdict
   for the same base/head; a clear completeness verdict alone does not satisfy
   the gate.
+- An issue-derived PR must record the original issue body it was assessed
+  against; without it there is no question to ask.
+- For an issue-derived PR, readiness also requires a clear original-issue
+  completeness and correctness verdict for the same base/head; a clear ExecPlan
+  or proof verdict alone does not satisfy the gate. An issue-derived PR cannot
+  record the original-issue assessment as not applicable.
 
 Record introduced or materially changed proofs and their required scrutiny also
 when no ExecPlan applies. Plan-authoring alone does not trigger an
@@ -515,8 +522,8 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    CodeScene issue using section 4. A formal review intentionally waiting for
    readiness is not a draft-time CI failure or a prerequisite for the
    assessment chat.
-2. **Ask and await assessments.** Obtain applicable completeness/correctness
-   and proof assessments using
+2. **Ask and await assessments.** Obtain applicable completeness/correctness,
+   proof, and original-issue assessments using
    [ExecPlan assessments](references/execplan-assessment.md). These are tagged
    issue-comment conversations, not formal review requests. Follow
    [awaiting CodeRabbit](references/awaiting-coderabbit.md): record each
@@ -524,11 +531,17 @@ rate-limit recovery**. Do not queue a formal review while the PR is draft.
    repair valid findings, push, and obtain affected follow-up confirmation.
    Silence, an acknowledgement, a queued request, or a generic approval never
    clears an assessment. Record a justified `not applicable` for an unaffected
-   proof inventory; do not ask about nonexistent proofs. Assessments apply only
-   to an ExecPlan implementation assignment and to introduced or materially
-   changed proofs. For any other PR, record both as `not applicable` and
-   continue to step 3 as soon as step 1 holds; do not leave it in draft waiting
-   for an assessment that does not apply.
+   proof inventory; do not ask about nonexistent proofs. For a PR derived from
+   a GitHub issue, ask CodeRabbit to validate the implementation against the
+   original issue and any comments that fed its requirements, using
+   [the issue request](references/execplan-assessment.md#original-issue-completeness-and-correctness).
+   That assessment applies to every issue-derived PR, including one that also
+   implements an ExecPlan. Assessments apply only to an ExecPlan implementation
+   assignment, to introduced or materially changed proofs, and to an
+   issue-derived PR. For a PR that is none of these, record the completeness,
+   proof, and original-issue assessments as `not applicable` and continue to
+   step 3 as soon as step 1 holds; do not leave it in draft waiting for an
+   assessment that does not apply.
 3. **Mark ready and verify.** Only when CI is green, CodeScene is clear, and
    all applicable pre-readiness assessments hold for the accepted base/head, run
    `gh pr ready` as the currently logged-in Linux user with that user's normal
@@ -620,13 +633,14 @@ within review threads. A review banner can contain actionable findings without
 creating any inline thread.
 
 For an issue-derived PR, read the original issue and Sourcery's
-issue-comparison assessment. Address omissions or defects in the actual code
-changes and the agreed acceptance criteria. Genuine follow-up actions, later
-rollout tasks, future milestones, or separately planned work are out of scope:
-record the boundary and reference an existing follow-up where available. Do not
-execute those actions merely to satisfy the benchmark. Do not relabel a missing
-acceptance criterion or documentation for this PR's changed behaviour as a
-follow-up to avoid fixing it.
+issue-comparison assessment. The required original-issue assessment is the
+evidence that this comparison happened. Address omissions or defects in the
+actual code changes and the agreed acceptance criteria. Genuine follow-up
+actions, later rollout tasks, future milestones, or separately planned work are
+out of scope: record the boundary and reference an existing follow-up where
+available. Do not execute those actions merely to satisfy the benchmark. Do not
+relabel a missing acceptance criterion or documentation for this PR's changed
+behaviour as a follow-up to avoid fixing it.
 
 Give every finding a disposition: fixed; already fixed; duplicate of an
 identified repair; invalid with evidence; genuinely out of scope; or
@@ -770,8 +784,9 @@ Immediately before an authorized squash merge, refresh and verify:
    review.
 6. The latest round is reconciled, the approval request's outcome is known,
    and no new head, base, finding, or check result invalidates the assessment.
-7. Applicable ExecPlan completeness/correctness and proof-specific assessments
-   cover the accepted candidate, with no unresolved substantive concern.
+7. Applicable ExecPlan completeness/correctness, proof-specific, and
+   original-issue assessments cover the accepted candidate, with no unresolved
+   substantive concern.
 
 For an ordinary PR, use a squash merge guarded by the accepted head SHA, as
 shown in `references/operations.md`. Never use an administrator bypass. For
