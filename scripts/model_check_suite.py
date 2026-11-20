@@ -472,7 +472,7 @@ def _read(path: Path) -> Mapping[str, object]:
     """Read a manifest's TOML, refusing an unreadable or malformed file."""
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as error:
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise ModelCheckError(f"cannot read suite {path}: {error}") from error
 
 
@@ -590,7 +590,7 @@ def _source(suite: Suite, spec: str) -> str:
     path = suite.directory / spec
     try:
         return path.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         raise ModelCheckError(f"cannot read specification {path}: {error}") from error
 
 

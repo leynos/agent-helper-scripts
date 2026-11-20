@@ -283,6 +283,25 @@ def test_a_trace_that_cannot_be_read_is_an_error(
         modules.mc.read_trace(tmp_path)
 
 
+def test_a_trace_that_is_not_text_is_an_error(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """Invalid UTF-8 in the graph stops the run, naming the file, as a ModelCheckError."""
+    run, session = control_session(modules, tmp_path, "")
+    graph = session.report / "control" / "out" / "error-graph.json"
+
+    def invalid(_argv: object, cwd: Path, _timeout: int) -> object:
+        """Write an error graph that is not UTF-8 and report the failure."""
+        (cwd / "out").mkdir()
+        (cwd / "out" / "error-graph.json").write_bytes(b"\xff\xfe[")
+        return modules.judge.ProcessResult(exit_code=0, stdout=FAILED_OUTPUT, stderr="")
+
+    session = replace(session, runner=invalid)
+    with pytest.raises(modules.suite.ModelCheckError, match="is not UTF-8 text") as raised:
+        modules.mc.execute(run, session)
+    assert str(graph) in str(raised.value)
+
+
 def test_an_artefact_that_cannot_be_written_is_an_error(
     modules: types.SimpleNamespace, tmp_path: Path
 ) -> None:
@@ -314,3 +333,19 @@ def test_a_report_directory_that_cannot_be_removed_is_an_error(
     modules.mc.reset_report(report)
     assert report.is_dir() and not any(report.iterdir())
     modules.mc.remove_tree(tmp_path / "never-existed")
+
+
+def test_inputs_that_are_not_utf_8_are_named(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """A suite or specification that is not text is a named error, not a crash."""
+    manifest = tmp_path / "suite.toml"
+    manifest.write_bytes(b"\xff\xfe")
+    with pytest.raises(modules.suite.ModelCheckError, match="cannot read suite .*suite.toml"):
+        modules.suite.load_suite(manifest)
+    run, session = control_session(modules, tmp_path, None)
+    (tmp_path / "spec.fizz").write_bytes(b"\xff\xfe")
+    with pytest.raises(modules.suite.ModelCheckError, match="cannot read specification .*spec.fizz"):
+        modules.suite.unknown_assertions(replace(session.suite, runs=(run,)))
+    with pytest.raises(modules.suite.ModelCheckError, match="cannot read .*spec.fizz"):
+        modules.mc.execute(run, session)

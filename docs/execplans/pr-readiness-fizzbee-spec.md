@@ -301,6 +301,14 @@ is no history of revised limits to learn from.
   them, leaving that module to reply parsing and classification. Domain
   Architecture: D17. The real checker writes a list for every error graph the
   87 routine runs produce.
+- [x] (2026-11-21 00:10Z) The pre-merge reconciliation of `58caff6` (comment
+  after 7052978588) confirmed the Domain Architecture repair and named one
+  remaining Unit Architecture path: an error graph that is not UTF-8 raised
+  `UnicodeDecodeError`, which is neither an `OSError` nor caught at the CLI
+  boundary. The graph read, the specification read in `_prepare` and both suite
+  reads now map it to a named `ModelCheckError`; a unit test drives `execute`
+  with such a graph, a command-line test asserts the diagnostic and exit status
+  with no traceback, and the suite and specification each have a non-UTF-8 case.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.

@@ -624,13 +624,36 @@ def test_the_command_line_fails_closed_on_a_doubled_checker(
     assert document["checker"]["version"] == "v-test"
 
 
+#: A doubled checker that fails and leaves an error graph that is not UTF-8.
+UNREADABLE_TRACE = (
+    "mkdir -p out && printf '\\377\\376[' > out/error-graph.json\n"
+    f"cat <<'OUT'\n{INVARIANT_FAILED}OUT\n"
+)
+
+
 @pytest.mark.slow
-def test_the_command_line_refuses_a_missing_checker(tmp_path: Path) -> None:
-    """Without the pinned release there is no result, and the exit says so."""
-    suite = write_suite(tmp_path, ASSURANCE)
-    result = run_cli("check", "--suite", str(suite), "--home", str(tmp_path / "home"))
-    assert result.returncode == 1
-    assert "is not installed" in result.stderr
+@pytest.mark.parametrize(
+    ("script", "diagnostic"),
+    [
+        (None, "is not installed"),
+        (UNREADABLE_TRACE, "error-graph.json is not UTF-8 text"),
+    ],
+    ids=["missing-checker", "unreadable-trace"],
+)
+def test_the_command_line_names_what_stopped_it(
+    tmp_path: Path, script: str | None, diagnostic: str
+) -> None:
+    """A missing checker or an unreadable trace is a named error and a failed exit."""
+    pin = fake_release(tmp_path / "home", script) if script else ""
+    suite = write_suite(tmp_path, ASSURANCE, checker=pin)
+    result = run_cli(
+        "check", "--suite", str(suite), "--home", str(tmp_path / "home"),
+        "--report", str(tmp_path / "report"),
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "model_check: error:" in result.stderr, result.stderr
+    assert diagnostic in result.stderr, result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
 
 
 @pytest.mark.slow

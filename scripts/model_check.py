@@ -493,7 +493,8 @@ def read_trace(output: Path) -> tuple[str, ...]:
 
     The checker writes ``error-graph.json`` only for a counterexample, so an
     absent file is no trace. A file that is present and cannot be read, is
-    not JSON, or is not a list of steps is not an empty trace: treating it as
+    not UTF-8 text, is not JSON, or is not a list of steps is not an empty
+    trace: treating it as
     one would judge a control on a counterexample nobody could read.
 
     Raises
@@ -502,13 +503,29 @@ def read_trace(output: Path) -> tuple[str, ...]:
         Raised, naming the file, when it exists but cannot be read or parsed.
     """
     graph = output / "error-graph.json"
-    try:
-        text = graph.read_text(encoding="utf-8")
-    except FileNotFoundError:
+    text = _graph_text(graph)
+    if text is None:
         return ()
+    return tuple(name for name in map(_step_name, _graph_steps(graph, text)) if name)
+
+
+def _graph_text(graph: Path) -> str | None:
+    """Return an error graph's text, or None when the checker wrote none.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming ``graph``, when it exists but cannot be read or is not
+        UTF-8 text.
+    """
+    try:
+        return graph.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except UnicodeDecodeError as error:
+        raise ModelCheckError(f"the error trace {graph} is not UTF-8 text: {error}") from error
     except OSError as error:
         raise ModelCheckError(f"cannot read the error trace {graph}: {error}") from error
-    return tuple(name for name in map(_step_name, _graph_steps(graph, text)) if name)
 
 
 def _graph_steps(graph: Path, text: str) -> list[object]:
@@ -573,7 +590,7 @@ def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
     source = suite.directory / run.spec
     try:
         original = source.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         raise ModelCheckError(f"run `{run.id}`: cannot read {source}: {error}") from error
     text = mutate(original, run.mutations, run.id)
     try:
