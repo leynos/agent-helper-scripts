@@ -330,7 +330,8 @@ def locate_checker(home: Path, checker: Checker) -> Path:
         if actual != expected:
             raise ModelCheckError(
                 f"FizzBee at {root} is not the pinned {checker.version}:"
-                f" {name} has SHA-256 {actual}, expected {expected}"
+                f" {name} has SHA-256 {actual}, expected {expected}."
+                " Run `make fizzbee` to fetch the pinned release."
             )
     return root / "fizz"
 

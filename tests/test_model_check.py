@@ -489,14 +489,60 @@ def fake_release(home: Path, script: str) -> str:
 def test_a_missing_or_altered_checker_is_refused(
     mc: types.ModuleType, tmp_path: Path
 ) -> None:
-    """The gate needs the pinned release, byte for byte."""
+    """The gate needs the pinned release, byte for byte, and says how to get it.
+
+    Both refusals name `make fizzbee`, which is what the users' guide tells
+    a reader to expect.
+    """
     suite = mc.load_suite(write_suite(tmp_path, ASSURANCE, checker=fake_release(tmp_path / "home", "true\n")))
     assert mc.locate_checker(tmp_path / "home", suite.checker).name == "fizz"
-    with pytest.raises(mc.ModelCheckError, match="is not installed"):
+    with pytest.raises(mc.ModelCheckError, match="is not installed.*`make fizzbee`"):
         mc.locate_checker(tmp_path / "elsewhere", suite.checker)
     (tmp_path / "home" / "release" / "fizz").write_text("#!/bin/bash\nfalse\n")
-    with pytest.raises(mc.ModelCheckError, match="is not the pinned v-test"):
+    with pytest.raises(mc.ModelCheckError, match="is not the pinned v-test.*`make fizzbee`"):
         mc.locate_checker(tmp_path / "home", suite.checker)
+
+
+@pytest.mark.slow
+def test_the_command_line_names_make_fizzbee_for_an_altered_checker(tmp_path: Path) -> None:
+    """The altered-checker refusal reaches the user, with its remedy, and fails."""
+    pin = fake_release(tmp_path / "home", "true\n")
+    suite = write_suite(tmp_path, ASSURANCE, checker=pin)
+    (tmp_path / "home" / "release" / "fizz").write_text("#!/bin/bash\nfalse\n")
+    result = run_cli("check", "--suite", str(suite), "--home", str(tmp_path / "home"))
+    assert result.returncode == 1
+    assert "is not the pinned v-test" in result.stderr
+    assert "`make fizzbee`" in result.stderr
+
+
+def test_a_relative_home_downloads_to_an_absolute_path(
+    mc: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The downloader is handed an absolute destination for a relative home.
+
+    The download runs in the destination's directory, so a relative path
+    would be resolved twice and land in a nested copy of the home.
+    """
+    staging = tmp_path / "staging"
+    pin = fake_release(staging, "true\n")
+    archive = tmp_path / "release.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(staging / "release", arcname="release")
+    checker = mc.load_suite(
+        write_suite(tmp_path, ASSURANCE, checker=pin.replace('sha256 = "0"', f'sha256 = "{digest(archive)}"'))
+    ).checker
+    seen: list[Path] = []
+
+    def fetch(_url: str, destination: Path) -> None:
+        """Record the destination and stand in for the download."""
+        seen.append(destination)
+        shutil.copy(archive, destination)
+
+    monkeypatch.chdir(tmp_path)
+    fizz = mc.install_checker(Path("home"), checker, fetch)
+    assert seen and seen[0].is_absolute(), seen
+    assert seen[0].parent == tmp_path / "home"
+    assert fizz == tmp_path / "home" / "release" / "fizz"
 
 
 def test_installation_verifies_the_archive_before_unpacking(

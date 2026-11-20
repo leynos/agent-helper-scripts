@@ -12,8 +12,11 @@ require it to agree with its trace on what matters about order.
 - Every kind of read the model performs before an effect happened before
   that effect in the recording, so no effect rests on a read the recorded
   agent had not made.
-- The model's re-fetch after reading the replies, and its read-back after
-  the ready command, have recorded counterparts in that position.
+- A PR read follows the last discussion read before the ready command,
+  which is the position of the model's re-fetch, and a PR read follows the
+  ready command, which is its read-back. These compare kinds of read, not
+  their content: they do not establish which discussion read returned the
+  reply, or that it returned anything new.
 
 A recording is evidence about one sampled agent run. Where a run did not
 make a read the model makes, ``fixtures.toml`` lists that step as unobserved
