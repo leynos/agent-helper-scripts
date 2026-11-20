@@ -23,7 +23,7 @@ inventory, acceptance mapping, and associated roadmap status synchronized with
 repairs. Missing milestones remain implementation work, not a waived acceptance
 criterion. Request bounded repairs within the existing authority.
 
-Before requesting either assessment, require passing applicable deterministic
+Before requesting any assessment, require passing applicable deterministic
 correctness and quality gates, including verification obligations, for the
 published candidate. Verify remote parity and record its base/head, plan
 revision, proof inventory, and inspection scope in the shared delivery ledger.

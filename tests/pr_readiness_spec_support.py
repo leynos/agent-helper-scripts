@@ -27,6 +27,8 @@ SUITE = SPEC_DIRECTORY / "suite.toml"
 SNAPSHOT_DEFAULTS = {
     "completeness_applies": True,
     "proof_applies": False,
+    "issue_derived": False,
+    "has_issue_body": True,
     "has_plan": True,
     "na_justified": True,
     "proofs": (),
@@ -35,6 +37,7 @@ SNAPSHOT_DEFAULTS = {
     "local": "clear",
     "completeness": "none",
     "proof": "none",
+    "issue": "none",
 }
 
 _ASSERTION = re.compile(

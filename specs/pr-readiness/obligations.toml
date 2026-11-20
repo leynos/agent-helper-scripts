@@ -72,7 +72,7 @@ id = "PRR-REQ-01"
 title = "An assessment question is posted only for an applicable assessment, after the delivery gates hold"
 document = "skills/pr-babysitting/references/execplan-assessment.md"
 section = "Applicability and ownership"
-anchors = ["Before requesting either assessment, require passing applicable deterministic correctness and quality gates, including verification obligations, for the published candidate."]
+anchors = ["Before requesting any assessment, require passing applicable deterministic correctness and quality gates, including verification obligations, for the published candidate."]
 assertions = ["RequestNeedsDeliveryGates"]
 retained = ["tests/test_pr_babysitting_examples.py"]
 
@@ -124,7 +124,7 @@ title = "An inapplicable assessment is recorded as a justified not-applicable, a
 document = "skills/pr-babysitting/SKILL.md"
 section = "5. Assess applicable delivery gates, then mark green drafts ready"
 anchors = [
-  "For any other PR, record both as `not applicable` and continue to step 3 as soon as step 1 holds",
+  "For a PR that is none of these, record the completeness, proof, and original-issue assessments as `not applicable` and continue to step 3 as soon as step 1 holds",
   "Record a justified `not applicable` for an unaffected proof inventory",
 ]
 assertions = ["ReadyNeedsCurrentEvidence", "ReadyIsReachable", "ImpasseLeavesTheDraftAlone"]
@@ -161,11 +161,32 @@ assertions = ["ImpasseLeavesTheDraftAlone", "ClaimsNeverOutrunTheRemote", "Progr
 retained = ["tests/test_sdlc_implementation_skill.py"]
 
 [[obligation]]
+id = "PRR-APPL-06"
+title = "An issue-derived PR always owes an original-issue assessment, bound to the recorded issue text and base/head, with no not-applicable route"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Applicability and ownership"
+anchors = [
+  "Apply the original-issue assessment whenever the PR is derived from a GitHub issue, including a PR that also implements an ExecPlan or introduces proofs.",
+  "An issue-derived PR has no `not applicable` route for it: the issue is why the PR exists, so the comparison is always required.",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "EvidenceIsWhatWasRead"]
+retained = ["tests/test_pr_babysitting_examples.py", "skills/pr-babysitting/references/execplan-assessment.md"]
+
+[[obligation]]
+id = "PRR-APPL-07"
+title = "An issue-derived PR with no recorded issue body is a scope error, not a question to post"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Original issue completeness and correctness"
+anchors = ["An issue-derived PR must record the original issue body it was assessed against; without it there is no question to ask."]
+assertions = ["ImpasseLeavesTheDraftAlone", "ClaimsNeverOutrunTheRemote"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
 id = "PRR-BIND-01"
 title = "A verdict is bound to the accepted base and head"
 document = "skills/pr-babysitting/references/execplan-assessment.md"
 section = "Readiness and later changes"
-anchors = ["Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition."]
+anchors = ["Every applicable assessment must clear for the accepted candidate before its draft-to-ready transition."]
 assertions = ["ReadyNeedsCurrentEvidence", "MergeNeedsAuthorityAndRenewedEvidence"]
 retained = ["tests/fixtures/readiness-agent-boundary/outcomes/combined-proof-stale-verdict.txt"]
 
@@ -256,7 +277,7 @@ title = "An authorized merge needs renewed evidence for the candidate being merg
 document = "skills/pr-babysitting/SKILL.md"
 section = "10. End cosmetic review churn, then squash-merge safely"
 anchors = [
-  "Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.",
+  "Applicable ExecPlan completeness/correctness, proof-specific, and original-issue assessments cover the accepted candidate, with no unresolved substantive concern.",
   "For an ordinary PR, use a squash merge guarded by the accepted head SHA",
 ]
 assertions = ["MergeNeedsAuthorityAndRenewedEvidence", "RecoveryIsReachable", "MergeIsReachable"]

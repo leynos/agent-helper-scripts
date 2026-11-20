@@ -831,10 +831,10 @@ earlier revision is stale rather than clear. The original-issue assessment
 names no plan revision, so that binding does not apply to it. An applicable
 completeness assessment therefore needs an approved revision to bind to; a
 candidate that records none is refused as a scope error rather than cleared on
-its base/head. A managed stack gets no exception — a
-lower layer stays in draft until a whole-plan verdict covers its candidate,
-which leaves a stack cut from one undivided plan with no delivery path; that
-constraint is documented rather than worked around. See the
+its base/head. A managed stack gets no exception — a lower layer stays in draft
+until a whole-plan verdict covers its candidate, which leaves a stack cut from
+one undivided plan with no delivery path; that constraint is documented rather
+than worked around. See the
 [readiness and assessment contract](../skills/pr-babysitting/references/execplan-assessment.md)
 for the normative rules; this guide covers only how they are represented and
 tested.
