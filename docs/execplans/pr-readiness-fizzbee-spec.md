@@ -248,10 +248,13 @@ is no history of revised limits to learn from.
   actions are validated; a relative checker home is resolved; presentation
   moved to `scripts/model_check_report.py`; `CompletionIsEarned` forbids ending
   on a wait or an unmatched read-back; an unnamed-revision completeness request
-  does not clear; the fixture mapping orders post-ready checks and requires the
-  re-fetch after the last reply read; four prose claims narrowed; user-facing
-  documentation added. The routine suite is 85 runs.
-- [x] (2026-11-20 15:40Z) Renewed assessments on `bb62ec9` (comments
+  does not clear; the fixture mapping orders post-ready checks and, where a
+  recording's mapped re-fetch is observed, requires a PR read after its last
+  discussion read (it compares command kinds, so it cannot tell which
+  discussion read returned a reply, and it does not verify reply content); four
+  prose claims narrowed; user-facing documentation added. The routine suite is
+  85 runs.
+- [x] (2026-11-20 14:05Z) Renewed assessments on `bb62ec9` (comments
   7041061771 and 7041161685) were not clear. Proof: `CompletionIsEarned`
   cleared any ending whose evidence was clear, so an agent could finish before
   its decision step, or a merge assignment could stop there. The property now
@@ -263,6 +266,11 @@ is no history of revised limits to learn from.
   property both were caught only by a reachability assertion. Completeness: the
   file-count breach is recorded as D16, memory was re-measured (D14) and the PR
   description was refreshed. The routine suite is 87 runs.
+- [x] (2026-11-20 14:30Z) Assessments on `b6ec91a` (comments 7041957435 and
+  7042022872). Proof: "Yes, for the stated bounded model-checking claims".
+  Completeness: substantially complete, naming one overstatement in this plan's
+  progress, which described the fixture mapping's re-fetch check as following
+  the last reply read; corrected in the next commit.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
