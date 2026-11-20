@@ -179,12 +179,14 @@ spelling:
 fizzbee: ## Fetch and verify the pinned FizzBee release
 	@$(MODEL_CHECK) install --suite $(MODEL_SUITE)
 
+# The gate clears MODEL_CHECK_ONLY, which the launcher reads as `--only`, so an
+# inherited subset cannot shrink it; a subset run exits non-zero in any case.
 model-check: ## Run the mandatory model-checking suite
-	@$(MODEL_CHECK) check --suite $(MODEL_SUITE)
+	@env -u MODEL_CHECK_ONLY $(MODEL_CHECK) check --suite $(MODEL_SUITE)
 
 # Runs the routine suite as well, so it can never be run instead of it.
 model-check-extended: ## Run the routine suite and the larger explorations
-	@$(MODEL_CHECK) check --suite $(MODEL_SUITE) --tier extended
+	@env -u MODEL_CHECK_ONLY $(MODEL_CHECK) check --suite $(MODEL_SUITE) --tier extended
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

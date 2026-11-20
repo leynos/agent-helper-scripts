@@ -26,7 +26,8 @@ that run must have:
 The launcher has three layers. ``model_check_suite`` loads and validates the
 manifest; ``model_check_judge`` reads the checker's output and judges a run
 against it, because the pinned release cannot be trusted to report its own
-result; and this module installs the release, executes runs and reports. It
+result; ``model_check_report`` renders outcomes as the JSON report and the
+summary; and this module installs the release and executes runs. It
 re-exports the names the command line and the tests use, so they import one
 module.
 
@@ -61,6 +62,7 @@ from model_check_judge import (
     missing_steps,
     read_output,
 )
+from model_check_report import report, run_line, summarize, write_report
 from model_check_suite import (
     CLASSES,
     FAILURE_KINDS,
@@ -74,6 +76,7 @@ from model_check_suite import (
     load_suite,
     select,
     unknown_assertions,
+    unknown_trace_steps,
 )
 
 __all__ = (
@@ -116,6 +119,7 @@ __all__ = (
     "select",
     "summarize",
     "unknown_assertions",
+    "unknown_trace_steps",
     "workers",
     "write_report",
 )
@@ -133,17 +137,6 @@ SUPPORTED_PLATFORM = ("Linux", "x86_64")
 #: ignored by Git and pruned by the repository's discovery walks.
 DEFAULT_REPORT = Path("build") / "model-check"
 
-#: Summary headings, one per class. Expected counterexamples have their own,
-#: so a recorded limitation is never read as a passing assurance claim.
-_HEADINGS = {
-    "assurance": "Assurance (must pass)",
-    "negative-control": "Negative controls (a mutation must fail its assertion)",
-    "property-control": "Property controls (the assertion must be able to fail)",
-    "expected-counterexample": (
-        "Expected counterexamples (recorded limitations, not assurance)"
-    ),
-    "scenario-trace": "Scenario traces (one named event sequence each)",
-}
 
 
 @dataclass(frozen=True)
@@ -266,7 +259,7 @@ def load_session(
         assertion, a missing or altered checker, or an unknown run.
     """
     loaded = load_suite(options.suite)
-    problems = unknown_assertions(loaded)
+    problems = unknown_assertions(loaded) + unknown_trace_steps(loaded)
     if problems:
         raise ModelCheckError("; ".join(problems))
     fizz = locate_checker(options.home or host.home, loaded.checker)
@@ -291,24 +284,6 @@ def run_suite(session: Session, runs: Sequence[Run], jobs: int) -> list[Outcome]
     """Execute every run, ``jobs`` at a time, and return their outcomes in order."""
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         return list(pool.map(lambda run: execute(run, session), runs))
-
-
-def write_report(document: Mapping[str, object], directory: Path) -> Path:
-    """Write ``report.json`` into the report directory and return its path."""
-    target = directory / "report.json"
-    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-    return target
-
-
-def run_line(document: Mapping[str, object], target: Path) -> str:
-    """Return the one-line account of an invocation: checker, tier, cost, report."""
-    checker = document["checker"]
-    peak = int(document["peak_child_rss_kib"]) // 1024  # type: ignore[call-overload]
-    return (
-        f"FizzBee {checker['version']}; tier {document['tier']};"  # type: ignore[index]
-        f" {document['jobs']} at a time; {document['wall_seconds']}s;"
-        f" peak checker RSS {peak} MiB; report in {target}"
-    )
 
 
 def _sha256(path: Path) -> str:
@@ -341,7 +316,9 @@ def locate_checker(home: Path, checker: Checker) -> Path:
         Raised when a pinned file is absent, which is a missing checker, or
         has another digest, which is an incompatible one.
     """
-    root = home / checker.root
+    # A relative home would be resolved again from each child's working
+    # directory; resolve it once, from the caller's.
+    root = home.resolve() / checker.root
     for name, expected in checker.files.items():
         candidate = root / name
         if not candidate.is_file():
@@ -381,6 +358,7 @@ def install_checker(home: Path, checker: Checker, fetch: Fetcher) -> Path:
         Raised when the downloaded archive has another digest, or the
         unpacked files do not match the pin.
     """
+    home = home.resolve()
     try:
         return locate_checker(home, checker)
     except ModelCheckError:
@@ -552,102 +530,3 @@ def execute(run: Run, session: Session) -> Outcome:
         trace=trace,
         artefacts={"directory": str(work)},
     )
-
-
-def _run_record(outcome: Outcome) -> dict:
-    """Return one run's entry in the report."""
-    run, reading = outcome.run, outcome.reading
-    return {
-        "id": run.id,
-        "class": run.kind,
-        "tier": run.tier,
-        "spec": run.spec,
-        "spec_sha256": outcome.spec_sha256,
-        "mutated": bool(run.mutations),
-        "replayed_steps": len(run.trace),
-        "options": dict(run.options),
-        "command": list(outcome.command),
-        "expected": run.expectation.describe(),
-        "status": outcome.status,
-        "ok": outcome.ok,
-        "detail": outcome.detail,
-        "nodes": reading.nodes,
-        "queued": reading.queued,
-        "unique_states": reading.unique_states,
-        "temporal_checked": list(reading.checked_temporal),
-        "seconds": round(outcome.seconds, 2),
-        "obligations": list(run.obligations),
-        "trace": list(outcome.trace),
-    }
-
-
-def report(suite: Suite, outcomes: Sequence[Outcome], *, tier: str, partial: bool) -> dict:
-    """Return the run metadata as a JSON-serializable report.
-
-    Parameters
-    ----------
-    suite : Suite
-        The suite that was run.
-    outcomes : sequence of Outcome
-        One judgement per executed run.
-    tier : str
-        The tier that was selected.
-    partial : bool
-        Whether a named subset was run, which is never a gate result.
-
-    Returns
-    -------
-    dict
-        Checker identity, selection, completion status and per-run facts.
-    """
-    return {
-        "checker": {
-            "name": "FizzBee",
-            "version": suite.checker.version,
-            "archive_sha256": suite.checker.archive_sha256,
-        },
-        "suite": str(suite.path),
-        "tier": tier,
-        "partial": partial,
-        "exploration": "exhaustive breadth-first search of a finite model",
-        "ok": bool(outcomes) and all(outcome.ok for outcome in outcomes),
-        "runs": [_run_record(outcome) for outcome in outcomes],
-    }
-
-
-def _outcome_lines(outcome: Outcome) -> list[str]:
-    """Return one run's lines in the summary, with its trace when it failed."""
-    counts = ""
-    if outcome.reading.unique_states is not None:
-        counts = f" [{outcome.reading.unique_states} states, {outcome.seconds:.1f}s]"
-    mark = "ok  " if outcome.ok else "FAIL"
-    lines = [f"  {mark} {outcome.run.id}: {outcome.status} ({outcome.detail}){counts}"]
-    if not outcome.ok and outcome.trace:
-        lines.append("       trace: " + " -> ".join(outcome.trace))
-        lines.append(f"       kept in {outcome.artefacts['directory']}")
-    return lines
-
-
-def _verdict_lines(outcomes: Sequence[Outcome], *, partial: bool) -> list[str]:
-    """Return the closing lines: whether this was a gate result, and its verdict."""
-    failed = sum(not outcome.ok for outcome in outcomes)
-    lines = ["PARTIAL: a named subset was run; this is not a gate result."] if partial else []
-    if failed or not outcomes:
-        return [*lines, f"model-check: FAILED ({failed} of {len(outcomes)} runs)"]
-    return [*lines, f"model-check: {len(outcomes)} runs met their expectations"]
-
-
-def summarize(outcomes: Sequence[Outcome], *, partial: bool) -> str:
-    """Return the human-readable summary, one section per run class.
-
-    Expected counterexamples are listed under their own heading so that a
-    recorded limitation is never read as a passing assurance claim.
-    """
-    lines: list[str] = []
-    for kind in CLASSES:
-        group = [outcome for outcome in outcomes if outcome.run.kind == kind]
-        if group:
-            lines.append(_HEADINGS[kind])
-            lines.extend(line for outcome in group for line in _outcome_lines(outcome))
-    lines.extend(_verdict_lines(outcomes, partial=partial))
-    return "\n".join(lines)

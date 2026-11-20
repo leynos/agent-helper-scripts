@@ -272,19 +272,27 @@ def reply_shape(kind: str, body: str, bounds: Bounds, asked_revision: str | None
     )
 
 
-def _request_state(body: str, bounds: Bounds) -> tuple[str, str | None]:
+def _request_state(kind: str, body: str, bounds: Bounds) -> tuple[str, str | None]:
     """Return whether a request asks about this candidate, and its revision.
 
     A request is ``current`` unless its own text names another head or a
     revision other than the one in force. A request that names no head is
     read as asked about this candidate, because the recorded proof question
     states its revision and leaves the head to the completeness request.
+
+    A completeness request must name the revision it asks about: an
+    applicable completeness verdict is bound to an approved revision, and
+    base/head alone does not bind it. One that names none is
+    ``unnamed-revision``, which no reply can clear. A proof request may name
+    none when no ExecPlan applies.
     """
     asked_head = re.search(r"Published head: (\S+?);", body)
     asked = SHIM_MODULE.PLAN_REVISION.search(body)
     asked_revision = asked.group(1) if asked else None
     if asked_head and asked_head.group(1) != bounds.head:
         return "another-candidate", asked_revision
+    if kind == COMPLETENESS and asked_revision is None:
+        return "unnamed-revision", None
     if asked_revision not in (None, bounds.in_force):
         return "superseded-revision", asked_revision
     return "current", asked_revision
@@ -298,7 +306,7 @@ def thread_state(kind: str, listing: list[dict], request: dict | None, bounds: B
     """
     if request is None:
         return "none"
-    state, asked_revision = _request_state(str(request["body"]), bounds)
+    state, asked_revision = _request_state(kind, str(request["body"]), bounds)
     try:
         reply = reply_for(listing, request)
     except AssertionError:

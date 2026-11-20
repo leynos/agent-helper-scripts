@@ -901,3 +901,37 @@ def listing_comments(directory: Path) -> list[dict]:
     """Return the discussion the scenario's own facts record, unfiltered."""
     facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
     return list(facts["api"][r"/issues/\d+/comments"])
+
+
+def test_a_completeness_request_naming_no_revision_cannot_clear(
+    tmp_path: Path, packet: dict[str, str]
+) -> None:
+    """An applicable completeness verdict is bound to a named revision.
+
+    `current-whole-plan` clears. Serve it with the completeness request's
+    `Plan revision:` line removed while the reply still echoes one, and the
+    request names nothing the verdict could be bound to: it abstracts to the
+    model's `unnamed-revision` request, which no reply clears. The control is
+    the unaltered recording, which still clears.
+    """
+    directory = tmp_path / "unnamed"
+    directory.mkdir()
+    stage(directory, "current-whole-plan")
+    facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
+    comments = facts["api"][r"/issues/\d+/comments"]
+    request = completeness_request(comments)
+    stripped = re.sub(r"^Plan revision:[^\n]*\n", "", str(request["body"]), flags=re.MULTILINE)
+    assert stripped != request["body"], "the recorded request names no revision to remove"
+    request["body"] = stripped
+
+    observed = observe("current-whole-plan", directory, packet, facts)
+
+    assert observed["completeness"] == "unnamed-revision:sound-clear", observed
+    assert checked_expectation(observed, CHECKED_TABLES) == "draft", (
+        "a completeness request naming no revision cleared the gate"
+    )
+    control = tmp_path / "control"
+    control.mkdir()
+    assert checked_expectation(
+        observe("current-whole-plan", control, packet), CHECKED_TABLES
+    ) == "ready", "the unaltered recording no longer clears"

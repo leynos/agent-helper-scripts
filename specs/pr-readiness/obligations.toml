@@ -217,7 +217,7 @@ title = "The ready transition respects the assignment's authorized stopping poin
 document = "skills/pr-babysitting/SKILL.md"
 section = "5. Assess applicable delivery gates, then mark green drafts ready"
 anchors = ["a later babysitting assignment permits the readiness transition unless the user explicitly requires it to remain draft or sets an earlier stopping point"]
-assertions = ["ReadyRespectsAuthority", "BlockedAssignmentStaysDraft"]
+assertions = ["ReadyRespectsAuthority", "BlockedAssignmentStaysDraft", "CompletionIsEarned"]
 retained = ["tests/test_pr_babysitting_examples.py"]
 
 [[obligation]]
@@ -337,7 +337,7 @@ title = "Waiting is not an impasse and not clearance: a blocked workflow keeps o
 document = "skills/pr-babysitting/SKILL.md"
 section = "Operating contract"
 anchors = ["These are waits, not impasses: running or queued CI"]
-assertions = ["ProgressWhenWarranted", "ReadyIsReachable", "BlockedAssignmentStaysDraft"]
+assertions = ["ProgressWhenWarranted", "ReadyIsReachable", "BlockedAssignmentStaysDraft", "CompletionIsEarned"]
 retained = ["tests/fixtures/readiness-agent-boundary/outcomes/local-codescene-unavailable.txt"]
 
 [[obligation]]

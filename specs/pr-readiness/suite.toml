@@ -87,7 +87,7 @@ expect = "pass"
 [[run]]
 id = "candidate-changes-and-recovery"
 class = "assurance"
-purpose = "The head or the base may change once at any moment. A ready PR stays ready with stale evidence, loses merge eligibility, and merges only after renewed evidence for the new candidate."
+purpose = "The head or the base may change once at any moment. A ready PR stays ready with stale evidence, and once the agent has observed the new candidate it merges only after renewed evidence for it. A base change between the agent's last read and the merge command is not observed and is not guarded: expected-counterexample-base-moves-before-merge reproduces that."
 obligations = ["PRR-BIND-01", "PRR-LIFE-01", "PRR-LIFE-02", "PRR-LIFE-03", "PRR-REQ-04", "PRR-DELIV-04", "PRR-PROG-01"]
 scenario = '''
 SCENARIOS = [scenario(change_budget=1, env_head=True, env_base=True,
@@ -684,6 +684,7 @@ SCENARIOS = [
     snapshot("variant:completeness-not-required-by-the-packet", "ready", completeness_applies=False),
     snapshot("variant:proof-question-never-posted", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear"),
     snapshot("variant:verdict-names-another-proof", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:partial-proofs"),
+    snapshot("variant:completeness-request-names-no-revision", "draft", completeness="unnamed-revision:sound-clear"),
     snapshot("variant:handoff-with-a-declared-subset-verdict", "draft", proof_applies=True, proofs=("p1",), completeness="current:subset-clear", proof="current:sound-clear"),
 ]
 '''
@@ -764,6 +765,17 @@ trace = [
   "AgentRunsLocalDelta", "AgentInspectsDiscussion",
 ]
 expect = { fail = "blocked", executed = 8 }
+
+[[run]]
+id = "ready-only-read-back-mismatch"
+class = "assurance"
+purpose = "A ready-only assignment whose head may change between the ready command and its read-back stops only at a verified transition; after an unmatched read-back the PR stays ready and the agent observes again."
+obligations = ["PRR-AUTH-01", "PRR-HON-04", "PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(authority="ready-only", change_budget=1, env_head=True,
+                      expect_merge="never", expect_progress="ready")]
+'''
+expect = "pass"
 
 # ---------------------------------------------------------------------------
 # Property controls: an unmodified specification under a scenario built to
@@ -1451,3 +1463,25 @@ new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind]
 [[run.mutation]]
 old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
 new = 'pc = "read" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+
+[[run]]
+id = "mutant-waiting-ends-the-assignment"
+class = "negative-control"
+of = "local-codescene-never-available"
+purpose = "Ending the assignment when the local check is unavailable, instead of observing again, finishes on a wait: the PR stays draft and nothing merges, so only CompletionIsEarned can see it."
+obligations = ["PRR-PROG-02"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentRunsLocalDelta'] }
+[[run.mutation]]
+old = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "start"'
+new = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "done"'
+
+[[run]]
+id = "mutant-ready-only-ends-on-unmatched-read-back"
+class = "negative-control"
+of = "ready-only-read-back-mismatch"
+purpose = "Finishing a ready-only assignment on a read-back that did not match the candidate the command was issued for stops short of a verified transition."
+obligations = ["PRR-AUTH-01", "PRR-HON-04"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['HeadChanges', 'AgentReadsBackReady'] }
+[[run.mutation]]
+old = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" and verified else "start"'
+new = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" else "start"'

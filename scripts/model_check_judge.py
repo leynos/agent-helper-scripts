@@ -314,7 +314,7 @@ def judge(run: Run, result: ProcessResult, spec_text: str) -> Judgement:
         return _judge_trace(run, reading)
     if run.expectation.passes:
         return _judge_pass(run, reading, spec_text)
-    return _judge_failure(run.expectation, reading)
+    return _judge_failure(run, reading)
 
 
 def _executed_steps(reading: Reading, steps: int) -> int | None:
@@ -380,10 +380,16 @@ def _refused(expected: Expectation, executed: int, steps: int, reading: Reading)
     return True, "refused-as-expected", expected.describe(), reading
 
 
-def _incomplete(run: Run, reading: Reading, spec_text: str) -> tuple[str, str] | None:
-    """Return why a pass is not an exhaustive, liveness-checked one, if not."""
+#: Failures that claim something about the whole state graph. Unlike a
+#: concrete counterexample trace, they are evidence only when the search that
+#: reported them finished.
+_GRAPH_FAILURES = ("exists", "liveness")
+
+
+def _unfinished(run: Run, reading: Reading) -> tuple[str, str] | None:
+    """Return why the search may not have covered the whole finite graph."""
     if None in (reading.nodes, reading.queued, reading.unique_states):
-        return "unrecognized", "a pass without state counts"
+        return "unrecognized", "no state counts"
     if reading.queued != 0:
         return "inconclusive", f"{reading.queued} nodes were still queued"
     bound = run.options["max_actions"]
@@ -392,6 +398,14 @@ def _incomplete(run: Run, reading: Reading, spec_text: str) -> tuple[str, str] |
             f"{reading.nodes} nodes reached the max_actions bound of {bound};"
             " exploration may have been cut short"
         )
+    return None
+
+
+def _incomplete(run: Run, reading: Reading, spec_text: str) -> tuple[str, str] | None:
+    """Return why a pass is not an exhaustive, liveness-checked one, if not."""
+    unfinished = _unfinished(run, reading)
+    if unfinished is not None:
+        return unfinished
     missing = sorted(set(_TEMPORAL.findall(spec_text)) - set(reading.checked_temporal))
     if missing:
         return "unchecked", "the checker did not report checking: " + ", ".join(missing)
@@ -411,8 +425,15 @@ def _judge_pass(run: Run, reading: Reading, spec_text: str) -> Judgement:
     return True, "passed", "exhaustive", reading
 
 
-def _judge_failure(expected: Expectation, reading: Reading) -> Judgement:
-    """Judge a run that must fail one named assertion and no other."""
+def _judge_failure(run: Run, reading: Reading) -> Judgement:
+    """Judge a run that must fail one named assertion and no other.
+
+    An unreached state or a liveness failure is a claim about the whole
+    graph, so it counts only from a search that finished: a search cut short
+    by its action bound can miss a state that is reachable. A concrete
+    counterexample trace needs no such completeness.
+    """
+    expected = run.expectation
     if reading.passed:
         return False, "undetected", (
             f"expected {expected.describe()}; the checker passed"
@@ -423,6 +444,10 @@ def _judge_failure(expected: Expectation, reading: Reading) -> Judgement:
         return False, "wrong-failure", (
             f"expected {expected.describe()}; got {reading.failure_kind}: {named}"
         ), reading
+    unfinished = _unfinished(run, reading) if expected.kind in _GRAPH_FAILURES else None
+    if unfinished is not None:
+        detail = f"{unfinished[1]}; an {expected.kind} failure needs a finished search"
+        return False, unfinished[0], detail, reading
     return True, "failed-as-expected", expected.describe(), reading
 
 

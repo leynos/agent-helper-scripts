@@ -47,11 +47,11 @@ uv run --script scripts/model_check_cli.py check \
   --suite specs/pr-readiness/suite.toml --only mutant-subset-verdict-clears
 ```
 
-A named subset is reported as `PARTIAL` and is not a gate result. Each run's
-specification, options, scenario, output and counterexample trace are kept under
-`build/model-check/<run>/`, and `build/model-check/report.json` records the
-checker version, each run's command, options, node and state counts, duration
-and outcome.
+A named subset is reported as `PARTIAL`, exits with status 3, and is not a gate
+result. Each run's specification, options, scenario, output and counterexample
+trace are kept under `build/model-check/<run>/`, and
+`build/model-check/report.json` records the checker version, each run's
+command, options, node and state counts, duration and outcome.
 
 ## Reading a result
 
@@ -82,7 +82,10 @@ When a run fails the gate:
 - `error`: the checker rejected the specification or crashed. This is never
   counted as a control detecting its defect.
 - `inconclusive` or `interrupted`: the checker ran out of time, was stopped,
-  left nodes queued, or explored as many nodes as `max_actions` allows.
+  left nodes queued, or explored as many nodes as `max_actions` allows. An
+  unreached state or a liveness failure from such a search is also
+  inconclusive: it is a claim about the whole graph, and the graph was not
+  finished.
 - `unchecked` or `misconfigured`: the checker did not report checking a
   temporal assertion, or did not echo the options it was given.
 - `unrecognized`: the output is not one the launcher knows. Do not teach the
@@ -199,8 +202,11 @@ under a frozen environment, and under head-only change for the merge, where the
 head guard closes the race. Eight `expected-counterexample-*` runs keep a
 failure reproducible for each of: the head, the base, the plan revision, the
 inventory or a reply changing before the ready command, and the plan revision,
-the base or a reply changing before the merge. A read-back after the command
-detects that the candidate moved; it does not undo or prevent the transition.
+the base or a reply changing before the merge. A read-back after the ready
+command can detect a base or head that differs from the candidate the command
+was issued for; it does not undo or prevent the transition, and it reads
+nothing that would show a plan revision, proof inventory or reply that changed
+in the meantime.
 
 ## Changing the specification
 

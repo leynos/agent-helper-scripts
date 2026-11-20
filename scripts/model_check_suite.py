@@ -84,6 +84,13 @@ _RUN_KEYS = (
     "trace",
 )
 
+#: Run identifiers name run directories beside the suite's ``report.json``.
+_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_RESERVED_IDS = ("report.json",)
+
+#: Matches the declaration of any action in a specification.
+ACTION = re.compile(r"^(?:atomic |serial )?(?:fair(?:<\w+>)? )?action (\w+)\s*:", re.MULTILINE)
+
 #: Matches the declaration of any assertion in a specification.
 ASSERTION = re.compile(
     r"^(?:always|exists|transition|eventually always|always eventually)"
@@ -360,14 +367,38 @@ def _member(value: str, key: str, allowed: Sequence[str], where: str) -> str:
     return value
 
 
+def _run_id(table: Mapping[str, object]) -> str:
+    """Return a run's identifier, which becomes a directory name.
+
+    It must be one plain path component, and it may not be a name the suite
+    report itself uses, or a run directory and the report would collide
+    after the checker had already run.
+    """
+    identifier = _text(table, "id", "a run")
+    _require(
+        _RUN_ID.fullmatch(identifier) is not None and identifier not in _RESERVED_IDS,
+        f"run id `{identifier}` must be one plain path component other than"
+        f" {', '.join(_RESERVED_IDS)}",
+    )
+    return identifier
+
+
 def _run(
     table: Mapping[str, object],
     defaults: Mapping[str, object],
     default_options: Mapping[str, object],
 ) -> Run:
-    """Build one run from its manifest table and the suite defaults."""
+    """Build one run from its manifest table and the suite defaults.
+
+    A negative control's options are not validated here: it takes its
+    twin's, which ``_resolve`` copies and which were validated as the
+    twin's own. Validating the control against the defaults alone would
+    refuse a control whose twin states options the defaults do not.
+    """
     where = f"run `{table.get('id', '?')}`"
     _only(table, _RUN_KEYS, where)
+    kind = _member(_text(table, "class", where), "class", CLASSES, where)
+    overrides = _table(table.get("options", {}), where)
     obligations = table.get("obligations", [])
     _require(_strings(obligations), f"{where} obligations must be a list of strings")
     timeout = table.get("timeout_seconds", defaults.get("timeout_seconds"))
@@ -377,12 +408,14 @@ def _run(
     trace = table.get("trace", [])
     _require(_strings(trace), f"{where} trace must be a list of non-empty steps")
     return Run(
-        id=_text(table, "id", "a run"),
+        id=_run_id(table),
         tier=_member(str(table.get("tier", "routine")), "tier", TIERS, where),
-        kind=_member(_text(table, "class", where), "class", CLASSES, where),
+        kind=kind,
         purpose=_text(table, "purpose", where),
         spec=str(table.get("spec", defaults.get("spec", ""))),
-        options=_options(default_options, _table(table.get("options", {}), where), where),
+        options={}
+        if kind == "negative-control"
+        else _options(default_options, overrides, where),
         scenario=str(scenario),
         mutations=_mutations(table.get("mutation"), where),
         expectation=_expectation(table.get("expect"), where),
@@ -547,13 +580,23 @@ def _named_subset(chosen: Sequence[Run], only: Sequence[str], tier: str) -> tupl
     return tuple(run for run in chosen if run.id in wanted)
 
 
-def _declared(suite: Suite, spec: str) -> set[str]:
-    """Return the assertions one specification declares; none if unreadable."""
+def _source(suite: Suite, spec: str) -> str:
+    """Return one specification's text, refusing one that cannot be read.
+
+    An unreadable specification is a broken suite, not one that declares
+    nothing: reading it as empty would report every expectation as naming an
+    undeclared assertion and hide the actual fault.
+    """
+    path = suite.directory / spec
     try:
-        text = (suite.directory / spec).read_text(encoding="utf-8")
-    except OSError:
-        return set()
-    return set(ASSERTION.findall(text))
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ModelCheckError(f"cannot read specification {path}: {error}") from error
+
+
+def _declared(suite: Suite, spec: str) -> set[str]:
+    """Return the assertions one specification declares."""
+    return set(ASSERTION.findall(_source(suite, spec)))
 
 
 def unknown_assertions(suite: Suite) -> list[str]:
@@ -569,4 +612,33 @@ def unknown_assertions(suite: Suite) -> list[str]:
         f" {run.spec} does not declare"
         for run in named
         if run.expectation.assertion not in declared[run.spec]
+    ]
+
+
+def _undeclared_steps(run: Run, actions: set[str]) -> list[str]:
+    """Return the action steps of a trace its specification does not declare.
+
+    Choice lines (``Any:...``) name values, not actions, and are left to the
+    checker.
+    """
+    return [step for step in run.trace if not step.startswith("Any:") and step not in actions]
+
+
+def unknown_trace_steps(suite: Suite) -> list[str]:
+    """Return trace steps naming an action their specification lacks.
+
+    The pinned checker stops a replay at the first step it cannot match,
+    whether the action is misspelt or merely disabled, and reports both the
+    same way. A refused trace must be refused by the model, so every step,
+    including the one expected to be refused, must name a declared action.
+    """
+    traced = [run for run in suite.runs if run.trace]
+    actions = {
+        spec: set(ACTION.findall(_source(suite, spec)))
+        for spec in {run.spec for run in traced}
+    }
+    return [
+        f"run `{run.id}` replays `{step}`, which {run.spec} does not declare"
+        for run in traced
+        for step in _undeclared_steps(run, actions[run.spec])
     ]

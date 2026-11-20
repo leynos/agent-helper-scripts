@@ -238,6 +238,19 @@ is no history of revised limits to learn from.
   limits restated. Completeness: substantially complete with no remaining
   correctness defect, naming one stale statement in this plan's outcomes about
   hosted CI time, corrected in the next commit.
+- [x] (2026-11-20 12:20Z) PR #291 marked ready on `8e447aa`; the automatic
+  formal review requested changes with 16 inline findings and two failed
+  pre-merge checks (User-Facing Documentation, Unit Architecture).
+- [x] (2026-11-20 13:30Z) Every finding verified against the source and
+  repaired: partial runs exit non-zero and the gate ignores an inherited
+  `MODEL_CHECK_ONLY`; the checker runs in its own process group; graph failures
+  count only from a finished search; run identifiers, control options and trace
+  actions are validated; a relative checker home is resolved; presentation
+  moved to `scripts/model_check_report.py`; `CompletionIsEarned` forbids ending
+  on a wait or an unmatched read-back; an unnamed-revision completeness request
+  does not clear; the fixture mapping orders post-ready checks and requires the
+  re-fetch after the last reply read; four prose claims narrowed; user-facing
+  documentation added. The routine suite is 85 runs.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
@@ -425,7 +438,7 @@ is no history of revised limits to learn from.
 
 The Python decision model, its workflow double and their tests are gone, and
 the same obligations are stated in `specs/pr-readiness/readiness.fizz` and
-checked by `make model-check`, which `make ci` runs. The routine suite is 82
+checked by `make model-check`, which `make ci` runs. The routine suite is 85
 runs. Every obligation in the inventory has an assertion and a routine run, or
 is recorded as retired without replacement with the reason.
 
@@ -599,6 +612,7 @@ exercise an agent, GitHub, CodeScene or the review service.
 
 - 2026-11-20: initial plan written after the toolchain probes and the first
   model run. Remaining work is `EP-M2` onwards.
+- 2026-11-20: recorded the formal review's findings and their repairs.
 - 2026-11-20: recorded the follow-up assessment outcomes, corrected the
   stale statement about hosted CI time, and marked implementation and
   validation complete, with delivery owned by `pr-babysitting`.

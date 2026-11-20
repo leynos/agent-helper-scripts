@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tarfile
 import textwrap
+import time
 import types
 
 import pytest
@@ -286,6 +287,28 @@ def test_a_control_is_satisfied_by_its_named_failure(
     """The positive control for the table above."""
     ok, status, _, _ = judged(mc, tmp_path, (ASSURANCE + CONTROL, "control"), printed(INVARIANT_FAILED))
     assert (ok, status) == (True, "failed-as-expected")
+
+
+@pytest.mark.parametrize(
+    ("kind", "output"),
+    [
+        ('{ fail = "exists", assertion = "Reaches" }', UNREACHED.replace("queued: 0", "queued: 3")),
+        ('{ fail = "exists", assertion = "Reaches" }', UNREACHED.replace("Nodes: 10", "Nodes: 1000")),
+        ('{ fail = "liveness", assertion = "Progress" }', LIVENESS_FAILED.replace("queued: 0", "queued: 2")),
+    ],
+    ids=["exists-queued", "exists-at-bound", "liveness-queued"],
+)
+def test_a_graph_failure_counts_only_from_a_finished_search(
+    mc: types.ModuleType, tmp_path: Path, kind: str, output: str
+) -> None:
+    """An unreached state or a liveness failure needs the whole graph.
+
+    A search cut short can miss a reachable state, so the same named
+    failure from an unfinished search is inconclusive, not detection.
+    """
+    suite = ASSURANCE + CONTROL.replace('{ fail = "always", assertion = "Bounded" }', kind)
+    ok, status, _, _ = judged(mc, tmp_path, (suite, "control"), printed(output))
+    assert (ok, status) == (False, "inconclusive")
 
 
 @pytest.mark.parametrize(
@@ -575,6 +598,96 @@ def test_a_named_subset_is_reported_as_partial(tmp_path: Path) -> None:
     )
     assert "PARTIAL" in result.stdout
     assert json.loads((tmp_path / "report" / "report.json").read_text())["partial"]
+    assert result.returncode == 3, "a subset that passed exited as if it were the gate"
+
+
+@pytest.mark.slow
+def test_a_timeout_stops_the_checker_the_launcher_started(tmp_path: Path) -> None:
+    """The process group is stopped, not only the direct child.
+
+    The pinned ``fizz`` launcher starts the checker as a child without
+    ``exec``. The double does the same and records its child's process ID;
+    after the timeout, that child must be gone too.
+    """
+    script = 'sleep 300 &\necho $! > "$PWD/child.pid"\nwait\n'
+    pin = fake_release(tmp_path / "home", script)
+    suite = write_suite(
+        tmp_path, ASSURANCE.replace("purpose", "timeout_seconds = 2\npurpose"), checker=pin
+    )
+    result = run_cli(
+        "check", "--suite", str(suite), "--home", str(tmp_path / "home"),
+        "--report", str(tmp_path / "report"),
+    )
+    assert "did not finish within 2s" in result.stdout, result.stdout + result.stderr
+    child = int((tmp_path / "report" / "base" / "child.pid").read_text())
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and alive(child):
+        time.sleep(0.2)
+    assert not alive(child), f"the checker's child {child} outlived the timeout"
+
+
+def alive(pid: int) -> bool:
+    """Return whether a process exists and is not a zombie."""
+    try:
+        with open(f"/proc/{pid}/status", encoding="utf-8") as status:
+            return "\tZ" not in next(line for line in status if line.startswith("State:"))
+    except (FileNotFoundError, StopIteration):
+        return False
+
+
+def test_a_relative_checker_home_is_resolved_once(
+    mc: types.ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative home names the same directory from every child's cwd."""
+    pin = fake_release(tmp_path / "home", "true\n")
+    suite = mc.load_suite(write_suite(tmp_path, ASSURANCE, checker=pin))
+    monkeypatch.chdir(tmp_path)
+    fizz = mc.locate_checker(Path("home"), suite.checker)
+    assert fizz.is_absolute() and fizz == tmp_path / "home" / "release" / "fizz"
+
+
+@pytest.mark.parametrize("identifier", ["report.json", "../escape", "a/b", ".hidden"])
+def test_a_run_id_that_is_not_a_plain_directory_name_is_refused(
+    mc: types.ModuleType, tmp_path: Path, identifier: str
+) -> None:
+    """A run directory may not collide with the report or leave the report."""
+    with pytest.raises(mc.ModelCheckError, match="one plain path component"):
+        mc.load_suite(write_suite(tmp_path, ASSURANCE.replace('id = "base"', f'id = "{identifier}"')))
+
+
+def test_a_control_takes_its_twins_options(mc: types.ModuleType, tmp_path: Path) -> None:
+    """A control is valid when its twin states the options the defaults lack."""
+    manifest = write_suite(
+        tmp_path,
+        ASSURANCE.replace(
+            'expect = "pass"',
+            'expect = "pass"\n[run.options]\nmax_actions = 1000',
+        )
+        + CONTROL,
+    )
+    text = manifest.read_text(encoding="utf-8").replace("max_actions = 1000\nmax_concurrent", "max_concurrent", 1)
+    manifest.write_text(text, encoding="utf-8")
+    suite = mc.load_suite(manifest)
+    control = next(run for run in suite.runs if run.id == "control")
+    assert control.options["max_actions"] == 1000
+
+
+def test_a_trace_step_naming_no_declared_action_is_reported(
+    mc: types.ModuleType, tmp_path: Path
+) -> None:
+    """A misspelt step would be refused like a disabled one; it is caught first."""
+    suite = mc.load_suite(write_suite(tmp_path, TRACE_RUNS.replace('"Step", "Step", "Step"]\nexpect = { fail', '"Step", "Step", "Stpe"]\nexpect = { fail')))
+    assert mc.unknown_trace_steps(suite) == [
+        "run `refusal` replays `Stpe`, which spec.fizz does not declare"
+    ]
+
+
+def test_an_unreadable_specification_is_named(mc: types.ModuleType, tmp_path: Path) -> None:
+    """An unreadable specification is a broken suite, not one declaring nothing."""
+    suite = mc.load_suite(write_suite(tmp_path, ASSURANCE + CONTROL))
+    (tmp_path / "spec.fizz").unlink()
+    with pytest.raises(mc.ModelCheckError, match="cannot read specification .*spec.fizz"):
+        mc.unknown_assertions(suite)
 
 
 def pinned_checker(mc: types.ModuleType) -> Path:

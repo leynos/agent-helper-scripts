@@ -40,6 +40,7 @@ import cyclopts
 from cyclopts import App, Parameter
 from cuprum import (
     ExecutionContext,
+    ProcessGroupPolicy,
     Program,
     ProgramCatalogue,
     RunOutputOptions,
@@ -51,6 +52,10 @@ import model_check
 
 #: How long one download may take.
 DOWNLOAD_TIMEOUT_SECONDS = 1800
+
+#: Exit status of a run that met every expectation but ran only a named
+#: subset, which is never a gate result.
+PARTIAL_STATUS = 3
 
 
 def current_host() -> model_check.Host:
@@ -91,6 +96,10 @@ def process_runner(clock: Callable[[], float]) -> model_check.Runner:
 
     The runner cancels the command when its timeout expires, which Cuprum
     turns into ``SIGTERM`` and then ``SIGKILL``, and times it with ``clock``.
+    The command runs in its own process group, and the signals go to the
+    group: the pinned release's ``fizz`` launcher starts the checker as a
+    child without ``exec``, so signalling the launcher alone would leave the
+    checker running.
     """
 
     def run(command: Sequence[str], cwd: Path, timeout: int) -> model_check.ProcessResult:
@@ -100,7 +109,11 @@ def process_runner(clock: Callable[[], float]) -> model_check.Runner:
         catalogue = ProgramCatalogue.from_programs(program, name="model-check")
         # The checker's launcher creates a scratch file with mktemp and
         # leaves it; pointing TMPDIR at the run directory keeps it there.
-        context = ExecutionContext(cwd=cwd, env={"TMPDIR": str(cwd)})
+        context = ExecutionContext(
+            cwd=cwd,
+            env={"TMPDIR": str(cwd)},
+            process_group=ProcessGroupPolicy.OWN_GROUP,
+        )
         started = clock()
 
         async def bounded() -> model_check.ProcessResult:
@@ -184,7 +197,9 @@ def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> 
     -------
     None
         Prints the summary. Exits with status one when a run did not meet
-        its expectation, was interrupted, or could not be judged.
+        its expectation, was interrupted, or could not be judged, and with
+        ``PARTIAL_STATUS`` when every run met its expectation but only a
+        named subset ran: a subset is never a gate result.
     """
     host = current_host()
     model_check.require_platform(host)
@@ -206,6 +221,8 @@ def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> 
     print(model_check.run_line(document, target))
     if not document["ok"]:
         raise SystemExit(1)
+    if partial:
+        raise SystemExit(PARTIAL_STATUS)
 
 
 def cli() -> None:

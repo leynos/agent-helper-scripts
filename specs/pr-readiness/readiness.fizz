@@ -194,7 +194,8 @@ def seeded_thread(kind, spec, has_plan, proofs):
     """Return the request and reply one snapshot's thread holds for `kind`.
 
     `spec` is `none`, or `<request>:<reply>`. The request is `current`, or
-    one asked about a `superseded-revision` or about `another-candidate`;
+    one asked about a `superseded-revision` or about `another-candidate`, or
+    an `unnamed-revision` request that names no plan revision at all;
     identities only increase from zero, so the stand-in value -1 can never
     be mistaken for the candidate in force. The reply is a shape name, or
     `none` for a question nobody has answered.
@@ -208,6 +209,8 @@ def seeded_thread(kind, spec, has_plan, proofs):
         rev = -1
     if parts[0] == "another-candidate":
         head = -1
+    if parts[0] == "unnamed-revision":
+        rev = None
     request = question(kind, 0, head, rev, proofs)
     reply = None
     if parts[1] != "none":
@@ -606,7 +609,10 @@ atomic fair action AgentReadsBackReady:
     require pc == "ready-readback"
     verified = not draft and base == intent.base and head == intent.head
     l_claim = record(kind="verified-transition" if verified else "observed-ready", base=base, head=head)
-    pc = "done" if SCENARIOS[sc].authority == "ready-only" else "start"
+    # A ready-only assignment stops at a verified transition. A read-back
+    # that does not match the candidate the command was issued for is not
+    # one: the PR stays ready and the agent observes again.
+    pc = "done" if SCENARIOS[sc].authority == "ready-only" and verified else "start"
 
 atomic fair action AgentRunsMergeCommand:
     require pc == "merge-command"
@@ -956,6 +962,23 @@ transition assertion VerifiedClaimNeedsMatchingReadBack(before, after):
         return True
     return (before.obs != None and not before.obs.draft
             and claim.base == before.obs.base and claim.head == before.obs.head)
+
+# PRR-PROG-02, PRR-AUTH-01: an assignment ends normally only when it has
+# earned it. The agent has read the merge back; or it has just read back the
+# transition it made and verified it; or it decides on evidence that clears
+# the candidate it observed, which is the stay-draft and already-ready stop.
+# A wait (an unanswered question, an unavailable local check, a not-clear
+# verdict) is never an ending, and neither is an unmatched read-back.
+transition assertion CompletionIsEarned(before, after):
+    if after.pc != "done" or before.pc == "done":
+        return True
+    if after.l_merged:
+        return True
+    if before.pc == "ready-readback":
+        return after.l_claim != None and after.l_claim.kind == "verified-transition"
+    if before.obs == None:
+        return False
+    return len(shortfalls(SCENARIOS[before.sc], observed_identity(before.obs), before.l_checks, before.l_local, before.l_eval)) == 0
 
 # PRR-HON-05.
 always assertion ClaimsNeverOutrunTheRemote:

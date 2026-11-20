@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import sys
 import tomllib
 
 import pytest
@@ -82,17 +83,23 @@ def recorded(name: str) -> list[str]:
 
     The two trace files are written by two processes. The only cross-file
     order a recording states is the stand-in's ``pr-ready`` marker in the
-    ``cs`` trace, so a local delta before that marker is placed immediately
-    before the ready command, and any other delta at the start: its order
-    against the remaining ``gh`` reads is not recorded, and no check below
-    depends on it except the one before a ready command.
+    ``cs`` trace. When it exists, a local delta before the marker is placed
+    immediately before the ready command and one after it immediately after,
+    so a check run after the transition is never read as evidence for it.
+    Without a marker, every delta is placed at the start: its order against
+    the ``gh`` reads is not recorded, and no check below depends on it
+    except the one before a ready command.
     """
-    before_ready, unordered, marked = cs_kinds(name)
-    sequence = list(unordered)
+    before_ready, after_ready, marked = cs_kinds(name)
+    if not marked:
+        return [*after_ready, *gh_kinds(name)]
+    sequence: list[str] = []
     for kind in gh_kinds(name):
-        if kind == "ready-command" and marked:
+        if kind == "ready-command":
             sequence.extend(before_ready)
         sequence.append(kind)
+        if kind == "ready-command":
+            sequence.extend(after_ready)
     return sequence
 
 
@@ -200,16 +207,19 @@ def test_every_modelled_read_precedes_the_effect_it_supports(name: str) -> None:
 
 
 def refetched(concrete: list[str]) -> bool:
-    """Return whether a PR read falls between a discussion read and the end.
+    """Return whether a PR read follows the last discussion read before the end.
 
     The end is the ready command when there is one, and the end of the run
-    otherwise.
+    otherwise. The last discussion read is the one that can have supplied
+    the replies the decision rests on, so a PR read before it, even one after
+    an earlier discussion read, is not the re-fetch the model requires.
     """
     end = concrete.index("ready-command") if "ready-command" in concrete else len(concrete)
     window = concrete[:end]
     if "discussion-read" not in window:
         return False
-    return "pr-view" in window[window.index("discussion-read") + 1 :]
+    last = len(window) - 1 - window[::-1].index("discussion-read")
+    return "pr-view" in window[last + 1 :]
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -251,3 +261,48 @@ def test_an_unobserved_step_is_really_absent(name: str) -> None:
                 f"{name} does record {action}; remove the unobserved entry"
             )
     assert fixture(name)["note"].strip(), f"{name} states no reason"
+
+
+@pytest.mark.parametrize(
+    ("concrete", "expected"),
+    [
+        (["discussion-read", "pr-view", "ready-command"], True),
+        (["discussion-read", "pr-view", "discussion-read", "ready-command"], False),
+        (["pr-view", "discussion-read", "ready-command", "pr-view"], False),
+        (["discussion-read", "pr-view"], True),
+    ],
+    ids=["re-fetched", "reply-read-after-re-fetch", "read-back-only", "no-transition"],
+)
+def test_the_refetch_must_follow_the_reply_read(concrete: list[str], expected: bool) -> None:
+    """A PR read counts only after the discussion read that supplied the replies."""
+    assert refetched(concrete) is expected
+
+
+def test_a_delta_after_the_ready_marker_is_not_evidence_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local check recorded after the transition is placed after it."""
+    monkeypatch.setattr(sys.modules[__name__], "cs_kinds", lambda _name: ([], ["local-delta"], True))
+    monkeypatch.setattr(
+        sys.modules[__name__], "gh_kinds", lambda _name: ["pr-view", "ready-command", "pr-view"]
+    )
+    assert recorded("any") == ["pr-view", "ready-command", "local-delta", "pr-view"]
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_a_refused_step_is_absent_from_its_recording(name: str) -> None:
+    """The step a trace expects the model to refuse is one the agent never took.
+
+    A refused trace states how many steps run; the step after them is the
+    one the model refuses. When that step is an effect, the recording must
+    not contain it, so the refusal and the recorded agent agree.
+    """
+    run = runs()[fixture(name)["run"]]
+    if run["expect"] == "pass":
+        return
+    refused = run["trace"][run["expect"]["executed"]]
+    assert refused.startswith("Agent"), f"{name} refuses a step that is not an agent step"
+    effects = kinds_for(refused) & EFFECT_KINDS
+    assert not effects & set(recorded(name)), (
+        f"{name} refuses {refused}, but the recording made {sorted(effects)}"
+    )

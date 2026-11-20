@@ -186,7 +186,7 @@ monkeypatched mutant has a textual mutation of the specification that must fail
 one named assertion through a counterexample that uses the behaviour the
 control names. For example, with the whole-plan subject rule deleted, the
 checker reports `ReadyNeedsCurrentEvidence` on a trace containing
-`Any:shape="subset-clear"`. Evidence: the 33 `mutant-*` runs.
+`Any:shape="subset-clear"`. Evidence: the 35 `mutant-*` runs.
 
 **R3. The recordings are the snapshots the model was checked on.** Each of the
 eleven agent-boundary recordings, read through the shipped stand-in, abstracts
@@ -361,6 +361,16 @@ now records the reply read it followed, and both controls
 named property. A finding of the same class survived one independent review and
 was caught by a second.
 
+The formal review that followed readiness found three more gaps of the same
+kind, each a way for the gate to accept less than it says. A wait could end the
+assignment: a model whose agent stopped when the local check was unavailable
+kept the PR in draft and merged nothing, so every property held, and
+`CompletionIsEarned` now requires that an ending be earned. A ready-only
+assignment finished on a read-back that did not match the candidate it acted
+on. And the launcher credited an unreached-state failure from a search cut
+short by its action bound, which cannot show that a state is unreachable. Each
+repair has a control that fails without it.
+
 ### Tool and harness limitations
 
 All of these were observed in FizzBee v0.5.4 and each has a test in
@@ -443,7 +453,7 @@ one PR.
 
 ## Cost and maintainability
 
-**Routine suite.** 82 runs: 25 assurance, 33 negative controls, 12 property
+**Routine suite.** 85 runs: 26 assurance, 35 negative controls, 12 property
 controls, 4 scenario traces and 8 expected counterexamples. On the loaded
 development host, four at a time, it took 71 seconds of wall-clock time, the
 largest checker process reached 1.96 GiB of resident memory, and the summed
@@ -590,8 +600,12 @@ conflict.
 instructions. Closing them needs a conditional transition: a ready command that
 names the head it expects, branch protection or a required check that encodes
 the evidence, or a merge queue. Whether the residual risk justifies that is a
-decision this document does not make; the consequence today is a PR that is
-ready, and not merged, at an unassessed head.
+decision this document does not make. The consequences today are two, and they
+differ. A PR can become ready at a head nothing was assessed for (L1, L2); it
+stays ready by rule, but the merge still needs renewed evidence. And a merge
+can take effect on stale evidence that is not about the head (L3): the head
+guard refuses a moved head, but a base, plan revision or reply that changes
+after the last read reaches the merge unseen.
 
 **What the later policy author still has to decide.**
 

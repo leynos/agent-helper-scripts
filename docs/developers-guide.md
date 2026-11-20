@@ -917,33 +917,43 @@ relocates it). `make model-check` downloads nothing and fails, naming
 supports Linux on x86-64 only and needs no GitHub credential, model API or
 other service. The CI workflow runs `make fizzbee` before `make ci`.
 
-The launcher has three standard-library layers and a front end.
+The launcher has four standard-library layers and a front end.
 `scripts/model_check_suite.py` loads the suite manifest and refuses one that
 could make a run test less than it says: an unknown key, an unstated or relaxed
-checker option, a class paired with a mutation or expectation it cannot have,
-or a negative control without its twin. `scripts/model_check_judge.py` reads
-the checker's output and judges a run against it. `scripts/model_check.py`
-installs the release, executes runs and reports, and re-exports the names the
-other modules and the tests use. It also runs a suite: loading a session writes
-nothing, `reset_report` is the one step that deletes the previous report, and
-every fact about the machine (platform, processor count, checker home, clock
-and peak memory) arrives in a `Host` record, so a test can describe an
-unsupported platform without patching. `scripts/model_check_cli.py` is the
-Cyclopts command line and the Cuprum process boundary, and builds the `Host`
-from the running machine at its edge. The launcher exists because the pinned
-release cannot be trusted to report its own result: it exits zero when a
-property fails, drops liveness checking without comment for a `liveness` value
-it does not recognize, stops at `max_actions` without saying so, and prints its
-pass line for a replayed trace whose last step it refused. The launcher
-therefore reads the output it recognizes, requires the checker to echo the
-options it was given and to name every temporal assertion it checked, accepts a
-pass as exhaustive only when fewer nodes were explored than the action bound,
-and counts the steps of a replay from the nodes reported. A crash, a timeout or
-a syntax error is a gate failure and is never counted as a control detecting
-its defect. `tests/test_model_check.py` pins that judgement on output captured
-from the release, drives the real command line against a doubled checker that
-fails, hangs, is killed or is absent, and runs the pinned release itself where
-it is installed.
+checker option, a class paired with a mutation or expectation it cannot have, a
+negative control without its twin, a run identifier that is not one plain
+directory name, a trace step naming an action its specification does not
+declare, or a specification it cannot read. `scripts/model_check_judge.py`
+reads the checker's output and judges a run against it.
+`scripts/model_check_report.py` renders outcomes as `report.json` and the
+summary. `scripts/model_check.py` installs the release and executes runs, and
+re-exports the names the other modules and the tests use. It also runs a suite:
+loading a session writes nothing, `reset_report` is the one step that deletes
+the previous report, and every fact about the machine (platform, processor
+count, checker home, clock and peak memory) arrives in a `Host` record, so a
+test can describe an unsupported platform without patching.
+`scripts/model_check_cli.py` is the Cyclopts command line and the Cuprum
+process boundary, and builds the `Host` from the running machine at its edge.
+The launcher exists because the pinned release cannot be trusted to report its
+own result: it exits zero when a property fails, drops liveness checking
+without comment for a `liveness` value it does not recognize, stops at
+`max_actions` without saying so, and prints its pass line for a replayed trace
+whose last step it refused. The launcher therefore reads the output it
+recognizes, requires the checker to echo the options it was given and to name
+every temporal assertion it checked, accepts a pass as exhaustive only when
+fewer nodes were explored than the action bound, credits an unreached state or
+a liveness failure only from a search that finished in the same sense, and
+counts the steps of a replay from the nodes reported. A crash, a timeout or a
+syntax error is a gate failure and is never counted as a control detecting its
+defect. The checker runs in its own process group, so a timeout stops the
+checker the pinned `fizz` launcher started, not only the launcher. A run
+restricted with `--only` (or `MODEL_CHECK_ONLY`) is reported as partial and
+exits with status 3 even when every selected run passed; `make model-check`
+clears `MODEL_CHECK_ONLY`, so an inherited value cannot shrink the gate.
+`tests/test_model_check.py` pins that judgement on output captured from the
+release, drives the real command line against a doubled checker that fails,
+hangs, is killed or is absent, and runs the pinned release itself where it is
+installed.
 
 Every run in the suite has one class, reported apart: `assurance` runs must
 pass exhaustively; a `negative-control` applies one textual mutation and must

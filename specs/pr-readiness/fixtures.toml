@@ -13,8 +13,13 @@
 # hand, from that recording. The traces are model-derived reproductions: they
 # were not generated from the recordings and the recordings are not replayed
 # through the model. tests/test_pr_readiness_fixture_mapping.py checks that
-# each recording and its trace agree on the effects, on the reads that come
-# before each effect, and on the read-back after it.
+# each recording and its trace make the same effects in the same order; that
+# every kind of read the trace makes before an effect was recorded before it;
+# that a PR read follows the last discussion read before the ready command,
+# which is the re-fetch; that the ready command is read back; and that a step a
+# refused trace ends on is one the recording never took. It compares kinds of
+# read, not their content: it does not establish which discussion read
+# returned the reply, or that a read returned anything new.
 #
 # `unobserved` lists model steps a recording has no counterpart for. Each is
 # a recorded difference between what one sampled agent run did and the order
