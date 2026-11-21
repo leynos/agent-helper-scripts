@@ -917,7 +917,7 @@ relocates it). `make model-check` downloads nothing and fails, naming
 supports Linux on x86-64 only and needs no GitHub credential, model API or
 other service. The CI workflow runs `make fizzbee` before `make ci`.
 
-The launcher has four standard-library layers and a front end.
+The launcher has five standard-library layers and a front end.
 `scripts/model_check_suite.py` loads the suite manifest and refuses one that
 could make a run test less than it says: an unknown key, an unstated or relaxed
 checker option, a class paired with a mutation or expectation it cannot have, a
@@ -926,12 +926,19 @@ directory name, a trace step naming an action its specification does not
 declare, or a specification it cannot read. `scripts/model_check_judge.py`
 reads the checker's output and judges a run against it.
 `scripts/model_check_report.py` renders outcomes as `report.json` and the
-summary. `scripts/model_check.py` installs the release and executes runs, and
-re-exports the names the other modules and the tests use. It also runs a suite:
-loading a session writes nothing, `reset_report` is the one step that deletes
-the previous report, and every fact about the machine (platform, processor
-count, checker home, clock and peak memory) arrives in a `Host` record, so a
-test can describe an unsupported platform without patching.
+summary, and decides the exit status a report warrants.
+`scripts/model_check_checker.py` is the checker's distribution:
+`checker_launcher` computes where the release's launcher is, `verify_checker`
+hashes every pinned file, and `install_checker` fetches and unpacks the release
+only when a file is missing or altered, never over one it could not read.
+`scripts/model_check.py` executes runs and re-exports the names the other
+modules and the tests use. Loading a session writes nothing, `reset_report` is
+the one step that deletes the previous report, a run's inputs and artefacts are
+written only through its `RunFiles` boundary, and every fact about the machine
+(platform, processor count, checker home, clock and peak memory) arrives in a
+`Host` record, so a test can describe an unsupported platform without patching.
+A file the launcher cannot read, write or remove, and a checker it cannot
+start, is a named error rather than an empty or stale result.
 `scripts/model_check_cli.py` is the Cyclopts command line and the Cuprum
 process boundary, and builds the `Host` from the running machine at its edge.
 The launcher exists because the pinned release cannot be trusted to report its

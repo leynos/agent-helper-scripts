@@ -27,7 +27,8 @@ The launcher has three layers. ``model_check_suite`` loads and validates the
 manifest; ``model_check_judge`` reads the checker's output and judges a run
 against it, because the pinned release cannot be trusted to report its own
 result; ``model_check_report`` renders outcomes as the JSON report and the
-summary; and this module installs the release and executes runs. It
+summary; ``model_check_checker`` finds, verifies and installs the pinned
+release; and this module executes runs. It
 re-exports the names the command line and the tests use, so they import one
 module.
 
@@ -50,9 +51,16 @@ from dataclasses import dataclass, field
 import hashlib
 import json
 from pathlib import Path
-import shutil
-import tarfile
+from typing import Protocol
 
+from model_check_checker import (
+    CheckerAbsentError,
+    Fetcher,
+    checker_launcher,
+    install_checker,
+    remove_tree,
+    verify_checker,
+)
 from model_check_judge import (
     PASS_LINE,
     Judgement,
@@ -62,7 +70,15 @@ from model_check_judge import (
     missing_steps,
     read_output,
 )
-from model_check_report import report, run_line, summarize, write_report
+from model_check_report import (
+    PARTIAL_STATUS,
+    exit_status,
+    gate_document,
+    report,
+    run_line,
+    summarize,
+    write_report,
+)
 from model_check_suite import (
     CLASSES,
     FAILURE_KINDS,
@@ -83,6 +99,7 @@ __all__ = (
     "CLASSES",
     "DEFAULT_REPORT",
     "FAILURE_KINDS",
+    "PARTIAL_STATUS",
     "SUPPORTED_PLATFORM",
     "PASS_LINE",
     "REQUIRED_OPTIONS",
@@ -99,19 +116,25 @@ __all__ = (
     "ProcessResult",
     "Reading",
     "Run",
+    "RunDirectory",
+    "RunFiles",
     "Runner",
     "Session",
     "Suite",
     "execute",
+    "exit_status",
+    "gate_document",
+    "checker_launcher",
     "install_checker",
     "judge",
     "judge_run",
     "load_session",
     "load_suite",
-    "locate_checker",
     "missing_steps",
     "mutate",
+    "prepare_inputs",
     "read_output",
+    "read_source",
     "read_trace",
     "record_artefacts",
     "remove_tree",
@@ -125,6 +148,7 @@ __all__ = (
     "summarize",
     "unknown_assertions",
     "unknown_trace_steps",
+    "verify_checker",
     "workers",
     "write_artefact",
     "write_report",
@@ -132,9 +156,6 @@ __all__ = (
 
 #: Runs one checker invocation: ``(argv, cwd, timeout_seconds)``.
 Runner = Callable[[Sequence[str], Path, int], ProcessResult]
-
-#: Fetches ``url`` to ``destination``.
-Fetcher = Callable[[str, Path], None]
 
 #: The one platform the pinned archive supports.
 SUPPORTED_PLATFORM = ("Linux", "x86_64")
@@ -145,13 +166,57 @@ DEFAULT_REPORT = Path("build") / "model-check"
 
 
 
-class CheckerAbsentError(ModelCheckError):
-    """Report that the pinned release is missing or is not the pinned bytes.
+class RunFiles(Protocol):
+    """Where one run's inputs and artefacts are kept: its filesystem boundary.
 
-    This is the one checker failure installing repairs. A pinned file that
-    exists and cannot be read is a plain ``ModelCheckError`` instead, so an
-    install never downloads over a release it could not inspect.
+    ``prepare_inputs`` and ``record_artefacts`` write only through this, so a
+    test can hand them an in-memory implementation.
     """
+
+    @property
+    def path(self) -> Path:
+        """Return the directory the checker runs in."""
+        ...
+
+    def create(self) -> None:
+        """Create the run's directory."""
+        ...
+
+    def write(self, name: str, text: str) -> None:
+        """Keep ``text`` as the run file ``name``."""
+        ...
+
+    def trace(self) -> tuple[str, ...]:
+        """Return the action names of the checker's error trace, if any."""
+        ...
+
+
+@dataclass(frozen=True)
+class RunDirectory:
+    """A run's files on disk, under its own directory of the report."""
+
+    path: Path
+
+    def create(self) -> None:
+        """Create the run's directory, naming it when that fails.
+
+        Raises
+        ------
+        ModelCheckError
+            Raised, naming the directory, when it cannot be created.
+        """
+        try:
+            self.path.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise ModelCheckError(f"cannot create {self.path}: {error}") from error
+
+    def write(self, name: str, text: str) -> None:
+        """Write one run file, naming it when that fails."""
+        write_artefact(self.path / name, text)
+
+    def trace(self) -> tuple[str, ...]:
+        """Return the checker's error trace from the run's ``out`` directory."""
+        return read_trace(self.path / "out")
 
 
 @dataclass(frozen=True)
@@ -175,13 +240,15 @@ class Session:
     """What every run of one invocation shares.
 
     ``report`` is the directory each run gets a subdirectory of; ``fizz`` is
-    the verified checker launcher; ``runner`` is the process boundary.
+    the verified checker launcher; ``runner`` is the process boundary; and
+    ``run_files`` makes the filesystem boundary for one run's directory.
     """
 
     suite: Suite
     fizz: Path
     report: Path
     runner: Runner
+    run_files: Callable[[Path], RunFiles] = RunDirectory
 
 
 @dataclass(frozen=True)
@@ -277,28 +344,12 @@ def load_session(
     problems = unknown_assertions(loaded) + unknown_trace_steps(loaded)
     if problems:
         raise ModelCheckError("; ".join(problems))
-    fizz = locate_checker(options.home or host.home, loaded.checker)
+    fizz = verify_checker(options.home or host.home, loaded.checker)
     runs = select(loaded, options.tier, options.only)
     session = Session(
         suite=loaded, fizz=fizz, report=options.report.resolve(), runner=runner
     )
     return session, runs
-
-
-def remove_tree(directory: Path) -> None:
-    """Delete a directory tree that may be absent, or say why it cannot be.
-
-    Raises
-    ------
-    ModelCheckError
-        Raised, naming the directory, when it exists and cannot be removed.
-    """
-    try:
-        shutil.rmtree(directory)
-    except FileNotFoundError:
-        return
-    except OSError as error:
-        raise ModelCheckError(f"cannot remove {directory}: {error}") from error
 
 
 def write_artefact(path: Path, text: str) -> None:
@@ -338,110 +389,6 @@ def run_suite(session: Session, runs: Sequence[Run], jobs: int) -> list[Outcome]
     """Execute every run, ``jobs`` at a time, and return their outcomes in order."""
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         return list(pool.map(lambda run: execute(run, session), runs))
-
-
-def _sha256(path: Path) -> str:
-    """Return the SHA-256 digest of a file, read in bounded chunks."""
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def locate_checker(home: Path, checker: Checker) -> Path:
-    """Return the pinned ``fizz`` launcher, verified file by file.
-
-    Parameters
-    ----------
-    home : Path
-        The directory the release was unpacked into.
-    checker : Checker
-        The pin the unpacked files must match.
-
-    Returns
-    -------
-    Path
-        The ``fizz`` launcher inside the unpacked release.
-
-    Raises
-    ------
-    CheckerAbsentError
-        Raised when a pinned file is absent, which is a missing checker, or
-        has another digest, which is an incompatible one.
-    ModelCheckError
-        Raised, naming the file, when a pinned file cannot be read.
-    """
-    # A relative home would be resolved again from each child's working
-    # directory; resolve it once, from the caller's.
-    root = home.resolve() / checker.root
-    for name, expected in checker.files.items():
-        candidate = root / name
-        if not candidate.is_file():
-            raise CheckerAbsentError(
-                f"FizzBee {checker.version} is not installed: {candidate} is"
-                " missing. Run `make fizzbee` to fetch the pinned release."
-            )
-        try:
-            actual = _sha256(candidate)
-        except OSError as error:
-            raise ModelCheckError(f"cannot read the pinned checker file {candidate}: {error}") from error
-        if actual != expected:
-            raise CheckerAbsentError(
-                f"FizzBee at {root} is not the pinned {checker.version}:"
-                f" {name} has SHA-256 {actual}, expected {expected}."
-                " Run `make fizzbee` to fetch the pinned release."
-            )
-    return root / "fizz"
-
-
-def install_checker(home: Path, checker: Checker, fetch: Fetcher) -> Path:
-    """Fetch, verify and unpack the pinned release unless it is present.
-
-    Parameters
-    ----------
-    home : Path
-        The directory to unpack into. It is created when absent.
-    checker : Checker
-        The release to install and the digests it must have.
-    fetch : Fetcher
-        Downloads the archive. This is the only step that uses the network.
-
-    Returns
-    -------
-    Path
-        The verified ``fizz`` launcher.
-
-    Raises
-    ------
-    ModelCheckError
-        Raised when an installed pinned file cannot be read, which installing
-        would not repair, when the downloaded archive has another digest, or
-        when the unpacked files do not match the pin.
-    """
-    home = home.resolve()
-    try:
-        return locate_checker(home, checker)
-    except CheckerAbsentError:
-        pass
-    home.mkdir(parents=True, exist_ok=True)
-    archive = home / f"{checker.root}.tar.gz.partial"
-    try:
-        fetch(checker.url, archive)
-        actual = _sha256(archive)
-        if actual != checker.archive_sha256:
-            raise ModelCheckError(
-                f"downloaded FizzBee archive has SHA-256 {actual}, expected"
-                f" {checker.archive_sha256}; nothing was unpacked"
-            )
-        remove_tree(home / checker.root)
-        with tarfile.open(archive) as bundle:
-            bundle.extractall(home, filter="data")
-    except (OSError, tarfile.TarError) as error:
-        raise ModelCheckError(f"cannot install FizzBee: {error}") from error
-    finally:
-        archive.unlink(missing_ok=True)
-    return locate_checker(home, checker)
 
 
 def mutate(source: str, mutations: Sequence[tuple[str, str]], run_id: str) -> str:
@@ -561,8 +508,8 @@ def _graph_steps(graph: Path, text: str) -> list[object]:
     return steps
 
 
-def record_artefacts(directory: Path, result: ProcessResult) -> tuple[str, ...]:
-    """Keep one run's output in ``directory`` and return its error trace.
+def record_artefacts(files: RunFiles, result: ProcessResult) -> tuple[str, ...]:
+    """Keep one run's output in its run files and return its error trace.
 
     The checker's standard output and error are kept as they were, and the
     trace's action names, when there is a trace, beside them.
@@ -572,11 +519,11 @@ def record_artefacts(directory: Path, result: ProcessResult) -> tuple[str, ...]:
     ModelCheckError
         Raised when an artefact cannot be written or the trace cannot be read.
     """
-    write_artefact(directory / "stdout.txt", result.stdout)
-    write_artefact(directory / "stderr.txt", result.stderr)
-    trace = read_trace(directory / "out")
+    files.write("stdout.txt", result.stdout)
+    files.write("stderr.txt", result.stderr)
+    trace = files.trace()
     if trace:
-        write_artefact(directory / "trace.txt", "\n".join(trace) + "\n")
+        files.write("trace.txt", "\n".join(trace) + "\n")
     return trace
 
 
@@ -596,25 +543,38 @@ def judge_run(
     return ok, status, detail, reading
 
 
-def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
-    """Write one run's inputs into ``work``; return its source, text and argv.
+def read_source(run: Run, suite: Suite) -> str:
+    """Return the text of the specification a run names, unmutated.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised, naming the run and the file, when it cannot be read as text.
+    """
+    source = suite.directory / run.spec
+    try:
+        return source.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise ModelCheckError(f"run `{run.id}`: cannot read {source}: {error}") from error
+
+
+def prepare_inputs(run: Run, original: str, files: RunFiles) -> tuple[str, list[str]]:
+    """Write one run's inputs into its run files; return its text and argv.
 
     The checker writes beside the specification it is given, so the
     specification is copied into the run's own directory and the source tree
     is never written to.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised when a mutation anchor does not match exactly once, or an
+        input cannot be written.
     """
-    source = suite.directory / run.spec
-    try:
-        original = source.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
-        raise ModelCheckError(f"run `{run.id}`: cannot read {source}: {error}") from error
     text = mutate(original, run.mutations, run.id)
-    try:
-        work.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise ModelCheckError(f"cannot create {work}: {error}") from error
-    write_artefact(work / "spec.fizz", text)
-    write_artefact(work / "fizz.yaml", render_options(run.options))
+    files.create()
+    files.write("spec.fizz", text)
+    files.write("fizz.yaml", render_options(run.options))
     command = ["--test", "--output-dir", "out"]
     inputs = (
         ("scenario.cfg", run.scenario if run.scenario.strip() else "", "--preinit-hook-file"),
@@ -622,9 +582,9 @@ def _prepare(run: Run, suite: Suite, work: Path) -> tuple[str, str, list[str]]:
     )
     for name, content, flag in inputs:
         if content:
-            write_artefact(work / name, content)
+            files.write(name, content)
             command += [flag, name]
-    return original, text, [*command, "spec.fizz"]
+    return text, [*command, "spec.fizz"]
 
 
 def execute(run: Run, session: Session) -> Outcome:
@@ -650,11 +610,12 @@ def execute(run: Run, session: Session) -> Outcome:
         not match exactly once, an input or artefact cannot be written, or
         the checker's error trace cannot be read.
     """
-    work = session.report / run.id
-    original, text, arguments = _prepare(run, session.suite, work)
+    files = session.run_files(session.report / run.id)
+    original = read_source(run, session.suite)
+    text, arguments = prepare_inputs(run, original, files)
     command = (str(session.fizz), *arguments)
-    result = session.runner(command, work, run.timeout_seconds)
-    trace = record_artefacts(work, result)
+    result = session.runner(command, files.path, run.timeout_seconds)
+    trace = record_artefacts(files, result)
     ok, status, detail, reading = judge_run(run, result, text, trace)
     return Outcome(
         run=run,
@@ -666,5 +627,5 @@ def execute(run: Run, session: Session) -> Outcome:
         spec_sha256=hashlib.sha256(original.encode("utf-8")).hexdigest(),
         command=command,
         trace=trace,
-        artefacts={"directory": str(work)},
+        artefacts={"directory": str(files.path)},
     )

@@ -6,8 +6,13 @@ replies carrying bolded fields. The FizzBee readiness model states a thread as
 ``request:reply``, where the request is the current question or one asked
 about another candidate or a superseded revision, and the reply is one of the
 model's reply shapes. This module reads the recorded text and makes that
-abstraction. It decides nothing: whether a snapshot permits the transition is
-looked up in the model-checked tables of ``specs/pr-readiness/suite.toml``.
+abstraction: it compares what a reply states with the candidate, the revision
+asked about and the proofs required, and names the shape whose fields match.
+Each shape name stands for a record of those fields in ``readiness.fizz``
+(``SHAPES``), and the model's ``shortfalls`` decides which records clear, so
+this module classifies and does not decide clearance. Whether a snapshot
+permits the transition is looked up in the model-checked tables of
+``specs/pr-readiness/suite.toml``.
 
 The direction is one way. Every value comes from the recorded text and the
 candidate the stand-in serves, never from the expectation a test asserts.

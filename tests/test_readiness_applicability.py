@@ -19,7 +19,7 @@ read rather than skip it.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 
 import pytest
@@ -34,7 +34,7 @@ from readiness_applicability import (
     proof_inventory,
 )
 from readiness_policy import ApplicabilityFacts, assessments_that_apply, stated_proofs
-from readiness_snapshot_support import PROOF, Bounds, reply_shape, thread_state
+from readiness_snapshot_support import COMPLETENESS, PROOF, Bounds, reply_shape, thread_state
 
 #: The packet lines as the shipped handoff states them.
 SHIPPED = {
@@ -270,3 +270,57 @@ def test_a_lookup_answers_only_from_one_agreeing_row(monkeypatch: pytest.MonkeyP
         checked_expectation(facts, ("one", "two"))
     with pytest.raises(AssertionError, match="no model-checked snapshot"):
         checked_expectation({**facts, "ci": "red"}, ("one",))
+
+
+def reply(verdict: str, subject: str, *, head: str = "h1", revision: str | None = "rev-2") -> str:
+    """Return a recorded reply body stating a verdict, candidate, revision and subject."""
+    stated = f"**Verdict: {verdict}**\n**Assessed base/head:** b0...{head}\n"
+    if revision is not None:
+        stated += f"**Plan revision:** {revision}\n"
+    return stated + f"**Assessed subject:** {subject}\n"
+
+
+WHOLE = "the whole approved plan"
+SHAPES = (
+    ("not-applicable-claim", COMPLETENESS, reply("not applicable", WHOLE)),
+    ("not-clear", COMPLETENESS, reply("not clear", WHOLE)),
+    ("acknowledgement", COMPLETENESS, reply("noted", WHOLE)),
+    ("other-candidate", COMPLETENESS, reply("clear", WHOLE, head="h0")),
+    ("no-revision-echo", COMPLETENESS, reply("clear", WHOLE, revision=None)),
+    ("superseded-revision-echo", COMPLETENESS, reply("clear", WHOLE, revision="rev-1")),
+    ("sound-clear", COMPLETENESS, reply("clear", WHOLE)),
+    ("subset-clear", COMPLETENESS, reply("clear", "a declared subset of the plan")),
+    ("partial-proofs", PROOF, reply("clear", "`refinement_sound`")),
+    ("no-proofs", PROOF, reply("clear", "`other_sound`")),
+    ("sound-clear", PROOF, reply("clear", "`refinement_sound`, `stack_sound`")),
+)
+
+
+@pytest.mark.parametrize(
+    ("shape", "kind", "body"), SHAPES, ids=[f"{kind}-{shape}" for shape, kind, _ in SHAPES]
+)
+def test_each_reply_is_named_by_the_shape_its_fields_match(shape: str, kind: str, body: str) -> None:
+    """One control per shape name the adapter can give a reply.
+
+    The adapter names the shape; ``readiness.fizz`` decides whether it clears.
+    """
+    bounds = replace(BOUNDS, required=("refinement_sound", "stack_sound"))
+    assert reply_shape(kind, body, bounds, "rev-2") == shape
+
+
+REQUESTS = (
+    ("current", COMPLETENESS, "Published head: h1; Plan revision: rev-2"),
+    ("another-candidate", COMPLETENESS, "Published head: h0; Plan revision: rev-2"),
+    ("superseded-revision", COMPLETENESS, "Published head: h1; Plan revision: rev-1"),
+    ("unnamed-revision", COMPLETENESS, "Published head: h1; nothing else"),
+    ("current", PROOF, "Published head: h1; nothing else"),
+)
+
+
+@pytest.mark.parametrize(
+    ("state", "kind", "body"), REQUESTS, ids=[f"{kind}-{state}" for state, kind, _ in REQUESTS]
+)
+def test_each_request_is_named_by_what_it_asks_about(state: str, kind: str, body: str) -> None:
+    """One control per request state; only completeness must name a revision."""
+    request = {"body": body + "\nAssessment-ID: a-1"}
+    assert thread_state(kind, [], request, BOUNDS) == f"{state}:none"

@@ -53,10 +53,6 @@ import model_check
 #: How long one download may take.
 DOWNLOAD_TIMEOUT_SECONDS = 1800
 
-#: Exit status of a run that met every expectation but ran only a named
-#: subset, which is never a gate result.
-PARTIAL_STATUS = 3
-
 
 def current_host() -> model_check.Host:
     """Return the facts about the running machine the commands read.
@@ -206,7 +202,7 @@ def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> 
     None
         Prints the summary. Exits with status one when a run did not meet
         its expectation, was interrupted, or could not be judged, and with
-        ``PARTIAL_STATUS`` when every run met its expectation but only a
+        ``model_check.PARTIAL_STATUS`` when every run met its expectation but only a
         named subset ran: a subset is never a gate result.
     """
     host = current_host()
@@ -216,21 +212,18 @@ def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> 
     jobs = model_check.workers(options.jobs, host)
     started = host.clock()
     outcomes = model_check.run_suite(session, runs, jobs)
-    partial = bool(options.only)
-    document = model_check.report(session.suite, outcomes, tier=options.tier, partial=partial)
-    document["wall_seconds"] = round(host.clock() - started, 1)
-    document["jobs"] = jobs
-    # The high-water mark over every checker process this invocation waited
-    # for, which is the figure a runner's memory limit has to accommodate
-    # per process.
-    document["peak_child_rss_kib"] = host.peak_child_rss_kib()
+    document = model_check.gate_document(
+        session.suite,
+        outcomes,
+        selection=(options.tier, bool(options.only)),
+        cost=(host.clock() - started, jobs, host.peak_child_rss_kib()),
+    )
     target = model_check.write_report(document, options.report)
-    print(model_check.summarize(outcomes, partial=partial))
+    print(model_check.summarize(outcomes, partial=bool(document["partial"])))
     print(model_check.run_line(document, target))
-    if not document["ok"]:
-        raise SystemExit(1)
-    if partial:
-        raise SystemExit(PARTIAL_STATUS)
+    status = model_check.exit_status(document)
+    if status:
+        raise SystemExit(status)
 
 
 def cli() -> None:

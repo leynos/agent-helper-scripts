@@ -324,6 +324,19 @@ is no history of revised limits to learn from.
   process runner now names any launch `OSError` other than a missing executable
   as a `ModelCheckError` ("cannot start"), and the command-line test gains an
   unexecutable-checker case, which runs under any user.
+- [x] (2026-11-21 02:30Z) The reconciliation of `9091242` (comment
+  7054136397), asked for every residual item at once, confirmed the saved Unit
+  Architecture check as passing and listed the rest. The installer now names a
+  checker home it cannot create and a downloaded archive it cannot remove,
+  keeping a failed install's own error with the cleanup failure as a note. The
+  checker's distribution moved to `scripts/model_check_checker.py`, with a pure
+  `checker_launcher` apart from the hashing `verify_checker` (formerly
+  `locate_checker`). A run's inputs and artefacts are written only through a
+  `RunFiles` boundary (`RunDirectory` on disk, injectable through the session),
+  report assembly and the exit-status policy moved from `check()` to
+  `scripts/model_check_report.py`, and the unexecutable-checker test asserts
+  the executable is named. The Domain Architecture warning's request to move
+  the reply-clearance rules is answered by D18.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
@@ -524,8 +537,10 @@ is no history of revised limits to learn from.
   `tests/test_model_check_artefacts.py` (first committed as
   `tests/test_model_check_report.py`) for the direct tests its Testing
   pre-merge check required, and the re-evaluated Domain Architecture check added
-  `tests/readiness_policy.py` (D17), making 34 (21 added, 5 deleted, 8
-  modified). The other tests those checks asked for were added to existing
+  `tests/readiness_policy.py` (D17), making 34; the residual Unit Architecture
+  items then added `scripts/model_check_checker.py`, which separates the
+  checker's distribution from suite execution, making 35 (22 added, 5 deleted,
+  8 modified). The other tests those checks asked for were added to existing
   files. The breach is stated on PR #291 for the maintainer, who may still
   direct a trim. Date/Author: 2026-11-20, implementing agent.
 - D17. Decision: state the applicability rule once, over facts, in
@@ -539,6 +554,17 @@ is no history of revised limits to learn from.
   readiness policy requires, and the model's input contract and README name it.
   The readiness transition policy remains stated only in the model.
   Date/Author: 2026-11-20, implementing agent.
+- D18. Decision: keep the reply-clearance rules in the model, and do not move
+  them into `tests/readiness_policy.py` as the re-evaluated Domain Architecture
+  warning asked. Rationale: `tests/readiness_snapshot_support.py` names the
+  reply shape whose fields a recorded reply matches; each shape name is a
+  record of those fields in `readiness.fizz` (`SHAPES`), and the model's
+  `shortfalls` decides which records clear. Restating clearance in Python would
+  be a second implementation of the readiness policy, which the plan's
+  constraint forbids. The adapter's docstring overstated this ("decides
+  nothing") and the policy unit's understated it; both now say which side
+  decides what, and each shape name and request state the adapter can give has
+  its own control. Date/Author: 2026-11-21, implementing agent.
 
 ## Outcomes & retrospective
 

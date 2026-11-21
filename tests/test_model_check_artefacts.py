@@ -310,7 +310,7 @@ def test_an_artefact_that_cannot_be_written_is_an_error(
     result = modules.judge.ProcessResult(exit_code=0, stdout="", stderr="")
     missing = tmp_path / "missing"
     with pytest.raises(modules.suite.ModelCheckError, match="cannot write .*stdout.txt"):
-        modules.mc.record_artefacts(missing, result)
+        modules.mc.record_artefacts(modules.mc.RunDirectory(missing), result)
     with pytest.raises(modules.suite.ModelCheckError, match="cannot write .*report.json"):
         modules.report.write_report({}, missing)
 
@@ -374,13 +374,118 @@ def test_an_unreadable_checker_is_named_and_never_reinstalled(
         """Fail the test: an unreadable release must not be replaced."""
         raise AssertionError("the installer fetched over an unreadable release")
 
-    assert modules.mc.locate_checker(tmp_path, checker) == fizz
+    assert modules.mc.verify_checker(tmp_path, checker) == fizz
     fizz.chmod(0)
     try:
         with pytest.raises(modules.suite.ModelCheckError, match="cannot read the pinned checker file") as raised:
-            modules.mc.locate_checker(tmp_path, checker)
+            modules.mc.verify_checker(tmp_path, checker)
         assert not isinstance(raised.value, modules.mc.CheckerAbsentError)
         with pytest.raises(modules.suite.ModelCheckError, match="cannot read the pinned checker file .*fizz"):
             modules.mc.install_checker(tmp_path, checker, fetch)
     finally:
         fizz.chmod(0o700)
+
+
+class MemoryFiles:
+    """An in-memory run directory: what the launcher wrote, by file name."""
+
+    def __init__(self, path: Path, trace: tuple[str, ...] = ()) -> None:
+        """Hold no files yet, and the trace the doubled checker left."""
+        self.path = path
+        self.files: dict[str, str] = {}
+        self.created = False
+        self._trace = trace
+
+    def create(self) -> None:
+        """Record that the run's directory was made."""
+        self.created = True
+
+    def write(self, name: str, text: str) -> None:
+        """Keep one run file in memory."""
+        self.files[name] = text
+
+    def trace(self) -> tuple[str, ...]:
+        """Return the trace the doubled checker left."""
+        return self._trace
+
+
+def test_run_files_are_written_only_through_the_boundary(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """Inputs and artefacts go through ``RunFiles``; nothing touches the disk."""
+    run = make_run(
+        modules, "replayed", "scenario-trace",
+        options={"max_actions": 10, "max_concurrent_actions": 1, "crash_on_yield": False,
+                 "deadlock_detection": True, "liveness": "strict"},
+        scenario="SCENARIOS = []", trace=("Init", "Step"),
+    )
+    files = MemoryFiles(tmp_path / "never-made", trace=("Init", "Step"))
+    text, argv = modules.mc.prepare_inputs(run, "action Init:\n    n = 0\n", files)
+    result = modules.judge.ProcessResult(exit_code=0, stdout="out", stderr="err")
+    trace = modules.mc.record_artefacts(files, result)
+    assert files.created and not files.path.exists()
+    assert sorted(files.files) == [
+        "fizz.yaml", "replay.txt", "scenario.cfg", "spec.fizz", "stderr.txt", "stdout.txt", "trace.txt",
+    ]
+    assert (files.files["spec.fizz"], files.files["replay.txt"]) == (text, "Init\nStep\n")
+    assert argv[-1] == "spec.fizz" and "--trace-file" in argv
+    assert trace == ("Init", "Step") and files.files["trace.txt"] == "Init\nStep\n"
+
+
+def test_the_exit_status_follows_the_report(modules: types.SimpleNamespace) -> None:
+    """A failure exits one, a passing subset exits partial, a full pass exits zero."""
+    document = modules.report.gate_document(
+        make_suite(modules), [], selection=("routine", False), cost=(72.24, 4, 2048)
+    )
+    assert (document["wall_seconds"], document["jobs"], document["peak_child_rss_kib"]) == (72.2, 4, 2048)
+    status = modules.report.exit_status
+    assert status(document) == 1
+    assert status({"ok": True, "partial": True}) == modules.report.PARTIAL_STATUS == 3
+    assert status({"ok": True, "partial": False}) == 0
+
+
+def test_the_launcher_path_is_computed_without_reading(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """Where the launcher is needs no file; verifying it does."""
+    checker = replace(make_suite(modules).checker, root="release", files={"fizz": "0"})
+    assert modules.mc.checker_launcher(tmp_path, checker) == tmp_path.resolve() / "release" / "fizz"
+    with pytest.raises(modules.mc.CheckerAbsentError, match="is not installed"):
+        modules.mc.verify_checker(tmp_path, checker)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root writes into a read-only directory")
+def test_an_install_names_a_home_it_cannot_create(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """A checker home that cannot be created is a named error, not a crash."""
+    checker = replace(make_suite(modules).checker, root="release", files={"fizz": "0"})
+    parent = tmp_path / "locked"
+    parent.mkdir(mode=0o500)
+    try:
+        with pytest.raises(modules.suite.ModelCheckError, match="cannot create the checker home .*locked"):
+            modules.mc.install_checker(parent / "home", checker, lambda *_: None)
+    finally:
+        parent.chmod(0o700)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root removes from a read-only directory")
+def test_a_failed_install_keeps_its_error_when_cleanup_also_fails(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """The install's own error is reported, with the cleanup failure as a note."""
+    checker = replace(make_suite(modules).checker, root="release", files={"fizz": "0"})
+    home = tmp_path / "home"
+
+    def fetch(_url: str, destination: Path) -> None:
+        """Write an archive with the wrong digest, then lock its directory."""
+        destination.write_bytes(b"not the pinned archive")
+        destination.parent.chmod(0o500)
+
+    try:
+        with pytest.raises(modules.suite.ModelCheckError, match="has SHA-256") as raised:
+            modules.mc.install_checker(home, checker, fetch)
+    finally:
+        home.chmod(0o700)
+    notes = getattr(raised.value, "__notes__", [])
+    assert any("cannot remove the downloaded archive" in note for note in notes), notes

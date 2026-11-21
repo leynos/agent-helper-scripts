@@ -3,7 +3,11 @@
 The pr-babysitting skill decides, from the handoff it accepted and the
 candidate itself, whether the completeness and the proof assessment apply,
 and which proofs a proof reply must cover. That is readiness policy, and this
-module is its one statement. It takes facts, not text: no packet wording, no
+module is the one statement of that applicability rule. Which replies clear
+is also readiness policy, and it is stated only in the model:
+``readiness.fizz`` maps each reply shape to its fields and its
+``shortfalls`` decides which clear, so restating it here would make a second
+implementation. It takes facts, not text: no packet wording, no
 path, no GitHub or CodeScene type. ``tests/readiness_applicability.py`` is the
 adapter that extracts those facts from a recording.
 

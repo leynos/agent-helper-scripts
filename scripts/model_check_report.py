@@ -19,6 +19,10 @@ from model_check_suite import CLASSES, ModelCheckError, Suite
 if TYPE_CHECKING:
     from model_check import Outcome
 
+#: Exit status of a run that met every expectation but ran only a named
+#: subset, which is never a gate result.
+PARTIAL_STATUS = 3
+
 #: Summary headings, one per class. Expected counterexamples have their own,
 #: so a recorded limitation is never read as a passing assurance claim.
 _HEADINGS = {
@@ -156,3 +160,55 @@ def summarize(outcomes: Sequence[Outcome], *, partial: bool) -> str:
             lines.extend(line for outcome in group for line in _outcome_lines(outcome))
     lines.extend(_verdict_lines(outcomes, partial=partial))
     return "\n".join(lines)
+
+
+def gate_document(
+    suite: Suite,
+    outcomes: Sequence[Outcome],
+    *,
+    selection: tuple[str, bool],
+    cost: tuple[float, int, int],
+) -> dict:
+    """Return the report of one invocation with its cost recorded.
+
+    Parameters
+    ----------
+    suite : Suite
+        The suite that was run.
+    outcomes : sequence of Outcome
+        One judgement per executed run.
+    selection : tuple of (str, bool)
+        The tier selected, and whether only a named subset ran.
+    cost : tuple of (float, int, int)
+        Wall-clock seconds, the number of checker processes run at once, and
+        the peak resident memory of any one checker process, in KiB.
+
+    Returns
+    -------
+    dict
+        The report, with ``wall_seconds``, ``jobs`` and
+        ``peak_child_rss_kib`` added.
+    """
+    tier, partial = selection
+    wall_seconds, jobs, peak_child_rss_kib = cost
+    document = report(suite, outcomes, tier=tier, partial=partial)
+    document["wall_seconds"] = round(wall_seconds, 1)
+    document["jobs"] = jobs
+    # The high-water mark over every checker process the invocation waited
+    # for, which is the figure a runner's memory limit has to accommodate
+    # per process.
+    document["peak_child_rss_kib"] = peak_child_rss_kib
+    return document
+
+
+def exit_status(document: Mapping[str, object]) -> int:
+    """Return the exit status a report warrants.
+
+    A run that did not meet its expectation fails the invocation. A named
+    subset that met every expectation exits with ``PARTIAL_STATUS``, because
+    a subset is never a gate result. Only a full selection that met every
+    expectation exits zero.
+    """
+    if not document["ok"]:
+        return 1
+    return PARTIAL_STATUS if document["partial"] else 0

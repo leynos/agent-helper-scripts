@@ -125,7 +125,10 @@ These are assumptions of the model, not facts it establishes.
   apply: the accepted assignment states it. The rule that derives it from a
   recording's packet, diff and proof inventory is stated once, over facts, in
   `tests/readiness_policy.py`, with one control per rule. The model checks
-  readiness given that rule's answer and does not check the rule itself.
+  readiness given that rule's answer and does not check the rule itself. Which
+  replies clear is not an input: the snapshot adapter only names the reply
+  shape whose fields a recorded reply matches, and the model's `shortfalls`
+  decides which shapes clear.
 - **Atomic reads.** One API response is one step: a `gh pr view`, a check
   rollup, a paginated comment listing. A listing that changed between pages is
   not modelled.

@@ -21,6 +21,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -495,12 +496,12 @@ def test_a_missing_or_altered_checker_is_refused(
     a reader to expect.
     """
     suite = mc.load_suite(write_suite(tmp_path, ASSURANCE, checker=fake_release(tmp_path / "home", "true\n")))
-    assert mc.locate_checker(tmp_path / "home", suite.checker).name == "fizz"
+    assert mc.verify_checker(tmp_path / "home", suite.checker).name == "fizz"
     with pytest.raises(mc.ModelCheckError, match="is not installed.*`make fizzbee`"):
-        mc.locate_checker(tmp_path / "elsewhere", suite.checker)
+        mc.verify_checker(tmp_path / "elsewhere", suite.checker)
     (tmp_path / "home" / "release" / "fizz").write_text("#!/bin/bash\nfalse\n")
     with pytest.raises(mc.CheckerAbsentError, match="is not the pinned v-test.*`make fizzbee`"):
-        mc.locate_checker(tmp_path / "home", suite.checker)
+        mc.verify_checker(tmp_path / "home", suite.checker)
 
 
 @pytest.mark.slow
@@ -641,7 +642,7 @@ UNREADABLE_TRACE = (
             "true\n", 0, "cannot read the pinned checker file",
             marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads without permission"),
         ),
-        ("true\n", 0o600, "cannot start"),
+        ("true\n", 0o600, r"cannot start '/\S*/home/release/fizz': "),
     ],
     ids=["missing-checker", "unreadable-trace", "unreadable-checker", "unexecutable-checker"],
 )
@@ -659,7 +660,7 @@ def test_the_command_line_names_what_stopped_it(
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "model_check: error:" in result.stderr, result.stderr
-    assert diagnostic in result.stderr, result.stderr
+    assert re.search(diagnostic, result.stderr), result.stderr
     assert "Traceback" not in result.stderr, result.stderr
 
 
@@ -718,7 +719,7 @@ def test_a_relative_checker_home_is_resolved_once(
     pin = fake_release(tmp_path / "home", "true\n")
     suite = mc.load_suite(write_suite(tmp_path, ASSURANCE, checker=pin))
     monkeypatch.chdir(tmp_path)
-    fizz = mc.locate_checker(Path("home"), suite.checker)
+    fizz = mc.verify_checker(Path("home"), suite.checker)
     assert fizz.is_absolute() and fizz == tmp_path / "home" / "release" / "fizz"
 
 
@@ -770,7 +771,7 @@ def pinned_checker(mc: types.ModuleType) -> Path:
     """Return the real pinned launcher, skipping where it is not installed."""
     suite = mc.load_suite(SUITE_PATH)
     try:
-        return mc.locate_checker(CHECKER_HOME, suite.checker)
+        return mc.verify_checker(CHECKER_HOME, suite.checker)
     except mc.ModelCheckError as error:
         if os.environ.get("GITHUB_ACTIONS"):
             pytest.fail(f"the workflow installs FizzBee before the gates: {error}")
