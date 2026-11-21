@@ -49,7 +49,7 @@ expect = "pass"
 [[run]]
 id = "proof-only-without-execplan"
 class = "assurance"
-purpose = "A proof-only assignment with no ExecPlan clears on a proof verdict that covers both required proofs, with completeness recorded as a justified not-applicable and no revision to echo."
+purpose = "A proof-only assignment with no ExecPlan clears on a proof verdict that covers both required proofs, with the completeness and original-issue assessments recorded as justified not-applicables and no revision to echo."
 obligations = ["PRR-APPL-02", "PRR-APPL-04", "PRR-BIND-02", "PRR-PROG-01"]
 scenario = '''
 SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
@@ -72,11 +72,84 @@ expect = "pass"
 [[run]]
 id = "neither-assessment-applies"
 class = "assurance"
-purpose = "A PR that neither implements an ExecPlan nor touches a proof records both assessments as justified not-applicable and is not held in draft waiting for them."
+purpose = "A PR that neither implements an ExecPlan nor touches a proof nor delivers an issue records every inapplicable assessment as a justified not-applicable and is not held in draft waiting for them."
 obligations = ["PRR-APPL-02", "PRR-PROG-01"]
 scenario = '''
 SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
                       check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-derived-pr"
+class = "assurance"
+purpose = "An issue-derived ExecPlan implementation records the issue body, asks the original-issue question as well as the completeness one, and reaches verified readiness and an authorized merge only once both clear for the accepted candidate."
+obligations = ["PRR-APPL-06", "PRR-BIND-01", "PRR-ELIG-01", "PRR-REQ-01", "PRR-PROG-01", "PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True, has_issue_body=True,
+                      check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-replies-that-do-not-clear"
+class = "assurance"
+purpose = "Every original-issue reply short of a sound whole-issue verdict — a declared subset, another subject, another candidate, an excused assessment, an unclear verdict or an acknowledgement — and a comment by another author echoing the marker: none lets the PR leave draft."
+obligations = ["PRR-APPL-06", "PRR-APPL-01", "PRR-BIND-01", "PRR-BIND-03", "PRR-HON-01"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True,
+                      reply_shapes=("subset-clear", "other-subject",
+                                    "other-candidate", "not-applicable-claim",
+                                    "not-clear", "acknowledgement"),
+                      env_foreign=True, expect_ready="never",
+                      expect_merge="never")]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-verdicts-that-must-not-clear"
+class = "assurance"
+purpose = "A clear completeness verdict can coexist with an original-issue reply that is a declared subset, another subject, another candidate, an excused assessment, an unclear verdict or an acknowledgement; no such reply opens the gate, while readiness stays reachable through a sound whole-issue verdict."
+obligations = ["PRR-APPL-06", "PRR-BIND-01", "PRR-ELIG-01"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True,
+                      reply_shapes=("sound-clear", "subset-clear",
+                                    "other-subject", "other-candidate",
+                                    "not-applicable-claim", "not-clear",
+                                    "acknowledgement"))]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-plan-revision-changes-and-recovery"
+class = "assurance"
+purpose = "A newly approved plan revision with unchanged base/head renews the completeness question but not the original-issue one, whose verdict names no revision; the assignment still reaches its merge."
+obligations = ["PRR-APPL-06", "PRR-BIND-02", "PRR-LIFE-03", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True, change_budget=1, env_plan=True,
+                      expect_recovery="merged", expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-without-a-recorded-body"
+class = "assurance"
+purpose = "An issue-derived PR that records no issue body never leaves draft: the missing subject is a scope error, not a question to post."
+obligations = ["PRR-APPL-07", "PRR-APPL-05", "PRR-HON-06"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True, has_issue_body=False,
+                      expect_ready="never", expect_merge="never")]
+'''
+expect = "pass"
+
+[[run]]
+id = "issue-verdict-names-no-revision"
+class = "assurance"
+purpose = "An issue-derived ExecPlan assignment reaches readiness on a clear whole-issue verdict that names no plan revision: the issue question asks for no revision echo, so readiness never waits for one."
+obligations = ["PRR-APPL-06", "PRR-BIND-02", "PRR-ELIG-01"]
+scenario = '''
+SCENARIOS = [scenario(issue_derived=True, authority="ready-only",
+                      expect_merge="never")]
 '''
 expect = "pass"
 
@@ -289,14 +362,17 @@ expect = "pass"
 [[run]]
 id = "scope-errors-are-impasses"
 class = "assurance"
-purpose = "An applicable completeness assessment with no approved revision, an applicable proof assessment with an empty inventory, and an inapplicable assessment with no justification each end in a recorded impasse with the draft untouched."
-obligations = ["PRR-APPL-02", "PRR-APPL-05", "PRR-HON-06"]
+purpose = "An applicable completeness assessment with no approved revision, an applicable proof assessment with an empty inventory, an issue-derived PR with no recorded issue body, and an inapplicable assessment with no justification each end in a recorded impasse with the draft untouched."
+obligations = ["PRR-APPL-02", "PRR-APPL-05", "PRR-APPL-07", "PRR-HON-06"]
 scenario = '''
 SCENARIOS = [
     scenario(has_plan=False, expect_ready="never", expect_merge="never",
              expect_progress="impasse"),
     scenario(proof_applies=True, proofs=(), expect_ready="never",
              expect_merge="never", expect_progress="impasse"),
+    scenario(issue_derived=True, has_issue_body=False,
+             expect_ready="never", expect_merge="never",
+             expect_progress="impasse"),
     scenario(completeness_applies=False, has_plan=False, na_justified=False,
              expect_ready="never", expect_merge="never",
              expect_progress="impasse"),
@@ -357,8 +433,8 @@ expect = "pass"
 [[run]]
 id = "snapshot-regression-table"
 class = "assurance"
-purpose = "Every snapshot that differs from an all-clear one in at most one fact: each single shortfall holds the draft, and each all-clear assignment leaves it."
-obligations = ["PRR-ELIG-01", "PRR-APPL-01", "PRR-APPL-02", "PRR-APPL-03", "PRR-APPL-04", "PRR-APPL-05", "PRR-BIND-01", "PRR-BIND-02", "PRR-DELIV-01", "PRR-DELIV-02", "PRR-DELIV-03"]
+purpose = "Every single-fact shortfall and every all-clear assignment: each shortfall holds the draft, and each all-clear assignment leaves it."
+obligations = ["PRR-ELIG-01", "PRR-APPL-01", "PRR-APPL-02", "PRR-APPL-03", "PRR-APPL-04", "PRR-APPL-05", "PRR-APPL-06", "PRR-APPL-07", "PRR-BIND-01", "PRR-BIND-02", "PRR-DELIV-01", "PRR-DELIV-02", "PRR-DELIV-03"]
 scenario = '''
 SCENARIOS = [
     snapshot("s000", "draft"),
@@ -432,6 +508,23 @@ SCENARIOS = [
     snapshot("s068", "draft", has_plan=False, completeness="current:sound-clear"),
     snapshot("s069", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proof="current:sound-clear"),
     snapshot("s070", "draft", proof_applies=True, completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s071", "draft", issue_derived=True),
+    snapshot("s072", "draft", issue_derived=True, completeness="current:sound-clear"),
+    snapshot("s073", "draft", issue_derived=True, completeness="current:none", issue="current:sound-clear"),
+    snapshot("s074", "ready", issue_derived=True, completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s075", "draft", issue_derived=True, completeness="current:sound-clear", issue="current:subset-clear"),
+    snapshot("s076", "draft", issue_derived=True, completeness="current:sound-clear", issue="current:other-subject"),
+    snapshot("s077", "draft", issue_derived=True, completeness="current:sound-clear", issue="another-candidate:sound-clear"),
+    snapshot("s078", "draft", issue_derived=True, completeness="current:sound-clear", issue="current:not-applicable-claim"),
+    snapshot("s079", "draft", issue_derived=True, completeness="current:sound-clear", issue="current:not-clear"),
+    snapshot("s080", "draft", issue_derived=True, completeness="current:sound-clear", issue="current:acknowledgement"),
+    snapshot("s081", "draft", issue_derived=True, has_issue_body=False, completeness="current:sound-clear"),
+    snapshot("s082", "draft", issue_derived=True, ci="red", completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s083", "draft", issue_derived=True, hosted="findings", completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s084", "draft", issue_derived=True, local="findings", completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s085", "draft", issue_derived=True, na_justified=False, completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s086", "draft", issue_derived=True, proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", issue="current:sound-clear"),
+    snapshot("s087", "ready", issue_derived=True, proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:sound-clear", issue="current:sound-clear"),
 ]
 '''
 expect = "pass"
@@ -1020,7 +1113,7 @@ obligations = ["PRR-APPL-03", "PRR-STACK-01"]
 expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="subset-clear"'] }
 [[run.mutation]]
 old = '''
-    if kind == "completeness" and entry.subject != "whole":
+    if kind in ("completeness", "issue") and entry.subject != "whole":
         return False
 '''
 new = "\n"
@@ -1049,7 +1142,7 @@ obligations = ["PRR-BIND-02"]
 expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="no-revision-echo"'] }
 [[run.mutation]]
 old = '''
-    if obs.rev != None and entry.rev != obs.rev:
+    if kind != "issue" and obs.rev != None and entry.rev != obs.rev:
         return False
 '''
 new = "\n"
@@ -1081,6 +1174,88 @@ old = '''
         return False
 '''
 new = "\n"
+
+[[run]]
+id = "mutant-issue-subject-not-required"
+class = "negative-control"
+of = "issue-verdicts-that-must-not-clear"
+purpose = "Dropping the whole-issue subject rule lets a clear declared-subset issue verdict open the gate while the completeness verdict is sound."
+obligations = ["PRR-APPL-06"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="subset-clear"'] }
+[[run.mutation]]
+old = '''
+    if kind in ("completeness", "issue") and entry.subject != "whole":
+        return False
+'''
+new = '''
+    if kind == "completeness" and entry.subject != "whole":
+        return False
+'''
+
+[[run]]
+id = "mutant-issue-reply-exempts-itself"
+class = "negative-control"
+of = "issue-verdicts-that-must-not-clear"
+purpose = "Letting an original-issue reply's own not-applicable claim settle the assessment opens the gate on a self-exemption."
+obligations = ["PRR-APPL-06"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="not-applicable-claim"'] }
+[[run.mutation]]
+old = '''
+    if entry.verdict != "clear":
+        return False
+'''
+new = '''
+    if entry.verdict != "clear" and not (kind == "issue" and entry.verdict == "not-applicable"):
+        return False
+'''
+
+[[run]]
+id = "mutant-issue-without-body-proceeds"
+class = "negative-control"
+of = "issue-without-a-recorded-body"
+purpose = "Removing the missing-issue-body scope check lets the agent reach the posting step with an original-issue question whose subject was never recorded, where the delivery gate refuses it."
+obligations = ["PRR-APPL-07"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates" }
+[[run.mutation]]
+old = '''
+    if cfg.issue_derived and not cfg.has_issue_body:
+        return record(obs=seen, evals=evals, impasse="issue-subject-empty")
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-issue-verdict-bound-to-revision"
+class = "negative-control"
+of = "issue-verdict-names-no-revision"
+purpose = "Requiring the original-issue verdict to echo the plan revision, which the issue question never asks for, leaves every clear issue reply unusable, so readiness is unreachable."
+obligations = ["PRR-APPL-06", "PRR-BIND-02"]
+expect = { fail = "exists", assertion = "ReadyIsReachable" }
+[[run.mutation]]
+old = '''
+    if kind != "issue" and obs.rev != None and entry.rev != obs.rev:
+        return False
+'''
+new = '''
+    if obs.rev != None and entry.rev != obs.rev:
+        return False
+'''
+
+[[run]]
+id = "mutant-issue-question-names-the-revision"
+class = "negative-control"
+of = "issue-verdict-names-no-revision"
+purpose = "Making the original-issue question retain the observed plan revision posts an issue request whose identity names a revision the contract does not ask for, and the delivery gate refuses it."
+obligations = ["PRR-APPL-06", "PRR-REQ-01"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates" }
+[[run.mutation]]
+old = '''
+    if kind == "issue":
+        asked_rev = None
+'''
+new = '''
+    if kind == "issue":
+        asked_rev = rev
+'''
 
 [[run]]
 id = "mutant-pending-request-clears"
@@ -1133,7 +1308,7 @@ old = "and request.head == wanted.head and request.rev == wanted.rev"
 new = "and request.head == wanted.head"
 [[run.mutation]]
 old = '''
-    if obs.rev != None and entry.rev != obs.rev:
+    if kind != "issue" and obs.rev != None and entry.rev != obs.rev:
         return False
 '''
 new = "\n"

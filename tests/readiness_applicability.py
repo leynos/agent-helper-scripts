@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 
-from readiness_policy import ApplicabilityFacts, assessments_that_apply
+from readiness_policy import Applicability, ApplicabilityFacts, assessments_that_apply
 
 PROOF_INVENTORY = re.compile(r"^Proof inventory:[^\n]*", re.MULTILINE)
 
@@ -160,7 +160,11 @@ def packet_conditions_proof(packet: dict[str, str]) -> bool:
 
 
 def applicability_facts(
-    packet: dict[str, str], completeness_body: str, proof_changed: bool
+    packet: dict[str, str],
+    completeness_body: str,
+    proof_changed: bool,
+    *,
+    issue_derived: bool,
 ) -> ApplicabilityFacts:
     """Return the facts the applicability rule takes, read from a recording.
 
@@ -174,27 +178,41 @@ def applicability_facts(
         name an affected proof.
     proof_changed : bool
         Whether the candidate's own diff changes the recorded proof.
+    issue_derived : bool
+        Whether the accepted scope says the PR delivers a GitHub issue. The
+        packet carries no such field, so every caller states it explicitly;
+        a recording that predates the third gate passes False.
     """
     return ApplicabilityFacts(
         completeness_required=packet_requires_completeness(packet),
         proof_conditional=packet_conditions_proof(packet),
         proof_changed=proof_changed,
         inventory_names_a_proof=affects_a_proof(completeness_body),
+        issue_derived=issue_derived,
     )
 
 
 def applicability(
-    packet: dict[str, str], completeness_body: str, proof_changed: bool
-) -> tuple[bool, bool]:
-    """Return whether the two assessments apply, by the policy unit's rule.
+    packet: dict[str, str],
+    completeness_body: str,
+    proof_changed: bool,
+    *,
+    issue_derived: bool,
+) -> Applicability:
+    """Return whether the three assessments apply, by the policy unit's rule.
 
     The facts are extracted here and decided by
-    ``readiness_policy.assessments_that_apply``.
+    ``readiness_policy.assessments_that_apply``. The handoff packet states no
+    derivation, so the caller states it: the recorded scenarios pass False,
+    and the `issue-derived` model scenarios exercise the third assessment.
 
     Returns
     -------
-    tuple of (bool, bool)
-        Whether the completeness assessment applies, and whether the proof
-        assessment does.
+    Applicability
+        The model's three applicability inputs, one named field each.
     """
-    return assessments_that_apply(applicability_facts(packet, completeness_body, proof_changed))
+    return assessments_that_apply(
+        applicability_facts(
+            packet, completeness_body, proof_changed, issue_derived=issue_derived
+        )
+    )

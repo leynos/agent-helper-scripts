@@ -39,13 +39,15 @@ Full and incremental review requests, retries, and review-resume actions belong
 to `comenq-coderabbit`. Its dispatcher retains its own configured identity and
 cooldown policy; do not wrap it with a randomly selected manual-comment token.
 
-The completeness/correctness and proof-specific questions in
+The completeness/correctness, proof-specific, and original-issue questions in
 [ExecPlan assessments](execplan-assessment.md) are assessment conversations,
 not formal review requests. Each initial question and necessary candidate-bound
-follow-up uses this manual-token procedure after its prerequisites hold.
-Assessment conversations never go through `comenq`. Formal review requests and
-their recovery require verified readiness and `comenq-coderabbit`. Neither
-route authorizes duplicate requests or cooldown bypasses.
+follow-up uses this manual-token procedure after its prerequisites hold. The
+original-issue question applies to every PR derived from a GitHub issue and
+quotes the issue body, and the comments that fed the requirements, as its
+subject. Assessment conversations never go through `comenq`. Formal review
+requests and their recovery require verified readiness and `comenq-coderabbit`.
+Neither route authorizes duplicate requests or cooldown bypasses.
 
 Before a question is posted, capture its observation baseline. Afterwards,
 record its ID, URL, server timestamps, and candidate, then actively await the

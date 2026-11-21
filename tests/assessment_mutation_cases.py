@@ -17,10 +17,11 @@ LIMITATIONS_GUARD = "completeness request must restrict limitations to evidentia
 MILESTONE_OWNERSHIP = "completeness section must bind milestones to the ownership rule"
 LEDGER_VERDICT = "ledger section must state: A verdict of `clear`"
 LEDGER_CANDIDATE = "ledger section must state: on the same entry"
+LEDGER_ISSUE_BINDING = "ledger section must state: The original-issue assessment is bound to the base/head only"
 LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
 LEDGER_CLEARING = "ledger section must state: When the completeness assessment applies"
 LEDGER_STACK_PATH = "ledger section must state: A managed-stack layer that implements only its own milestones"
-LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
+LEDGER_STALE_REVISION = "ledger section must state: An ExecPlan-bound verdict recorded against a superseded plan revision"
 LEDGER_PROOF_READINESS = "ledger section must state: When the proof assessment applies"
 READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
 REQUEST_REVISION = "completeness request must identify the assessed plan revision"
@@ -28,7 +29,7 @@ ECHOED_REVISION = "completeness request must require the reply to echo the plan 
 BASE_HEAD_LIMIT = "completeness section must state why base/head alone cannot bind a verdict"
 READINESS_REVISION_RECONCILIATION = "readiness section must reconcile the echoed plan revision"
 LEDGER_ECHO_REVISION = "ledger section must state: reconcile the revision the substantive reply echoes"
-LEDGER_PROOF_REVISION = "ledger section must state: a proof request under an ExecPlan must also name and echo the revision"
+LEDGER_PROOF_REVISION = "ledger section must state: a proof assessment under an ExecPlan"
 LEDGER_NO_PLAN = "ledger section must state: without an ExecPlan, the base/head is the whole candidate"
 PROOF_REVISION = "proof request must name the plan revision when an ExecPlan applies"
 PROOF_ECHO_REVISION = "proof request must require the reply to echo the plan revision"
@@ -54,9 +55,15 @@ HANDOFF_DEFERS = (
     "handoff must defer the stack's clearing conditions to pr-babysitting"
     " instead of restating them"
 )
+ISSUE_BODY = "issue assessment must name the recorded issue body"
+ISSUE_NOT_APPLICABLE = "issue assessment must keep no not-applicable route"
+ISSUE_READINESS = "issue assessment must precede readiness"
+ISSUE_REQUEST = "issue request must carry the issue body template"
 
 COMPLETENESS_HEADING = "ExecPlan completeness and correctness"
 PROOF_HEADING = "Proof inventory and specific scrutiny"
+ISSUE_HEADING = "Original issue completeness and correctness"
+ISSUE_BODY_FIELD = "<issue body here>"
 
 LIMITATIONS_FIELD = (
     "Known limitations: <evidential limits only: checks not run, inspection not"
@@ -135,6 +142,12 @@ REQUEST_FENCE_MUTATIONS = (
         PROOF_ECHO_REVISION,
         id="moved-proof-echo-to-section-prose",
     ),
+    pytest.param(
+        ISSUE_HEADING,
+        ISSUE_BODY_FIELD,
+        ISSUE_REQUEST,
+        id="moved-issue-body-to-section-prose",
+    ),
 )
 
 @dataclass(frozen=True)
@@ -155,8 +168,8 @@ class Mutation:
 
 
 ASSESSMENT_MUTATIONS = (
-    Mutation("assessment", "Both applicable assessments must clear",
-             "Both applicable assessments need not clear",
+    Mutation("assessment", "Every applicable assessment must clear",
+             "Every applicable assessment need not clear",
              "applicable assessments must precede readiness",
              ident="inverted-readiness"),
     Mutation("assessment",
@@ -172,7 +185,7 @@ ASSESSMENT_MUTATIONS = (
              "assessment follow-ups must not enter the review queue",
              ident="queued-assessment"),
     Mutation("assessment",
-             "Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition.",
+             "Every applicable assessment must clear for the accepted candidate before its draft-to-ready transition.",
              "", "applicable assessments must precede readiness", move=True,
              ident="moved-readiness"),
     Mutation("skill", "all applicable pre-readiness assessments hold",
@@ -184,7 +197,7 @@ ASSESSMENT_MUTATIONS = (
              "", "parent must preserve ready state and merge blocker",
              move=True, ident="moved-parent-preservation"),
     Mutation("skill",
-             "7. Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.",
+             "7. Applicable ExecPlan completeness/correctness, proof-specific, and original-issue assessments cover the accepted candidate, with no unresolved substantive concern.",
              "", "merge checklist must require candidate-bound assessments",
              move=True, ident="moved-merge-guard"),
     Mutation("assessment",
@@ -217,9 +230,13 @@ ASSESSMENT_MUTATIONS = (
              "a declared-subset verdict clears the gate", LEDGER_SUBJECT,
              ident="declared-subset-may-clear-ledger"),
     Mutation("skill",
-             "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+             "An ExecPlan-bound verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
              "", LEDGER_STALE_REVISION,
              ident="ledger-accepts-superseded-plan-revision"),
+    Mutation("skill",
+             "The original-issue assessment is bound to the base/head only and names no plan revision, so a plan-revision change does not renew it while a changed base/head does.",
+             "Every verdict is bound to the plan revision in force.",
+             LEDGER_ISSUE_BINDING, ident="issue-verdict-bound-to-plan-revision"),
     Mutation("assessment",
              "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged.",
              "", READINESS_STALE_REVISION,
@@ -277,7 +294,7 @@ ASSESSMENT_MUTATIONS = (
              "", PROOF_NO_PLAN_CASE, move=True,
              ident="moved-proof-no-plan-case"),
     Mutation("skill",
-             "so a proof request under an ExecPlan must also name and echo the revision;",
+             "and to a proof assessment under an ExecPlan;",
              "", LEDGER_PROOF_REVISION,
              ident="ledger-proof-request-omits-revision"),
     Mutation("skill",
@@ -322,4 +339,16 @@ ASSESSMENT_MUTATIONS = (
              "A managed-stack layer may record a declared-subset verdict as evidence for that layer's actual scope only",
              "", REQUEST_SUBSET_EVIDENCE, move=True,
              ident="moved-subset-evidence-rule"),
+    Mutation("assessment",
+             "An issue-derived PR must record the original issue body it was assessed against; without it there is no question to ask.",
+             "", ISSUE_BODY, ident="issue-body-requirement-dropped"),
+    Mutation("assessment",
+             "An issue-derived PR cannot record the original-issue assessment as not applicable.",
+             "An issue-derived PR may record the original-issue assessment as not applicable.",
+             ISSUE_NOT_APPLICABLE, ident="issue-assessment-may-be-excused"),
+    Mutation("assessment",
+             "For an issue-derived PR, readiness also requires a clear original-issue completeness and correctness verdict for the same base/head;",
+             "", ISSUE_READINESS, ident="issue-readiness-dropped"),
+    Mutation("assessment", ISSUE_BODY_FIELD, "", ISSUE_REQUEST,
+             ident="issue-request-omits-body"),
 )

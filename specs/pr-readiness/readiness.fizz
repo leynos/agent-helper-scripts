@@ -16,7 +16,7 @@
 # environment can act between any two agent steps. Nothing gives the agent
 # knowledge of a change it has not read.
 
-KINDS = ("completeness", "proof")
+KINDS = ("completeness", "proof", "issue")
 TERMINAL = ("done", "impasse")
 
 # Each reply shape is what the assessment service may say about one request.
@@ -42,6 +42,8 @@ SHAPES = {
 def scenario(
     completeness_applies=True,
     proof_applies=False,
+    issue_derived=False,
+    has_issue_body=True,
     has_plan=True,
     na_justified=True,
     proofs=(),
@@ -77,6 +79,7 @@ def scenario(
     """Return one accepted assignment with its environment and expectations."""
     return record(
         completeness_applies=completeness_applies, proof_applies=proof_applies,
+        issue_derived=issue_derived, has_issue_body=has_issue_body,
         has_plan=has_plan, na_justified=na_justified, proofs=proofs,
         wider_proofs=wider_proofs, authority=authority, whole_plan=whole_plan,
         change_budget=change_budget, env_head=env_head, env_base=env_base,
@@ -104,23 +107,47 @@ def applies(cfg, kind):
     """Applicability comes from the accepted assignment, never from a reply.
 
     The rule that derives it from recorded facts is
-    tests/readiness_policy.py; this model takes its answer as input.
+    tests/readiness_policy.py; this model takes its answer as input. The
+    original-issue assessment is applicable exactly when the PR is derived
+    from an issue, so it cannot be waived by omitting a flag or by a reply.
     """
     if kind == "completeness":
         return cfg.completeness_applies
-    return cfg.proof_applies
+    if kind == "proof":
+        return cfg.proof_applies
+    return cfg.issue_derived
+
+
+def required(cfg, kind):
+    """Restate applicability for the properties, not for the agent.
+
+    The properties compare the recorded evidence with the contract, so they
+    must not call the guard the agent decides with: a defective guard would
+    then move its own oracle.
+    """
+    if kind == "completeness":
+        return cfg.completeness_applies
+    if kind == "proof":
+        return cfg.proof_applies
+    return cfg.issue_derived
 
 
 def question(kind, base, head, rev, proofs):
     """Return the semantic identity of one assessment question.
 
-    The proof inventory belongs only to the proof question; the plan revision
-    belongs to both whenever an ExecPlan applies.
+    The proof inventory belongs only to the proof question. The plan revision
+    belongs to the completeness and proof questions whenever an ExecPlan
+    applies. The original-issue question names neither: its subject is the
+    issue text, and it is bound to the base/head alone, so a newly approved
+    revision does not make it a different question.
     """
+    asked_rev = rev
     asked = ()
+    if kind == "issue":
+        asked_rev = None
     if kind == "proof":
         asked = proofs
-    return record(kind=kind, base=base, head=head, rev=rev, proofs=asked)
+    return record(kind=kind, base=base, head=head, rev=asked_rev, proofs=asked)
 
 
 def same_question(request, wanted):
@@ -167,9 +194,10 @@ def shape_allowed(cfg, request, shape_name):
     part of an undivided plan cannot truthfully be given a whole-plan verdict.
     Proof-only shapes are meaningless for a completeness question.
     """
-    if request.kind == "completeness":
+    if request.kind in ("completeness", "issue"):
         if shape_name in ("partial-proofs", "no-proofs"):
             return False
+    if request.kind == "completeness":
         if shape_name == "sound-clear" and not cfg.whole_plan:
             return False
     if request.kind == "proof":
@@ -227,6 +255,8 @@ def snapshot(
     expect,
     completeness_applies=True,
     proof_applies=False,
+    issue_derived=False,
+    has_issue_body=True,
     has_plan=True,
     na_justified=True,
     proofs=(),
@@ -234,7 +264,8 @@ def snapshot(
     hosted="clear",
     local="clear",
     completeness="none",
-    proof="none"):
+    proof="none",
+    issue="none"):
     """Return one frozen snapshot as a scenario.
 
     Nothing changes and the service says nothing more: the thread holds
@@ -245,7 +276,8 @@ def snapshot(
     """
     requests = []
     replies = []
-    for kind, spec in (("completeness", completeness), ("proof", proof)):
+    for kind, spec in (("completeness", completeness), ("proof", proof),
+                       ("issue", issue)):
         thread = seeded_thread(kind, spec, has_plan, proofs)
         if thread != None:
             if thread.reply != None:
@@ -253,7 +285,8 @@ def snapshot(
             requests.append(thread.request)
     return scenario(
         name=name, completeness_applies=completeness_applies,
-        proof_applies=proof_applies, has_plan=has_plan,
+        proof_applies=proof_applies, issue_derived=issue_derived,
+        has_issue_body=has_issue_body, has_plan=has_plan,
         na_justified=na_justified, proofs=proofs, authority="ready-only",
         reply_shapes=(), ci_outcomes=(ci,), hosted_outcomes=(hosted,),
         local_outcomes=("clear",) if local == "unavailable" else (local,),
@@ -416,16 +449,18 @@ def plan_step(cfg, obs, seen_rev, seen_proofs, evals):
     """Fold the plan read into the observation and settle applicability.
 
     An applicable completeness assessment with no approved revision, an
-    applicable proof assessment with no inventory, and an inapplicable
-    assessment with no justification are scope errors: explicit impasses,
-    not assessments to read as clear.
+    applicable proof assessment with no inventory, an issue-derived PR with no
+    recorded issue body, and an inapplicable assessment with no justification
+    are scope errors: explicit impasses, not assessments to read as clear.
     """
     seen = record(base=obs.base, head=obs.head, draft=obs.draft, rev=seen_rev, proofs=seen_proofs)
     if cfg.completeness_applies and not cfg.has_plan:
         return record(obs=seen, evals=evals, impasse="completeness-without-approved-revision")
     if cfg.proof_applies and len(seen_proofs) == 0:
         return record(obs=seen, evals=evals, impasse="proof-inventory-empty")
-    if not cfg.na_justified and not (cfg.completeness_applies and cfg.proof_applies):
+    if cfg.issue_derived and not cfg.has_issue_body:
+        return record(obs=seen, evals=evals, impasse="issue-subject-empty")
+    if not cfg.na_justified and not (cfg.completeness_applies and cfg.proof_applies and cfg.issue_derived):
         return record(obs=seen, evals=evals, impasse="not-applicable-undefended")
     recorded = dict(evals)
     for kind in KINDS:
@@ -485,7 +520,13 @@ def read_replies(cfg, cur, requests, replies, evals):
 
 
 def assessment_clears(cfg, kind, entry, marker, obs):
-    """The agent's guard for one assessment, in the documented order."""
+    """The agent's guard for one assessment, in the documented order.
+
+    The original-issue verdict is bound to the recorded issue text and the
+    base/head. It names no plan revision, so the revision echo is not asked of
+    it even when an ExecPlan governs the PR; its subject must still be the
+    whole issue.
+    """
     if not applies(cfg, kind):
         return entry != None and entry.status == "not-applicable"
     if entry == None or entry.status != "reply":
@@ -496,9 +537,9 @@ def assessment_clears(cfg, kind, entry, marker, obs):
         return False
     if entry.base != obs.base or entry.head != obs.head:
         return False
-    if obs.rev != None and entry.rev != obs.rev:
+    if kind != "issue" and obs.rev != None and entry.rev != obs.rev:
         return False
-    if kind == "completeness" and entry.subject != "whole":
+    if kind in ("completeness", "issue") and entry.subject != "whole":
         return False
     if kind == "proof" and not covers(obs.proofs, entry.proofs):
         return False
@@ -658,7 +699,9 @@ def shortfalls(cfg, ident, checks, local, evals):
     """List every reason the evidence does not clear `ident` to leave draft.
 
     `ident` is the candidate under judgement: base, head, plan revision when
-    an ExecPlan applies, and required proof inventory.
+    an ExecPlan applies, and required proof inventory. The original-issue
+    assessment is judged against the base/head and its subject alone; the
+    revision in `ident` is not part of its identity.
     """
     found = []
     if checks == None:
@@ -679,7 +722,7 @@ def shortfalls(cfg, ident, checks, local, evals):
             found.append("local-codescene-" + local.value)
     for kind in KINDS:
         entry = evals.get(kind)
-        wanted = (kind == "completeness" and cfg.completeness_applies) or (kind == "proof" and cfg.proof_applies)
+        wanted = required(cfg, kind)
         if not wanted:
             if entry == None or entry.status != "not-applicable" or not cfg.na_justified:
                 found.append(kind + "-not-applicable-unrecorded")
@@ -688,6 +731,8 @@ def shortfalls(cfg, ident, checks, local, evals):
             found.append("completeness-without-approved-revision")
         if kind == "proof" and len(ident.proofs) == 0:
             found.append("proof-inventory-empty")
+        if kind == "issue" and not cfg.has_issue_body:
+            found.append("issue-subject-empty")
         if entry == None:
             found.append(kind + "-unasked")
             continue
@@ -702,7 +747,7 @@ def shortfalls(cfg, ident, checks, local, evals):
             found.append(kind + "-answer-to-another-kind")
         if asked.base != ident.base or asked.head != ident.head:
             found.append(kind + "-request-for-another-candidate")
-        if asked.rev != ident.rev:
+        if kind != "issue" and asked.rev != ident.rev:
             found.append(kind + "-request-for-another-revision")
         if kind == "proof" and asked.proofs != ident.proofs:
             found.append(kind + "-request-for-another-inventory")
@@ -712,10 +757,10 @@ def shortfalls(cfg, ident, checks, local, evals):
             found.append(kind + "-" + entry.verdict)
         if entry.base != ident.base or entry.head != ident.head:
             found.append(kind + "-verdict-for-another-candidate")
-        if ident.rev != None and entry.rev != ident.rev:
+        if kind != "issue" and ident.rev != None and entry.rev != ident.rev:
             found.append(kind + "-revision-not-echoed")
-        if kind == "completeness" and entry.subject != "whole":
-            found.append("completeness-subject-" + entry.subject)
+        if kind in ("completeness", "issue") and entry.subject != "whole":
+            found.append(kind + "-subject-" + entry.subject)
         if kind == "proof":
             for proof in ident.proofs:
                 if proof not in entry.proofs:
@@ -788,8 +833,7 @@ def reads_are_fresh(state, cfg):
     if seen.replies_seen != state.fresh:
         return False
     for kind in KINDS:
-        wanted = (kind == "completeness" and cfg.completeness_applies) or (kind == "proof" and cfg.proof_applies)
-        if not wanted:
+        if not required(cfg, kind):
             continue
         read = state.fresh.get(kind)
         entry = state.l_eval.get(kind)
@@ -849,12 +893,28 @@ transition assertion RequestNeedsDeliveryGates(before, after):
     seen = before.obs
     if seen == None or before.l_checks == None or before.l_local == None:
         return False
-    if posted.kind == "completeness" and not cfg.completeness_applies:
+    if not required(cfg, posted.kind):
         return False
-    if posted.kind == "proof" and (not cfg.proof_applies or len(posted.proofs) == 0):
+    if posted.kind == "proof" and len(posted.proofs) == 0:
         return False
-    if posted.base != seen.base or posted.head != seen.head or posted.rev != seen.rev:
+    if posted.kind == "issue" and not cfg.has_issue_body:
         return False
+    if posted.base != seen.base or posted.head != seen.head:
+        return False
+    # The request identity is compared with the contract directly, not with
+    # the same helper the agent asks with: a defective helper must not move
+    # the property that is supposed to catch it.
+    if posted.kind == "issue":
+        if posted.rev != None or len(posted.proofs) != 0:
+            return False
+    else:
+        if posted.rev != seen.rev:
+            return False
+        if posted.kind == "proof":
+            if posted.proofs != seen.proofs:
+                return False
+        elif len(posted.proofs) != 0:
+            return False
     return (before.l_checks.base == seen.base and before.l_checks.head == seen.head
             and before.l_checks.ci == "green" and before.l_checks.hosted == "clear"
             and before.l_local.base == seen.base
@@ -886,7 +946,7 @@ transition assertion EvidenceIsWhatWasRead(before, after):
         if entry == None or entry == before.l_eval.get(kind):
             continue
         if entry.status == "not-applicable":
-            if (kind == "completeness" and cfg.completeness_applies) or (kind == "proof" and cfg.proof_applies):
+            if required(cfg, kind):
                 return False
             continue
         if entry.marker >= len(before.requests) or before.requests[entry.marker] != entry.asked:
@@ -1039,7 +1099,7 @@ exists assertion MergeIsReachable:
 # asked again for the candidate that then reached its outcome.
 exists assertion RecoveryIsReachable:
     cfg = SCENARIOS[sc]
-    asked = (1 if cfg.completeness_applies else 0) + (1 if cfg.proof_applies else 0)
+    asked = len([kind for kind in KINDS if required(cfg, kind)])
     if cfg.expect_recovery == "merged":
         return changes >= 1 and merged and len(requests) > asked
     if cfg.expect_recovery == "ready":
@@ -1063,7 +1123,7 @@ exists assertion ReentryConsumesDelayedReply:
     cfg = SCENARIOS[sc]
     if cfg.expect_reentry != "reachable":
         return True
-    asked = (1 if cfg.completeness_applies else 0) + (1 if cfg.proof_applies else 0)
+    asked = len([kind for kind in KINDS if required(cfg, kind)])
     return interrupted_while_waiting and not draft and len(requests) == asked
 
 # PRR-PROG-01: conditional progress. The conditions are the configuration's

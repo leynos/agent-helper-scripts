@@ -1,4 +1,4 @@
-# ExecPlan implementation and proof assessments
+# Implementation, proof, and original-issue assessments
 
 ## Applicability and ownership
 
@@ -7,7 +7,14 @@ approved ExecPlan, including a handoff from `sdlc-implementation`. A PR that
 only authors a plan does not become an implementation assignment because it
 contains an ExecPlan file. Establish applicability from accepted scope. Apply
 the proof assessment whenever implementation introduces or materially changes a
-proof, including outside an ExecPlan assignment.
+proof, including outside an ExecPlan assignment. Apply the original-issue
+assessment whenever the PR is derived from a GitHub issue, including a PR that
+also implements an ExecPlan or introduces proofs.
+
+The original-issue assessment's subject is the issue body and every issue
+comment that fed the PR's requirements. An issue-derived PR has no
+`not applicable` route for it: the issue is why the PR exists, so the
+comparison is always required.
 
 Accept a red or draft PR. Use the parent skill's CI repair, findings,
 publication, and review-response loop; do not send it back merely to obtain
@@ -16,7 +23,7 @@ inventory, acceptance mapping, and associated roadmap status synchronized with
 repairs. Missing milestones remain implementation work, not a waived acceptance
 criterion. Request bounded repairs within the existing authority.
 
-Before requesting either assessment, require passing applicable deterministic
+Before requesting any assessment, require passing applicable deterministic
 correctness and quality gates, including verification obligations, for the
 published candidate. Verify remote parity and record its base/head, plan
 revision, proof inventory, and inspection scope in the shared delivery ledger.
@@ -104,6 +111,58 @@ remaining above it. The whole-plan verdict remains required before any layer's
 transition, and the stack does not count as delivered until the layer carrying
 the plan's remainder obtains one.
 
+## Original issue completeness and correctness
+
+For a PR derived from a GitHub issue, ask CodeRabbit to validate the
+implementation against the original issue, including any issue comments that
+fed the PR's requirements. A PR is issue-derived when its accepted scope says
+it delivers the issue, whether it also implements an ExecPlan or changes proofs.
+
+Post this request as its own top-level issue comment, preserving the opening
+and substituting the issue body. Quote the issue text rather than linking it
+alone, so the assessed subject is the text the reply answers about. Append the
+candidate binding used by the other assessments and identify every issue
+comment that fed the requirements; do not post unresolved placeholders:
+
+<!-- markdownlint-disable MD013 -->
+
+```text
+@coderabbitai please assess the implementation in this PR for completeness and correctness against the original issue:
+
+~~~
+<issue body here>
+~~~
+
+Published head: <full head SHA>; comparison base: <full base SHA>.
+Original issue: <issue URL>. Incorporated comments: <each incorporated comment's URL and quoted text, or "none fed the requirements">.
+Assessment-ID: <unique request marker>.
+
+Please echo the Assessment-ID, the assessed base/head, and the issue text you assessed in your substantive reply.
+This is an assessment conversation, not a request to start a formal PR review.
+
+Identify remaining in-scope omissions or correctness defects against the issue and its incorporated comments, and any access or inspection limitations. Assess the implementation, not just the issue text.
+```
+
+<!-- markdownlint-enable MD013 -->
+
+Require a substantive answer that addresses the implementation, the issue body,
+and the incorporated comments, with no remaining in-scope rework. An
+acknowledgement, silence, generic approval, or missing inspection does not
+clear the assessment. A reply that answers only the issue body while ignoring
+incorporated comments has not assessed the whole subject. Repair valid
+findings, validate and push them, then await confirmation on the affected
+assessment. Genuine follow-up actions, later rollout tasks, future milestones,
+or separately planned work are out of scope; record that boundary and reference
+an existing follow-up where available, exactly as section 6 of the parent skill
+requires.
+
+An issue-derived PR must record the original issue body it was assessed
+against; without it there is no question to ask. For an issue-derived PR,
+readiness also requires a clear original-issue completeness and correctness
+verdict for the same base/head; a clear ExecPlan or proof verdict alone does
+not satisfy the gate. An issue-derived PR cannot record the original-issue
+assessment as not applicable.
+
 ## Proof inventory and specific scrutiny
 
 Cover introduced CrossHair, Kani, Verus, LemmaScript, and comparable proofs,
@@ -164,13 +223,15 @@ as its whole candidate and asks for no revision echo.
 
 ## Readiness and later changes
 
-The parent skill owns readiness. Both applicable assessments must clear for the
-accepted candidate before its draft-to-ready transition. Reconcile the actual
-substantive issue-comment responses, including edited-in-place replies. A
-response that says the implementation is substantially complete but names
-remaining in-scope defects has not cleared the gate. Fix, validate, push, and
-await confirmation of the affected assessment. Never interpret a posted
-request, green formal-review check, or queue receipt as completion.
+The parent skill owns readiness. Every applicable assessment must clear for the
+accepted candidate before its draft-to-ready transition. That includes the
+original-issue assessment of an issue-derived PR, which has no `not applicable`
+route. Reconcile the actual substantive issue-comment responses, including
+edited-in-place replies. A response that says the implementation is
+substantially complete but names remaining in-scope defects has not cleared the
+gate. Fix, validate, push, and await confirmation of the affected assessment.
+Never interpret a posted request, green formal-review check, or queue receipt
+as completion.
 
 A plan delivered as a managed stack has more than one layer in flight. There is
 no subset or plateau waiver: a lower layer that implements only its own
@@ -207,20 +268,23 @@ a later stage, not the mechanism for obtaining the pre-ready assessment.
 
 An already-ready PR stays ready; obtain missing assessments before merge.
 Subsequent repairs, proof changes, rebases, or retargeting require renewed
-candidate-bound evidence and affected assessment coverage. The plan revision is
-part of that candidate: a verdict recorded against a revision that has since
-been superseded by a newly approved revision does not clear the gate, even when
-the base/head is unchanged. Reassess against the approved revision in force.
-Reconcile the revision a reply echoes with the revision in force; a reply that
-echoes only the base/head does not establish which revision was inspected. An
-applicable completeness assessment is bound to an approved plan revision. An
-assignment that requires one while recording no approved revision is a scope
-error to repair, not an assessment to read as clear on its base/head alone. A
-proof-only assignment with no ExecPlan is unaffected, because its completeness
-assessment is recorded as not applicable and its proof verdict is bound to the
-base/head, which is that candidate's whole identity. Preserve earlier evidence
-for its actual scope without relabelling it as a new review. Do not set the PR
-back to draft. If the assessment service explicitly cannot process the
-question, retain its response and report the specific blocker rather than
+candidate-bound evidence and affected assessment coverage. For an
+ExecPlan-bound assessment, the plan revision is part of that candidate: a
+verdict recorded against a revision that has since been superseded by a newly
+approved revision does not clear the gate, even when the base/head is
+unchanged. Reassess against the approved revision in force. Reconcile the
+revision a reply echoes with the revision in force; a reply that echoes only
+the base/head does not establish which revision was inspected. An applicable
+completeness assessment is bound to an approved plan revision. An assignment
+that requires one while recording no approved revision is a scope error to
+repair, not an assessment to read as clear on its base/head alone. A proof-only
+assignment with no ExecPlan is unaffected, because its completeness assessment
+is recorded as not applicable and its proof verdict is bound to the base/head,
+which is that candidate's whole identity. The original-issue assessment is
+bound to the base/head only and names no plan revision, so a newly approved
+revision does not renew it while a changed base/head does. Preserve earlier
+evidence for its actual scope without relabelling it as a new review. Do not
+set the PR back to draft. If the assessment service explicitly cannot process
+the question, retain its response and report the specific blocker rather than
 inferring failure from automatic draft-review policy. Do not bypass the gate.
 Generic approval cannot discharge missing proof scrutiny.

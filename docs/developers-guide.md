@@ -821,15 +821,20 @@ on it.
 The assessment questions are bound to what they are about, so a verdict cannot
 be reused for a question nobody asked. A completeness verdict clears the gate
 only when it covers the **whole approved plan**: a declared-subset verdict is
-evidence for its own scope and never a readiness waiver. Every verdict must
-also be bound to the current candidate and to the plan revision in force, so a
-reply that echoes an earlier head or an earlier revision is stale rather than
-clear. An applicable completeness assessment therefore needs an approved
-revision to bind to; a candidate that records none is refused as a scope error
-rather than cleared on its base/head. A managed stack gets no exception — a
-lower layer stays in draft until a whole-plan verdict covers its candidate,
-which leaves a stack cut from one undivided plan with no delivery path; that
-constraint is documented rather than worked around. See the
+evidence for its own scope and never a readiness waiver. An original-issue
+verdict clears the gate only when it answers the recorded issue body and the
+issue comments that fed the requirements, and an issue-derived candidate with
+no issue text or no issue verdict is refused rather than cleared on its other
+assessments. Every verdict must also be bound to the current candidate and to
+the plan revision in force, so a reply that echoes an earlier head or an
+earlier revision is stale rather than clear. The original-issue assessment
+names no plan revision, so that binding does not apply to it. An applicable
+completeness assessment therefore needs an approved revision to bind to; a
+candidate that records none is refused as a scope error rather than cleared on
+its base/head. A managed stack gets no exception — a lower layer stays in draft
+until a whole-plan verdict covers its candidate, which leaves a stack cut from
+one undivided plan with no delivery path; that constraint is documented rather
+than worked around. See the
 [readiness and assessment contract](../skills/pr-babysitting/references/execplan-assessment.md)
 for the normative rules; this guide covers only how they are represented and
 tested.
@@ -840,6 +845,7 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
+`tests/test_pr_babysitting_issue_assessment.py`,
 `tests/test_pr_babysitting_error_model.py`,
 `tests/test_readiness_handoff_boundary.py`, and
 `tests/test_sdlc_milestone_review.py`; the behavioural obligations of the
@@ -877,14 +883,23 @@ share, and each takes and returns plain strings without touching the filesystem:
   itself is the subject.
 
 `tests/assessment_mutation_cases.py` keeps the mutation table as data.
-`tests/pr_babysitting_error_model.py` restates the two error dispositions the
-skill states: a red hosted run is rebased before diagnosis only when the same
-commit gates pass locally and the branch is behind its target, and a newer lint
-suite's out-of-scope violations become a prerequisite fix PR, or a new base of
-a managed stack, rather than feature repairs. An existing fix PR is reused only
-as a base branch, because a PR belongs to one stack; only a newly created fix
-PR becomes a stack layer. Its contract test keeps every decision and constraint
-cited by the shipped skill, and proves each input changes the result.
+`tests/pr_babysitting_assessment_contract.py` owns
+`assessment_contract(assessment, skill)` and the `LEDGER_REQUIREMENTS` constant;
+`tests/test_pr_babysitting_examples.py` imports the function rather than
+defining it. `tests/pr_babysitting_issue_contract.py` owns
+`issue_assessment_contract(assessment, skill)` and `ISSUE_REQUEST_FIELDS`, and
+checks the original-issue assessment's section, request fields, readiness
+wording and merge-checklist wording.
+`tests/test_pr_babysitting_issue_assessment.py` applies those guards to the
+shipped documents. `tests/pr_babysitting_error_model.py` restates the two error
+dispositions the skill states: a red hosted run is rebased before diagnosis
+only when the same commit gates pass locally and the branch is behind its
+target, and a newer lint suite's out-of-scope violations become a prerequisite
+fix PR, or a new base of a managed stack, rather than feature repairs. An
+existing fix PR is reused only as a base branch, because a PR belongs to one
+stack; only a newly created fix PR becomes a stack layer. Its contract test
+keeps every decision and constraint cited by the shipped skill, and proves each
+input changes the result.
 
 ### PR-readiness behavioural specification
 
@@ -999,10 +1014,11 @@ handoff test's adapter has two named seams and one policy unit.
 reply shape. `tests/readiness_applicability.py` extracts, from the packet, the
 diff and the proof inventory, the facts that decide which assessments apply.
 `tests/readiness_policy.py` states that applicability rule once, over those
-facts; its answer is the model's two applicability inputs, which the model
-takes from the accepted assignment rather than deriving. Each rule and each
-extraction has a control in `tests/test_readiness_applicability.py`. None of
-them decides readiness: the model checker does, given those inputs.
+facts plus the accepted scope's derivation; its answers are the model's three
+applicability inputs, which the model takes from the accepted assignment rather
+than deriving. Each rule and each extraction has a control in
+`tests/test_readiness_applicability.py`. None of them decides readiness: the
+model checker does, given those inputs.
 
 The snapshot tables in the suite carry the answers the retired Python decision
 model gave for 215 bounded snapshots when the two were compared at migration;

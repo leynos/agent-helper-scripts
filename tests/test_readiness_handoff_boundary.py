@@ -409,13 +409,6 @@ def bounds_of(scenario: str, served: Staged) -> Bounds:
     return Bounds(str(served.pr["baseRefOid"]), head, revision.group(1), required)
 
 
-def applicability(served: Staged, packet: dict[str, str]) -> tuple[bool, bool]:
-    """Return whether the two assessments apply to a staged recording.
-
-    The rule is the policy unit's, in ``readiness_policy``; the adapter in
-    ``readiness_applicability`` extracts the facts it takes from the stand-in.
-    """
-    return applicability_of(packet, served.body, served.proof_changed())
 
 
 def checks(pr: dict) -> dict[str, str]:
@@ -496,10 +489,13 @@ def observe(
     """
     reads = staged(scenario, tmp_path, served)
     bounds = bounds_of(scenario, reads)
-    completeness_applies, proof_applies = applicability(reads, packet)
+    # The packet states no derivation, so a recording predates the third gate.
+    decision = applicability_of(
+        packet, reads.body, reads.proof_changed(), issue_derived=False
+    )
     threads = {
-        COMPLETENESS: (completeness_applies, reads.completeness),
-        PROOF: (proof_applies, reads.proof),
+        COMPLETENESS: (decision.completeness, reads.completeness),
+        PROOF: (decision.proof, reads.proof),
     }
     held = {
         kind: thread_state(kind, reads.listing, request, bounds) if applies else "none"
@@ -512,9 +508,10 @@ def observe(
     return {
         **SNAPSHOT_DEFAULTS,
         **delivery(reads),
-        "completeness_applies": completeness_applies,
-        "proof_applies": proof_applies,
-        "proofs": stand_ins if proof_applies else (),
+        "completeness_applies": decision.completeness,
+        "proof_applies": decision.proof,
+        "issue_derived": decision.original_issue,
+        "proofs": stand_ins if decision.proof else (),
         "completeness": held[COMPLETENESS],
         "proof": held[PROOF],
     }

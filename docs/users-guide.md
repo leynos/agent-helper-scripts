@@ -743,14 +743,17 @@ monitoring-only scrutineers for CI rather than starting duplicate gate or
 review runs. The implementation skill supplies bounded repairs and keeps its
 plan current without running competing watchers or conversations.
 
-The two initial assessment questions and all proof-evidence requirements live
-only in the babysitting skill's
+The initial assessment questions and all proof-evidence requirements live only
+in the babysitting skill's
 [ExecPlan assessment reference](../skills/pr-babysitting/references/execplan-assessment.md).
 For an implementation assignment, completeness/correctness must clear before
 readiness. Introduced or materially changed CrossHair, Kani, Verus,
 LemmaScript, or comparable proofs also require the separate substantive,
-rigorous, well-founded assessment, with actual paths and named references.
-Generic approval cannot replace it. Initial questions and necessary
+rigorous, well-founded assessment, with actual paths and named references. A PR
+derived from a GitHub issue additionally requires CodeRabbit to validate the
+implementation against the original issue body and every issue comment that fed
+the requirements; that assessment has no `not applicable` route. Generic
+approval cannot replace any of them. Initial questions and necessary
 candidate-bound follow-ups use the assigned manual-token procedure as
 assessment conversations, not formal review requests. The agent actively awaits
 and reads the substantive issue-comment replies before readiness. Assessment
@@ -1073,14 +1076,18 @@ Current review status prevents duplicate dispatch. Repairs require renewed
 candidate evidence and are pushed before replies. Merge requires explicit
 authorization and all gates; integration remains a separate observation.
 
-Both applicable assessment gates must clear before readiness. A proof inventory
-with no affected proofs gets an evidence-backed not-applicable disposition. An
-already-ready PR stays ready while missing or invalidated assessments block
-merge; the workflow never sets it back to draft. Ready-only and no-merge
-assignments stop at their authorized boundary, and all local validation follows
-the candidate execution boundary above.
+Every applicable assessment gate must clear before readiness, including the
+original-issue assessment of a PR derived from a GitHub issue. A proof
+inventory with no affected proofs gets an evidence-backed not-applicable
+disposition. An already-ready PR stays ready while missing or invalidated
+assessments block merge; the workflow never sets it back to draft. Ready-only
+and no-merge assignments stop at their authorized boundary, and all local
+validation follows the candidate execution boundary above.
 
-A verdict clears only the candidate it was given for. The completeness
+A verdict clears only the candidate it was given for. The original-issue
+assessment covers the issue body and every incorporated issue comment, so a
+reply that answers only part of that subject has not cleared the gate, and an
+issue-derived PR cannot record it as not applicable. The completeness
 assessment covers the whole approved plan, not the delivered subset, so
 remaining milestones stay in scope rather than counting as known limitations.
 Its verdict belongs to an accepted base/head and to the approved plan revision

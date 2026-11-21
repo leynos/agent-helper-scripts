@@ -12,7 +12,8 @@ as a finding to investigate against the skill.
 ## Files
 
 - `readiness.fizz` models one pull request (PR): the remote candidate, the
-  approved plan revision, the proof inventory, the checks, the assessment
+  approved plan revision, the proof inventory, whether the PR is derived from
+  an issue and the issue text recorded for it, the checks, the assessment
   thread, the agent's observations, and its durable ledger.
 - `stack.fizz` reduces the managed-stack conflict to the two rules that
   produce it.
@@ -100,7 +101,7 @@ then issue the ready or merge command and read it back. Each step is one atomic
 action. The environment may act between any two of them: the head, base,
 approved plan revision or proof inventory may change; checks complete; the local
 `cs` becomes unavailable and recovers; the assessment service replies late,
-out of order, in any of ten shapes, and may edit a reply in place; another
+out of order, in any of eleven shapes, and may edit a reply in place; another
 author may echo a request marker; and the agent's session may be interrupted,
 losing everything it held in memory.
 
@@ -142,7 +143,7 @@ These are assumptions of the model, not facts it establishes.
   not explored. The budget is also what makes the candidate eventually stable
   in the progress property. Interruptions are bounded at one or two, outages at
   one, and a reply is edited at most once.
-- **Small domains.** At most two required proofs, two assessment kinds, and
+- **Small domains.** At most two required proofs, three assessment kinds, and
   one PR; `stack.fizz` has two layers.
 - **Fairness.** Agent steps, check completion, service replies and outage
   recovery are weakly fair. No strong fairness is used: an outage is made
@@ -159,13 +160,18 @@ These are assumptions of the model, not facts it establishes.
   the request it answers, so a reply the service attributes to the wrong
   request, and the contract's "ambiguous attribution remains pending", cannot
   be represented. A verdict for another candidate differs in its head only.
-- **Every change renews every assessment.** The contract renews the
-  assessments a change affects; the model treats each change as affecting both.
-- **Two scope errors are the model's decision.** The contract states that an
+- **Every change renews every applicable assessment.** The contract renews the
+  assessments a change affects; the model treats each change as affecting every
+  applicable assessment. A plan revision change does not renew the
+  original-issue assessment, whose question names no revision.
+- **Some scope errors are the model's decision.** The contract states that an
   applicable completeness assessment with no approved revision is a scope
-  error. That an applicable proof assessment with an empty inventory, and an
-  inapplicable assessment with no justification, also end in a recorded impasse
-  follows the retired Python model and is not quoted from the skill.
+  error, and that an issue-derived PR must record the issue body it is assessed
+  against. The model treats the missing issue body as a recorded impasse that
+  leaves the draft alone. That an applicable proof assessment with an empty
+  inventory, and an inapplicable assessment with no justification, also end in
+  a recorded impasse follows the retired Python model and is not quoted from
+  the skill.
 - **A wait never becomes an impasse.** With the local `cs` permanently
   unavailable the model's agent observes for ever. The contract names a service
   failure that persists through repeated bounded recovery as an impasse; when a
