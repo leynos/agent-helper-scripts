@@ -840,9 +840,11 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
-`tests/test_pr_babysitting_error_model.py`, `tests/test_pr_readiness_model.py`,
-`tests/test_pr_readiness_workflow.py`, and
-`tests/test_sdlc_milestone_review.py`. See the
+`tests/test_pr_babysitting_error_model.py`,
+`tests/test_readiness_handoff_boundary.py`, and
+`tests/test_sdlc_milestone_review.py`; the behavioural obligations of the
+readiness protocol are checked by the
+[PR-readiness specification](#pr-readiness-behavioural-specification). See the
 [`sdlc-implementation`](../skills/sdlc-implementation/SKILL.md), its
 [delegation contract](../skills/sdlc-implementation/references/delegation.md),
 and [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) for the normative
@@ -874,9 +876,7 @@ share, and each takes and returns plain strings without touching the filesystem:
   where the assertion is about wording; use `raw_section` where the wrapping
   itself is the subject.
 
-`tests/assessment_mutation_cases.py` keeps the mutation table as data, and
-`tests/pr_readiness_model.py` restates the documented draft-to-ready gate as an
-executable specification over candidate-bound verdicts.
+`tests/assessment_mutation_cases.py` keeps the mutation table as data.
 `tests/pr_babysitting_error_model.py` restates the two error dispositions the
 skill states: a red hosted run is rebased before diagnosis only when the same
 commit gates pass locally and the branch is behind its target, and a newer lint
@@ -885,31 +885,138 @@ a managed stack, rather than feature repairs. An existing fix PR is reused only
 as a base branch, because a PR belongs to one stack; only a newly created fix
 PR becomes a stack layer. Its contract test keeps every decision and constraint
 cited by the shipped skill, and proves each input changes the result.
-`tests/test_pr_readiness_model.py` requires each reason it can return to cite a
-sentence the shipped documents still state, so the model cannot outlive the
-prose it encodes, and it pairs every rule with a mutation control that drops or
-widens it and must reverse the decision.
 
-`tests/test_pr_readiness_properties.py` states the same gate as an invariant
-over generated states: readiness opens exactly when every documented condition
-holds, and one broken condition is reported as that condition. States are built
-from one that satisfies every rule and then broken by name rather than sampled
-uniformly, because a randomly drawn verdict almost never survives the six
-checks that precede the subject check — the earlier version of this suite let a
-mutant that accepted a stale plan revision pass every example. Its
-`test_the_generator_breaks_what_it_claims` guard fails if a named break stops
-breaking anything, so the generator cannot quietly decay into testing nothing.
+### PR-readiness behavioural specification
 
-`tests/pr_readiness_workflow.py` wraps that model in the sequence the skills
-describe: it establishes the delivery gates, posts the applicable assessment
-questions to a `Discussion` double, reads only a correlated reply from the
-assessment bot, decides, and calls `mark_ready` only when the gate holds. A
-blocked delivery gate returns before a question is posted. The double records
-the transition instead of performing it, so
-`tests/test_pr_readiness_workflow.py` proves the sequence reaches readiness for
-a current verdict and stays in draft for a subset-only or superseded one, with
-the proof assessment applying, with no ExecPlan in force, and on a no-ExecPlan
-proof-only assignment.
+The draft-to-ready protocol of `pr-babysitting` crosses systems that change
+independently: the PR, the approved plan, the checks, the assessment thread and
+the agent's own session. Its behavioural obligations are stated once, as a
+[FizzBee](https://fizzbee.io/) specification under `specs/pr-readiness/`, and
+checked by a model checker that explores every interleaving of the agent and
+its environment within stated bounds. The skill remains the normative contract;
+the specification is the executable statement of selected obligations and owns
+no policy. [The specification's README](../specs/pr-readiness/README.md) is the
+reference for what is modelled, the assumptions and bounds, and how to read a
+result;
+[the lessons document](lessons-from-modelling-the-pr-babysitting-skill.md)
+records what the exercise found.
+
+```bash
+make fizzbee              # once: fetch and verify the pinned release
+make model-check          # the mandatory suite, part of `make ci`
+make model-check-extended # the mandatory suite and the larger explorations
+```
+
+The checker is FizzBee v0.5.4, the prebuilt `linux_x86` release archive, pinned
+in `specs/pr-readiness/suite.toml` by the SHA-256 digest of the archive and of
+the unpacked `fizz`, `fizzbee`, `fizz.env` and `parser/parser_bin`.
+`make fizzbee` is the only networked step: it downloads the 352 MB archive,
+verifies it, and unpacks it under `~/.cache/fizzbee` (`MODEL_CHECK_HOME`
+relocates it). `make model-check` downloads nothing and fails, naming
+`make fizzbee`, when the release is absent or is not the pinned bytes. The gate
+supports Linux on x86-64 only and needs no GitHub credential, model API or
+other service. The CI workflow runs `make fizzbee` before `make ci`.
+
+The launcher has five standard-library layers and a front end.
+`scripts/model_check_suite.py` loads the suite manifest and refuses one that
+could make a run test less than it says: an unknown key, an unstated or relaxed
+checker option, a class paired with a mutation or expectation it cannot have, a
+negative control without its twin, a run identifier that is not one plain
+directory name, a trace step naming an action its specification does not
+declare, or a specification it cannot read. `scripts/model_check_judge.py`
+reads the checker's output and judges a run against it.
+`scripts/model_check_report.py` renders outcomes as `report.json` and the
+summary, and decides the exit status a report warrants.
+`scripts/model_check_checker.py` is the checker's distribution:
+`checker_launcher` computes where the release's launcher is, `verify_checker`
+hashes every pinned file, and `install_checker` fetches and unpacks the release
+only when a file is missing or altered, never over one it could not read.
+`scripts/model_check.py` executes runs and re-exports the names the other
+modules and the tests use. Loading a session writes nothing, `reset_report` is
+the one step that deletes the previous report, a run's inputs and artefacts are
+written only through its `RunFiles` boundary, and every fact about the machine
+(platform, processor count, checker home, clock and peak memory) arrives in a
+`Host` record, so a test can describe an unsupported platform without patching.
+A file the launcher cannot read, write or remove, and a checker it cannot
+start, is a named error rather than an empty or stale result. Because each
+checker runs in its own process group, a terminal's Ctrl+C never reaches it
+directly: `run_suite` drops the runs not yet started, tells the runner to stop
+the checkers it is running, and waits for them before the command line reports
+the interrupt and exits 130. `scripts/model_check_cli.py` is the Cyclopts
+command line and the Cuprum process boundary, and builds the `Host` from the
+running machine at its edge. The launcher exists because the pinned release
+cannot be trusted to report its own result: it exits zero when a property
+fails, drops liveness checking without comment for a `liveness` value it does
+not recognize, stops at `max_actions` without saying so, and prints its pass
+line for a replayed trace whose last step it refused. The launcher therefore
+reads the output it recognizes, requires the checker to echo the options it was
+given and to name every temporal assertion it checked, accepts a pass as
+exhaustive only when fewer nodes were explored than the action bound, credits
+an unreached state or a liveness failure only from a search that finished in
+the same sense, and counts the steps of a replay from the nodes reported. A
+crash, a timeout or a syntax error is a gate failure and is never counted as a
+control detecting its defect. The checker runs in its own process group, so a
+timeout stops the checker the pinned `fizz` launcher started, not only the
+launcher. A run restricted with `--only` (or `MODEL_CHECK_ONLY`) is reported as
+partial and exits with status 3 even when every selected run passed;
+`make model-check` clears `MODEL_CHECK_ONLY`, so an inherited value cannot
+shrink the gate. `tests/test_model_check.py` pins that judgement on output
+captured from the release, drives the real command line against a doubled
+checker that fails, hangs, is killed or is absent, and runs the pinned release
+itself where it is installed.
+
+Every run in the suite has one class, reported apart: `assurance` runs must
+pass exhaustively; a `negative-control` applies one textual mutation and must
+fail one named assertion, through a counterexample that passes through the
+event the control names; a `property-control` shows that an assertion can fail
+on the unmodified specification; a `scenario-trace` replays one event sequence;
+and an `expected-counterexample` records a limitation of the documented
+protocol. The last class is never assurance. `gh pr ready` takes no expected
+head and `gh pr merge --match-head-commit` guards the head alone, so no
+protocol built on them can guarantee that evidence is still current when a
+command takes effect; the suite keeps those failures reproducible instead of
+assuming them away.
+
+Three contract tests connect the specification to what ships.
+`tests/test_pr_readiness_obligations.py` holds
+`specs/pr-readiness/obligations.toml` to the skills and the suite: every
+obligation quotes sentences that its named section must still state, every
+assertion and run is accounted for by an obligation, and every assertion has a
+control that must fail it or a stated reason why none is kept. A quoted
+sentence shows that a rule is still stated, not that the prose and the model
+agree; review the correspondence directly when either changes.
+`tests/test_readiness_handoff_boundary.py` reads each agent-boundary recording
+through the shipped stand-in, abstracts it into the facts of one model
+snapshot, and requires those facts to equal the row the suite keeps for that
+recording; the row's expectation, which the model checker verifies, must match
+what the recorded agent did. `tests/test_pr_readiness_fixture_mapping.py`
+applies the concrete-to-abstract event mapping in
+`specs/pr-readiness/fixtures.toml`, so that a recording and its hand-authored
+scenario trace agree on their effects and on the reads that precede them.
+`tests/pr_readiness_spec_support.py` reads the suite as data for all three. The
+handoff test's adapter has two named seams and one policy unit.
+`tests/readiness_snapshot_support.py` abstracts a recorded thread into a model
+reply shape. `tests/readiness_applicability.py` extracts, from the packet, the
+diff and the proof inventory, the facts that decide which assessments apply.
+`tests/readiness_policy.py` states that applicability rule once, over those
+facts; its answer is the model's two applicability inputs, which the model
+takes from the accepted assignment rather than deriving. Each rule and each
+extraction has a control in `tests/test_readiness_applicability.py`. None of
+them decides readiness: the model checker does, given those inputs.
+
+The snapshot tables in the suite carry the answers the retired Python decision
+model gave for 215 bounded snapshots when the two were compared at migration;
+the FizzBee model agreed on every row. No Python restatement of the readiness
+transition policy remains, and none should be added: a test that needs to know
+whether a set of facts permits the transition looks the answer up in a
+model-checked table. The applicability rule is the one piece of policy stated
+in Python, because the model takes applicability as an input rather than
+deciding it.
+
+A passing suite is an exhaustive search of small finite models. It is not an
+unbounded proof, says nothing of larger populations, and does not exercise an
+agent, GitHub, CodeScene or the review service. Whether an agent follows the
+shipped instructions is what the rehearsal below samples.
 
 ### Agent-boundary rehearsal
 
@@ -2119,6 +2226,7 @@ validation sequence:
 - `make check-fmt`
 - `make lint`
 - `make typecheck`
+- `make model-check`, after `make fizzbee` has fetched the pinned checker
 - `make test`
 - `make markdownlint`
 - `make nixie` when a Mermaid diagram changed

@@ -1,0 +1,1513 @@
+# The PR-readiness model-checking suite.
+#
+# `make model-check` runs every `routine` run; `make model-check-extended`
+# runs those and the `extended` ones. See README.md for how to read a result
+# and obligations.toml for what each run is evidence of.
+
+[checker]
+version = "v0.5.4"
+url = "https://github.com/fizzbee-io/fizzbee/releases/download/v0.5.4/fizzbee-v0.5.4-linux_x86.tar.gz"
+sha256 = "8a1d0900f9ad920002151922337912e11f9e588a2f1196249fe40bf75370f782"
+root = "fizzbee-v0.5.4-linux_x86"
+
+[checker.files]
+"fizz" = "8e8f905864b1781a3960f44fb654fc4455ef633e45556adf3fae586b652480a6"
+"fizzbee" = "7a5bf006b8606dd0f7d42cfd2022b03e18eca3fada1183c2bf1261392e4da813"
+"fizz.env" = "b4ae4663d1f98febad24a968029e6832514336a2a2287ca3c8d532e2ebd35b33"
+"parser/parser_bin" = "e0801401bd3d0895e9ec93740ee7130eb91b80a0f8bd81670a7afc163f8c6f45"
+
+[defaults]
+spec = "readiness.fizz"
+timeout_seconds = 600
+
+# Every option is stated. Every action in the specifications is atomic, so
+# one action runs at a time and interruption is an explicit action rather
+# than crash-on-yield. `max_actions` is far above any run's node count; the
+# launcher refuses a pass whose node count reaches it.
+[defaults.options]
+max_actions = 1000000
+max_concurrent_actions = 1
+crash_on_yield = false
+deadlock_detection = true
+liveness = "strict"
+
+# ---------------------------------------------------------------------------
+# Assurance: permitted assignments reach their outcome, under a frozen
+# environment in which the strong freshness properties are also checked.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "ordinary-whole-plan"
+class = "assurance"
+purpose = "An ExecPlan implementation with no proof reaches verified readiness and an authorized merge; with nothing changing, the evidence is also current in reality at each command."
+obligations = ["PRR-ELIG-01", "PRR-REQ-01", "PRR-PROG-01", "PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "proof-only-without-execplan"
+class = "assurance"
+purpose = "A proof-only assignment with no ExecPlan clears on a proof verdict that covers both required proofs, with completeness recorded as a justified not-applicable and no revision to echo."
+obligations = ["PRR-APPL-02", "PRR-APPL-04", "PRR-BIND-02", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
+                      proof_applies=True, proofs=("p1", "p2"),
+                      check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "combined-completeness-and-proof"
+class = "assurance"
+purpose = "Both assessments apply; readiness needs both clear verdicts, each bound to the candidate and the revision."
+obligations = ["PRR-ELIG-01", "PRR-APPL-04", "PRR-BIND-02", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(proof_applies=True, proofs=("p1", "p2"),
+                      check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "neither-assessment-applies"
+class = "assurance"
+purpose = "A PR that neither implements an ExecPlan nor touches a proof records both assessments as justified not-applicable and is not held in draft waiting for them."
+obligations = ["PRR-APPL-02", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
+                      check_strong=True, expect_progress="merged")]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: evidence lifetime under a changing environment.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "candidate-changes-and-recovery"
+class = "assurance"
+purpose = "The head or the base may change once at any moment. A ready PR stays ready with stale evidence, and once the agent has observed the new candidate it merges only after renewed evidence for it. A base change between the agent's last read and the merge command is not observed and is not guarded: expected-counterexample-base-moves-before-merge reproduces that."
+obligations = ["PRR-BIND-01", "PRR-LIFE-01", "PRR-LIFE-02", "PRR-LIFE-03", "PRR-REQ-04", "PRR-DELIV-04", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_head=True, env_base=True,
+                      expect_recovery="merged", expect_stale_ready="reachable",
+                      expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "plan-revision-changes-and-recovery"
+class = "assurance"
+purpose = "A newly approved plan revision with unchanged base/head invalidates the assessment; once the agent has observed the new revision, the question is asked again for it and the old verdict is not reused."
+obligations = ["PRR-BIND-02", "PRR-REQ-04", "PRR-LIFE-03", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_plan=True,
+                      expect_recovery="merged", expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "inventory-changes-and-recovery"
+class = "assurance"
+purpose = "The required proof inventory grows from one proof to two; once the agent has observed the wider inventory, the earlier, narrower answer does not clear it."
+obligations = ["PRR-APPL-04", "PRR-REQ-04", "PRR-LIFE-03", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
+                      proof_applies=True, proofs=("p1",),
+                      wider_proofs=("p1", "p2"), change_budget=1,
+                      env_inventory=True, expect_recovery="merged",
+                      expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "already-ready-on-assignment"
+class = "assurance"
+purpose = "A PR that was ready on assignment stays ready; missing or invalidated assessments block the merge and are obtained before it."
+obligations = ["PRR-LIFE-01", "PRR-LIFE-03", "PRR-HON-04", "PRR-HON-05"]
+scenario = '''
+SCENARIOS = [scenario(starts_ready=True, change_budget=1, env_plan=True,
+                      expect_ready="unchecked", expect_recovery="merged",
+                      expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "merge-head-guard-closes-the-head-race"
+class = "assurance"
+purpose = "When only the head can change, the head-conditional merge command makes the strong property hold: no merge takes effect on a head the evidence does not cover."
+obligations = ["PRR-LIFE-03", "PRR-TOCTOU-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_ready=True, change_budget=1, env_head=True,
+                      check_strong=True, expect_ready="unchecked")]
+'''
+expect = "pass"
+
+[[run]]
+id = "interruption-and-reentry"
+class = "assurance"
+purpose = "The session is interrupted up to twice at any step, including between a command and its read-back. Re-entry adopts the outstanding request, consumes its late reply, and posts no replacement."
+obligations = ["PRR-REQ-02", "PRR-REQ-03", "PRR-HON-04", "PRR-HON-05", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(proof_applies=True, proofs=("p1", "p2"), crash_budget=2,
+                      expect_reentry="reachable", expect_progress="merged")]
+'''
+expect = "pass"
+
+[[run]]
+id = "interacting-changes-and-interruption"
+class = "assurance"
+purpose = "The combined configuration: head, plan revision or interruption in any order, with both a clear and a not-clear reply possible."
+obligations = ["PRR-ELIG-01", "PRR-BIND-01", "PRR-BIND-02", "PRR-REQ-02", "PRR-REQ-04", "PRR-LIFE-02", "PRR-LIFE-03"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_head=True, env_plan=True,
+                      crash_budget=1, reply_shapes=("sound-clear", "not-clear"),
+                      expect_recovery="merged", expect_stale_ready="reachable")]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: replies that look favourable and do not clear.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "completeness-replies-that-do-not-clear"
+class = "assurance"
+purpose = "Every completeness reply short of a sound whole-plan verdict, and a comment by another author echoing the marker: none of them, in any order, lets the PR leave draft."
+obligations = ["PRR-APPL-01", "PRR-APPL-03", "PRR-BIND-01", "PRR-BIND-02", "PRR-BIND-03", "PRR-HON-01"]
+scenario = '''
+SCENARIOS = [scenario(reply_shapes=("subset-clear", "other-subject",
+                                    "no-revision-echo",
+                                    "superseded-revision-echo",
+                                    "other-candidate",
+                                    "not-applicable-claim", "not-clear",
+                                    "acknowledgement"),
+                      env_foreign=True, expect_ready="never",
+                      expect_merge="never")]
+'''
+expect = "pass"
+
+[[run]]
+id = "proof-replies-that-do-not-clear"
+class = "assurance"
+purpose = "Every proof reply short of a sound verdict covering both required proofs, including one covering only the first: none lets the PR leave draft."
+obligations = ["PRR-APPL-01", "PRR-APPL-04", "PRR-BIND-01", "PRR-BIND-03", "PRR-HON-01"]
+scenario = '''
+SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
+                      proof_applies=True, proofs=("p1", "p2"),
+                      reply_shapes=("partial-proofs", "no-proofs",
+                                    "other-candidate", "not-applicable-claim",
+                                    "not-clear", "acknowledgement"),
+                      env_foreign=True, expect_ready="never",
+                      expect_merge="never")]
+'''
+expect = "pass"
+
+[[run]]
+id = "edited-replies"
+class = "assurance"
+purpose = "A reply may be edited in place once, in either direction, and another author may comment; each command still rests on the reply as this pass read it, which MergeFollowsFreshReads and ReadyFollowsFreshReads check against what the read returned."
+obligations = ["PRR-BIND-04", "PRR-BIND-03", "PRR-HON-01", "PRR-ORDER-01"]
+scenario = '''
+SCENARIOS = [scenario(reply_shapes=("sound-clear", "not-clear", "subset-clear"),
+                      env_edits=True, env_foreign=True)]
+'''
+expect = "pass"
+
+[[run]]
+id = "undivided-plan-layer"
+class = "assurance"
+purpose = "A managed-stack layer that implements part of an undivided plan can be told its declared subset is clear and never leaves draft on it; it keeps polling."
+obligations = ["PRR-APPL-03", "PRR-STACK-01"]
+scenario = '''
+SCENARIOS = [scenario(whole_plan=False,
+                      reply_shapes=("sound-clear", "subset-clear", "not-clear"),
+                      expect_ready="never", expect_merge="never")]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: delivery evidence.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "delivery-gates-may-fail"
+class = "assurance"
+purpose = "CI may be red, hosted CodeScene may report findings and the local delta may report findings; no question is posted and no transition is made unless all three hold for the observed candidate."
+obligations = ["PRR-DELIV-01", "PRR-DELIV-02", "PRR-DELIV-03", "PRR-REQ-01", "PRR-HON-03"]
+scenario = '''
+SCENARIOS = [scenario(ci_outcomes=("green", "red"),
+                      hosted_outcomes=("clear", "findings"),
+                      local_outcomes=("clear", "findings"))]
+'''
+expect = "pass"
+
+[[run]]
+id = "local-codescene-never-available"
+class = "assurance"
+purpose = "Hosted checks are green and the local `cs` never becomes available: the delta is unverified, no question is posted, the PR stays in draft, and the agent keeps observing rather than stopping."
+obligations = ["PRR-DELIV-03", "PRR-HON-02", "PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_in_outage=True, outage_recovers=False,
+                      expect_ready="never", expect_merge="never")]
+'''
+expect = "pass"
+
+[[run]]
+id = "transient-outage-then-progress"
+class = "assurance"
+purpose = "The local `cs` starts unavailable and may fail once more; because it recovers, the assignment still reaches its merge."
+obligations = ["PRR-DELIV-03", "PRR-HON-02", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [scenario(starts_in_outage=True, outage_budget=1, crash_budget=1,
+                      expect_progress="merged")]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: authority and explicit impasses. These two runs check several
+# assignments in one exploration; Init chooses among them.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "authority-boundaries"
+class = "assurance"
+purpose = "An assignment that must stay draft never issues the ready command; ready-only and no-merge assignments become ready and never merge."
+obligations = ["PRR-AUTH-01", "PRR-AUTH-02", "PRR-PROG-01"]
+scenario = '''
+SCENARIOS = [
+    scenario(authority="stay-draft", expect_ready="never", expect_merge="never"),
+    scenario(authority="ready-only", expect_ready="unchecked",
+             expect_merge="never", expect_progress="ready"),
+    scenario(authority="no-merge", expect_ready="unchecked",
+             expect_merge="never", expect_progress="ready"),
+]
+'''
+expect = "pass"
+
+[[run]]
+id = "scope-errors-are-impasses"
+class = "assurance"
+purpose = "An applicable completeness assessment with no approved revision, an applicable proof assessment with an empty inventory, and an inapplicable assessment with no justification each end in a recorded impasse with the draft untouched."
+obligations = ["PRR-APPL-02", "PRR-APPL-05", "PRR-HON-06"]
+scenario = '''
+SCENARIOS = [
+    scenario(has_plan=False, expect_ready="never", expect_merge="never",
+             expect_progress="impasse"),
+    scenario(proof_applies=True, proofs=(), expect_ready="never",
+             expect_merge="never", expect_progress="impasse"),
+    scenario(completeness_applies=False, has_plan=False, na_justified=False,
+             expect_ready="never", expect_merge="never",
+             expect_progress="impasse"),
+]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: the managed-stack conflict and its documented alternatives.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "stack-from-one-undivided-plan"
+class = "assurance"
+spec = "stack.fizz"
+purpose = "Two layers cut from one undivided plan: the lower layer never leaves draft, so the stack never merges, while both layers are still being observed."
+obligations = ["PRR-STACK-01"]
+scenario = '''
+LAYERS = UNDIVIDED
+EXPECT_DELIVERY = "never"
+'''
+expect = "pass"
+
+[[run]]
+id = "stack-from-independent-plans"
+class = "assurance"
+spec = "stack.fizz"
+purpose = "One independently complete approved plan per layer: every layer can leave draft and the stack merges."
+obligations = ["PRR-STACK-02"]
+scenario = '''
+LAYERS = SPLIT
+EXPECT_DELIVERY = "reachable"
+'''
+expect = "pass"
+
+[[run]]
+id = "undivided-plan-in-one-pr"
+class = "assurance"
+spec = "stack.fizz"
+purpose = "The undivided plan delivered as a single PR leaves draft and merges."
+obligations = ["PRR-STACK-02"]
+scenario = '''
+LAYERS = SINGLE
+EXPECT_DELIVERY = "reachable"
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Assurance: the frozen snapshot tables. Each row is one thread and one set
+# of delivery facts with nothing changing; its expectation is what the
+# retired Python decision model answered for the equivalent snapshot when the
+# two were compared at migration. Init chooses among the rows, so one run
+# checks them all: a row that became ready while marked `draft` fails
+# BlockedAssignmentStaysDraft, and one that stayed in draft while marked
+# `ready` fails ProgressWhenWarranted.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "snapshot-regression-table"
+class = "assurance"
+purpose = "Every snapshot that differs from an all-clear one in at most one fact: each single shortfall holds the draft, and each all-clear assignment leaves it."
+obligations = ["PRR-ELIG-01", "PRR-APPL-01", "PRR-APPL-02", "PRR-APPL-03", "PRR-APPL-04", "PRR-APPL-05", "PRR-BIND-01", "PRR-BIND-02", "PRR-DELIV-01", "PRR-DELIV-02", "PRR-DELIV-03"]
+scenario = '''
+SCENARIOS = [
+    snapshot("s000", "draft"),
+    snapshot("s001", "draft", completeness="current:none"),
+    snapshot("s002", "draft", completeness="another-candidate:sound-clear"),
+    snapshot("s003", "draft", completeness="superseded-revision:sound-clear"),
+    snapshot("s004", "ready", completeness="current:sound-clear"),
+    snapshot("s005", "draft", completeness="current:subset-clear"),
+    snapshot("s006", "draft", completeness="current:other-subject"),
+    snapshot("s007", "draft", completeness="current:no-revision-echo"),
+    snapshot("s008", "draft", completeness="current:superseded-revision-echo"),
+    snapshot("s009", "draft", completeness="current:other-candidate"),
+    snapshot("s010", "draft", completeness="current:not-applicable-claim"),
+    snapshot("s011", "draft", completeness="current:not-clear"),
+    snapshot("s012", "draft", completeness="current:acknowledgement"),
+    snapshot("s013", "draft", ci="red", completeness="current:sound-clear"),
+    snapshot("s014", "draft", hosted="findings", completeness="current:sound-clear"),
+    snapshot("s015", "draft", local="findings", completeness="current:sound-clear"),
+    snapshot("s016", "draft", local="unavailable", completeness="current:sound-clear"),
+    snapshot("s017", "draft", na_justified=False, completeness="current:sound-clear"),
+    snapshot("s018", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:sound-clear"),
+    snapshot("s019", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:sound-clear"),
+    snapshot("s020", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:sound-clear"),
+    snapshot("s021", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:sound-clear"),
+    snapshot("s022", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear"),
+    snapshot("s023", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:none"),
+    snapshot("s024", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="another-candidate:sound-clear"),
+    snapshot("s025", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s026", "ready", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s027", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:partial-proofs"),
+    snapshot("s028", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:no-proofs"),
+    snapshot("s029", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:no-revision-echo"),
+    snapshot("s030", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:superseded-revision-echo"),
+    snapshot("s031", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:other-candidate"),
+    snapshot("s032", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:not-applicable-claim"),
+    snapshot("s033", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:not-clear"),
+    snapshot("s034", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:acknowledgement"),
+    snapshot("s035", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:sound-clear"),
+    snapshot("s036", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:sound-clear"),
+    snapshot("s037", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:sound-clear"),
+    snapshot("s038", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:sound-clear"),
+    snapshot("s039", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:sound-clear"),
+    snapshot("s040", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:sound-clear"),
+    snapshot("s041", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:sound-clear"),
+    snapshot("s042", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:sound-clear"),
+    snapshot("s043", "draft", proof_applies=True, proofs=("p1", "p2"), ci="red", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s044", "draft", proof_applies=True, proofs=("p1", "p2"), hosted="findings", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s045", "draft", proof_applies=True, proofs=("p1", "p2"), local="findings", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s046", "draft", proof_applies=True, proofs=("p1", "p2"), local="unavailable", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s047", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2")),
+    snapshot("s048", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:none"),
+    snapshot("s049", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="another-candidate:sound-clear"),
+    snapshot("s050", "ready", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:sound-clear"),
+    snapshot("s051", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:partial-proofs"),
+    snapshot("s052", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:no-proofs"),
+    snapshot("s053", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:other-candidate"),
+    snapshot("s054", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:not-applicable-claim"),
+    snapshot("s055", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:not-clear"),
+    snapshot("s056", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:acknowledgement"),
+    snapshot("s057", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), ci="red", proof="current:sound-clear"),
+    snapshot("s058", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), hosted="findings", proof="current:sound-clear"),
+    snapshot("s059", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), local="findings", proof="current:sound-clear"),
+    snapshot("s060", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), local="unavailable", proof="current:sound-clear"),
+    snapshot("s061", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), na_justified=False, proof="current:sound-clear"),
+    snapshot("s062", "ready", completeness_applies=False, has_plan=False),
+    snapshot("s063", "draft", completeness_applies=False, has_plan=False, ci="red"),
+    snapshot("s064", "draft", completeness_applies=False, has_plan=False, hosted="findings"),
+    snapshot("s065", "draft", completeness_applies=False, has_plan=False, local="findings"),
+    snapshot("s066", "draft", completeness_applies=False, has_plan=False, local="unavailable"),
+    snapshot("s067", "draft", completeness_applies=False, has_plan=False, na_justified=False),
+    snapshot("s068", "draft", has_plan=False, completeness="current:sound-clear"),
+    snapshot("s069", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proof="current:sound-clear"),
+    snapshot("s070", "draft", proof_applies=True, completeness="current:sound-clear", proof="current:sound-clear"),
+]
+'''
+expect = "pass"
+
+[[run]]
+id = "snapshot-comparison-table"
+tier = "extended"
+class = "assurance"
+purpose = "The whole bounded set compared with the Python decision model at migration: four assignments, every thread state of each applicable assessment crossed with each other, every single delivery failure, and the scope errors."
+obligations = ["PRR-ELIG-01", "PRR-APPL-01", "PRR-APPL-03", "PRR-APPL-04", "PRR-BIND-01", "PRR-BIND-02"]
+scenario = '''
+SCENARIOS = [
+    snapshot("s000", "draft"),
+    snapshot("s001", "draft", completeness="current:none"),
+    snapshot("s002", "draft", completeness="another-candidate:sound-clear"),
+    snapshot("s003", "draft", completeness="superseded-revision:sound-clear"),
+    snapshot("s004", "ready", completeness="current:sound-clear"),
+    snapshot("s005", "draft", completeness="current:subset-clear"),
+    snapshot("s006", "draft", completeness="current:other-subject"),
+    snapshot("s007", "draft", completeness="current:no-revision-echo"),
+    snapshot("s008", "draft", completeness="current:superseded-revision-echo"),
+    snapshot("s009", "draft", completeness="current:other-candidate"),
+    snapshot("s010", "draft", completeness="current:not-applicable-claim"),
+    snapshot("s011", "draft", completeness="current:not-clear"),
+    snapshot("s012", "draft", completeness="current:acknowledgement"),
+    snapshot("s013", "draft", ci="red", completeness="current:sound-clear"),
+    snapshot("s014", "draft", hosted="findings", completeness="current:sound-clear"),
+    snapshot("s015", "draft", local="findings", completeness="current:sound-clear"),
+    snapshot("s016", "draft", local="unavailable", completeness="current:sound-clear"),
+    snapshot("s017", "draft", na_justified=False, completeness="current:sound-clear"),
+    snapshot("s018", "draft", proof_applies=True, proofs=("p1", "p2")),
+    snapshot("s019", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:none"),
+    snapshot("s020", "draft", proof_applies=True, proofs=("p1", "p2"), proof="another-candidate:sound-clear"),
+    snapshot("s021", "draft", proof_applies=True, proofs=("p1", "p2"), proof="superseded-revision:sound-clear"),
+    snapshot("s022", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:sound-clear"),
+    snapshot("s023", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:partial-proofs"),
+    snapshot("s024", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:no-proofs"),
+    snapshot("s025", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:no-revision-echo"),
+    snapshot("s026", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:superseded-revision-echo"),
+    snapshot("s027", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:other-candidate"),
+    snapshot("s028", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:not-applicable-claim"),
+    snapshot("s029", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:not-clear"),
+    snapshot("s030", "draft", proof_applies=True, proofs=("p1", "p2"), proof="current:acknowledgement"),
+    snapshot("s031", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none"),
+    snapshot("s032", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:none"),
+    snapshot("s033", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="another-candidate:sound-clear"),
+    snapshot("s034", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="superseded-revision:sound-clear"),
+    snapshot("s035", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:sound-clear"),
+    snapshot("s036", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:partial-proofs"),
+    snapshot("s037", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:no-proofs"),
+    snapshot("s038", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:no-revision-echo"),
+    snapshot("s039", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:superseded-revision-echo"),
+    snapshot("s040", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:other-candidate"),
+    snapshot("s041", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:not-applicable-claim"),
+    snapshot("s042", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:not-clear"),
+    snapshot("s043", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:none", proof="current:acknowledgement"),
+    snapshot("s044", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear"),
+    snapshot("s045", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:none"),
+    snapshot("s046", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="another-candidate:sound-clear"),
+    snapshot("s047", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s048", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:sound-clear"),
+    snapshot("s049", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:partial-proofs"),
+    snapshot("s050", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:no-proofs"),
+    snapshot("s051", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:no-revision-echo"),
+    snapshot("s052", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:superseded-revision-echo"),
+    snapshot("s053", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:other-candidate"),
+    snapshot("s054", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:not-applicable-claim"),
+    snapshot("s055", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:not-clear"),
+    snapshot("s056", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="another-candidate:sound-clear", proof="current:acknowledgement"),
+    snapshot("s057", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear"),
+    snapshot("s058", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:none"),
+    snapshot("s059", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="another-candidate:sound-clear"),
+    snapshot("s060", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s061", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:sound-clear"),
+    snapshot("s062", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:partial-proofs"),
+    snapshot("s063", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:no-proofs"),
+    snapshot("s064", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:no-revision-echo"),
+    snapshot("s065", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:superseded-revision-echo"),
+    snapshot("s066", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:other-candidate"),
+    snapshot("s067", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:not-applicable-claim"),
+    snapshot("s068", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:not-clear"),
+    snapshot("s069", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="superseded-revision:sound-clear", proof="current:acknowledgement"),
+    snapshot("s070", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear"),
+    snapshot("s071", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:none"),
+    snapshot("s072", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="another-candidate:sound-clear"),
+    snapshot("s073", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s074", "ready", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s075", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:partial-proofs"),
+    snapshot("s076", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:no-proofs"),
+    snapshot("s077", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:no-revision-echo"),
+    snapshot("s078", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:superseded-revision-echo"),
+    snapshot("s079", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:other-candidate"),
+    snapshot("s080", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:not-applicable-claim"),
+    snapshot("s081", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:not-clear"),
+    snapshot("s082", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:acknowledgement"),
+    snapshot("s083", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear"),
+    snapshot("s084", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:none"),
+    snapshot("s085", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="another-candidate:sound-clear"),
+    snapshot("s086", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s087", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:sound-clear"),
+    snapshot("s088", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:partial-proofs"),
+    snapshot("s089", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:no-proofs"),
+    snapshot("s090", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:no-revision-echo"),
+    snapshot("s091", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:superseded-revision-echo"),
+    snapshot("s092", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:other-candidate"),
+    snapshot("s093", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:not-applicable-claim"),
+    snapshot("s094", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:not-clear"),
+    snapshot("s095", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:subset-clear", proof="current:acknowledgement"),
+    snapshot("s096", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject"),
+    snapshot("s097", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:none"),
+    snapshot("s098", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="another-candidate:sound-clear"),
+    snapshot("s099", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="superseded-revision:sound-clear"),
+    snapshot("s100", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:sound-clear"),
+    snapshot("s101", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:partial-proofs"),
+    snapshot("s102", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:no-proofs"),
+    snapshot("s103", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:no-revision-echo"),
+    snapshot("s104", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:superseded-revision-echo"),
+    snapshot("s105", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:other-candidate"),
+    snapshot("s106", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:not-applicable-claim"),
+    snapshot("s107", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:not-clear"),
+    snapshot("s108", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-subject", proof="current:acknowledgement"),
+    snapshot("s109", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo"),
+    snapshot("s110", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:none"),
+    snapshot("s111", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="another-candidate:sound-clear"),
+    snapshot("s112", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="superseded-revision:sound-clear"),
+    snapshot("s113", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:sound-clear"),
+    snapshot("s114", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:partial-proofs"),
+    snapshot("s115", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:no-proofs"),
+    snapshot("s116", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:no-revision-echo"),
+    snapshot("s117", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:superseded-revision-echo"),
+    snapshot("s118", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:other-candidate"),
+    snapshot("s119", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:not-applicable-claim"),
+    snapshot("s120", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:not-clear"),
+    snapshot("s121", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:no-revision-echo", proof="current:acknowledgement"),
+    snapshot("s122", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo"),
+    snapshot("s123", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:none"),
+    snapshot("s124", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="another-candidate:sound-clear"),
+    snapshot("s125", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="superseded-revision:sound-clear"),
+    snapshot("s126", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:sound-clear"),
+    snapshot("s127", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:partial-proofs"),
+    snapshot("s128", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:no-proofs"),
+    snapshot("s129", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:no-revision-echo"),
+    snapshot("s130", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:superseded-revision-echo"),
+    snapshot("s131", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:other-candidate"),
+    snapshot("s132", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:not-applicable-claim"),
+    snapshot("s133", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:not-clear"),
+    snapshot("s134", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:superseded-revision-echo", proof="current:acknowledgement"),
+    snapshot("s135", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate"),
+    snapshot("s136", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:none"),
+    snapshot("s137", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="another-candidate:sound-clear"),
+    snapshot("s138", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="superseded-revision:sound-clear"),
+    snapshot("s139", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:sound-clear"),
+    snapshot("s140", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:partial-proofs"),
+    snapshot("s141", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:no-proofs"),
+    snapshot("s142", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:no-revision-echo"),
+    snapshot("s143", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:superseded-revision-echo"),
+    snapshot("s144", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:other-candidate"),
+    snapshot("s145", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:not-applicable-claim"),
+    snapshot("s146", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:not-clear"),
+    snapshot("s147", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:other-candidate", proof="current:acknowledgement"),
+    snapshot("s148", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim"),
+    snapshot("s149", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:none"),
+    snapshot("s150", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="another-candidate:sound-clear"),
+    snapshot("s151", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="superseded-revision:sound-clear"),
+    snapshot("s152", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:sound-clear"),
+    snapshot("s153", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:partial-proofs"),
+    snapshot("s154", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:no-proofs"),
+    snapshot("s155", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:no-revision-echo"),
+    snapshot("s156", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:superseded-revision-echo"),
+    snapshot("s157", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:other-candidate"),
+    snapshot("s158", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:not-applicable-claim"),
+    snapshot("s159", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:not-clear"),
+    snapshot("s160", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-applicable-claim", proof="current:acknowledgement"),
+    snapshot("s161", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear"),
+    snapshot("s162", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:none"),
+    snapshot("s163", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="another-candidate:sound-clear"),
+    snapshot("s164", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="superseded-revision:sound-clear"),
+    snapshot("s165", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:sound-clear"),
+    snapshot("s166", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:partial-proofs"),
+    snapshot("s167", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:no-proofs"),
+    snapshot("s168", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:no-revision-echo"),
+    snapshot("s169", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:superseded-revision-echo"),
+    snapshot("s170", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:other-candidate"),
+    snapshot("s171", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:not-applicable-claim"),
+    snapshot("s172", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:not-clear"),
+    snapshot("s173", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:not-clear", proof="current:acknowledgement"),
+    snapshot("s174", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement"),
+    snapshot("s175", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:none"),
+    snapshot("s176", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="another-candidate:sound-clear"),
+    snapshot("s177", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="superseded-revision:sound-clear"),
+    snapshot("s178", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:sound-clear"),
+    snapshot("s179", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:partial-proofs"),
+    snapshot("s180", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:no-proofs"),
+    snapshot("s181", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:no-revision-echo"),
+    snapshot("s182", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:superseded-revision-echo"),
+    snapshot("s183", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:other-candidate"),
+    snapshot("s184", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:not-applicable-claim"),
+    snapshot("s185", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:not-clear"),
+    snapshot("s186", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:acknowledgement", proof="current:acknowledgement"),
+    snapshot("s187", "draft", proof_applies=True, proofs=("p1", "p2"), ci="red", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s188", "draft", proof_applies=True, proofs=("p1", "p2"), hosted="findings", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s189", "draft", proof_applies=True, proofs=("p1", "p2"), local="findings", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s190", "draft", proof_applies=True, proofs=("p1", "p2"), local="unavailable", completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("s191", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2")),
+    snapshot("s192", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:none"),
+    snapshot("s193", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="another-candidate:sound-clear"),
+    snapshot("s194", "ready", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:sound-clear"),
+    snapshot("s195", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:partial-proofs"),
+    snapshot("s196", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:no-proofs"),
+    snapshot("s197", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:other-candidate"),
+    snapshot("s198", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:not-applicable-claim"),
+    snapshot("s199", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:not-clear"),
+    snapshot("s200", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), proof="current:acknowledgement"),
+    snapshot("s201", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), ci="red", proof="current:sound-clear"),
+    snapshot("s202", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), hosted="findings", proof="current:sound-clear"),
+    snapshot("s203", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), local="findings", proof="current:sound-clear"),
+    snapshot("s204", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), local="unavailable", proof="current:sound-clear"),
+    snapshot("s205", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proofs=("p1", "p2"), na_justified=False, proof="current:sound-clear"),
+    snapshot("s206", "ready", completeness_applies=False, has_plan=False),
+    snapshot("s207", "draft", completeness_applies=False, has_plan=False, ci="red"),
+    snapshot("s208", "draft", completeness_applies=False, has_plan=False, hosted="findings"),
+    snapshot("s209", "draft", completeness_applies=False, has_plan=False, local="findings"),
+    snapshot("s210", "draft", completeness_applies=False, has_plan=False, local="unavailable"),
+    snapshot("s211", "draft", completeness_applies=False, has_plan=False, na_justified=False),
+    snapshot("s212", "draft", has_plan=False, completeness="current:sound-clear"),
+    snapshot("s213", "draft", completeness_applies=False, proof_applies=True, has_plan=False, proof="current:sound-clear"),
+    snapshot("s214", "draft", proof_applies=True, completeness="current:sound-clear", proof="current:sound-clear"),
+]
+'''
+expect = "pass"
+
+[[run]]
+id = "fixture-snapshots"
+class = "assurance"
+purpose = "One row per agent-boundary recording, stating the facts tests/test_readiness_handoff_boundary.py reads from that recording through the shipped stand-in, the variants that test serves with one premise removed, and the handoff snapshot tests/test_sdlc_implementation_skill.py reads from the shipped packet. The recorded agent's transition is compared with each expectation there."
+obligations = ["PRR-ELIG-01", "PRR-APPL-01", "PRR-APPL-03", "PRR-APPL-04", "PRR-BIND-01", "PRR-BIND-02", "PRR-DELIV-02"]
+scenario = '''
+SCENARIOS = [
+    snapshot("fixture:current-whole-plan", "ready", completeness="current:sound-clear"),
+    snapshot("fixture:subset-clear", "draft", completeness="current:subset-clear"),
+    snapshot("fixture:subset-only", "draft", completeness="current:not-clear"),
+    snapshot("fixture:superseded-revision", "draft", completeness="current:superseded-revision-echo"),
+    snapshot("fixture:codescene-advisory", "draft", hosted="findings", local="findings", completeness="current:sound-clear"),
+    snapshot("fixture:combined-plan-and-proof", "ready", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="current:sound-clear"),
+    snapshot("fixture:combined-proof-pending", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="current:acknowledgement"),
+    snapshot("fixture:combined-proof-stale-plan-revision", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="superseded-revision:sound-clear"),
+    snapshot("fixture:combined-proof-candidate-mismatch", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="current:other-candidate"),
+    snapshot("fixture:combined-proof-unbound-revision", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="current:no-revision-echo"),
+    snapshot("fixture:combined-proof-stale-verdict", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear", proof="current:other-candidate"),
+    snapshot("variant:completeness-not-required-by-the-packet", "ready", completeness_applies=False),
+    snapshot("variant:proof-question-never-posted", "draft", proof_applies=True, proofs=("p1",), completeness="current:sound-clear"),
+    snapshot("variant:verdict-names-another-proof", "draft", proof_applies=True, proofs=("p1", "p2"), completeness="current:sound-clear", proof="current:partial-proofs"),
+    snapshot("variant:completeness-request-names-no-revision", "draft", completeness="unnamed-revision:sound-clear"),
+    snapshot("variant:handoff-with-a-declared-subset-verdict", "draft", proof_applies=True, proofs=("p1",), completeness="current:subset-clear", proof="current:sound-clear"),
+]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Scenario traces: hand-authored event sequences, each derived from one
+# agent-boundary recording through the mapping in fixtures.toml. They are
+# model-derived reproductions of what a recording shows, not replays of the
+# recording and not generated from it. A trace that runs to its end is a
+# behaviour of the model; a refused step is one the model does not permit.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "trace-current-whole-plan"
+class = "scenario-trace"
+purpose = "Permitting: a current, clear whole-plan verdict is already on the thread; the agent reads everything, re-fetches the candidate, marks the PR ready and reads the transition back."
+obligations = ["PRR-ELIG-01", "PRR-ORDER-01", "PRR-HON-04"]
+scenario = '''
+SCENARIOS = [snapshot("fixture:current-whole-plan", "ready", completeness="current:sound-clear")]
+'''
+trace = [
+  "Any:sc=0", "ChecksComplete", 'Any:ci="green"', 'Any:hosted="clear"',
+  "AgentObservesPullRequest", "AgentObservesPlanAndInventory", "AgentReadsChecks",
+  "AgentRunsLocalDelta", 'Any:value="clear"', "AgentInspectsDiscussion",
+  "AgentReadsReplies", "AgentRechecksCandidate", "AgentDecides",
+  "AgentRunsReadyCommand", "AgentReadsBackReady",
+]
+expect = "pass"
+
+[[run]]
+id = "trace-subset-clear"
+class = "scenario-trace"
+purpose = "Blocking on narrowed evidence: the verdict on the thread is clear for a declared subset; the same reads happen and the model refuses the ready command."
+obligations = ["PRR-APPL-03"]
+scenario = '''
+SCENARIOS = [snapshot("fixture:subset-clear", "draft", completeness="current:subset-clear")]
+'''
+trace = [
+  "Any:sc=0", "ChecksComplete", 'Any:ci="green"', 'Any:hosted="clear"',
+  "AgentObservesPullRequest", "AgentObservesPlanAndInventory", "AgentReadsChecks",
+  "AgentRunsLocalDelta", 'Any:value="clear"', "AgentInspectsDiscussion",
+  "AgentReadsReplies", "AgentRechecksCandidate", "AgentDecides",
+  "AgentRunsReadyCommand",
+]
+expect = { fail = "blocked", executed = 13 }
+
+[[run]]
+id = "trace-posted-then-answered"
+class = "scenario-trace"
+purpose = "Temporal: no question is on the thread; the agent posts one, the service answers it afterwards, and only then does the agent re-fetch, mark the PR ready and read the transition back."
+obligations = ["PRR-REQ-01", "PRR-REQ-03", "PRR-ORDER-01", "PRR-HON-04"]
+scenario = '''
+SCENARIOS = [scenario(authority="ready-only", expect_merge="never")]
+'''
+trace = [
+  "Any:sc=0", "ChecksComplete", 'Any:ci="green"', 'Any:hosted="clear"',
+  "AgentObservesPullRequest", "AgentObservesPlanAndInventory", "AgentReadsChecks",
+  "AgentRunsLocalDelta", 'Any:value="clear"', "AgentInspectsDiscussion",
+  "AgentPostsRequest", "AgentInspectsDiscussion", "ServiceReplies",
+  "Any:marker=0", 'Any:shape="sound-clear"', "AgentReadsReplies",
+  "AgentRechecksCandidate", "AgentDecides", "AgentRunsReadyCommand",
+  "AgentReadsBackReady",
+]
+expect = "pass"
+
+[[run]]
+id = "trace-local-codescene-unavailable"
+class = "scenario-trace"
+purpose = "Blocking on an unevaluable source: hosted checks are green, the local `cs` is unavailable, and the model refuses to go on to the discussion at all."
+obligations = ["PRR-DELIV-03", "PRR-HON-02"]
+scenario = '''
+SCENARIOS = [snapshot("fixture:local-codescene-unavailable", "draft", local="unavailable", completeness="current:sound-clear")]
+'''
+trace = [
+  "Any:sc=0", "ChecksComplete", 'Any:ci="green"', 'Any:hosted="clear"',
+  "AgentObservesPullRequest", "AgentObservesPlanAndInventory", "AgentReadsChecks",
+  "AgentRunsLocalDelta", "AgentInspectsDiscussion",
+]
+expect = { fail = "blocked", executed = 8 }
+
+[[run]]
+id = "ready-only-read-back-mismatch"
+class = "assurance"
+purpose = "A ready-only assignment whose head may change between the ready command and its read-back stops only at a verified transition; after an unmatched read-back the PR stays ready and the agent observes again."
+obligations = ["PRR-AUTH-01", "PRR-HON-04", "PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(authority="ready-only", change_budget=1, env_head=True,
+                      expect_merge="never", expect_progress="ready")]
+'''
+expect = "pass"
+
+# ---------------------------------------------------------------------------
+# Property controls: an unmodified specification under a scenario built to
+# defeat one assertion. Each shows that the assertion is evaluated and can
+# fail, so a pass elsewhere is not vacuous.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "control-reachability-can-fail"
+class = "property-control"
+purpose = "Declaring readiness reachable where the local `cs` never becomes available must be reported as an unreached state."
+obligations = ["PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_in_outage=True, outage_recovers=False,
+                      expect_ready="reachable", expect_merge="never")]
+'''
+expect = { fail = "exists", assertion = "ReadyIsReachable" }
+
+[[run]]
+id = "control-declared-block-can-fail"
+class = "property-control"
+purpose = "Declaring an ordinary, clearable assignment blocked must be reported as a violated invariant."
+obligations = ["PRR-ELIG-01"]
+scenario = '''
+SCENARIOS = [scenario(expect_ready="never", expect_merge="unchecked")]
+'''
+expect = { fail = "always", assertion = "BlockedAssignmentStaysDraft" }
+
+[[run]]
+id = "control-no-progress-under-permanent-outage"
+class = "property-control"
+purpose = "Progress is conditional: with the local `cs` permanently unavailable the assignment never merges, and the checker must report that."
+obligations = ["PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_in_outage=True, outage_recovers=False,
+                      expect_ready="unchecked", expect_merge="unchecked",
+                      expect_progress="merged")]
+'''
+expect = { fail = "liveness", assertion = "ProgressWhenWarranted" }
+
+[[run]]
+id = "control-no-progress-while-the-service-is-silent"
+class = "property-control"
+purpose = "Progress is conditional: a posted request that is never answered never becomes clearance, however long the agent waits."
+obligations = ["PRR-PROG-02", "PRR-ELIG-01"]
+scenario = '''
+SCENARIOS = [scenario(reply_shapes=(), expect_ready="unchecked",
+                      expect_merge="unchecked", expect_progress="merged")]
+'''
+expect = { fail = "liveness", assertion = "ProgressWhenWarranted" }
+
+[[run]]
+id = "control-no-progress-when-the-verdict-is-not-clear"
+class = "property-control"
+purpose = "Progress is conditional: the assessor is never forced to approve, and a not-clear verdict with no repair never becomes readiness."
+obligations = ["PRR-PROG-02"]
+scenario = '''
+SCENARIOS = [scenario(reply_shapes=("not-clear",), expect_ready="unchecked",
+                      expect_merge="unchecked", expect_progress="ready")]
+'''
+expect = { fail = "liveness", assertion = "ProgressWhenWarranted", via = ['Any:shape="not-clear"'] }
+
+[[run]]
+id = "control-merge-reachability-can-fail"
+class = "property-control"
+purpose = "Declaring a merge reachable under a no-merge assignment must be reported as an unreached state."
+obligations = ["PRR-AUTH-02"]
+scenario = '''
+SCENARIOS = [scenario(authority="no-merge", expect_merge="reachable")]
+'''
+expect = { fail = "exists", assertion = "MergeIsReachable" }
+
+[[run]]
+id = "control-declared-merge-block-can-fail"
+class = "property-control"
+purpose = "Declaring the merge of an ordinary, authorized assignment impossible must be reported as a violated invariant."
+obligations = ["PRR-LIFE-03"]
+scenario = '''
+SCENARIOS = [scenario(expect_merge="never")]
+'''
+expect = { fail = "always", assertion = "UnauthorizedOrBlockedMergeNeverHappens", via = ["AgentRunsMergeCommand"] }
+
+[[run]]
+id = "control-recovery-needs-a-change"
+class = "property-control"
+purpose = "Declaring recovery after invalidation reachable where nothing can change must be reported as an unreached state."
+obligations = ["PRR-LIFE-03"]
+scenario = '''
+SCENARIOS = [scenario(expect_recovery="merged")]
+'''
+expect = { fail = "exists", assertion = "RecoveryIsReachable" }
+
+[[run]]
+id = "control-stale-ready-needs-a-change"
+class = "property-control"
+purpose = "Declaring a ready PR with stale evidence reachable where nothing can change must be reported as an unreached state."
+obligations = ["PRR-LIFE-02"]
+scenario = '''
+SCENARIOS = [scenario(expect_stale_ready="reachable")]
+'''
+expect = { fail = "exists", assertion = "StaleReadyIsReachable" }
+
+[[run]]
+id = "control-reentry-needs-an-interruption"
+class = "property-control"
+purpose = "Declaring re-entry reachable where the session is never interrupted must be reported as an unreached state."
+obligations = ["PRR-REQ-03"]
+scenario = '''
+SCENARIOS = [scenario(expect_reentry="reachable")]
+'''
+expect = { fail = "exists", assertion = "ReentryConsumesDelayedReply" }
+
+[[run]]
+id = "control-undivided-stack-is-not-deliverable"
+class = "property-control"
+spec = "stack.fizz"
+purpose = "Declaring the stack cut from one undivided plan deliverable must be reported as an unreached state."
+obligations = ["PRR-STACK-01"]
+scenario = '''
+LAYERS = UNDIVIDED
+EXPECT_DELIVERY = "reachable"
+'''
+expect = { fail = "exists", assertion = "StackIsDeliverable" }
+
+[[run]]
+id = "control-split-stack-does-merge"
+class = "property-control"
+spec = "stack.fizz"
+purpose = "Declaring the stack of independently complete plans undeliverable must be reported as a violated invariant."
+obligations = ["PRR-STACK-02"]
+scenario = '''
+LAYERS = SPLIT
+EXPECT_DELIVERY = "never"
+'''
+expect = { fail = "always", assertion = "UndeliverableStackNeverMerges", via = ["StackMerges"] }
+
+# ---------------------------------------------------------------------------
+# Expected counterexamples: recorded limitations of the documented protocol.
+# The strong freshness properties ask that evidence be current in reality
+# when a command takes effect. `gh pr ready` is unconditional and the merge
+# guard names the head only, so these fail. They are NOT assurance.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "expected-counterexample-head-moves-before-ready"
+class = "expected-counterexample"
+purpose = "The head changes after the agent's last read and before `gh pr ready` takes effect; the PR becomes ready at a head nothing was assessed for."
+obligations = ["PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_head=True, check_strong=True)]
+'''
+expect = { fail = "transition", assertion = "StrongReadyFreshness", via = ['HeadChanges', 'AgentRunsReadyCommand'] }
+
+[[run]]
+id = "expected-counterexample-plan-revision-moves-before-ready"
+class = "expected-counterexample"
+purpose = "A new plan revision is approved, with base/head unchanged, after the plan was read; the documented re-fetch covers base/head only."
+obligations = ["PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_plan=True, check_strong=True)]
+'''
+expect = { fail = "transition", assertion = "StrongReadyFreshness", via = ['PlanRevisionChanges', 'AgentRunsReadyCommand'] }
+
+[[run]]
+id = "expected-counterexample-reply-edited-before-ready"
+class = "expected-counterexample"
+purpose = "The assessment reply is edited in place from clear to not clear after it was read and before the ready command."
+obligations = ["PRR-TOCTOU-01", "PRR-BIND-04"]
+scenario = '''
+SCENARIOS = [scenario(reply_shapes=("sound-clear", "not-clear"),
+                      env_edits=True, check_strong=True)]
+'''
+expect = { fail = "transition", assertion = "StrongReadyFreshness", via = ['ServiceEditsReply', 'AgentRunsReadyCommand'] }
+
+[[run]]
+id = "expected-counterexample-plan-revision-moves-before-merge"
+class = "expected-counterexample"
+purpose = "The merge command's head guard does not cover the plan revision: a revision approved after the last read is not seen by the merge."
+obligations = ["PRR-TOCTOU-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_ready=True, change_budget=1, env_plan=True,
+                      check_strong=True, expect_ready="unchecked")]
+'''
+expect = { fail = "transition", assertion = "StrongMergeFreshness", via = ['PlanRevisionChanges', 'AgentRunsMergeCommand'] }
+
+[[run]]
+id = "expected-counterexample-base-moves-before-merge"
+class = "expected-counterexample"
+purpose = "The merge command's head guard does not cover the base: a retarget after the last read is not seen by the merge."
+obligations = ["PRR-TOCTOU-02"]
+scenario = '''
+SCENARIOS = [scenario(starts_ready=True, change_budget=1, env_base=True,
+                      check_strong=True, expect_ready="unchecked")]
+'''
+expect = { fail = "transition", assertion = "StrongMergeFreshness", via = ['BaseChanges', 'AgentRunsMergeCommand'] }
+
+[[run]]
+id = "expected-counterexample-base-moves-before-ready"
+class = "expected-counterexample"
+purpose = "The base changes after the agent's last read and before `gh pr ready` takes effect."
+obligations = ["PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(change_budget=1, env_base=True, check_strong=True)]
+'''
+expect = { fail = "transition", assertion = "StrongReadyFreshness", via = ['BaseChanges', 'AgentRunsReadyCommand'] }
+
+[[run]]
+id = "expected-counterexample-inventory-grows-before-ready"
+class = "expected-counterexample"
+purpose = "A second proof joins the required inventory after it was read; the PR becomes ready on a verdict that covers only the first."
+obligations = ["PRR-TOCTOU-01"]
+scenario = '''
+SCENARIOS = [scenario(completeness_applies=False, has_plan=False,
+                      proof_applies=True, proofs=("p1",),
+                      wider_proofs=("p1", "p2"), change_budget=1,
+                      env_inventory=True, check_strong=True)]
+'''
+expect = { fail = "transition", assertion = "StrongReadyFreshness", via = ['InventoryChanges', 'AgentRunsReadyCommand'] }
+
+[[run]]
+id = "expected-counterexample-reply-edited-before-merge"
+class = "expected-counterexample"
+purpose = "The merge command's head guard does not cover a reply: one edited from clear to not clear after it was read is not seen by the merge."
+obligations = ["PRR-TOCTOU-02", "PRR-BIND-04"]
+scenario = '''
+SCENARIOS = [scenario(starts_ready=True, reply_shapes=("sound-clear", "not-clear"),
+                      env_edits=True, check_strong=True, expect_ready="unchecked")]
+'''
+expect = { fail = "transition", assertion = "StrongMergeFreshness", via = ['ServiceEditsReply', 'AgentRunsMergeCommand'] }
+
+# ---------------------------------------------------------------------------
+# Negative controls: one defect each, applied to the specification text. The
+# `of` run is the same scenario unmutated, and it passes above.
+# ---------------------------------------------------------------------------
+
+[[run]]
+id = "mutant-subset-verdict-clears"
+class = "negative-control"
+of = "undivided-plan-layer"
+purpose = "Dropping the whole-plan subject rule lets a clear declared-subset verdict open the gate."
+obligations = ["PRR-APPL-03", "PRR-STACK-01"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="subset-clear"'] }
+[[run.mutation]]
+old = '''
+    if kind == "completeness" and entry.subject != "whole":
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-reply-may-exempt-itself"
+class = "negative-control"
+of = "completeness-replies-that-do-not-clear"
+purpose = "Letting a reply's own not-applicable claim settle an applicable assessment opens the gate with no substantive answer."
+obligations = ["PRR-APPL-01"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="not-applicable-claim"'] }
+[[run.mutation]]
+old = '''    if entry.verdict != "clear":
+        return False
+'''
+new = '''    if entry.verdict != "clear" and entry.verdict != "not-applicable":
+        return False
+'''
+
+[[run]]
+id = "mutant-revision-echo-not-required"
+class = "negative-control"
+of = "completeness-replies-that-do-not-clear"
+purpose = "Dropping the echoed-revision check accepts a reply that echoes only the base/head."
+obligations = ["PRR-BIND-02"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="no-revision-echo"'] }
+[[run.mutation]]
+old = '''
+    if obs.rev != None and entry.rev != obs.rev:
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-verdict-for-another-candidate-clears"
+class = "negative-control"
+of = "completeness-replies-that-do-not-clear"
+purpose = "Dropping the base/head check accepts a verdict given for another candidate."
+obligations = ["PRR-BIND-01"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="other-candidate"'] }
+[[run.mutation]]
+old = '''
+    if entry.base != obs.base or entry.head != obs.head:
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-partial-proof-coverage-clears"
+class = "negative-control"
+of = "proof-replies-that-do-not-clear"
+purpose = "Dropping the coverage relation accepts a clear proof verdict that names one of the two required proofs."
+obligations = ["PRR-APPL-04"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['Any:shape="partial-proofs"'] }
+[[run.mutation]]
+old = '''
+    if kind == "proof" and not covers(obs.proofs, entry.proofs):
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-pending-request-clears"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Treating a posted, unanswered request as clearance opens the gate on a queue receipt."
+obligations = ["PRR-ELIG-01"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence" }
+[[run.mutation]]
+old = '''    if entry == None or entry.status != "reply":
+        return False
+'''
+new = '''    if entry == None:
+        return False
+    if entry.status == "pending":
+        return True
+'''
+
+[[run]]
+id = "mutant-other-author-accepted"
+class = "negative-control"
+of = "completeness-replies-that-do-not-clear"
+purpose = "Reading any comment that echoes the marker, whoever wrote it, records a verdict the assessment service never gave."
+obligations = ["PRR-BIND-03", "PRR-HON-01"]
+expect = { fail = "transition", assertion = "EvidenceIsWhatWasRead", via = ['OtherAuthorComments'] }
+[[run.mutation]]
+old = "l_eval = read_replies(SCENARIOS[sc], cur, requests, replies, l_eval)"
+new = "l_eval = read_replies(SCENARIOS[sc], cur, requests, dict(replies.items() + foreign.items()), l_eval)"
+
+[[run]]
+id = "mutant-question-identity-ignores-revision"
+class = "negative-control"
+of = "plan-revision-changes-and-recovery"
+purpose = "If the plan revision is not part of what makes a question the same question, the request for the superseded revision is adopted, the new revision is never asked about, and no question is ever renewed: the assignment cannot recover."
+obligations = ["PRR-REQ-04", "PRR-BIND-02"]
+expect = { fail = "exists", assertion = "RecoveryIsReachable" }
+[[run.mutation]]
+old = "and request.head == wanted.head and request.rev == wanted.rev"
+new = "and request.head == wanted.head"
+
+[[run]]
+id = "mutant-revision-binding-removed"
+class = "negative-control"
+of = "already-ready-on-assignment"
+purpose = "With the revision removed from both the question's identity and the echo check, a verdict for the superseded revision carries a ready PR to merge: stale eligibility after the plan changed with base/head unchanged."
+obligations = ["PRR-BIND-02", "PRR-LIFE-03"]
+expect = { fail = "transition", assertion = "MergeNeedsAuthorityAndRenewedEvidence", via = ['PlanRevisionChanges', 'AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = "and request.head == wanted.head and request.rev == wanted.rev"
+new = "and request.head == wanted.head"
+[[run.mutation]]
+old = '''
+    if obs.rev != None and entry.rev != obs.rev:
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-candidate-binding-removed"
+class = "negative-control"
+of = "merge-head-guard-closes-the-head-race"
+purpose = "With the head removed from both the question's identity and the verdict check, the verdict for the old head carries a ready PR to merge at the new one: stale eligibility after a ready PR changes."
+obligations = ["PRR-BIND-01", "PRR-LIFE-02", "PRR-LIFE-03"]
+expect = { fail = "transition", assertion = "MergeNeedsAuthorityAndRenewedEvidence", via = ['HeadChanges', 'AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = "and request.head == wanted.head and request.rev == wanted.rev"
+new = "and request.rev == wanted.rev"
+[[run.mutation]]
+old = '''
+    if entry.base != obs.base or entry.head != obs.head:
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-inventory-binding-removed"
+class = "negative-control"
+of = "inventory-changes-and-recovery"
+purpose = "With the inventory removed from both the question's identity and the coverage check, the answer to the one-proof question clears the two-proof inventory."
+obligations = ["PRR-REQ-04", "PRR-APPL-04"]
+expect = { fail = "transition", assertion = "ReadyNeedsCurrentEvidence", via = ['InventoryChanges'] }
+[[run.mutation]]
+old = '''
+            and request.proofs == wanted.proofs)'''
+new = ")"
+[[run.mutation]]
+old = '''
+    if kind == "proof" and not covers(obs.proofs, entry.proofs):
+        return False
+'''
+new = "\n"
+
+[[run]]
+id = "mutant-question-asked-before-gates"
+class = "negative-control"
+of = "delivery-gates-may-fail"
+purpose = "Posting the assessment question without the delivery gates spends a reply on a candidate that cannot proceed."
+obligations = ["PRR-REQ-01"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates" }
+[[run.mutation]]
+old = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "start"'
+new = 'pc = "inspect"'
+
+[[run]]
+id = "mutant-hosted-green-substitutes-for-local"
+class = "negative-control"
+of = "local-codescene-never-available"
+purpose = "Letting green hosted checks stand in for an unavailable local delta lets the workflow proceed on a source that was never evaluated."
+obligations = ["PRR-DELIV-03"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates" }
+[[run.mutation]]
+old = '''            and local.tree == obs.head and local.value == "clear")'''
+new = '''            and local.tree == obs.head)'''
+
+[[run]]
+id = "mutant-unavailable-recorded-as-clean"
+class = "negative-control"
+of = "local-codescene-never-available"
+purpose = "Recording an unevaluable local source as clean turns 'I could not run the check' into 'the check found nothing'."
+obligations = ["PRR-HON-02", "PRR-DELIV-03"]
+expect = { fail = "transition", assertion = "LocalResultIsWhatWasRun" }
+[[run.mutation]]
+old = '''        value = "unavailable"
+'''
+new = '''        value = "clear"
+'''
+
+[[run]]
+id = "mutant-local-result-reused-for-another-tree"
+class = "negative-control"
+of = "candidate-changes-and-recovery"
+purpose = "Without the binding to the base/head comparison it was run on, a clean local delta of the old candidate clears a different published one."
+obligations = ["PRR-DELIV-04"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates", via = ['HeadChanges'] }
+[[run.mutation]]
+old = '''    if not (l_local != None and l_local.base == obs.base and l_local.tree == obs.head and l_local.value == "clear"):'''
+new = '''    if not (l_local != None and l_local.value == "clear"):'''
+[[run.mutation]]
+old = '''            and local.base == obs.base
+            and local.tree == obs.head and local.value == "clear")'''
+new = '''            and local.value == "clear")'''
+
+[[run]]
+id = "mutant-check-result-invented"
+class = "negative-control"
+of = "delivery-gates-may-fail"
+purpose = "Recording green CI without reading it invents evidence to complete the record."
+obligations = ["PRR-HON-03", "PRR-DELIV-01"]
+expect = { fail = "transition", assertion = "ObservationsRecordReality" }
+[[run.mutation]]
+old = "l_checks = record(base=base, head=head, ci=ci, hosted=hosted)"
+new = 'l_checks = record(base=base, head=head, ci="green", hosted=hosted)'
+
+[[run]]
+id = "mutant-plan-revision-not-reobserved"
+class = "negative-control"
+of = "plan-revision-changes-and-recovery"
+purpose = "An agent that keeps using the revision it first knew records an observation that is not what the plan says."
+obligations = ["PRR-HON-03", "PRR-BIND-02"]
+expect = { fail = "transition", assertion = "ObservationsRecordReality", via = ['PlanRevisionChanges'] }
+[[run.mutation]]
+old = "plan_step(cfg, obs, rev if cfg.has_plan else None,"
+new = "plan_step(cfg, obs, 0 if cfg.has_plan else None,"
+
+[[run]]
+id = "mutant-decides-without-rechecking"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Skipping the re-fetch of live base/head before accepting a result breaks the documented order."
+obligations = ["PRR-ORDER-01"]
+expect = { fail = "transition", assertion = "ReadyFollowsFreshReads" }
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+
+[[run]]
+id = "mutant-request-reposted-without-inspection"
+class = "negative-control"
+of = "interruption-and-reentry"
+purpose = "Posting without first inspecting the discussion repeats an unanswered question instead of preserving it."
+obligations = ["PRR-REQ-02", "PRR-REQ-03"]
+expect = { fail = "transition", assertion = "RequestIsNotRepeated", via = ['AgentPostsRequest'] }
+[[run.mutation]]
+old = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "start"'
+new = 'pc = "post" if delivery_gates_hold(obs, l_checks, l_local) else "start"'
+
+[[run]]
+id = "mutant-unverified-transition-claimed"
+class = "negative-control"
+of = "candidate-changes-and-recovery"
+purpose = "Recording a verified transition without comparing the read-back with the candidate the command was issued for claims more than was observed."
+obligations = ["PRR-HON-04"]
+expect = { fail = "transition", assertion = "VerifiedClaimNeedsMatchingReadBack", via = ['HeadChanges', 'AgentReadsBackReady'] }
+[[run.mutation]]
+old = "verified = not draft and base == intent.base and head == intent.head"
+new = "verified = True"
+
+[[run]]
+id = "mutant-merge-without-head-guard"
+class = "negative-control"
+of = "merge-head-guard-closes-the-head-race"
+purpose = "An unconditional merge command lands a head the evidence does not cover."
+obligations = ["PRR-LIFE-03", "PRR-TOCTOU-02"]
+expect = { fail = "transition", assertion = "MergeNeedsAuthorityAndRenewedEvidence", via = ['HeadChanges', 'AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = "merged = head == intent.head and not draft"
+new = "merged = not draft"
+
+[[run]]
+id = "mutant-ready-without-authority"
+class = "negative-control"
+of = "authority-boundaries"
+purpose = "Ignoring a must-stay-draft assignment marks the PR ready beyond the authorized stopping point."
+obligations = ["PRR-AUTH-01"]
+expect = { fail = "transition", assertion = "ReadyRespectsAuthority" }
+[[run.mutation]]
+old = '''        if cfg.authority == "stay-draft":
+            return "done"
+'''
+new = ""
+
+[[run]]
+id = "mutant-merge-without-authority"
+class = "negative-control"
+of = "authority-boundaries"
+purpose = "Merging under a ready-only or no-merge assignment exceeds its authority."
+obligations = ["PRR-AUTH-02"]
+expect = { fail = "transition", assertion = "MergeNeedsAuthorityAndRenewedEvidence", via = ['AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = '''    if cfg.authority == "merge":
+        return "merge-command"
+    return "done"
+'''
+new = '''    return "merge-command"
+'''
+
+[[run]]
+id = "mutant-terminal-states-removed"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Deadlock detection is live: without the stutter that marks the legitimate terminal states, a finished assignment is reported as a deadlock."
+obligations = ["PRR-PROG-02"]
+expect = { fail = "deadlock" }
+[[run.mutation]]
+old = '''    require pc in TERMINAL
+    pass'''
+new = '''    require False
+    pass'''
+
+[[run]]
+id = "mutant-subset-waiver-for-a-stack-layer"
+class = "negative-control"
+of = "stack-from-one-undivided-plan"
+purpose = "A subset waiver would let the lower layer of an undivided stack leave draft; the conflict must not be repaired that way."
+obligations = ["PRR-STACK-01"]
+expect = { fail = "transition", assertion = "LayerReadinessNeedsWholePlanVerdict", via = ['Any:said="subset-clear"'] }
+[[run.mutation]]
+old = '''    require verdicts[index] == "whole-clear"'''
+new = '''    require verdicts[index] in ("whole-clear", "subset-clear")'''
+
+[[run]]
+id = "mutant-stack-observation-removed"
+class = "negative-control"
+of = "stack-from-one-undivided-plan"
+purpose = "The undivided stack is busy, not deadlocked: only when the observation loop is removed does the checker report its blocked state as a deadlock."
+obligations = ["PRR-STACK-01", "PRR-PROG-02"]
+expect = { fail = "deadlock" }
+[[run.mutation]]
+old = '''    require not ready[index]
+    pass'''
+new = '''    require False
+    pass'''
+
+[[run]]
+id = "mutant-stack-merges-with-a-draft-layer"
+class = "negative-control"
+of = "stack-from-one-undivided-plan"
+purpose = "A stack merge that needs only some layer ready would deliver the undivided stack with its lower layer still in draft."
+obligations = ["PRR-STACK-01"]
+expect = { fail = "transition", assertion = "StackMergeNeedsEveryLayerReady", via = ["StackMerges"] }
+[[run.mutation]]
+old = "require not merged and all(ready)"
+new = "require not merged and any(ready)"
+
+[[run]]
+id = "mutant-recheck-compares-nothing"
+class = "negative-control"
+of = "candidate-changes-and-recovery"
+purpose = "A re-fetch whose result is not compared with the observed candidate lets the pass go on after the candidate moved."
+obligations = ["PRR-ORDER-01"]
+expect = { fail = "transition", assertion = "ReadyFollowsFreshReads", via = ['AgentRechecksCandidate', 'AgentRunsReadyCommand'] }
+[[run.mutation]]
+old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+new = 'pc = "decide"'
+
+[[run]]
+id = "mutant-merge-decided-without-rechecking"
+class = "negative-control"
+of = "already-ready-on-assignment"
+purpose = "Skipping the re-fetch before a merge breaks the documented re-read immediately before the operation."
+obligations = ["PRR-ORDER-01", "PRR-LIFE-03"]
+expect = { fail = "transition", assertion = "MergeFollowsFreshReads", via = ['AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+
+[[run]]
+id = "mutant-answered-reply-not-reread"
+class = "negative-control"
+of = "edited-replies"
+purpose = "Keeping the ledger's earlier record of an answered request, instead of recording what this pass read, carries a reply that has since been edited."
+obligations = ["PRR-BIND-04", "PRR-ORDER-01"]
+expect = { fail = "transition", assertion = "MergeFollowsFreshReads", via = ['ServiceEditsReply'] }
+[[run.mutation]]
+old = '''            reply = replies.get(marker)
+'''
+new = '''            reply = replies.get(marker)
+            kept = evals.get(kind)
+            if kept != None and kept.status == "reply" and kept.marker == marker:
+                continue
+'''
+
+[[run]]
+id = "mutant-merge-recorded-without-reading"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Recording a merge that was not read from the remote lets a recorded outcome outrun the remote state."
+obligations = ["PRR-HON-05"]
+expect = { fail = "always", assertion = "ClaimsNeverOutrunTheRemote" }
+[[run.mutation]]
+old = "    l_merged = merged\n"
+new = "    l_merged = True\n"
+
+[[run]]
+id = "mutant-replies-read-after-recheck"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "Reading the replies after re-fetching the candidate, instead of before, leaves both records consistent with the candidate; only the order the re-fetch recorded shows that the ready command rests on a re-fetch that preceded the replies."
+obligations = ["PRR-ORDER-01"]
+expect = { fail = "transition", assertion = "ReadyFollowsFreshReads", via = ['AgentRechecksCandidate', 'AgentReadsReplies', 'AgentRunsReadyCommand'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "recheck"'
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+[[run.mutation]]
+old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+new = 'pc = "read" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+
+[[run]]
+id = "mutant-replies-read-after-recheck-before-merge"
+class = "negative-control"
+of = "already-ready-on-assignment"
+purpose = "The same reversal before a merge: the merge rests on a re-fetch that preceded the reply read."
+obligations = ["PRR-ORDER-01", "PRR-LIFE-03"]
+expect = { fail = "transition", assertion = "MergeFollowsFreshReads", via = ['AgentRechecksCandidate', 'AgentReadsReplies', 'AgentRunsMergeCommand'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "recheck"'
+[[run.mutation]]
+old = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "recheck"
+'''
+new = '''    fresh = {kind: record(marker=cur[kind], reply=replies.get(cur[kind])) for kind in cur}
+    pc = "decide"
+'''
+[[run.mutation]]
+old = 'pc = "decide" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+new = 'pc = "read" if recheck.base == obs.base and recheck.head == obs.head and recheck.draft == obs.draft and not recheck.merged else "start"'
+
+[[run]]
+id = "mutant-waiting-ends-the-assignment"
+class = "negative-control"
+of = "local-codescene-never-available"
+purpose = "Ending the assignment when the local check is unavailable, instead of observing again, finishes on a wait: the PR stays draft and nothing merges, so only CompletionIsEarned can see it."
+obligations = ["PRR-PROG-02"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentRunsLocalDelta'] }
+[[run.mutation]]
+old = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "start"'
+new = 'pc = "inspect" if delivery_gates_hold(obs, l_checks, l_local) else "done"'
+
+[[run]]
+id = "mutant-ready-only-ends-on-unmatched-read-back"
+class = "negative-control"
+of = "ready-only-read-back-mismatch"
+purpose = "Finishing a ready-only assignment on a read-back that did not match the candidate the command was issued for stops short of a verified transition."
+obligations = ["PRR-AUTH-01", "PRR-HON-04"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['HeadChanges', 'AgentReadsBackReady'] }
+[[run.mutation]]
+old = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" and verified else "start"'
+new = 'pc = "done" if SCENARIOS[sc].authority == "ready-only" else "start"'
+
+[[run]]
+id = "mutant-completion-before-the-decision"
+class = "negative-control"
+of = "neither-assessment-applies"
+purpose = "Ending the assignment while inspecting the discussion, with every delivery gate clear and both assessments justified as not applicable, finishes on clear evidence but before the decision and short of the merge the assignment authorizes."
+obligations = ["PRR-PROG-02", "PRR-AUTH-01"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentInspectsDiscussion'] }
+[[run.mutation]]
+old = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "read"'
+new = 'pc = "post" if len(unasked(cfg, cur)) > 0 else "done"'
+
+[[run]]
+id = "mutant-merge-assignment-stops-at-the-decision"
+class = "negative-control"
+of = "ordinary-whole-plan"
+purpose = "A merge assignment that stops at its decision on an already-ready PR, with clearing evidence, never merges although it is authorized to."
+obligations = ["PRR-PROG-02", "PRR-AUTH-01"]
+expect = { fail = "transition", assertion = "CompletionIsEarned", via = ['AgentReadsBackReady', 'AgentDecides'] }
+[[run.mutation]]
+old = '''    if cfg.authority == "merge":
+        return "merge-command"
+    return "done"
+'''
+new = '''    return "done"
+'''

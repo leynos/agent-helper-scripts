@@ -54,12 +54,21 @@ MDTABLEFIX ?= mdtablefix
 MDTABLEFIX_SELECT = --git --include-untracked
 MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
+# The model-checking gate. The launcher pins the FizzBee release by digest in
+# the suite manifest, judges every run fail-closed, and never needs the
+# network once `make fizzbee` has fetched the release.
+MODEL_CHECK := uv run --script scripts/model_check_cli.py
+MODEL_SUITE ?= specs/pr-readiness/suite.toml
 
 # Test targets:
 # - test-entrypoints: rust-entrypoint process tests using cuprum and cmd-mox.
 # - test: full pytest suite for all repository tests.
 # - ci: complete CI/CD gate sequence used by GitHub Actions.
-.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci interrogate
+# Model-checking targets:
+# - fizzbee: fetch and verify the pinned checker (the one networked step).
+# - model-check: the mandatory routine suite, part of `ci`.
+# - model-check-extended: the routine suite plus the larger explorations.
+.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci interrogate fizzbee model-check model-check-extended
 
 all: ci
 
@@ -67,7 +76,7 @@ all: ci
 # markdownlint-cli2 action, which brings its own linter, so the workflow sets
 # CI_SKIP_MARKDOWNLINT=1 rather than repeating the list and letting the two
 # drift apart when a gate is added here.
-CI_GATES := check-fmt markdownlint lint typecheck test
+CI_GATES := check-fmt markdownlint lint typecheck model-check test
 ifeq ($(CI_SKIP_MARKDOWNLINT),1)
 CI_GATES := $(filter-out markdownlint,$(CI_GATES))
 endif
@@ -163,6 +172,21 @@ spelling:
 		--repository . \
 		--source data/typos-oxendict-base.toml \
 		--scope all
+
+# `model-check` does not fetch the checker: a gate that downloaded its own
+# tool would pass or fail on the network. It fails, naming `make fizzbee`,
+# when the pinned release is absent or is not the pinned bytes.
+fizzbee: ## Fetch and verify the pinned FizzBee release
+	@$(MODEL_CHECK) install --suite $(MODEL_SUITE)
+
+# The gate clears MODEL_CHECK_ONLY, which the launcher reads as `--only`, so an
+# inherited subset cannot shrink it; a subset run exits non-zero in any case.
+model-check: ## Run the mandatory model-checking suite
+	@env -u MODEL_CHECK_ONLY $(MODEL_CHECK) check --suite $(MODEL_SUITE)
+
+# Runs the routine suite as well, so it can never be run instead of it.
+model-check-extended: ## Run the routine suite and the larger explorations
+	@env -u MODEL_CHECK_ONLY $(MODEL_CHECK) check --suite $(MODEL_SUITE) --tier extended
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

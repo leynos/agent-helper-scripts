@@ -16,6 +16,7 @@ make check-fmt
 make markdownlint
 make lint
 make typecheck
+make model-check
 make test
 make spelling
 ```
@@ -23,6 +24,14 @@ make spelling
 `make ci` runs the same sequence and mirrors the GitHub Actions workflow,
 except that the workflow runs the Markdown gate through the `markdownlint-cli2`
 action.
+
+`make model-check` checks the FizzBee specifications under `specs/pr-readiness`
+with a pinned checker and never downloads it. Run `make fizzbee` once to fetch
+and verify the release; the gate fails, naming that target, when the release is
+absent. See
+[the developers' guide](docs/developers-guide.md#pr-readiness-behavioural-specification)
+before changing a specification, the suite, or the skill text an obligation
+quotes.
 
 `make lint` first runs `make interrogate`, which needs `uv` and fails on any
 Python definition it scans under `scripts`, `tests` and `skills` without a

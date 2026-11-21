@@ -117,6 +117,14 @@ See the [users' guide](users-guide.md#execplan-implementation) and the
 [`pr-babysitting`](../skills/pr-babysitting/SKILL.md) skills for invocation,
 assessment, and delivery details.
 
+### `make ci` needs the pinned model checker
+
+`make ci` now runs `make model-check`, which checks the readiness protocol of
+`pr-babysitting` with a pinned FizzBee release. Run `make fizzbee` once before
+`make ci`: it downloads and verifies the release. Without it, `make ci` fails at
+`model-check` and names `make fizzbee`. The checker supports Linux on x86-64
+only. See [model-checking targets](users-guide.md#model-checking-targets).
+
 ## ExecPlan authoring budgets and BDD suggestions
 
 The `execplans` skill and its template now require independent code,

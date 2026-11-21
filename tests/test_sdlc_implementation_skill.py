@@ -8,19 +8,12 @@ import re
 
 import pytest
 
-import pr_readiness_workflow as workflow
 from assessment_mutation_cases import (
     HANDOFF_DEFERS,
     HANDOFF_PACKET_EXCEPTION,
     HANDOFF_SUBSET_EVIDENCE,
 )
-from pr_readiness_model import (
-    CLEAR,
-    DECLARED_SUBSET,
-    PROOF,
-    WHOLE_PLAN,
-    Readiness,
-)
+from pr_readiness_spec_support import SNAPSHOT_DEFAULTS, checked_expectation
 from skill_contract_support import (
     mutate_one_clause,
     normalize,
@@ -480,18 +473,8 @@ PACKET_FIELDS = {
 }
 
 
-#: The candidate the handoff is exercised for, and its approved revision. They
-#: stand for what a real packet carries on its base/head and plan lines, which
-#: are placeholders in the template rather than fixed values.
-BASE = "handed0001"
-HEAD = "handed0002"
-REVISION = "rev-2026-11-01"
-PROOF_ONE = "proofs/refinement/Theorem.lean#refinement_sound"
-
-#: The marker the workflow posts the completeness request under when the
-#: caller does not name another. Read from the assignment rather than invented,
-#: so a renamed default moves this test with it.
-WORKFLOW_COMPLETENESS_ID = workflow.IMPLEMENTATION.completeness_id
+#: The routine, model-checked snapshot tables a handoff is looked up in.
+CHECKED_TABLES = ("fixture-snapshots", "snapshot-regression-table")
 
 
 def packet() -> dict[str, str]:
@@ -520,82 +503,50 @@ def packet() -> dict[str, str]:
     return found
 
 
-def test_the_shipped_handoff_packet_reaches_the_readiness_sequence() -> None:
-    """A handoff's packet is the input the readiness sequence consumes.
+def test_the_shipped_handoff_packet_reaches_the_readiness_model() -> None:
+    """A handoff's packet supplies the facts the readiness model is asked about.
 
     This crosses the boundary the two skills share rather than restating it.
-    The packet is read from `sdlc-implementation`, and the candidate, revision,
-    proof inventory and applicability the receiver derives from it are the
-    values the workflow is driven with. A subset verdict on that handoff keeps
-    the draft; a whole-plan verdict for the same candidate and revision clears
-    it. Both directions are asserted, so a sequence that never opened would
-    fail one half and a sequence that never closed would fail the other.
+    The packet is read from `sdlc-implementation`, and the applicability the
+    receiver derives from it selects the snapshot the FizzBee readiness model
+    was checked on. A declared-subset verdict on that handoff holds the
+    draft; a whole-plan verdict for the same candidate, revision and proof
+    clears it. Both directions are asserted, so a model that never opened
+    would fail one half and one that never closed would fail the other.
 
     The handoff's own line says the completeness assessment is required
-    against the whole approved plan, so the receiver reads applicability from
-    the packet rather than from whatever a reply claims about itself.
+    against the whole approved plan, so applicability comes from the packet
+    rather than from whatever a reply claims about itself. Nothing is decided
+    here: each answer is the expectation `make model-check` verifies for the
+    row that states these facts.
     """
     fields = packet()
     completeness_line = _completeness_packet_line(_read(IMPLEMENTATION / "SKILL.md"))
     # The receiver derives these from the packet's own wording: the
     # completeness line states whether the assessment is required, and the
-    # proof line states when it applies. The values a handoff for this
-    # repository would carry are what these read; the test is that the derived
-    # shape drives the sequence, not that these strings are the only accepted
-    # ones.
+    # proof line states when it applies.
     completeness_applies = "required" in completeness_line.casefold()
     proof_applies = "required when applicable" in fields["proof"].casefold()
     assert completeness_applies, "the handoff no longer requires completeness"
     assert proof_applies, "the handoff no longer conditions the proof assessment"
 
-    assignment = workflow.Assignment(
-        completeness_applies=completeness_applies,
-        proof_applies=proof_applies,
-    )
-    revision = REVISION
+    def handed(completeness: str) -> dict:
+        """Return the snapshot of a handoff with one affected proof."""
+        return {
+            **SNAPSHOT_DEFAULTS,
+            "completeness_applies": completeness_applies,
+            "proof_applies": proof_applies,
+            "proofs": ("p1",),
+            "completeness": completeness,
+            "proof": "current:sound-clear",
+        }
 
-    def run(subject: str) -> tuple[workflow.PullRequest, Readiness]:
-        """Drive the readiness sequence for one completeness subject."""
-        pull = workflow.PullRequest(
-            base=BASE,
-            head=HEAD,
-            approved_plan_revision=revision,
-            required_proofs=(PROOF_ONE,),
-        )
-        thread = workflow.Discussion(base=BASE, head=HEAD)
-        for selection in assignment.selections():
-            # The reply is composed from the packet, so its candidate and
-            # revision are the handoff's rather than a second set of literals.
-            thread.responses.append(
-                workflow.Reply(
-                    assessment_id=selection.assessment_id,
-                    author=workflow.CODERABBIT,
-                    base=BASE,
-                    head=HEAD,
-                    verdict=CLEAR,
-                    plan_revision=revision,
-                    echoed_revision=revision,
-                    subject=subject,
-                    proofs=(PROOF_ONE,) if selection.kind == PROOF else (),
-                )
-            )
-        return pull, workflow.assess_and_maybe_mark_ready(pull, thread, assignment)
-
-    subset_pull, subset = run(DECLARED_SUBSET)
-    assert not subset.ready, "a subset verdict on a handoff cleared the gate"
-    assert subset.reason == "completeness-declared-subset-does-not-clear", (
-        f"the subset handoff held for {subset.reason!r}"
-    )
-    assert subset_pull.is_draft, (
-        "a subset handoff left the draft:"
-        f" {subset_pull.ready_transitions}"
-    )
-
-    whole_pull, whole = run(WHOLE_PLAN)
-    assert whole.ready, f"a whole-plan handoff was refused: {whole.reason}"
-    assert whole_pull.ready_transitions == [HEAD], (
-        f"the whole-plan handoff recorded {whole_pull.ready_transitions}"
-    )
+    assert checked_expectation(handed("current:subset-clear"), CHECKED_TABLES) == (
+        "draft"
+    ), "a subset verdict on a handoff cleared the gate"
+    assert checked_expectation(handed("current:sound-clear"), CHECKED_TABLES) == (
+        "ready"
+    ), "a whole-plan handoff was refused"
 
 
 def test_a_handoff_that_omits_the_approved_revision_cannot_clear() -> None:
@@ -604,36 +555,18 @@ def test_a_handoff_that_omits_the_approved_revision_cannot_clear() -> None:
     An implementation handoff names the approved ExecPlan revision; the
     readiness rule binds an applicable completeness verdict to it. A handoff
     whose plan line records none leaves the receiver nothing to bind to, and
-    the sequence must refuse rather than treat the absence as "nothing to
-    reconcile" — which is what it did before the rule was added.
+    the model records a scope error and holds the draft rather than treating
+    the absence as "nothing to reconcile".
     """
     fields = packet()
     assert "revision" in fields["plan"].casefold(), (
         "the handoff packet no longer asks the implementation for a revision"
     )
-
-    pull = workflow.PullRequest(base=BASE, head=HEAD, approved_plan_revision=None)
-    thread = workflow.Discussion(base=BASE, head=HEAD)
-    thread.responses.append(
-        workflow.Reply(
-            assessment_id=WORKFLOW_COMPLETENESS_ID,
-            author=workflow.CODERABBIT,
-            base=BASE,
-            head=HEAD,
-            verdict=CLEAR,
-            plan_revision=None,
-            echoed_revision=None,
-            subject=WHOLE_PLAN,
-        )
-    )
-    decision = workflow.assess_and_maybe_mark_ready(
-        pull, thread, assignment=workflow.IMPLEMENTATION
-    )
-
-    assert not decision.ready, "a handoff with no revision cleared the gate"
-    assert decision.reason == "completeness-revision-absent", (
-        f"the revision-less handoff held for {decision.reason!r}"
-    )
-    assert pull.is_draft, (
-        f"a revision-less handoff left the draft: {pull.ready_transitions}"
+    without_revision = {
+        **SNAPSHOT_DEFAULTS,
+        "has_plan": False,
+        "completeness": "current:sound-clear",
+    }
+    assert checked_expectation(without_revision, CHECKED_TABLES) == "draft", (
+        "a handoff with no revision cleared the gate"
     )

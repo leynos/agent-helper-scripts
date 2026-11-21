@@ -291,7 +291,7 @@ it entirely. A directory the walk cannot read fails the gate instead of being
 skipped. Linting nothing is a failure: the gate stops with a diagnostic when
 discovery finds no Markdown file or when the linter is not installed. It is one
 of the gates `make ci` runs, in order: `check-fmt`, `markdownlint`, `lint`,
-`typecheck`, `test`, then `spelling`.
+`typecheck`, `model-check`, `test`, then `spelling`.
 
 `make nixie` validates Mermaid diagrams with `nixie` over the same discovered
 files. It is deliberately not part of `make ci`, because it renders through an
@@ -317,6 +317,27 @@ resolves the linter from `PATH`, falling back to the bun global install
 (`$HOME/.bun/bin/markdownlint-cli2`); `MDLINT_BIN` overrides both.
 
 Its rationale and rule set are in the [developers' guide](developers-guide.md).
+
+## Model-checking targets
+
+`make model-check` verifies the `pr-babysitting` readiness protocol with a
+pinned model checker, FizzBee v0.5.4. Three targets use it:
+
+- `make fizzbee` fetches the pinned release (an archive of about 352 MB) and
+  verifies it against the digests in `specs/pr-readiness/suite.toml`. Run it
+  once before `make ci` or `make model-check`; it is the only step that uses
+  the network.
+- `make model-check` runs the mandatory routine suite and is part of
+  `make ci`. It fails, naming `make fizzbee`, when the pinned release is absent
+  or does not match its digests.
+- `make model-check-extended` runs the routine suite and the larger
+  explorations. It does not replace `make model-check`.
+
+The checker supports Linux on x86-64 only; elsewhere the target fails and says
+so. The
+[developers' guide](developers-guide.md#pr-readiness-behavioural-specification)
+is the detailed reference: what the suite checks, how to read a failure, and
+what a passing run does and does not establish.
 
 ## Documentation library
 

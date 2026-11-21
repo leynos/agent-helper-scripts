@@ -1,0 +1,398 @@
+# Obligation-to-evidence mapping for the PR-readiness specification.
+#
+# Each obligation names the shipped section that states it, a sentence that
+# section must still contain, the assertions that express it, the suite runs
+# that exercise it, and the evidence kept outside the model. The skill is
+# the normative contract: this file records correspondence, it does not own
+# policy. A matching sentence shows that the rule is still stated; it does
+# not show that the prose and the model mean the same thing, which is a
+# matter for review.
+#
+# tests/test_pr_readiness_obligations.py checks every reference here.
+
+[[obligation]]
+id = "PRR-ELIG-01"
+title = "A draft-to-ready transition needs green CI, clear CodeScene and every applicable assessment"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = [
+  "Only when CI is green, CodeScene is clear, and all applicable pre-readiness assessments hold for the accepted base/head",
+  "Silence, an acknowledgement, a queued request, or a generic approval never clears an assessment.",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "BlockedAssignmentStaysDraft", "ReadyIsReachable"]
+retained = ["tests/test_pr_babysitting_examples.py", "tests/fixtures/readiness-agent-boundary/outcomes/current-whole-plan.txt"]
+
+[[obligation]]
+id = "PRR-DELIV-01"
+title = "CI evidence is bound to the candidate it was read for, and only green is green"
+document = "skills/pr-babysitting/SKILL.md"
+section = "2. Observe CI through a scrutineer"
+anchors = [
+  "Map synthetic PR-merge checks to the relevant base/head",
+  "Pending, cancelled, timed-out, blocked, unavailable, and unknown results are not green.",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "ObservationsRecordReality"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-DELIV-02"
+title = "Hosted CodeScene findings block readiness whatever the check's conclusion"
+document = "skills/pr-babysitting/SKILL.md"
+section = "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+anchors = ["A passing check with advisory findings still has outstanding issues."]
+assertions = ["ReadyNeedsCurrentEvidence", "RequestNeedsDeliveryGates"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/codescene-advisory.txt", "tests/test_readiness_handoff_boundary.py"]
+
+[[obligation]]
+id = "PRR-DELIV-03"
+title = "An unevaluable local CodeScene source is not clean, and a hosted green check cannot stand in for it"
+document = "skills/pr-babysitting/SKILL.md"
+section = "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+anchors = [
+  "An unevaluable source is not a clear source.",
+  "Do not substitute a hosted green badge for the missing local half",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "RequestNeedsDeliveryGates", "LocalResultIsWhatWasRun"]
+retained = ["tests/test_readiness_agent_boundary_shim.py", "tests/fixtures/readiness-agent-boundary/outcomes/local-codescene-unavailable.txt"]
+
+[[obligation]]
+id = "PRR-DELIV-04"
+title = "A clean local delta clears only the base/head comparison it was run on"
+document = "skills/pr-babysitting/SKILL.md"
+section = "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+anchors = [
+  "every warning or failure reported by `cs delta BASE_SHA HEAD_SHA`",
+  "the same base/head comparison as hosted CI",
+]
+assertions = ["RequestNeedsDeliveryGates", "ReadyNeedsCurrentEvidence", "LocalResultIsWhatWasRun"]
+retained = ["tests/test_readiness_agent_boundary_properties.py"]
+
+[[obligation]]
+id = "PRR-REQ-01"
+title = "An assessment question is posted only for an applicable assessment, after the delivery gates hold"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Applicability and ownership"
+anchors = ["Before requesting either assessment, require passing applicable deterministic correctness and quality gates, including verification obligations, for the published candidate."]
+assertions = ["RequestNeedsDeliveryGates"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-REQ-02"
+title = "An unanswered, unchanged question is preserved and not repeated"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Comment routing"
+anchors = [
+  "Do not repeat an unanswered request or enqueue it because a draft-skip notice exists.",
+  "On ambiguous posting failure, inspect the discussion before retrying.",
+]
+assertions = ["RequestIsNotRepeated"]
+retained = ["tests/fixtures/readiness-agent-boundary/traces/superseded-revision.jsonl"]
+
+[[obligation]]
+id = "PRR-REQ-03"
+title = "Re-entry adopts the outstanding question and consumes its late reply"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Comment routing"
+anchors = [
+  "On ambiguous posting failure, inspect the discussion before retrying.",
+  "preserve the pending request until a response, an explicit service blocker, or the observation deadline",
+]
+assertions = ["ReentryConsumesDelayedReply", "RequestIsNotRepeated"]
+retained = ["tests/fixtures/readiness-agent-boundary/traces/posted-then-answered.jsonl"]
+
+[[obligation]]
+id = "PRR-REQ-04"
+title = "A question about another candidate, revision or inventory is a different question and cannot reuse an earlier clearance"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = ["Subsequent repairs, proof changes, rebases, or retargeting require renewed candidate-bound evidence and affected assessment coverage."]
+assertions = ["ReadyNeedsCurrentEvidence", "MergeNeedsAuthorityAndRenewedEvidence", "RecoveryIsReachable", "ProgressWhenWarranted"]
+retained = ["tests/fixtures/readiness-agent-boundary/submitted/superseded-revision.txt"]
+
+[[obligation]]
+id = "PRR-APPL-01"
+title = "Applicability is established from accepted scope; a reply cannot exempt its own assessment"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Applicability and ownership"
+anchors = ["Establish applicability from accepted scope."]
+assertions = ["ReadyNeedsCurrentEvidence", "EvidenceIsWhatWasRead"]
+retained = ["tests/test_readiness_handoff_boundary.py"]
+
+[[obligation]]
+id = "PRR-APPL-02"
+title = "An inapplicable assessment is recorded as a justified not-applicable, and the PR is not held waiting for it"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = [
+  "For any other PR, record both as `not applicable` and continue to step 3 as soon as step 1 holds",
+  "Record a justified `not applicable` for an unaffected proof inventory",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "ReadyIsReachable", "ImpasseLeavesTheDraftAlone"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-APPL-03"
+title = "Only the whole approved plan clears completeness; a declared-subset verdict is evidence for its scope"
+document = "skills/pr-babysitting/SKILL.md"
+section = "1. Establish the candidate and keep a delivery ledger"
+anchors = ["only the whole approved plan clears the gate, and a declared-subset verdict is evidence for its actual scope only"]
+assertions = ["ReadyNeedsCurrentEvidence", "LayerReadinessNeedsWholePlanVerdict"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/subset-clear.txt", "tests/assessment_mutation_cases.py"]
+
+[[obligation]]
+id = "PRR-APPL-04"
+title = "A proof verdict must cover every proof the request listed"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Proof inventory and specific scrutiny"
+anchors = ["Require an explicit satisfactory assessment of the listed proofs with no unresolved substantive proof concern."]
+assertions = ["ReadyNeedsCurrentEvidence"]
+retained = ["tests/test_readiness_handoff_boundary.py"]
+
+[[obligation]]
+id = "PRR-APPL-05"
+title = "An applicable assessment with nothing to bind to is a scope error, not a clear gate"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = [
+  "An applicable completeness assessment is bound to an approved plan revision.",
+  "is a scope error to repair, not an assessment to read as clear on its base/head alone",
+]
+assertions = ["ImpasseLeavesTheDraftAlone", "ClaimsNeverOutrunTheRemote", "ProgressWhenWarranted"]
+retained = ["tests/test_sdlc_implementation_skill.py"]
+
+[[obligation]]
+id = "PRR-BIND-01"
+title = "A verdict is bound to the accepted base and head"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = ["Both applicable assessments must clear for the accepted candidate before its draft-to-ready transition."]
+assertions = ["ReadyNeedsCurrentEvidence", "MergeNeedsAuthorityAndRenewedEvidence"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/combined-proof-stale-verdict.txt"]
+
+[[obligation]]
+id = "PRR-BIND-02"
+title = "A verdict is bound to the approved plan revision in force, which the reply must echo"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = [
+  "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged",
+  "a reply that echoes only the base/head does not establish which revision was inspected",
+]
+assertions = ["ReadyNeedsCurrentEvidence", "MergeNeedsAuthorityAndRenewedEvidence", "ObservationsRecordReality"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/superseded-revision.txt", "tests/assessment_mutation_cases.py"]
+
+[[obligation]]
+id = "PRR-BIND-03"
+title = "Only the assessment service's reply, correlated with this request, answers it"
+document = "skills/pr-babysitting/references/awaiting-coderabbit.md"
+section = "Bounded issue-comment observation"
+anchors = [
+  "Select the verified `coderabbitai[bot]` author identity, not a display name or a mention in another author's body.",
+  "Correlate with the question using the echoed `Assessment-ID`, original request URL or quotation, assessed base/head, and actual content.",
+]
+assertions = ["EvidenceIsWhatWasRead", "ReadyNeedsCurrentEvidence"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-BIND-04"
+title = "An edited-in-place reply is reconciled as what the thread says when it is read"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = ["Reconcile the actual substantive issue-comment responses, including edited-in-place replies."]
+assertions = ["EvidenceIsWhatWasRead", "ReadyFollowsFreshReads", "MergeFollowsFreshReads"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-ORDER-01"
+title = "Live base/head is re-fetched after the replies are read and before a result is accepted"
+document = "skills/pr-babysitting/references/awaiting-coderabbit.md"
+section = "Bounded issue-comment observation"
+anchors = ["Re-fetch live base/head before accepting the result."]
+assertions = ["ReadyFollowsFreshReads", "MergeFollowsFreshReads"]
+retained = ["tests/test_readiness_agent_boundary_properties.py"]
+
+[[obligation]]
+id = "PRR-AUTH-01"
+title = "The ready transition respects the assignment's authorized stopping point"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = ["a later babysitting assignment permits the readiness transition unless the user explicitly requires it to remain draft or sets an earlier stopping point"]
+assertions = ["ReadyRespectsAuthority", "BlockedAssignmentStaysDraft", "CompletionIsEarned"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-AUTH-02"
+title = "A ready-only or no-merge assignment never merges"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = [
+  "Ready-only assignments stop after the verified transition and report review activity without dispatching further work.",
+  "No-merge assignments may continue through review reconciliation but must not merge.",
+]
+assertions = ["MergeNeedsAuthorityAndRenewedEvidence", "UnauthorizedOrBlockedMergeNeverHappens"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-LIFE-01"
+title = "A ready PR is never returned to draft"
+document = "skills/pr-babysitting/SKILL.md"
+section = "Operating contract"
+anchors = ["**Never return a PR to draft.**"]
+assertions = ["NeverReturnsToDraft"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-LIFE-02"
+title = "A ready PR stays ready while later changes invalidate its evidence; they block merge, not readiness"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = ["An already-ready PR remains ready while missing or invalidated assessments block merge."]
+assertions = ["StaleReadyIsReachable", "NeverReturnsToDraft", "MergeNeedsAuthorityAndRenewedEvidence"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-LIFE-03"
+title = "An authorized merge needs renewed evidence for the candidate being merged, guarded by its head"
+document = "skills/pr-babysitting/SKILL.md"
+section = "10. End cosmetic review churn, then squash-merge safely"
+anchors = [
+  "Applicable ExecPlan completeness/correctness and proof-specific assessments cover the accepted candidate, with no unresolved substantive concern.",
+  "For an ordinary PR, use a squash merge guarded by the accepted head SHA",
+]
+assertions = ["MergeNeedsAuthorityAndRenewedEvidence", "RecoveryIsReachable", "MergeIsReachable"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-HON-01"
+title = "The ledger records what the thread said; a missing reply stays pending"
+document = "skills/pr-babysitting/SKILL.md"
+section = "1. Establish the candidate and keep a delivery ledger"
+anchors = [
+  "Record unknown values as unknown; never invent evidence to complete the record.",
+  "Missing evidence remains pending",
+]
+assertions = ["EvidenceIsWhatWasRead"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-HON-02"
+title = "'I could not run the check' is recorded as that, never as 'the check found nothing'"
+document = "skills/pr-babysitting/SKILL.md"
+section = "4. Clear all outstanding CodeScene issues, validating locally and remotely"
+anchors = ["\"I could not run the check\" and \"the check found nothing\" are different facts, and only the second clears the rule."]
+assertions = ["LocalResultIsWhatWasRun"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-HON-03"
+title = "Observations and check records are copies of what was read"
+document = "skills/pr-babysitting/SKILL.md"
+section = "1. Establish the candidate and keep a delivery ledger"
+anchors = ["Fetch live state instead of trusting an earlier report."]
+assertions = ["ObservationsRecordReality"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-HON-04"
+title = "A verified transition is claimed only from a read-back of the candidate the command was issued for"
+document = "skills/pr-babysitting/SKILL.md"
+section = "5. Assess applicable delivery gates, then mark green drafts ready"
+anchors = ["Read back `isDraft=false` and the unchanged base/head before any formal review dispatch."]
+assertions = ["VerifiedClaimNeedsMatchingReadBack"]
+retained = ["tests/test_readiness_agent_boundary_properties.py"]
+
+[[obligation]]
+id = "PRR-HON-05"
+title = "A recorded outcome never outruns the remote state"
+document = "skills/pr-babysitting/SKILL.md"
+section = "10. End cosmetic review churn, then squash-merge safely"
+anchors = [
+  "Enqueued is not merged.",
+  "Verify the merged state, target branch, and squash landing SHA.",
+]
+assertions = ["ClaimsNeverOutrunTheRemote"]
+retained = ["tests/test_readiness_agent_boundary_shim.py"]
+
+[[obligation]]
+id = "PRR-HON-06"
+title = "An impasse is an explicit, named outcome; in the model it is terminal, so the draft is left as it was"
+document = "skills/pr-babysitting/SKILL.md"
+section = "Operating contract"
+anchors = ["Name the blocker, its owner, and the next action."]
+assertions = ["ImpasseLeavesTheDraftAlone", "ClaimsNeverOutrunTheRemote"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-PROG-01"
+title = "A warranted assignment reaches its authorized end once the candidate is stable, services answer, and the agent keeps working"
+document = "skills/pr-babysitting/SKILL.md"
+section = "Operating contract"
+anchors = ["keep working until the PR reaches equilibrium, an authorized merge, or an intractable impasse"]
+assertions = ["ProgressWhenWarranted"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/current-whole-plan.txt"]
+
+[[obligation]]
+id = "PRR-PROG-02"
+title = "Waiting is not an impasse and not clearance: a blocked workflow keeps observing"
+document = "skills/pr-babysitting/SKILL.md"
+section = "Operating contract"
+anchors = ["These are waits, not impasses: running or queued CI"]
+assertions = ["ProgressWhenWarranted", "ReadyIsReachable", "BlockedAssignmentStaysDraft", "CompletionIsEarned"]
+retained = ["tests/fixtures/readiness-agent-boundary/outcomes/local-codescene-unavailable.txt"]
+
+[[obligation]]
+id = "PRR-STACK-01"
+title = "A stack cut from one undivided plan has no readiness path, and there is no subset or plateau waiver"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = [
+  "There is no subset or plateau waiver",
+  "A stack laid out from one undivided plan has no readiness path",
+]
+assertions = ["LayerReadinessNeedsWholePlanVerdict", "StackMergeNeedsEveryLayerReady", "UndeliverableStackNeverMerges", "SubsetEvidenceIsRecordable"]
+retained = ["tests/assessment_mutation_cases.py", "tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-STACK-02"
+title = "Independently complete plans per layer, or the undivided plan in one PR, do deliver"
+document = "skills/pr-babysitting/references/execplan-assessment.md"
+section = "Readiness and later changes"
+anchors = ["Split the approved plan into independently complete units, one per layer, so that each layer is assessed against the whole of its own plan; or deliver the undivided plan in a single PR."]
+assertions = ["StackIsDeliverable"]
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+[[obligation]]
+id = "PRR-TOCTOU-01"
+title = "Recorded limitation: the ready command cannot be made conditional on what the evidence is bound to"
+document = "skills/pr-babysitting/references/operations.md"
+section = "Ready transition"
+anchors = ["Re-read the candidate after the ready transition and watch review-triggered checks."]
+assertions = ["StrongReadyFreshness"]
+limitation = true
+retained = ["skills/sdlc-implementation/references/setup.md"]
+
+[[obligation]]
+id = "PRR-TOCTOU-02"
+title = "Recorded limitation: the merge guard protects the head, not the base, the plan revision or an edited reply"
+document = "skills/pr-babysitting/references/operations.md"
+section = "Exact-head ordinary squash merge"
+anchors = ["The head guard protects against a changed PR head, not every possible base, check, or review race."]
+assertions = ["StrongMergeFreshness", "MergeNeedsAuthorityAndRenewedEvidence"]
+limitation = true
+retained = ["tests/test_pr_babysitting_examples.py"]
+
+# Assertions that no control in the suite is required to fail. Each is still
+# checked in every assurance run; what is missing is a demonstration that it
+# can fail, and the reason says why none is kept.
+
+[[uncontrolled]]
+assertion = "NeverReturnsToDraft"
+reason = "No action of the model can return a PR to draft, so there is no guard to mutate. The assertion guards against a later edit adding one."
+
+[[uncontrolled]]
+assertion = "ImpasseLeavesTheDraftAlone"
+reason = "An impasse is terminal, so no later step can transition; the assertion guards against a later edit that lets one."
+
+[[uncontrolled]]
+assertion = "SubsetEvidenceIsRecordable"
+reason = "It is a witness that the undivided stack's subset verdict exists as evidence; its absence is shown by the first, vacuous draft of stack.fizz, not by a kept control."
