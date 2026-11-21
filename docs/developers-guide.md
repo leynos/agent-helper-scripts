@@ -2179,21 +2179,43 @@ message naming the offending line:
 - a duplicate identifier reused within the same document; and
 - a fence that is opened but never closed.
 
-Three published documents currently sit under the contract:
-`documentation-library/daisyui-v5-guide.md` and
-`documentation-library/femtologging-users-guide.md`, and
-`documentation-library/scripting-standards.md`.
-`tests/test_tested_example_contract.py` loads all three from their shipped
-paths and asserts each satisfies the contract in full — every executable fence
+Four published documents currently sit under the contract:
+`documentation-library/daisyui-v5-guide.md`,
+`documentation-library/femtologging-users-guide.md`,
+`documentation-library/scripting-standards.md`, and
+`documentation-library/rust-doctest-dry-guide.md`.
+`tests/test_tested_example_contract.py` loads all four from their shipped paths
+and asserts each satisfies the contract in full — every executable fence
 marked, every identifier unique within its document, and the expected fence
 count and language set unchanged. It checks 93 examples in the daisyUI guide,
-14 in the Femtologging guide, and 21 in the scripting standards, so a
-regression in any document's markers, or a bug in the loader itself, fails a
-test rather than surfacing only when a downstream example-execution test
-silently stops running. `tests/test_tested_example_loader.py` exercises the
-four failure modes above against small inline documents, checking the specific
-diagnostic each raises, and separately confirms that an unmarked or marked
-mermaid fence is accepted and excluded from the results.
+14 in the Femtologging guide, 21 in the scripting standards, and 7 Rust fences
+in the Rust doctest guide, so a regression in any document's markers, or a bug
+in the loader itself, fails a test rather than surfacing only when a downstream
+example-execution test silently stops running.
+`tests/test_tested_example_loader.py` exercises the four failure modes above
+against small inline documents, checking the specific diagnostic each raises,
+and separately confirms that an unmarked or marked mermaid fence is accepted
+and excluded from the results.
+
+The Rust doctest guide adds a compiler-backed check.
+`tests/test_rust_doctest_dry_guide_examples.py` takes the Section 4.2
+`doctest-helpers-library` example, which is a complete `src/lib.rs` for a crate
+named `mycrate`, writes it verbatim into a scratch crate, and runs
+`cargo test --doc --offline` under editions 2021 and 2024. This proves that the
+published `#[doc(hidden)] pub` helper is reachable from the external doctest
+crate in both editions. The same test derives a negative control by replacing
+the helper module's `#[doc(hidden)]` attribute with `#[cfg(doctest)]`, then
+asserts that edition 2021 fails with an unresolved import naming
+`doctest_helpers`, which pins the guide's explanation that the linked library
+does not contain a `cfg(doctest)` module.
+
+The test needs Cargo on `PATH`. Locally it skips with an explicit reason when
+Cargo is absent, so a machine without Rust can still run the rest of the suite;
+CI provisions a stable toolchain and the test fails there if Cargo is missing.
+Edition 2024 requires Rust 1.85 or later, so the workflow installs stable Rust
+with that floor in mind. Execution or shape checks for the guide's other six
+Rust fences remain with issue #141. Run the focused check with
+`make test TEST_TARGETS=tests/test_rust_doctest_dry_guide_examples.py`.
 
 ### Rust API doc example contract
 
