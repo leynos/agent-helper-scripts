@@ -938,29 +938,32 @@ written only through its `RunFiles` boundary, and every fact about the machine
 (platform, processor count, checker home, clock and peak memory) arrives in a
 `Host` record, so a test can describe an unsupported platform without patching.
 A file the launcher cannot read, write or remove, and a checker it cannot
-start, is a named error rather than an empty or stale result.
-`scripts/model_check_cli.py` is the Cyclopts command line and the Cuprum
-process boundary, and builds the `Host` from the running machine at its edge.
-The launcher exists because the pinned release cannot be trusted to report its
-own result: it exits zero when a property fails, drops liveness checking
-without comment for a `liveness` value it does not recognize, stops at
-`max_actions` without saying so, and prints its pass line for a replayed trace
-whose last step it refused. The launcher therefore reads the output it
-recognizes, requires the checker to echo the options it was given and to name
-every temporal assertion it checked, accepts a pass as exhaustive only when
-fewer nodes were explored than the action bound, credits an unreached state or
-a liveness failure only from a search that finished in the same sense, and
-counts the steps of a replay from the nodes reported. A crash, a timeout or a
-syntax error is a gate failure and is never counted as a control detecting its
-defect. The checker runs in its own process group, so a timeout stops the
-checker the pinned `fizz` launcher started, not only the launcher. A run
-restricted with `--only` (or `MODEL_CHECK_ONLY`) is reported as partial and
-exits with status 3 even when every selected run passed; `make model-check`
-clears `MODEL_CHECK_ONLY`, so an inherited value cannot shrink the gate.
-`tests/test_model_check.py` pins that judgement on output captured from the
-release, drives the real command line against a doubled checker that fails,
-hangs, is killed or is absent, and runs the pinned release itself where it is
-installed.
+start, is a named error rather than an empty or stale result. Because each
+checker runs in its own process group, a terminal's Ctrl+C never reaches it
+directly: `run_suite` drops the runs not yet started, tells the runner to stop
+the checkers it is running, and waits for them before the command line reports
+the interrupt and exits 130. `scripts/model_check_cli.py` is the Cyclopts
+command line and the Cuprum process boundary, and builds the `Host` from the
+running machine at its edge. The launcher exists because the pinned release
+cannot be trusted to report its own result: it exits zero when a property
+fails, drops liveness checking without comment for a `liveness` value it does
+not recognize, stops at `max_actions` without saying so, and prints its pass
+line for a replayed trace whose last step it refused. The launcher therefore
+reads the output it recognizes, requires the checker to echo the options it was
+given and to name every temporal assertion it checked, accepts a pass as
+exhaustive only when fewer nodes were explored than the action bound, credits
+an unreached state or a liveness failure only from a search that finished in
+the same sense, and counts the steps of a replay from the nodes reported. A
+crash, a timeout or a syntax error is a gate failure and is never counted as a
+control detecting its defect. The checker runs in its own process group, so a
+timeout stops the checker the pinned `fizz` launcher started, not only the
+launcher. A run restricted with `--only` (or `MODEL_CHECK_ONLY`) is reported as
+partial and exits with status 3 even when every selected run passed;
+`make model-check` clears `MODEL_CHECK_ONLY`, so an inherited value cannot
+shrink the gate. `tests/test_model_check.py` pins that judgement on output
+captured from the release, drives the real command line against a doubled
+checker that fails, hangs, is killed or is absent, and runs the pinned release
+itself where it is installed.
 
 Every run in the suite has one class, reported apart: `assurance` runs must
 pass exhaustively; a `negative-control` applies one textual mutation and must

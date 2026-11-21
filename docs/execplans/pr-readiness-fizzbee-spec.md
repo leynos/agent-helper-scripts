@@ -346,6 +346,22 @@ is no history of revised limits to learn from.
   where the home's parent goes, a directory where the partial archive goes, and
   a refused `unlink` for the success path; a command-line test asserts the
   error line, the note line, the exit status and no traceback.
+- [x] (2026-11-21 06:40Z) Assessments of `6684a31` (comments 7054935584,
+  7054984033): proof "Yes, for the stated bounded model-checking claims";
+  completeness "substantially complete", with no further in-scope defect and
+  the maintainer decisions listed in D16 and the no-wait correspondence limit
+  outstanding. The formal review of `6684a31` (6003386340) requested changes
+  with one finding: an interrupt waited for every running checker, because the
+  checkers run in their own process groups on worker threads and never see the
+  terminal's signal. `run_suite` now drops queued runs, calls a `cancel` hook
+  the command line wires to the runner, and waits for active runs to stop
+  before re-raising; the runner polls that event beside its deadline and
+  cancels the Cuprum task, which stops the process group. The command line also
+  stopped Cyclopts from swallowing the interrupt, so it prints its own
+  diagnostic and exits 130. A unit test interrupts the calling thread with two
+  runs active and one queued, and a command-line test sends SIGINT to the
+  launcher and asserts the checker's child is gone long before the run's
+  timeout.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.

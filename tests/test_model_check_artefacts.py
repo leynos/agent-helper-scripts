@@ -24,6 +24,9 @@ import os
 import shutil
 import subprocess
 import tarfile
+import time
+import threading
+import signal
 from pathlib import Path
 import sys
 import types
@@ -571,3 +574,94 @@ def test_the_command_line_shows_a_failed_installs_cleanup_note(tmp_path: Path) -
     assert lines[0].startswith("model_check: error: download of file:///nowhere failed"), result.stderr
     assert lines[1].startswith("model_check: note: cannot remove the downloaded archive"), result.stderr
     assert "Traceback" not in result.stderr, result.stderr
+
+
+def test_an_interrupt_stops_active_runs_and_drops_queued_ones(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """The interrupt reaches workers: active runs stop, queued runs never start.
+
+    Two runs occupy both workers; once both are running, the calling thread
+    is interrupted, as a terminal's Ctrl+C would. Each active run stops only
+    when ``cancel`` is called, and both must have stopped before the
+    interrupt reaches the caller. The third run is queued and must never
+    start.
+    """
+    run, session = control_session(modules, tmp_path, None)
+    runs = [replace(run, id=name) for name in ("first", "second", "queued")]
+    cancelled = threading.Event()
+    started: list[str] = []
+    stopped: list[str] = []
+
+    def runner(_argv: object, cwd: Path, _timeout: int) -> object:
+        """Wait for the cancellation the interrupt sends, then stop."""
+        started.append(cwd.name)
+        if len(started) == 2:
+            signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
+        assert cancelled.wait(10), "the interrupt never reached the running worker"
+        stopped.append(cwd.name)
+        raise modules.suite.ModelCheckError("stopped by an interrupt")
+
+    session = replace(session, runner=runner)
+    with pytest.raises(KeyboardInterrupt):
+        modules.mc.run_suite(session, runs, 2, cancel=cancelled.set)
+    assert sorted(stopped) == ["first", "second"]
+    assert "queued" not in started
+
+
+def unreachable_release(tmp_path: Path, script: str) -> Path:
+    """Write a doubled checker running ``script`` and a suite pinning it."""
+    fizz = tmp_path / "home" / "release" / "fizz"
+    fizz.parent.mkdir(parents=True)
+    fizz.write_text("#!/bin/bash\n" + script, encoding="utf-8")
+    fizz.chmod(0o755)
+    digest = hashlib.sha256(fizz.read_bytes()).hexdigest()
+    suite = tmp_path / "suite.toml"
+    suite.write_text(
+        UNREACHABLE_PIN.replace('"fizz" = "0"', f'"fizz" = "{digest}"').replace(
+            "timeout_seconds = 5", "timeout_seconds = 120"
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "spec.fizz").write_text("action Init:\n    n = 0\n", encoding="utf-8")
+    return suite
+
+
+@pytest.mark.slow
+def test_an_interrupt_stops_the_checker_and_reports_no_result(tmp_path: Path) -> None:
+    """Ctrl+C at the command line stops a checker in its own process group.
+
+    The terminal's interrupt goes to the command line's group, not the
+    checker's. The checker's child must still be gone promptly, long before
+    the run's 120-second timeout, and the command must exit 130.
+    """
+    suite = unreachable_release(tmp_path, 'sleep 300 &\necho $! > "$PWD/child.pid"\nwait\n')
+    uv = shutil.which("uv")
+    assert uv, "uv is required to run the model-check command line"
+    command = subprocess.Popen(
+        [uv, "run", "--script", str(SCRIPTS_PATH / "model_check_cli.py"), "check",
+         "--suite", str(suite), "--home", str(tmp_path / "home"), "--report", str(tmp_path / "report")],
+        cwd=REPOSITORY_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    pid_file = tmp_path / "report" / "base" / "child.pid"
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline and not pid_file.is_file():
+        time.sleep(0.1)
+    assert pid_file.is_file(), "the doubled checker never started"
+    child = int(pid_file.read_text(encoding="utf-8"))
+    # uv waits for the Python process it starts; Ctrl+C reaches that process
+    # through the terminal, so it is signalled directly here.
+    [python] = [
+        child
+        for task in Path(f"/proc/{command.pid}/task").iterdir()
+        for child in (task / "children").read_text(encoding="utf-8").split()
+    ]
+    interrupted = time.monotonic()
+    os.kill(int(python), signal.SIGINT)
+    _stdout, stderr = command.communicate(timeout=60)
+    assert command.returncode == 130, stderr
+    assert "model_check: interrupted; no result" in stderr, stderr
+    assert time.monotonic() - interrupted < 30, "the interrupt waited for the run's timeout"
+    assert not Path(f"/proc/{child}").exists() or "\tZ" in Path(f"/proc/{child}/status").read_text(
+        encoding="utf-8"
+    ), f"the checker's child {child} outlived the interrupt"

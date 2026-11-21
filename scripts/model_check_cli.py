@@ -28,11 +28,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
+import contextlib
 import os
 from pathlib import Path
 import platform
 import resource
 import sys
+import threading
 import time
 from typing import Annotated
 
@@ -52,6 +54,9 @@ import model_check
 
 #: How long one download may take.
 DOWNLOAD_TIMEOUT_SECONDS = 1800
+
+#: How often a running command checks for its deadline and for an interrupt.
+POLL_SECONDS = 0.2
 
 
 def current_host() -> model_check.Host:
@@ -87,23 +92,85 @@ def _process_result(result: object, seconds: float) -> model_check.ProcessResult
     )
 
 
-def process_runner(clock: Callable[[], float]) -> model_check.Runner:
+async def _await_or_stop(
+    task: asyncio.Future, deadline: float, clock: Callable[[], float], cancelled: threading.Event
+) -> str:
+    """Wait for ``task``, or stop it at the deadline or on an interrupt.
+
+    Returns ``finished``, ``timeout`` or ``interrupt``. Stopping cancels the
+    Cuprum task and waits for it, which is what sends the command's process
+    group ``SIGTERM`` and then ``SIGKILL``.
+    """
+    while not task.done():
+        if cancelled.is_set():
+            reason = "interrupt"
+        elif clock() >= deadline:
+            reason = "timeout"
+        else:
+            await asyncio.wait({task}, timeout=POLL_SECONDS)
+            continue
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        return reason
+    return "finished"
+
+
+def _stopped_result(
+    reason: str, task: asyncio.Future, executable: str, seconds: float
+) -> model_check.ProcessResult:
+    """Return what a command that finished or was stopped leaves behind.
+
+    Raises
+    ------
+    ModelCheckError
+        Raised when the command was stopped by an interrupt: there is no
+        result to judge.
+    """
+    if reason == "interrupt":
+        raise model_check.ModelCheckError(f"'{executable}' was stopped by an interrupt")
+    if reason == "timeout":
+        return model_check.ProcessResult(
+            exit_code=None, stdout="", stderr="", timed_out=True, seconds=seconds
+        )
+    return _process_result(task.result(), seconds)
+
+
+def _launch(executable: str, bounded: Callable[[], object]) -> model_check.ProcessResult:
+    """Run ``bounded`` on its own event loop, naming a command that cannot start."""
+    try:
+        return asyncio.run(bounded())
+    except FileNotFoundError as error:
+        raise model_check.ModelCheckError(
+            f"'{executable}' is required, but not installed"
+        ) from error
+    except OSError as error:
+        raise model_check.ModelCheckError(f"cannot start '{executable}': {error}") from error
+
+
+def process_runner(
+    clock: Callable[[], float], cancelled: threading.Event | None = None
+) -> model_check.Runner:
     """Return a runner that executes one command through Cuprum.
 
     An executable that is absent, or that exists and cannot be started, such
     as a pinned checker without execute permission, is a named
     ``ModelCheckError`` rather than a launch error escaping the command line.
 
-    The runner cancels the command when its timeout expires, which Cuprum
-    turns into ``SIGTERM`` and then ``SIGKILL``, and times it with ``clock``.
-    The command runs in its own process group, and the signals go to the
-    group: the pinned release's ``fizz`` launcher starts the checker as a
-    child without ``exec``, so signalling the launcher alone would leave the
-    checker running.
+    The runner stops the command when its timeout expires, or as soon as
+    ``cancelled`` is set, which is how an interrupt reaches commands running
+    on worker threads. Cuprum turns the stop into ``SIGTERM`` and then
+    ``SIGKILL``, and the runner times the command with ``clock``. The command
+    runs in its own process group, and the signals go to the group: the
+    pinned release's ``fizz`` launcher starts the checker as a child without
+    ``exec``, so signalling the launcher alone would leave the checker
+    running. Being in its own group also keeps a terminal's interrupt away
+    from it, which is why the interrupt is passed on through ``cancelled``.
     """
+    stop = cancelled or threading.Event()
 
     def run(command: Sequence[str], cwd: Path, timeout: int) -> model_check.ProcessResult:
-        """Run ``command`` in ``cwd``, cancelling it after ``timeout`` seconds."""
+        """Run ``command`` in ``cwd``, stopping it after ``timeout`` seconds."""
         executable, *arguments = command
         program = Program(executable)
         catalogue = ProgramCatalogue.from_programs(program, name="model-check")
@@ -117,30 +184,17 @@ def process_runner(clock: Callable[[], float]) -> model_check.Runner:
         started = clock()
 
         async def bounded() -> model_check.ProcessResult:
-            """Await the command, or report a timeout when it expires."""
+            """Await the command, or report how it was stopped."""
             with scoped(catalogue=catalogue):
-                task = sh.make(program)(*arguments).run(
-                    context=context, output=RunOutputOptions(capture=True, echo=False)
-                )
-                try:
-                    result = await asyncio.wait_for(task, timeout=timeout)
-                except TimeoutError:
-                    return model_check.ProcessResult(
-                        exit_code=None, stdout="", stderr="", timed_out=True,
-                        seconds=clock() - started,
+                task = asyncio.ensure_future(
+                    sh.make(program)(*arguments).run(
+                        context=context, output=RunOutputOptions(capture=True, echo=False)
                     )
-            return _process_result(result, clock() - started)
+                )
+                reason = await _await_or_stop(task, started + timeout, clock, stop)
+            return _stopped_result(reason, task, executable, clock() - started)
 
-        try:
-            return asyncio.run(bounded())
-        except FileNotFoundError as error:
-            raise model_check.ModelCheckError(
-                f"'{executable}' is required, but not installed"
-            ) from error
-        except OSError as error:
-            raise model_check.ModelCheckError(
-                f"cannot start '{executable}': {error}"
-            ) from error
+        return _launch(executable, bounded)
 
     return run
 
@@ -207,11 +261,13 @@ def check(options: Annotated[model_check.CheckOptions, Parameter(name="*")]) -> 
     """
     host = current_host()
     model_check.require_platform(host)
-    session, runs = model_check.load_session(options, host, process_runner(host.clock))
+    cancelled = threading.Event()
+    runner = process_runner(host.clock, cancelled)
+    session, runs = model_check.load_session(options, host, runner)
     model_check.reset_report(session.report)
     jobs = model_check.workers(options.jobs, host)
     started = host.clock()
-    outcomes = model_check.run_suite(session, runs, jobs)
+    outcomes = model_check.run_suite(session, runs, jobs, cancel=cancelled.set)
     document = model_check.gate_document(
         session.suite,
         outcomes,
@@ -242,6 +298,9 @@ def cli() -> None:
         name="model_check",
         config=cyclopts.config.Env("MODEL_CHECK_", command=False),
         help="Run a pinned FizzBee model-checking suite.",
+        # The interrupt is reported below, with the launcher's own diagnostic;
+        # Cyclopts would otherwise exit 130 silently.
+        suppress_keyboard_interrupt=False,
     )
     app.command(install)
     app.command(check)

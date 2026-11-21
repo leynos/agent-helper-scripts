@@ -385,10 +385,35 @@ def reset_report(directory: Path) -> None:
         raise ModelCheckError(f"cannot create {directory}: {error}") from error
 
 
-def run_suite(session: Session, runs: Sequence[Run], jobs: int) -> list[Outcome]:
-    """Execute every run, ``jobs`` at a time, and return their outcomes in order."""
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        return list(pool.map(lambda run: execute(run, session), runs))
+def run_suite(
+    session: Session,
+    runs: Sequence[Run],
+    jobs: int,
+    *,
+    cancel: Callable[[], None] | None = None,
+) -> list[Outcome]:
+    """Execute every run, ``jobs`` at a time, and return their outcomes in order.
+
+    An interrupt arrives on the calling thread only, while the runs execute on
+    worker threads whose checkers sit in their own process groups. So on an
+    interrupt this calls ``cancel``, which tells the runner to stop the
+    checkers it is running, drops the runs not yet started, waits for every
+    worker to finish stopping, and then re-raises the interrupt.
+    """
+    pool = ThreadPoolExecutor(max_workers=jobs)
+    futures = [pool.submit(execute, run, session) for run in runs]
+    try:
+        return [future.result() for future in futures]
+    except KeyboardInterrupt:
+        # Drop the queued runs before telling the active ones to stop, so a
+        # worker that frees up cannot start another checker in between.
+        pool.shutdown(wait=False, cancel_futures=True)
+        if cancel is not None:
+            cancel()
+        pool.shutdown(wait=True)
+        raise
+    finally:
+        pool.shutdown(wait=True)
 
 
 def mutate(source: str, mutations: Sequence[tuple[str, str]], run_id: str) -> str:
