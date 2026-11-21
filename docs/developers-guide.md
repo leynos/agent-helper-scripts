@@ -1004,10 +1004,11 @@ handoff test's adapter has two named seams and one policy unit.
 reply shape. `tests/readiness_applicability.py` extracts, from the packet, the
 diff and the proof inventory, the facts that decide which assessments apply.
 `tests/readiness_policy.py` states that applicability rule once, over those
-facts; its answer is the model's two applicability inputs, which the model
-takes from the accepted assignment rather than deriving. Each rule and each
-extraction has a control in `tests/test_readiness_applicability.py`. None of
-them decides readiness: the model checker does, given those inputs.
+facts plus the accepted scope's derivation; its answers are the model's three
+applicability inputs, which the model takes from the accepted assignment rather
+than deriving. Each rule and each extraction has a control in
+`tests/test_readiness_applicability.py`. None of them decides readiness: the
+model checker does, given those inputs.
 
 The snapshot tables in the suite carry the answers the retired Python decision
 model gave for 215 bounded snapshots when the two were compared at migration;

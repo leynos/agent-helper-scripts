@@ -60,19 +60,24 @@ BASE_FACTS = ApplicabilityFacts(
 
 #: One policy rule each: the facts it is decided on and the answer it gives.
 POLICY_RULES = (
-    ("the packet requires completeness", {}, (True, False)),
-    ("an unrequired completeness assessment does not apply", {"completeness_required": False}, (False, False)),
-    ("a changed proof makes its assessment apply", {"proof_changed": True}, (True, True)),
-    ("an inventory naming a proof makes it apply", {"inventory_names_a_proof": True}, (True, True)),
+    ("the packet requires completeness", {}, (True, False, False)),
+    ("an unrequired completeness assessment does not apply", {"completeness_required": False}, (False, False, False)),
+    ("a changed proof makes its assessment apply", {"proof_changed": True}, (True, True, False)),
+    ("an inventory naming a proof makes it apply", {"inventory_names_a_proof": True}, (True, True, False)),
     (
         "the packet must condition the proof assessment",
         {"proof_conditional": False, "proof_changed": True, "inventory_names_a_proof": True},
-        (True, False),
+        (True, False, False),
     ),
     (
         "an empty inventory cannot remove what the diff requires",
         {"proof_changed": True, "inventory_names_a_proof": False},
-        (True, True),
+        (True, True, False),
+    ),
+    (
+        "an issue-derived PR owes the original-issue assessment",
+        {"issue_derived": True},
+        (True, False, True),
     ),
 )
 
@@ -82,7 +87,7 @@ POLICY_RULES = (
     [(changes, expected) for _, changes, expected in POLICY_RULES],
     ids=[rule for rule, _, _ in POLICY_RULES],
 )
-def test_each_policy_rule_decides_on_facts(changes: dict, expected: tuple[bool, bool]) -> None:
+def test_each_policy_rule_decides_on_facts(changes: dict, expected: tuple[bool, bool, bool]) -> None:
     """The policy unit answers from the facts alone, one rule per row."""
     facts = ApplicabilityFacts(**{**BASE_FACTS.__dict__, **changes})
     assert assessments_that_apply(facts) == expected
@@ -113,16 +118,16 @@ class Case:
     packet: dict[str, str]
     body: str
     proof_changed: bool
-    expected: tuple[bool, bool]
+    expected: tuple[bool, bool, bool]
 
 
 CASES = (
-    Case("the packet requires completeness", SHIPPED, NONE_AFFECTED, False, (True, False)),
-    Case("a withdrawn packet line does not", WITHDRAWN, NONE_AFFECTED, False, (False, False)),
-    Case("a changed proof makes its assessment apply", SHIPPED, NONE_AFFECTED, True, (True, True)),
-    Case("the packet must condition the proof assessment", UNCONDITIONAL, NONE_AFFECTED, True, (True, False)),
-    Case("the inventory can add a proof assessment", SHIPPED, NAMES_ONE, False, (True, True)),
-    Case("an absent inventory line adds nothing", SHIPPED, "", False, (True, False)),
+    Case("the packet requires completeness", SHIPPED, NONE_AFFECTED, False, (True, False, False)),
+    Case("a withdrawn packet line does not", WITHDRAWN, NONE_AFFECTED, False, (False, False, False)),
+    Case("a changed proof makes its assessment apply", SHIPPED, NONE_AFFECTED, True, (True, True, False)),
+    Case("the packet must condition the proof assessment", UNCONDITIONAL, NONE_AFFECTED, True, (True, False, False)),
+    Case("the inventory can add a proof assessment", SHIPPED, NAMES_ONE, False, (True, True, False)),
+    Case("an absent inventory line adds nothing", SHIPPED, "", False, (True, False, False)),
 )
 
 

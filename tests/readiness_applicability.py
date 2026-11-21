@@ -185,16 +185,18 @@ def applicability_facts(
 
 def applicability(
     packet: dict[str, str], completeness_body: str, proof_changed: bool
-) -> tuple[bool, bool]:
-    """Return whether the two assessments apply, by the policy unit's rule.
+) -> tuple[bool, bool, bool]:
+    """Return whether the three assessments apply, by the policy unit's rule.
 
     The facts are extracted here and decided by
-    ``readiness_policy.assessments_that_apply``.
+    ``readiness_policy.assessments_that_apply``. The handoff packet states no
+    derivation, so the recorded scenarios leave the original-issue assessment
+    inapplicable; the `issue-derived` model scenarios exercise it.
 
     Returns
     -------
-    tuple of (bool, bool)
-        Whether the completeness assessment applies, and whether the proof
-        assessment does.
+    tuple of (bool, bool, bool)
+        Whether the completeness assessment applies, whether the proof
+        assessment does, and whether the PR is derived from an issue.
     """
     return assessments_that_apply(applicability_facts(packet, completeness_body, proof_changed))

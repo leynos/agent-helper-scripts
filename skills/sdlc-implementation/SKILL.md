@@ -164,9 +164,9 @@ gives a stack a delivery path are stated once in
 [pr-babysitting's readiness rule](../pr-babysitting/references/execplan-assessment.md#readiness-and-later-changes);
 read them there rather than expecting a second copy here.
 
-The receiving skill owns the two applicable hosted CodeRabbit assessments
-before readiness, their feedback and recovery, CI, rebasing, and merge. A
-handoff is not approval, a green check, or a completed merge. Supply a bounded
+The receiving skill owns the applicable hosted CodeRabbit assessments before
+readiness, their feedback and recovery, CI, rebasing, and merge. A handoff is
+not approval, a green check, or a completed merge. Supply a bounded
 implementation repair when it requests one; retain plan maintenance and
 acceptance traceability without duplicating its conversations or watchers.
 Continue through that skill to the authorized endpoint, or report its precise
