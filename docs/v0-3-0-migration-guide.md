@@ -89,12 +89,13 @@ not cleared it. See the [users' guide](users-guide.md#execplan-implementation).
 
 ### Assessment verdicts bind to a revision
 
-An assessment verdict now counts for the accepted base/head **and** the
-approved plan revision in force, and the substantive reply must echo that
-revision. The revision half of that rule binds only an ExecPlan assignment: a
-proof-only assignment with no ExecPlan keeps the base/head as its whole
-candidate and asks for no revision echo. Reassess work whose evidence predates
-this change:
+An ExecPlan-bound assessment verdict now counts for the accepted base/head
+**and** the approved plan revision in force, and the substantive reply must
+echo that revision. The revision half of that rule binds only an ExecPlan
+assignment: a proof-only assignment with no ExecPlan keeps the base/head as its
+whole candidate and asks for no revision echo, and the original-issue
+assessment is bound to the base/head alone. Reassess work whose evidence
+predates this change:
 
 - A completeness verdict obtained against an earlier base/head does not cover a
   later push. Request a candidate-bound follow-up rather than transferring the
@@ -106,9 +107,10 @@ this change:
   earlier candidate needs a candidate-bound follow-up.
 - A changed candidate needs renewed coverage even when the plan revision is
   unchanged: a new commit, rebase or retarget moves the base/head, and the old
-  verdict covered the one it inspected. A verdict also stops counting when a
-  newly approved plan revision replaces the one it inspected, even when no
-  commit moved. In both cases, reassess against the revision in force.
+  verdict covered the one it inspected. An ExecPlan-bound verdict also stops
+  counting when a newly approved plan revision replaces the one it inspected,
+  even when no commit moved. In both cases, reassess against the revision in
+  force.
 - The completeness request covers the whole approved plan, so a message that
   reports remaining milestones as unimplemented work has not cleared it. Do not
   record those milestones as known limitations; they are in-scope work.
