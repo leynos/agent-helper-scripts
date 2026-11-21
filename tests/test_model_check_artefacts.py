@@ -8,16 +8,17 @@ directly, with a doubled process boundary, and never run the checker.
 
 They assert what each must say, and that a failure to keep evidence is
 explicit: an expected counterexample is never listed as assurance, an empty
-run list is never a pass, each run's evidence reaches the report, and a trace
-that cannot be read, a directory that cannot be removed or a file that cannot
-be written stops the invocation with a named error instead of being read as
-an empty or stale result.
+run list is never a pass, each run's evidence reaches the report, and a
+checker, trace or input that cannot be read, a directory that cannot be
+removed or a file that cannot be written stops the invocation with a named
+error instead of being read as an empty, missing or stale result.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import replace
+import hashlib
 import importlib
 import os
 from pathlib import Path
@@ -349,3 +350,37 @@ def test_inputs_that_are_not_utf_8_are_named(
         modules.suite.unknown_assertions(replace(session.suite, runs=(run,)))
     with pytest.raises(modules.suite.ModelCheckError, match="cannot read .*spec.fizz"):
         modules.mc.execute(run, session)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can read a file without read permission")
+def test_an_unreadable_checker_is_named_and_never_reinstalled(
+    modules: types.SimpleNamespace, tmp_path: Path
+) -> None:
+    """A pinned file that cannot be read is an error, not a missing release.
+
+    Installing would download over a release nobody could inspect, so the
+    install path must stop with the same named error instead of fetching.
+    """
+    fizz = tmp_path / "release" / "fizz"
+    fizz.parent.mkdir()
+    fizz.write_text("#!/bin/bash\ntrue\n", encoding="utf-8")
+    checker = replace(
+        make_suite(modules).checker,
+        root="release",
+        files={"fizz": hashlib.sha256(fizz.read_bytes()).hexdigest()},
+    )
+
+    def fetch(_url: str, _destination: Path) -> None:
+        """Fail the test: an unreadable release must not be replaced."""
+        raise AssertionError("the installer fetched over an unreadable release")
+
+    assert modules.mc.locate_checker(tmp_path, checker) == fizz
+    fizz.chmod(0)
+    try:
+        with pytest.raises(modules.suite.ModelCheckError, match="cannot read the pinned checker file") as raised:
+            modules.mc.locate_checker(tmp_path, checker)
+        assert not isinstance(raised.value, modules.mc.CheckerAbsentError)
+        with pytest.raises(modules.suite.ModelCheckError, match="cannot read the pinned checker file .*fizz"):
+            modules.mc.install_checker(tmp_path, checker, fetch)
+    finally:
+        fizz.chmod(0o700)

@@ -499,7 +499,7 @@ def test_a_missing_or_altered_checker_is_refused(
     with pytest.raises(mc.ModelCheckError, match="is not installed.*`make fizzbee`"):
         mc.locate_checker(tmp_path / "elsewhere", suite.checker)
     (tmp_path / "home" / "release" / "fizz").write_text("#!/bin/bash\nfalse\n")
-    with pytest.raises(mc.ModelCheckError, match="is not the pinned v-test.*`make fizzbee`"):
+    with pytest.raises(mc.CheckerAbsentError, match="is not the pinned v-test.*`make fizzbee`"):
         mc.locate_checker(tmp_path / "home", suite.checker)
 
 
@@ -633,19 +633,25 @@ UNREADABLE_TRACE = (
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("script", "diagnostic"),
+    ("script", "unreadable", "diagnostic"),
     [
-        (None, "is not installed"),
-        (UNREADABLE_TRACE, "error-graph.json is not UTF-8 text"),
+        (None, False, "is not installed"),
+        (UNREADABLE_TRACE, False, "error-graph.json is not UTF-8 text"),
+        pytest.param(
+            "true\n", True, "cannot read the pinned checker file",
+            marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads without permission"),
+        ),
     ],
-    ids=["missing-checker", "unreadable-trace"],
+    ids=["missing-checker", "unreadable-trace", "unreadable-checker"],
 )
 def test_the_command_line_names_what_stopped_it(
-    tmp_path: Path, script: str | None, diagnostic: str
+    tmp_path: Path, script: str | None, unreadable: bool, diagnostic: str
 ) -> None:
-    """A missing checker or an unreadable trace is a named error and a failed exit."""
+    """A missing or unreadable checker, or an unreadable trace, is a named error."""
     pin = fake_release(tmp_path / "home", script) if script else ""
     suite = write_suite(tmp_path, ASSURANCE, checker=pin)
+    if unreadable:
+        (tmp_path / "home" / "release" / "fizz").chmod(0)
     result = run_cli(
         "check", "--suite", str(suite), "--home", str(tmp_path / "home"),
         "--report", str(tmp_path / "report"),

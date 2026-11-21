@@ -89,6 +89,7 @@ __all__ = (
     "TIERS",
     "CheckOptions",
     "Checker",
+    "CheckerAbsentError",
     "Expectation",
     "Fetcher",
     "Host",
@@ -142,6 +143,15 @@ SUPPORTED_PLATFORM = ("Linux", "x86_64")
 #: ignored by Git and pruned by the repository's discovery walks.
 DEFAULT_REPORT = Path("build") / "model-check"
 
+
+
+class CheckerAbsentError(ModelCheckError):
+    """Report that the pinned release is missing or is not the pinned bytes.
+
+    This is the one checker failure installing repairs. A pinned file that
+    exists and cannot be read is a plain ``ModelCheckError`` instead, so an
+    install never downloads over a release it could not inspect.
+    """
 
 
 @dataclass(frozen=True)
@@ -356,9 +366,11 @@ def locate_checker(home: Path, checker: Checker) -> Path:
 
     Raises
     ------
-    ModelCheckError
+    CheckerAbsentError
         Raised when a pinned file is absent, which is a missing checker, or
         has another digest, which is an incompatible one.
+    ModelCheckError
+        Raised, naming the file, when a pinned file cannot be read.
     """
     # A relative home would be resolved again from each child's working
     # directory; resolve it once, from the caller's.
@@ -366,13 +378,16 @@ def locate_checker(home: Path, checker: Checker) -> Path:
     for name, expected in checker.files.items():
         candidate = root / name
         if not candidate.is_file():
-            raise ModelCheckError(
+            raise CheckerAbsentError(
                 f"FizzBee {checker.version} is not installed: {candidate} is"
                 " missing. Run `make fizzbee` to fetch the pinned release."
             )
-        actual = _sha256(candidate)
+        try:
+            actual = _sha256(candidate)
+        except OSError as error:
+            raise ModelCheckError(f"cannot read the pinned checker file {candidate}: {error}") from error
         if actual != expected:
-            raise ModelCheckError(
+            raise CheckerAbsentError(
                 f"FizzBee at {root} is not the pinned {checker.version}:"
                 f" {name} has SHA-256 {actual}, expected {expected}."
                 " Run `make fizzbee` to fetch the pinned release."
@@ -400,13 +415,14 @@ def install_checker(home: Path, checker: Checker, fetch: Fetcher) -> Path:
     Raises
     ------
     ModelCheckError
-        Raised when the downloaded archive has another digest, or the
-        unpacked files do not match the pin.
+        Raised when an installed pinned file cannot be read, which installing
+        would not repair, when the downloaded archive has another digest, or
+        when the unpacked files do not match the pin.
     """
     home = home.resolve()
     try:
         return locate_checker(home, checker)
-    except ModelCheckError:
+    except CheckerAbsentError:
         pass
     home.mkdir(parents=True, exist_ok=True)
     archive = home / f"{checker.root}.tar.gz.partial"
