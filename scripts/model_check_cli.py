@@ -94,6 +94,10 @@ def _process_result(result: object, seconds: float) -> model_check.ProcessResult
 def process_runner(clock: Callable[[], float]) -> model_check.Runner:
     """Return a runner that executes one command through Cuprum.
 
+    An executable that is absent, or that exists and cannot be started, such
+    as a pinned checker without execute permission, is a named
+    ``ModelCheckError`` rather than a launch error escaping the command line.
+
     The runner cancels the command when its timeout expires, which Cuprum
     turns into ``SIGTERM`` and then ``SIGKILL``, and times it with ``clock``.
     The command runs in its own process group, and the signals go to the
@@ -136,6 +140,10 @@ def process_runner(clock: Callable[[], float]) -> model_check.Runner:
         except FileNotFoundError as error:
             raise model_check.ModelCheckError(
                 f"'{executable}' is required, but not installed"
+            ) from error
+        except OSError as error:
+            raise model_check.ModelCheckError(
+                f"cannot start '{executable}': {error}"
             ) from error
 
     return run

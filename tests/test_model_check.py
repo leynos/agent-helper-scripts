@@ -633,25 +633,26 @@ UNREADABLE_TRACE = (
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("script", "unreadable", "diagnostic"),
+    ("script", "mode", "diagnostic"),
     [
-        (None, False, "is not installed"),
-        (UNREADABLE_TRACE, False, "error-graph.json is not UTF-8 text"),
+        (None, None, "is not installed"),
+        (UNREADABLE_TRACE, None, "error-graph.json is not UTF-8 text"),
         pytest.param(
-            "true\n", True, "cannot read the pinned checker file",
+            "true\n", 0, "cannot read the pinned checker file",
             marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads without permission"),
         ),
+        ("true\n", 0o600, "cannot start"),
     ],
-    ids=["missing-checker", "unreadable-trace", "unreadable-checker"],
+    ids=["missing-checker", "unreadable-trace", "unreadable-checker", "unexecutable-checker"],
 )
 def test_the_command_line_names_what_stopped_it(
-    tmp_path: Path, script: str | None, unreadable: bool, diagnostic: str
+    tmp_path: Path, script: str | None, mode: int | None, diagnostic: str
 ) -> None:
-    """A missing or unreadable checker, or an unreadable trace, is a named error."""
+    """A missing, unreadable or unstartable checker, or an unreadable trace, is a named error."""
     pin = fake_release(tmp_path / "home", script) if script else ""
     suite = write_suite(tmp_path, ASSURANCE, checker=pin)
-    if unreadable:
-        (tmp_path / "home" / "release" / "fizz").chmod(0)
+    if mode is not None:
+        (tmp_path / "home" / "release" / "fizz").chmod(mode)
     result = run_cli(
         "check", "--suite", str(suite), "--home", str(tmp_path / "home"),
         "--report", str(tmp_path / "report"),

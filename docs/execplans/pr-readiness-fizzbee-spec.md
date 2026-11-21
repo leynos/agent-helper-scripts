@@ -317,6 +317,13 @@ is no history of revised limits to learn from.
   `install_checker` repairs, so an install never downloads over a release it
   could not read. A unit test asserts both, and the command-line test gains an
   unreadable-checker case.
+- [x] (2026-11-21 01:20Z) The reconciliation of `864b262` (comment
+  7053822192) confirmed the hashing repair and named the last residual
+  launch path: a pinned checker that matches its digest but lacks execute
+  permission raised a launch `OSError` past the command line's handler. The
+  process runner now names any launch `OSError` other than a missing executable
+  as a `ModelCheckError` ("cannot start"), and the command-line test gains an
+  unexecutable-checker case, which runs under any user.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.
