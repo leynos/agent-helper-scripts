@@ -362,6 +362,12 @@ is no history of revised limits to learn from.
   runs active and one queued, and a command-line test sends SIGINT to the
   launcher and asserts the checker's child is gone long before the run's
   timeout.
+- [x] (2026-11-21 07:10Z) CodeRabbit's reply on that thread named one
+  remaining window: the runs were submitted before the interrupt handler was
+  entered, so an interrupt during submission skipped the cancellation.
+  Submission is now inside the handler, and the interrupt test also interrupts
+  the calling thread while it is still submitting, after the first run has
+  started.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.

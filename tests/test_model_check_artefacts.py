@@ -576,37 +576,46 @@ def test_the_command_line_shows_a_failed_installs_cleanup_note(tmp_path: Path) -
     assert "Traceback" not in result.stderr, result.stderr
 
 
-def test_an_interrupt_stops_active_runs_and_drops_queued_ones(
-    modules: types.SimpleNamespace, tmp_path: Path
+@pytest.mark.parametrize("phase", ["collecting", "submitting"])
+def test_an_interrupt_stops_active_runs_and_starts_no_more(
+    modules: types.SimpleNamespace, tmp_path: Path, phase: str
 ) -> None:
-    """The interrupt reaches workers: active runs stop, queued runs never start.
+    """The interrupt reaches workers: active runs stop, no further run starts.
 
-    Two runs occupy both workers; once both are running, the calling thread
-    is interrupted, as a terminal's Ctrl+C would. Each active run stops only
-    when ``cancel`` is called, and both must have stopped before the
-    interrupt reaches the caller. The third run is queued and must never
-    start.
+    The calling thread is interrupted, as a terminal's Ctrl+C would, either
+    while it collects results with both workers busy, or while it is still
+    submitting runs after the first has started. Each active run stops only
+    when ``cancel`` is called, and must have stopped before the interrupt
+    reaches the caller; no run starts after the interrupt.
     """
     run, session = control_session(modules, tmp_path, None)
-    runs = [replace(run, id=name) for name in ("first", "second", "queued")]
+    interrupt_at = 2 if phase == "collecting" else 1
     cancelled = threading.Event()
     started: list[str] = []
     stopped: list[str] = []
 
     def runner(_argv: object, cwd: Path, _timeout: int) -> object:
-        """Wait for the cancellation the interrupt sends, then stop."""
+        """Interrupt the calling thread at the chosen run, then wait to be cancelled."""
         started.append(cwd.name)
-        if len(started) == 2:
+        if len(started) == interrupt_at:
             signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
         assert cancelled.wait(10), "the interrupt never reached the running worker"
         stopped.append(cwd.name)
         raise modules.suite.ModelCheckError("stopped by an interrupt")
 
+    def submitted() -> Iterator[object]:
+        """Yield the runs, holding submission after the first when asked to."""
+        yield replace(run, id="first")
+        if phase == "submitting":
+            time.sleep(10)
+        yield replace(run, id="second")
+        yield replace(run, id="queued")
+
     session = replace(session, runner=runner)
     with pytest.raises(KeyboardInterrupt):
-        modules.mc.run_suite(session, runs, 2, cancel=cancelled.set)
-    assert sorted(stopped) == ["first", "second"]
-    assert "queued" not in started
+        modules.mc.run_suite(session, submitted(), 2, cancel=cancelled.set)
+    expected = ["first", "second"] if phase == "collecting" else ["first"]
+    assert (sorted(started), sorted(stopped)) == (expected, expected)
 
 
 def unreachable_release(tmp_path: Path, script: str) -> Path:

@@ -401,8 +401,10 @@ def run_suite(
     worker to finish stopping, and then re-raises the interrupt.
     """
     pool = ThreadPoolExecutor(max_workers=jobs)
-    futures = [pool.submit(execute, run, session) for run in runs]
     try:
+        # Submission is inside the handler too: an interrupt can arrive while
+        # earlier runs are already running.
+        futures = [pool.submit(execute, run, session) for run in runs]
         return [future.result() for future in futures]
     except KeyboardInterrupt:
         # Drop the queued runs before telling the active ones to stop, so a
