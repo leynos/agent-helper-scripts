@@ -899,8 +899,22 @@ transition assertion RequestNeedsDeliveryGates(before, after):
         return False
     if posted.kind == "issue" and not cfg.has_issue_body:
         return False
-    if not same_question(posted, question(posted.kind, seen.base, seen.head, seen.rev, seen.proofs)):
+    if posted.base != seen.base or posted.head != seen.head:
         return False
+    # The request identity is compared with the contract directly, not with
+    # the same helper the agent asks with: a defective helper must not move
+    # the property that is supposed to catch it.
+    if posted.kind == "issue":
+        if posted.rev != None or len(posted.proofs) != 0:
+            return False
+    else:
+        if posted.rev != seen.rev:
+            return False
+        if posted.kind == "proof":
+            if posted.proofs != seen.proofs:
+                return False
+        elif len(posted.proofs) != 0:
+            return False
     return (before.l_checks.base == seen.base and before.l_checks.head == seen.head
             and before.l_checks.ci == "green" and before.l_checks.hosted == "clear"
             and before.l_local.base == seen.base

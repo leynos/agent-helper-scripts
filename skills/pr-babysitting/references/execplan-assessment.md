@@ -134,7 +134,7 @@ comment that fed the requirements; do not post unresolved placeholders:
 ~~~
 
 Published head: <full head SHA>; comparison base: <full base SHA>.
-Original issue: <issue URL>. Incorporated comments: <comment URLs, or "none fed the requirements">.
+Original issue: <issue URL>. Incorporated comments: <each incorporated comment's URL and quoted text, or "none fed the requirements">.
 Assessment-ID: <unique request marker>.
 
 Please echo the Assessment-ID, the assessed base/head, and the issue text you assessed in your substantive reply.
@@ -268,20 +268,23 @@ a later stage, not the mechanism for obtaining the pre-ready assessment.
 
 An already-ready PR stays ready; obtain missing assessments before merge.
 Subsequent repairs, proof changes, rebases, or retargeting require renewed
-candidate-bound evidence and affected assessment coverage. The plan revision is
-part of that candidate: a verdict recorded against a revision that has since
-been superseded by a newly approved revision does not clear the gate, even when
-the base/head is unchanged. Reassess against the approved revision in force.
-Reconcile the revision a reply echoes with the revision in force; a reply that
-echoes only the base/head does not establish which revision was inspected. An
-applicable completeness assessment is bound to an approved plan revision. An
-assignment that requires one while recording no approved revision is a scope
-error to repair, not an assessment to read as clear on its base/head alone. A
-proof-only assignment with no ExecPlan is unaffected, because its completeness
-assessment is recorded as not applicable and its proof verdict is bound to the
-base/head, which is that candidate's whole identity. Preserve earlier evidence
-for its actual scope without relabelling it as a new review. Do not set the PR
-back to draft. If the assessment service explicitly cannot process the
-question, retain its response and report the specific blocker rather than
+candidate-bound evidence and affected assessment coverage. For an
+ExecPlan-bound assessment, the plan revision is part of that candidate: a
+verdict recorded against a revision that has since been superseded by a newly
+approved revision does not clear the gate, even when the base/head is
+unchanged. Reassess against the approved revision in force. Reconcile the
+revision a reply echoes with the revision in force; a reply that echoes only
+the base/head does not establish which revision was inspected. An applicable
+completeness assessment is bound to an approved plan revision. An assignment
+that requires one while recording no approved revision is a scope error to
+repair, not an assessment to read as clear on its base/head alone. A proof-only
+assignment with no ExecPlan is unaffected, because its completeness assessment
+is recorded as not applicable and its proof verdict is bound to the base/head,
+which is that candidate's whole identity. The original-issue assessment is
+bound to the base/head only and names no plan revision, so a newly approved
+revision does not renew it while a changed base/head does. Preserve earlier
+evidence for its actual scope without relabelling it as a new review. Do not
+set the PR back to draft. If the assessment service explicitly cannot process
+the question, retain its response and report the specific blocker rather than
 inferring failure from automatic draft-review policy. Do not bypass the gate.
 Generic approval cannot discharge missing proof scrutiny.

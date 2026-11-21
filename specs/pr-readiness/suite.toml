@@ -1241,6 +1241,23 @@ new = '''
 '''
 
 [[run]]
+id = "mutant-issue-question-names-the-revision"
+class = "negative-control"
+of = "issue-verdict-names-no-revision"
+purpose = "Making the original-issue question retain the observed plan revision posts an issue request whose identity names a revision the contract does not ask for, and the delivery gate refuses it."
+obligations = ["PRR-APPL-06", "PRR-REQ-01"]
+expect = { fail = "transition", assertion = "RequestNeedsDeliveryGates" }
+[[run.mutation]]
+old = '''
+    if kind == "issue":
+        asked_rev = None
+'''
+new = '''
+    if kind == "issue":
+        asked_rev = rev
+'''
+
+[[run]]
 id = "mutant-pending-request-clears"
 class = "negative-control"
 of = "ordinary-whole-plan"

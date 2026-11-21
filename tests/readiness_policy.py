@@ -49,17 +49,27 @@ class ApplicabilityFacts:
     changes the recorded proof; ``inventory_names_a_proof`` is whether the
     completeness request's proof inventory names at least one proof.
     ``issue_derived`` is whether the accepted scope says the PR delivers a
-    GitHub issue. A recording that states no derivation leaves it False.
+    GitHub issue. It has no default: an unknown derivation must be supplied
+    explicitly rather than silently read as not required.
     """
 
     completeness_required: bool
     proof_conditional: bool
     proof_changed: bool
     inventory_names_a_proof: bool
-    issue_derived: bool = False
+    issue_derived: bool
 
 
-def assessments_that_apply(facts: ApplicabilityFacts) -> tuple[bool, bool, bool]:
+@dataclass(frozen=True)
+class Applicability:
+    """The model's three applicability inputs, named rather than positional."""
+
+    completeness: bool
+    proof: bool
+    original_issue: bool
+
+
+def assessments_that_apply(facts: ApplicabilityFacts) -> Applicability:
     """Return whether each of the three assessments applies.
 
     The completeness assessment applies when the packet requires it. The
@@ -76,15 +86,15 @@ def assessments_that_apply(facts: ApplicabilityFacts) -> tuple[bool, bool, bool]
 
     Returns
     -------
-    tuple of (bool, bool, bool)
+    Applicability
         The model's ``completeness_applies``, ``proof_applies`` and
         ``issue_derived`` inputs.
     """
     affected = facts.proof_changed or facts.inventory_names_a_proof
-    return (
-        facts.completeness_required,
-        facts.proof_conditional and affected,
-        facts.issue_derived,
+    return Applicability(
+        completeness=facts.completeness_required,
+        proof=facts.proof_conditional and affected,
+        original_issue=facts.issue_derived,
     )
 
 

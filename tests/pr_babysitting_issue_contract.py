@@ -22,7 +22,7 @@ from skill_contract_support import fenced_request, section
 ISSUE_REQUEST_FIELDS = (
     "@coderabbitai please assess the implementation in this PR for completeness and correctness against the original issue:",
     "Published head: <full head SHA>; comparison base: <full base SHA>.",
-    'Original issue: <issue URL>. Incorporated comments: <comment URLs, or "none fed the requirements">.',
+    'Original issue: <issue URL>. Incorporated comments: <each incorporated comment\'s URL and quoted text, or "none fed the requirements">.',
     "Assessment-ID: <unique request marker>.",
     "Please echo the Assessment-ID, the assessed base/head, and the issue text you assessed in your substantive reply.",
 )

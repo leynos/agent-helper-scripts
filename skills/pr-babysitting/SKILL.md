@@ -222,13 +222,15 @@ assessment of an issue-derived PR:
 
 - A verdict of `clear`, `not clear`, or `pending`, with a justified
   `not applicable` for an assessment that does not apply.
-- Each verdict sits on the same entry as the base/head and the plan revision it
-  was given for; reconcile the revision the substantive reply echoes against
-  the revision in force, since a reply that echoes only the base/head does not
-  bind the verdict to an approved revision. That applies to whichever
-  assessment is in scope, so a proof request under an ExecPlan must also name
-  and echo the revision; without an ExecPlan, the base/head is the whole
-  candidate and there is no revision to reconcile.
+- Each ExecPlan-bound verdict sits on the same entry as the base/head and the
+  plan revision it was given for; reconcile the revision the substantive reply
+  echoes against the revision in force, since a reply that echoes only the
+  base/head does not bind the verdict to an approved revision. That applies to
+  the completeness assessment and to a proof assessment under an ExecPlan;
+  without an ExecPlan, the base/head is the whole candidate and there is no
+  revision to reconcile. The original-issue assessment is bound to the
+  base/head only and names no plan revision, so a plan-revision change does not
+  renew it while a changed base/head does.
 - The completeness assessment's subject is recorded as either the whole plan or
   the declared subset; only the whole approved plan clears the gate, and a
   declared-subset verdict is evidence for its actual scope only. The proof
@@ -240,8 +242,8 @@ assessment of an issue-derived PR:
   A managed-stack layer that implements only its own milestones therefore
   stays in draft until a whole-plan verdict covers its candidate; the record of
   its subset is evidence, not a readiness waiver.
-- A verdict recorded against a superseded plan revision does not carry over,
-  even when the base/head is unchanged.
+- An ExecPlan-bound verdict recorded against a superseded plan revision does
+  not carry over, even when the base/head is unchanged.
 - When the proof assessment applies, readiness also requires its clear verdict
   for the same base/head; a clear completeness verdict alone does not satisfy
   the gate.

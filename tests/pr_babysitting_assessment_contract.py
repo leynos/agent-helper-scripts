@@ -26,10 +26,11 @@ LEDGER_REQUIREMENTS = (
     "The proof assessment's subject is the named proofs it covers.",
     "When the completeness assessment applies, a clear whole-plan completeness verdict covering the accepted base/head and recorded against the currently approved plan revision satisfies [the readiness gate](references/execplan-assessment.md#readiness-and-later-changes).",
     "A managed-stack layer that implements only its own milestones therefore stays in draft until a whole-plan verdict covers its candidate; the record of its subset is evidence, not a readiness waiver.",
-    "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+    "An ExecPlan-bound verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+    "The original-issue assessment is bound to the base/head only and names no plan revision, so a plan-revision change does not renew it while a changed base/head does.",
     "When the proof assessment applies, readiness also requires its clear verdict for the same base/head; a clear completeness verdict alone does not satisfy the gate.",
     "reconcile the revision the substantive reply echoes against the revision in force",
-    "a proof request under an ExecPlan must also name and echo the revision",
+    "a proof assessment under an ExecPlan",
     "without an ExecPlan, the base/head is the whole candidate and there is no revision to reconcile",
 )
 

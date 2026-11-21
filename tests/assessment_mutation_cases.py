@@ -17,10 +17,11 @@ LIMITATIONS_GUARD = "completeness request must restrict limitations to evidentia
 MILESTONE_OWNERSHIP = "completeness section must bind milestones to the ownership rule"
 LEDGER_VERDICT = "ledger section must state: A verdict of `clear`"
 LEDGER_CANDIDATE = "ledger section must state: on the same entry"
+LEDGER_ISSUE_BINDING = "ledger section must state: The original-issue assessment is bound to the base/head only"
 LEDGER_SUBJECT = "ledger section must state: The completeness assessment's subject"
 LEDGER_CLEARING = "ledger section must state: When the completeness assessment applies"
 LEDGER_STACK_PATH = "ledger section must state: A managed-stack layer that implements only its own milestones"
-LEDGER_STALE_REVISION = "ledger section must state: A verdict recorded against a superseded plan revision"
+LEDGER_STALE_REVISION = "ledger section must state: An ExecPlan-bound verdict recorded against a superseded plan revision"
 LEDGER_PROOF_READINESS = "ledger section must state: When the proof assessment applies"
 READINESS_STALE_REVISION = "readiness section must compare the currently approved plan revision"
 REQUEST_REVISION = "completeness request must identify the assessed plan revision"
@@ -28,7 +29,7 @@ ECHOED_REVISION = "completeness request must require the reply to echo the plan 
 BASE_HEAD_LIMIT = "completeness section must state why base/head alone cannot bind a verdict"
 READINESS_REVISION_RECONCILIATION = "readiness section must reconcile the echoed plan revision"
 LEDGER_ECHO_REVISION = "ledger section must state: reconcile the revision the substantive reply echoes"
-LEDGER_PROOF_REVISION = "ledger section must state: a proof request under an ExecPlan must also name and echo the revision"
+LEDGER_PROOF_REVISION = "ledger section must state: a proof assessment under an ExecPlan"
 LEDGER_NO_PLAN = "ledger section must state: without an ExecPlan, the base/head is the whole candidate"
 PROOF_REVISION = "proof request must name the plan revision when an ExecPlan applies"
 PROOF_ECHO_REVISION = "proof request must require the reply to echo the plan revision"
@@ -229,9 +230,13 @@ ASSESSMENT_MUTATIONS = (
              "a declared-subset verdict clears the gate", LEDGER_SUBJECT,
              ident="declared-subset-may-clear-ledger"),
     Mutation("skill",
-             "A verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
+             "An ExecPlan-bound verdict recorded against a superseded plan revision does not carry over, even when the base/head is unchanged.",
              "", LEDGER_STALE_REVISION,
              ident="ledger-accepts-superseded-plan-revision"),
+    Mutation("skill",
+             "The original-issue assessment is bound to the base/head only and names no plan revision, so a plan-revision change does not renew it while a changed base/head does.",
+             "Every verdict is bound to the plan revision in force.",
+             LEDGER_ISSUE_BINDING, ident="issue-verdict-bound-to-plan-revision"),
     Mutation("assessment",
              "a verdict recorded against a revision that has since been superseded by a newly approved revision does not clear the gate, even when the base/head is unchanged.",
              "", READINESS_STALE_REVISION,
@@ -289,7 +294,7 @@ ASSESSMENT_MUTATIONS = (
              "", PROOF_NO_PLAN_CASE, move=True,
              ident="moved-proof-no-plan-case"),
     Mutation("skill",
-             "so a proof request under an ExecPlan must also name and echo the revision;",
+             "and to a proof assessment under an ExecPlan;",
              "", LEDGER_PROOF_REVISION,
              ident="ledger-proof-request-omits-revision"),
     Mutation("skill",

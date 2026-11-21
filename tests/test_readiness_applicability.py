@@ -33,7 +33,12 @@ from readiness_applicability import (
     changes_a_proof,
     proof_inventory,
 )
-from readiness_policy import ApplicabilityFacts, assessments_that_apply, stated_proofs
+from readiness_policy import (
+    Applicability,
+    ApplicabilityFacts,
+    assessments_that_apply,
+    stated_proofs,
+)
 from readiness_snapshot_support import COMPLETENESS, PROOF, Bounds, reply_shape, thread_state
 
 #: The packet lines as the shipped handoff states them.
@@ -56,28 +61,46 @@ BASE_FACTS = ApplicabilityFacts(
     proof_conditional=True,
     proof_changed=False,
     inventory_names_a_proof=False,
+    issue_derived=False,
 )
+
+
+def applies(completeness: bool, proof: bool, original_issue: bool) -> Applicability:
+    """Return the policy's named answer for the three assessments."""
+    return Applicability(
+        completeness=completeness, proof=proof, original_issue=original_issue
+    )
 
 #: One policy rule each: the facts it is decided on and the answer it gives.
 POLICY_RULES = (
-    ("the packet requires completeness", {}, (True, False, False)),
-    ("an unrequired completeness assessment does not apply", {"completeness_required": False}, (False, False, False)),
-    ("a changed proof makes its assessment apply", {"proof_changed": True}, (True, True, False)),
-    ("an inventory naming a proof makes it apply", {"inventory_names_a_proof": True}, (True, True, False)),
+    ("the packet requires completeness", {}, applies(True, False, False)),
+    ("an unrequired completeness assessment does not apply", {"completeness_required": False}, applies(False, False, False)),
+    ("a changed proof makes its assessment apply", {"proof_changed": True}, applies(True, True, False)),
+    ("an inventory naming a proof makes it apply", {"inventory_names_a_proof": True}, applies(True, True, False)),
     (
         "the packet must condition the proof assessment",
         {"proof_conditional": False, "proof_changed": True, "inventory_names_a_proof": True},
-        (True, False, False),
+        applies(True, False, False),
     ),
     (
         "an empty inventory cannot remove what the diff requires",
         {"proof_changed": True, "inventory_names_a_proof": False},
-        (True, True, False),
+        applies(True, True, False),
     ),
     (
         "an issue-derived PR owes the original-issue assessment",
         {"issue_derived": True},
-        (True, False, True),
+        applies(True, False, True),
+    ),
+    (
+        "an issue-derived PR with no completeness still owes the issue assessment",
+        {"issue_derived": True, "completeness_required": False},
+        applies(False, False, True),
+    ),
+    (
+        "an issue-derived PR with a changed proof owes both",
+        {"issue_derived": True, "proof_changed": True},
+        applies(True, True, True),
     ),
 )
 
@@ -87,7 +110,7 @@ POLICY_RULES = (
     [(changes, expected) for _, changes, expected in POLICY_RULES],
     ids=[rule for rule, _, _ in POLICY_RULES],
 )
-def test_each_policy_rule_decides_on_facts(changes: dict, expected: tuple[bool, bool, bool]) -> None:
+def test_each_policy_rule_decides_on_facts(changes: dict, expected: Applicability) -> None:
     """The policy unit answers from the facts alone, one rule per row."""
     facts = ApplicabilityFacts(**{**BASE_FACTS.__dict__, **changes})
     assert assessments_that_apply(facts) == expected
@@ -95,19 +118,27 @@ def test_each_policy_rule_decides_on_facts(changes: dict, expected: tuple[bool, 
 
 def test_the_adapter_extracts_the_facts_the_policy_takes() -> None:
     """Packet lines, the diff and the inventory become the policy's facts."""
-    assert applicability_facts(SHIPPED, NAMES_ONE, False) == ApplicabilityFacts(
+    assert applicability_facts(
+        SHIPPED, NAMES_ONE, False, issue_derived=False
+    ) == ApplicabilityFacts(
         completeness_required=True,
         proof_conditional=True,
         proof_changed=False,
         inventory_names_a_proof=True,
+        issue_derived=False,
     )
-    assert applicability_facts(WITHDRAWN, NONE_AFFECTED, True) == ApplicabilityFacts(
+    assert applicability_facts(
+        WITHDRAWN, NONE_AFFECTED, True, issue_derived=True
+    ) == ApplicabilityFacts(
         completeness_required=False,
         proof_conditional=True,
         proof_changed=True,
         inventory_names_a_proof=False,
+        issue_derived=True,
     )
-    assert applicability_facts(UNCONDITIONAL, "", False).proof_conditional is False
+    assert applicability_facts(
+        UNCONDITIONAL, "", False, issue_derived=False
+    ).proof_conditional is False
 
 
 @dataclass(frozen=True)
@@ -118,23 +149,27 @@ class Case:
     packet: dict[str, str]
     body: str
     proof_changed: bool
-    expected: tuple[bool, bool, bool]
+    issue_derived: bool
+    expected: Applicability
 
 
 CASES = (
-    Case("the packet requires completeness", SHIPPED, NONE_AFFECTED, False, (True, False, False)),
-    Case("a withdrawn packet line does not", WITHDRAWN, NONE_AFFECTED, False, (False, False, False)),
-    Case("a changed proof makes its assessment apply", SHIPPED, NONE_AFFECTED, True, (True, True, False)),
-    Case("the packet must condition the proof assessment", UNCONDITIONAL, NONE_AFFECTED, True, (True, False, False)),
-    Case("the inventory can add a proof assessment", SHIPPED, NAMES_ONE, False, (True, True, False)),
-    Case("an absent inventory line adds nothing", SHIPPED, "", False, (True, False, False)),
+    Case("the packet requires completeness", SHIPPED, NONE_AFFECTED, False, False, applies(True, False, False)),
+    Case("a withdrawn packet line does not", WITHDRAWN, NONE_AFFECTED, False, False, applies(False, False, False)),
+    Case("a changed proof makes its assessment apply", SHIPPED, NONE_AFFECTED, True, False, applies(True, True, False)),
+    Case("the packet must condition the proof assessment", UNCONDITIONAL, NONE_AFFECTED, True, False, applies(True, False, False)),
+    Case("the inventory can add a proof assessment", SHIPPED, NAMES_ONE, False, False, applies(True, True, False)),
+    Case("an absent inventory line adds nothing", SHIPPED, "", False, False, applies(True, False, False)),
+    Case("an issue-derived scope owes the issue assessment", SHIPPED, NONE_AFFECTED, False, True, applies(True, False, True)),
 )
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.rule)
 def test_each_applicability_rule_and_its_control(case: Case) -> None:
     """Each rule yields its applicability, and its pair yields the other."""
-    assert applicability(case.packet, case.body, case.proof_changed) == case.expected
+    assert applicability(
+        case.packet, case.body, case.proof_changed, issue_derived=case.issue_derived
+    ) == case.expected
 
 
 def test_the_inventory_cannot_remove_what_the_diff_requires() -> None:
@@ -143,8 +178,38 @@ def test_the_inventory_cannot_remove_what_the_diff_requires() -> None:
     The control is the same sentence over an unchanged candidate, which the
     rule leaves inapplicable.
     """
-    assert applicability(SHIPPED, NONE_AFFECTED, True)[1] is True
-    assert applicability(SHIPPED, NONE_AFFECTED, False)[1] is False
+    changed = applicability(SHIPPED, NONE_AFFECTED, True, issue_derived=False)
+    unchanged = applicability(SHIPPED, NONE_AFFECTED, False, issue_derived=False)
+    assert changed.proof is True
+    assert unchanged.proof is False
+
+
+def test_an_unknown_derivation_is_refused_not_defaulted() -> None:
+    """Omitting the derivation raises instead of waiving the issue assessment."""
+    with pytest.raises(TypeError):
+        ApplicabilityFacts(
+            completeness_required=True,
+            proof_conditional=True,
+            proof_changed=False,
+            inventory_names_a_proof=False,
+        )
+
+
+def test_an_issue_derived_scope_reaches_the_policy_as_required() -> None:
+    """The adapter passes derivation through; the policy does not infer it."""
+    decision = applicability(SHIPPED, NONE_AFFECTED, False, issue_derived=True)
+    assert decision.original_issue is True
+
+
+def test_the_missing_issue_body_gate_is_checked_only_by_the_model() -> None:
+    """The Python layer has no issue-body fact; the model owns that scope error.
+
+    `issue-without-a-recorded-body` and its negative control are the
+    executable coverage. The adapter takes applicability, not issue text, so
+    a missing body cannot be read as cleared here.
+    """
+    assert "issue-without-a-recorded-body" in pr_readiness_spec_support.runs()
+    assert "mutant-issue-without-body-proceeds" in pr_readiness_spec_support.runs()
 
 
 def test_a_change_is_read_from_the_diff_not_the_name() -> None:

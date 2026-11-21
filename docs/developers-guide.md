@@ -845,6 +845,7 @@ operations. `weave-git-merge` is optional and applies only when Weave is
 enabled or selected. The implementation-to-delivery contracts and executable
 examples are covered by `tests/test_sdlc_implementation_skill.py`,
 `tests/test_sdlc_setup_examples.py`, `tests/test_pr_babysitting_examples.py`,
+`tests/test_pr_babysitting_issue_assessment.py`,
 `tests/test_pr_babysitting_error_model.py`,
 `tests/test_readiness_handoff_boundary.py`, and
 `tests/test_sdlc_milestone_review.py`; the behavioural obligations of the
@@ -882,14 +883,23 @@ share, and each takes and returns plain strings without touching the filesystem:
   itself is the subject.
 
 `tests/assessment_mutation_cases.py` keeps the mutation table as data.
-`tests/pr_babysitting_error_model.py` restates the two error dispositions the
-skill states: a red hosted run is rebased before diagnosis only when the same
-commit gates pass locally and the branch is behind its target, and a newer lint
-suite's out-of-scope violations become a prerequisite fix PR, or a new base of
-a managed stack, rather than feature repairs. An existing fix PR is reused only
-as a base branch, because a PR belongs to one stack; only a newly created fix
-PR becomes a stack layer. Its contract test keeps every decision and constraint
-cited by the shipped skill, and proves each input changes the result.
+`tests/pr_babysitting_assessment_contract.py` owns
+`assessment_contract(assessment, skill)` and the `LEDGER_REQUIREMENTS` constant;
+`tests/test_pr_babysitting_examples.py` imports the function rather than
+defining it. `tests/pr_babysitting_issue_contract.py` owns
+`issue_assessment_contract(assessment, skill)` and `ISSUE_REQUEST_FIELDS`, and
+checks the original-issue assessment's section, request fields, readiness
+wording and merge-checklist wording.
+`tests/test_pr_babysitting_issue_assessment.py` applies those guards to the
+shipped documents. `tests/pr_babysitting_error_model.py` restates the two error
+dispositions the skill states: a red hosted run is rebased before diagnosis
+only when the same commit gates pass locally and the branch is behind its
+target, and a newer lint suite's out-of-scope violations become a prerequisite
+fix PR, or a new base of a managed stack, rather than feature repairs. An
+existing fix PR is reused only as a base branch, because a PR belongs to one
+stack; only a newly created fix PR becomes a stack layer. Its contract test
+keeps every decision and constraint cited by the shipped skill, and proves each
+input changes the result.
 
 ### PR-readiness behavioural specification
 
