@@ -410,12 +410,10 @@ def bounds_of(scenario: str, served: Staged) -> Bounds:
 
 
 def applicability(served: Staged, packet: dict[str, str]) -> tuple[bool, bool, bool]:
-    """Return whether each of the three assessments applies to a staged recording.
+    """Return the three applicability answers for a staged recording.
 
-    The rule is the policy unit's, in ``readiness_policy``; the adapter in
-    ``readiness_applicability`` extracts the facts it takes from the stand-in.
-    The packet carries no derivation fact, so a recording states the
-    original-issue assessment as not applicable.
+    The rule is the policy unit's; the packet states no derivation, so the
+    original-issue assessment is not applicable to a recording.
     """
     return applicability_of(packet, served.body, served.proof_changed())
 
@@ -515,8 +513,7 @@ def observe(
         **SNAPSHOT_DEFAULTS,
         **delivery(reads),
         "completeness_applies": completeness_applies,
-        "proof_applies": proof_applies,
-        "issue_derived": issue_derived,
+        "proof_applies": proof_applies, "issue_derived": issue_derived,
         "proofs": stand_ins if proof_applies else (),
         "completeness": held[COMPLETENESS],
         "proof": held[PROOF],
