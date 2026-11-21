@@ -234,7 +234,9 @@ def cli() -> None:
     None
         Cyclopts parses arguments and dispatches the selected command. A
         suite, checker or execution failure is reported as one diagnostic
-        line and exits with status one; an interrupt exits with status 130.
+        line, followed by a note line for each note the error carries, such
+        as a failed cleanup after a failed install, and exits with status
+        one; an interrupt exits with status 130.
     """
     app = App(
         name="model_check",
@@ -247,6 +249,8 @@ def cli() -> None:
         app()
     except model_check.ModelCheckError as error:
         print(f"model_check: error: {error}", file=sys.stderr)
+        for note in getattr(error, "__notes__", ()):
+            print(f"model_check: note: {note}", file=sys.stderr)
         raise SystemExit(1) from error
     except KeyboardInterrupt as error:
         print("model_check: interrupted; no result", file=sys.stderr)

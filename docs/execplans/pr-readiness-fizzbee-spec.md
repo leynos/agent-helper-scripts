@@ -337,6 +337,15 @@ is no history of revised limits to learn from.
   `scripts/model_check_report.py`, and the unexecutable-checker test asserts
   the executable is named. The Domain Architecture warning's request to move
   the reply-clearance rules is answered by D18.
+- [x] (2026-11-21 03:20Z) The reconciliation of `754a19e` (comment
+  7054588823) accepted D18 and withdrew the request to move the clearance
+  rules, and named one last diagnostic gap: the command line printed an error
+  but not its notes, so a failed install's cleanup failure was not shown. It
+  now prints each note on its own line after the error. The installer tests no
+  longer depend on permissions, so they also run as root: a regular file stands
+  where the home's parent goes, a directory where the partial archive goes, and
+  a refused `unlink` for the success path; a command-line test asserts the
+  error line, the note line, the exit status and no traceback.
 - [x] (2026-11-20 11:50Z) Implementation and validation complete. From here,
   readiness, the formal review, its findings, approval and merge are owned by
   `pr-babysitting` and recorded on PR #291, not in this plan.

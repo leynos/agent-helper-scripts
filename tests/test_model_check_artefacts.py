@@ -21,13 +21,16 @@ from dataclasses import replace
 import hashlib
 import importlib
 import os
+import shutil
+import subprocess
+import tarfile
 from pathlib import Path
 import sys
 import types
 
 import pytest
 
-from spelling_policy_support import SCRIPTS_PATH
+from spelling_policy_support import REPOSITORY_ROOT, SCRIPTS_PATH
 
 EXPECTED_HEADING = "Expected counterexamples (recorded limitations, not assurance)"
 ASSURANCE_HEADING = "Assurance (must pass)"
@@ -454,38 +457,117 @@ def test_the_launcher_path_is_computed_without_reading(
         modules.mc.verify_checker(tmp_path, checker)
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root writes into a read-only directory")
+def pinned_release(modules: types.SimpleNamespace, tmp_path: Path) -> tuple[object, Path]:
+    """Return a checker pinned to a real archive, and that archive."""
+    staging = tmp_path / "staging" / "release"
+    staging.mkdir(parents=True)
+    (staging / "fizz").write_text("#!/bin/bash\ntrue\n", encoding="utf-8")
+    archive = tmp_path / "release.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(staging, arcname="release")
+    checker = replace(
+        make_suite(modules).checker,
+        root="release",
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        files={"fizz": hashlib.sha256((staging / "fizz").read_bytes()).hexdigest()},
+    )
+    return checker, archive
+
+
 def test_an_install_names_a_home_it_cannot_create(
     modules: types.SimpleNamespace, tmp_path: Path
 ) -> None:
-    """A checker home that cannot be created is a named error, not a crash."""
+    """A checker home under a regular file cannot be made, by any user."""
     checker = replace(make_suite(modules).checker, root="release", files={"fizz": "0"})
-    parent = tmp_path / "locked"
-    parent.mkdir(mode=0o500)
-    try:
-        with pytest.raises(modules.suite.ModelCheckError, match="cannot create the checker home .*locked"):
-            modules.mc.install_checker(parent / "home", checker, lambda *_: None)
-    finally:
-        parent.chmod(0o700)
+    blocker = tmp_path / "blocker"
+    blocker.write_text("", encoding="utf-8")
+    with pytest.raises(modules.suite.ModelCheckError, match="cannot create the checker home .*blocker"):
+        modules.mc.install_checker(blocker / "home", checker, lambda *_: None)
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root removes from a read-only directory")
 def test_a_failed_install_keeps_its_error_when_cleanup_also_fails(
     modules: types.SimpleNamespace, tmp_path: Path
 ) -> None:
-    """The install's own error is reported, with the cleanup failure as a note."""
+    """The install's own error is reported, with the cleanup failure as a note.
+
+    A directory stands where the partial archive goes, which no user can
+    unlink as a file.
+    """
     checker = replace(make_suite(modules).checker, root="release", files={"fizz": "0"})
     home = tmp_path / "home"
+    (home / "release.tar.gz.partial" / "held").mkdir(parents=True)
 
-    def fetch(_url: str, destination: Path) -> None:
-        """Write an archive with the wrong digest, then lock its directory."""
-        destination.write_bytes(b"not the pinned archive")
-        destination.parent.chmod(0o500)
+    def fetch(url: str, _destination: Path) -> None:
+        """Fail the download, as curl does when it cannot write its output."""
+        raise modules.suite.ModelCheckError(f"download of {url} failed")
 
-    try:
-        with pytest.raises(modules.suite.ModelCheckError, match="has SHA-256") as raised:
-            modules.mc.install_checker(home, checker, fetch)
-    finally:
-        home.chmod(0o700)
+    with pytest.raises(modules.suite.ModelCheckError, match="download of .* failed") as raised:
+        modules.mc.install_checker(home, checker, fetch)
     notes = getattr(raised.value, "__notes__", [])
     assert any("cannot remove the downloaded archive" in note for note in notes), notes
+
+
+def test_a_successful_install_names_an_archive_it_cannot_remove(
+    modules: types.SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After a good install, a partial archive that survives is a named error."""
+    checker, archive = pinned_release(modules, tmp_path)
+    original_unlink = Path.unlink
+
+    def unlink(path: Path, missing_ok: bool = False) -> None:
+        """Refuse to remove the partial archive, and nothing else."""
+        if path.name.endswith(".partial"):
+            raise PermissionError(1, "Operation not permitted", str(path))
+        original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    home = tmp_path / "home"
+    with pytest.raises(modules.suite.ModelCheckError, match="cannot remove the downloaded archive"):
+        modules.mc.install_checker(home, checker, lambda _url, destination: shutil.copy(archive, destination))
+    assert (home / "release" / "fizz").is_file()
+
+
+#: A manifest pinning a checker nobody can download, with one run.
+UNREACHABLE_PIN = """[checker]
+version = "v-test"
+url = "file:///nowhere"
+sha256 = "0"
+root = "release"
+[checker.files]
+"fizz" = "0"
+[defaults]
+spec = "spec.fizz"
+timeout_seconds = 5
+[defaults.options]
+max_actions = 1000
+max_concurrent_actions = 1
+crash_on_yield = false
+deadlock_detection = true
+liveness = "strict"
+[[run]]
+id = "base"
+class = "assurance"
+purpose = "The unmodified specification passes."
+expect = "pass"
+"""
+
+
+@pytest.mark.slow
+def test_the_command_line_shows_a_failed_installs_cleanup_note(tmp_path: Path) -> None:
+    """A failed install reports its own error, then the cleanup that also failed."""
+    suite = tmp_path / "suite.toml"
+    suite.write_text(UNREACHABLE_PIN, encoding="utf-8")
+    home = tmp_path / "home"
+    (home / "release.tar.gz.partial" / "held").mkdir(parents=True)
+    uv = shutil.which("uv")
+    assert uv, "uv is required to run the model-check command line"
+    result = subprocess.run(
+        [uv, "run", "--script", str(SCRIPTS_PATH / "model_check_cli.py"),
+         "install", "--suite", str(suite), "--home", str(home)],
+        check=False, capture_output=True, text=True, timeout=300, cwd=REPOSITORY_ROOT,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    lines = result.stderr.splitlines()
+    assert lines[0].startswith("model_check: error: download of file:///nowhere failed"), result.stderr
+    assert lines[1].startswith("model_check: note: cannot remove the downloaded archive"), result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
