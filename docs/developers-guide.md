@@ -2264,6 +2264,23 @@ are preserved in both cases. `tests/test_scripting_standards_examples.py` and
 `tests/test_scripting_standards_cyclopts_examples.py` use these helpers; the
 latter covers the Cyclopts JSON contract and the documented environment test.
 
+### Executing the Femtologging example
+
+The marker contract alone cannot tell a working example from one that calls an
+API the library does not offer. `tests/test_femtologging_documented_example.py`
+therefore loads the `femtologging-callback-enrichment-accepted` fence from the
+shipped guide, executes it exactly as published, and asserts that the
+configured callback filter stamps the delivered record with the documented
+fields. An edit that reverts the example to an unsupported call fails that test
+rather than reaching a reader.
+
+The example needs the real library, which is not published on PyPI, so
+`pyproject.toml` carries a dev dependency on `leynos/femtologging` at a pinned
+commit. `uv.lock` records the exact revision, and refreshing it is a deliberate
+`uv lock --upgrade-package femtologging` rather than an incidental change: the
+pin decides which builder API the guide is proved against, so moving it belongs
+in a reviewed commit of its own.
+
 ### Rust API doc example contract
 
 The style guide's "API doc comments (Rust)" section ships an example that a
