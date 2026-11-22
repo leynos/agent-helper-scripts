@@ -69,8 +69,16 @@ jobs:
         run: cargo --version
 
       # The same gate sequence as `make ci`, minus the Markdown gate above.
+      # The tests build the pinned femtologging checkout, whose
+      # `.cargo/config.toml` selects the mold linker on Linux. This runner has
+      # no mold, and an assigned `RUSTFLAGS` replaces that table, so an empty
+      # value makes the build link with the runner's own toolchain. This is
+      # the same displacement femtologging's wheel builds use in its manylinux
+      # containers.
       - name: Run CI gate sequence
         run: make ci CI_SKIP_MARKDOWNLINT=1
+        env:
+          RUSTFLAGS: ""
 
       # The scripting standards declare `cyclopts>=4.3,<5`; `make ci`
       # exercises the resolved dev version. Run the declared floor separately
