@@ -27,7 +27,7 @@ class RecordCollector:
     """Collect structured records delivered through ``handle_record``."""
 
     def __init__(self) -> None:
-        """Initialise the empty collection of received records."""
+        """Initialize the empty collection of received records."""
         self.records: list[dict[str, object]] = []
 
     def handle(self, logger: str, level: str, message: str) -> None:
