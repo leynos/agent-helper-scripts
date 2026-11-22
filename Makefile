@@ -202,8 +202,16 @@ cyclopts-floor:
 	@uv run --group dev --with 'cyclopts==$(CYCLOPTS_FLOOR)' \
 		python -m pytest tests/test_scripting_standards_cyclopts_examples.py -v
 
+# The tests build the pinned femtologging checkout, whose `.cargo/config.toml`
+# selects the mold linker on Linux. A host without mold cannot link that build,
+# and Cargo takes an assigned `RUSTFLAGS` instead of that `rustflags` table, so
+# an empty value keeps the platform linker. A developer who exports `RUSTFLAGS`,
+# or who installs mold, keeps their own setting.
+FEMTOLOGGING_LINK_ENV := $(if $(filter Linux,$(shell uname -s)),\
+	$(if $(RUSTFLAGS),,$(if $(shell command -v mold),,RUSTFLAGS=)),)
+
 test:
-	@$(PYTEST) $(TEST_TARGETS) -v
+	@$(FEMTOLOGGING_LINK_ENV) $(PYTEST) $(TEST_TARGETS) -v
 
 test-entrypoints:
 	@$(PYTEST) $(ENTRYPOINT_TESTS) -v

@@ -2277,9 +2277,20 @@ rather than reaching a reader.
 The example needs the real library, which is not published on PyPI, so
 `pyproject.toml` carries a dev dependency on `leynos/femtologging` at a pinned
 commit. `uv.lock` records the exact revision, and refreshing it is a deliberate
-`uv lock --upgrade-package femtologging` rather than an incidental change: the
-pin decides which builder API the guide is proved against, so moving it belongs
-in a reviewed commit of its own.
+change rather than an incidental one: the pin decides which builder API the
+guide is proved against, so moving it belongs in a reviewed commit of its own.
+To move it, edit `tool.uv.sources.femtologging.rev` to the target commit, run
+`uv lock --upgrade-package femtologging`, and then run
+`uv run pytest tests/test_femtologging_documented_example.py` so the guide is
+re-proved against the new builder API.
+
+The dependency build is native. On Linux, the femtologging checkout's
+`.cargo/config.toml` selects the mold linker, so a host without mold cannot
+link it. Cargo takes an assigned `RUSTFLAGS` instead of that `rustflags` table,
+so the `test` recipe exports an empty `RUSTFLAGS` when mold is absent, which
+keeps the platform linker. A developer who exports `RUSTFLAGS`, or who installs
+mold, keeps their own setting and gets the faster link. The GitHub workflow
+exports the empty value for the same reason: its runner has no mold.
 
 ### Rust API doc example contract
 
