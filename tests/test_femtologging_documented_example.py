@@ -28,8 +28,11 @@ ENRICHMENT_EXAMPLE = "femtologging-callback-enrichment-accepted"
 #: Appended after the published text. The example configures and flushes its
 #: own `logger`, so the probe attaches a collector to that same object, emits
 #: one more record, and prints the delivered key-values as JSON. Nothing here
-#: changes how the shipped text runs.
-RECORD_PROBE = """
+#: changes how the shipped text runs. Its message differs from the example's,
+#: so an assertion on the example's own delivery cannot be satisfied by the
+#: probe's record.
+PROBE_MESSAGE = "probe after the published example"
+RECORD_PROBE = f"""
 import json
 
 _collector_records = []
@@ -47,7 +50,7 @@ class _Collector:
 
 
 logger.add_handler(_Collector())
-logger.log("INFO", "request accepted")
+logger.log("INFO", {PROBE_MESSAGE!r})
 logger.flush_handlers()
 print(json.dumps(_collector_records[-1]["metadata"]["key_values"]))
 """
@@ -89,8 +92,10 @@ def test_published_callback_enrichment_example_stamps_delivered_records(
     result = run_published_example(body, tmp_path)
 
     assert result.returncode == 0, f"the published example failed:\n{result.stderr}"
+    # The probe emits a different message, so finding this text proves the
+    # example's own `logger.log(...)` reached a handler and was delivered.
     assert "request accepted" in result.stderr, (
-        f"the published example must deliver its record, got {result.stderr!r}"
+        f"the published example must deliver its own record, got {result.stderr!r}"
     )
     assert result.stdout.strip(), "the probe must report the delivered record"
     key_values = json.loads(result.stdout.strip().splitlines()[-1])
