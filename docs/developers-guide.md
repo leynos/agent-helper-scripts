@@ -2281,8 +2281,10 @@ change rather than an incidental one: the pin decides which builder API the
 guide is proved against, so moving it belongs in a reviewed commit of its own.
 To move it, edit `tool.uv.sources.femtologging.rev` to the target commit, run
 `uv lock --upgrade-package femtologging`, and then run
-`uv run pytest tests/test_femtologging_documented_example.py` so the guide is
-re-proved against the new builder API.
+`make test TEST_TARGETS=tests/test_femtologging_documented_example.py` so the
+guide is re-proved against the new builder API. Running the focused test through
+`make` keeps the linker fallback described below; a bare `uv run` would bypass
+it and could fail to build the new revision.
 
 The dependency build is native. On Linux, the femtologging checkout's
 `.cargo/config.toml` selects the mold linker, so a host without mold cannot
