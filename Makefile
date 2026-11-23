@@ -32,8 +32,12 @@ HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|in
 # setting. The prefix covers the three variables that resolve the project
 # environment: pytest, skills-ref, and yamllint. Interrogate and the typos
 # builder run from `uv tool` environments and never build the dependency.
-FEMTOLOGGING_LINK_ENV := $(if $(filter Linux,$(shell uname -s)),\
-	$(if $(RUSTFLAGS),,$(if $(shell command -v mold),,RUSTFLAGS=)),)
+# Both probes are overridable, so tests can pin the host shape without
+# manipulating PATH: `make UNAME_S=Darwin` or `make MOLD=`.
+UNAME_S ?= $(shell uname -s)
+MOLD ?= $(shell command -v mold)
+FEMTOLOGGING_LINK_ENV := $(if $(filter Linux,$(UNAME_S)),\
+	$(if $(RUSTFLAGS),,$(if $(MOLD),,RUSTFLAGS=)),)
 
 PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py scripts/*.py scripts/*/*.py tests/*.py))
 PYTEST := $(FEMTOLOGGING_LINK_ENV) uv run --group dev python -m pytest

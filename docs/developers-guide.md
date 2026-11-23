@@ -2296,7 +2296,15 @@ platform linker. Interrogate and the typos builder run from isolated `uv tool`
 environments and never build the dependency. A developer who exports
 `RUSTFLAGS`, or who installs mold, keeps their own setting and gets the faster
 link. The GitHub workflow assigns the empty value for the same reason: its
-runner has no mold.
+runner has no mold. An empty `RUSTFLAGS` is treated exactly like an unset one,
+so the workflow's value and a bare local run resolve to the same command.
+
+Both probes are overridable, which is how the fallback is tested without
+manipulating `PATH`: `UNAME_S ?= $(shell uname -s)` and
+`MOLD ?= $(shell command -v mold)` can be pinned per invocation, so
+`tests/test_makefile_checks.py` exercises the whole matrix — Linux with or
+without mold, a caller-assigned `RUSTFLAGS`, an empty one, and a non-Linux host
+— through `make --dry-run`.
 
 ### Rust API doc example contract
 
