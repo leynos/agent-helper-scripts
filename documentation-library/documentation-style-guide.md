@@ -377,9 +377,10 @@ Name RFC files using the pattern `rfcs/rfc-nnnn-title-slug.md`, relative to the
 - Number RFCs sequentially in allocation order rather than by date.
 - Do not renumber existing RFCs after publication. Gaps are acceptable when
   numbers are reserved, drafted on another branch, or intentionally skipped.
-  Exception: where two documents share a number, renumber the later one (by
-  first appearance in history) to the next free number, record "Renumbered from
-  NNNN on YYYY-MM-DD (duplicate number)" under its title, and update every
+  Exception: where two RFCs share a number, renumber the later one (by first
+  appearance in history; if both first appear in the same commit, the one whose
+  title sorts later alphabetically) to the next free number, record "Renumbered
+  from NNNN on YYYY-MM-DD (duplicate number)" under its title, and update every
   inbound link, including number-only references.
 - Keep the slug stable once the RFC is published. If the title changes
   materially, rename the file, keep the number, and update every inbound link.
@@ -533,11 +534,12 @@ Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
   `Architectural decision record (ADR) nnnn:` prefix, following the same slug
   rules as RFC filenames.
 - Number ADRs sequentially in allocation order rather than by date, and do not
-  renumber an ADR after publication. Exception: where two documents share a
-  number, renumber the later one (by first appearance in history) to the next
-  free number, record "Renumbered from NNNN on YYYY-MM-DD (duplicate number)"
-  under its title, and update every inbound link, including number-only
-  references.
+  renumber an ADR after publication. Exception: where two ADRs share a number,
+  renumber the later one (by first appearance in history; if both first appear
+  in the same commit, the one whose title sorts later alphabetically) to the
+  next free number, record "Renumbered from NNNN on YYYY-MM-DD (duplicate
+  number)" under its title, and update every inbound link, including
+  number-only references.
 
 ### Required sections
 
