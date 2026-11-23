@@ -524,11 +524,11 @@ To complement conditional execution, Rust provides a way to visually flag
 feature-gated items in the generated documentation. This is achieved with the
 `#[doc(cfg(...))]` attribute, which requires enabling the
 `#![feature(doc_cfg)]` feature gate at the crate root. Both the attribute and
-the feature gate are nightly-only; the example below does not compile on stable
-Rust, and it does not compile under this repository's default
-`RUST_CHANNEL=stable`. It is retained here purely as a reference for projects
-that build their documentation on nightly (for example, via `docs.rs`, which
-runs nightly `rustdoc`).
+the feature gate are nightly-only. The example below enables the gate
+unconditionally, so it requires a nightly toolchain and does not compile on
+stable or beta toolchains. It is retained here purely as a reference for
+projects that build their documentation on nightly (for example, via `docs.rs`,
+which runs nightly `rustdoc`).
 
 <!-- tested-example: doctest-doc-cfg -->
 ```rust
