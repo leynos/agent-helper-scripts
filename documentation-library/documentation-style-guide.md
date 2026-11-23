@@ -749,8 +749,8 @@ pub fn add(a: i32, b: i32) -> i32 {
 }
 ```
 
-Only the outer fence needs `no_run`, because the snippet is a fragment; the
-inner doctest compiles and runs.
+Only the outer fence needs `no_run`, because it is a complete item that must
+compile but is not a program to execute; the inner doctest compiles and runs.
 
 ## Diagrams and images
 

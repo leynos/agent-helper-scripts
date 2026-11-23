@@ -159,10 +159,10 @@ def test_the_section_has_one_outer_rust_fence(guide_lines: list[str]) -> None:
     _outer_fence(guide_lines)
 
 
-def test_the_outer_fence_is_no_run_because_the_snippet_is_a_fragment(
+def test_the_outer_fence_is_no_run_because_it_compiles_but_is_not_executed(
     guide_lines: list[str],
 ) -> None:
-    """The outer fence demonstrates a fragment, so it is marked ``no_run``."""
+    """The outer fence is a complete item that need not run, so it is ``no_run``."""
     language, _ = _outer_fence(guide_lines)
     assert language == "rust,no_run", (
         f"the outer fence is {language!r}, expected 'rust,no_run'"
