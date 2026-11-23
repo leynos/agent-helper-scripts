@@ -72,24 +72,40 @@ class _VersionOverrideProxy:
         return getattr(self._monkeypatch, name)
 
 
-@pytest.mark.parametrize(
-    "case",
-    tuple(
-        pytest.param(
-            (identifier, version),
-            id=f"{identifier}-{version}",
-        )
-        for identifier in DRY_RUN_SCRIPT_EXAMPLES
-        for version in ("1.2.3", "9.9.9")
-    ),
+VERSION_CASES = tuple(
+    pytest.param(
+        (identifier, version),
+        id=f"{identifier}-{version}",
+    )
+    for identifier in DRY_RUN_SCRIPT_EXAMPLES
+    for version in ("1.2.3", "9.9.9")
 )
-def test_reference_scripts_emit_json_with_the_reported_version(
+
+
+def _run_app_and_parse_json(
+    namespace: dict[str, Any],
+    tokens: list[str],
+    outdir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> dict[str, Any]:
+    """Run the extracted app, parse its JSON, and prove the dry run is clean."""
+    namespace["app"](
+        [*tokens, "--dry-run", "--outdir", str(outdir)],
+        result_action="return_value",
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert not outdir.exists(), "dry-run must not create the output directory"
+    return payload
+
+
+@pytest.mark.parametrize("case", VERSION_CASES)
+def test_reference_scripts_read_the_version_from_the_environment(
     case: tuple[str, str],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Both reference scripts report the exact version they are given as JSON."""
+    """Both reference scripts report the environment version as JSON."""
     identifier, version = case
     _clear_input_environment(monkeypatch)
     monkeypatch.setenv("INPUT_BIN_NAME", "demo")
@@ -100,16 +116,37 @@ def test_reference_scripts_emit_json_with_the_reported_version(
         identifier,
         filename=tmp_path / "scripts" / "package.py",
     )
-    namespace["app"](
-        ["--dry-run", "--outdir", str(outdir)],
-        result_action="return_value",
-    )
 
-    payload = json.loads(capsys.readouterr().out)
+    payload = _run_app_and_parse_json(namespace, [], outdir, capsys)
     assert payload["version"] == version, (
         "the script output must propagate the configured version exactly"
     )
-    assert not outdir.exists(), "dry-run must not create the output directory"
+
+
+@pytest.mark.parametrize("case", VERSION_CASES)
+def test_reference_scripts_accept_cli_version_tokens(
+    case: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both reference scripts report an explicit version token as JSON."""
+    identifier, version = case
+    _clear_input_environment(monkeypatch)
+    outdir = tmp_path / "out"
+
+    namespace = execute_example(
+        identifier,
+        filename=tmp_path / "scripts" / "package.py",
+    )
+
+    # Cyclopts reserves the bare --version meta flag, so the parameter is
+    # addressed with the equals form.
+    tokens = ["--bin-name", "demo", f"--version={version}"]
+    payload = _run_app_and_parse_json(namespace, tokens, outdir, capsys)
+    assert payload["version"] == version, (
+        "the script output must propagate the configured version exactly"
+    )
 
 
 def _load_published_environment_test(

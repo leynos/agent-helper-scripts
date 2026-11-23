@@ -2143,7 +2143,12 @@ execution.
 `pyproject.toml`'s `dev` dependency group carries `cyclopts>=4.3,<5`, matching
 the reference script's PEP 723 metadata. This keeps the published Cyclopts
 examples executable against a release that supports the documented call-time
-`result_action` argument.
+`result_action` argument. Check the floor with
+
+```bash
+uv run --group dev --with 'cyclopts==4.3.0' \
+  python -m pytest tests/test_scripting_standards_cyclopts_examples.py
+```
 
 ## Tested-example contract
 
