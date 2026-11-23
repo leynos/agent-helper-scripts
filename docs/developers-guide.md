@@ -2289,10 +2289,14 @@ it and could fail to build the new revision.
 The dependency build is native. On Linux, the femtologging checkout's
 `.cargo/config.toml` selects the mold linker, so a host without mold cannot
 link it. Cargo takes an assigned `RUSTFLAGS` instead of that `rustflags` table,
-so the `test` recipe exports an empty `RUSTFLAGS` when mold is absent, which
-keeps the platform linker. A developer who exports `RUSTFLAGS`, or who installs
-mold, keeps their own setting and gets the faster link. The GitHub workflow
-exports the empty value for the same reason: its runner has no mold.
+so every Makefile command that resolves the dev environment — `test`,
+`test-entrypoints`, `skill-frontmatter-lint`, and `skill-manifest-validate` —
+carries an empty `RUSTFLAGS=` prefix when mold is absent, which keeps the
+platform linker. Interrogate and the typos builder run from isolated `uv tool`
+environments and never build the dependency. A developer who exports
+`RUSTFLAGS`, or who installs mold, keeps their own setting and gets the faster
+link. The GitHub workflow assigns the empty value for the same reason: its
+runner has no mold.
 
 ### Rust API doc example contract
 
