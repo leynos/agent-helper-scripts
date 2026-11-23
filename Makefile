@@ -68,7 +68,7 @@ MODEL_SUITE ?= specs/pr-readiness/suite.toml
 # - fizzbee: fetch and verify the pinned checker (the one networked step).
 # - model-check: the mandatory routine suite, part of `ci`.
 # - model-check-extended: the routine suite plus the larger explorations.
-.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci interrogate fizzbee model-check model-check-extended
+.PHONY: all clean check-fmt fmt markdownlint nixie lint typecheck syntax-check shell-syntax-check check-home-phase-boundary skill-frontmatter-lint skill-manifest-validate skill-manifest-check spelling test-entrypoints test ci interrogate fizzbee model-check model-check-extended cyclopts-floor
 
 all: ci
 
@@ -187,6 +187,20 @@ model-check: ## Run the mandatory model-checking suite
 # Runs the routine suite as well, so it can never be run instead of it.
 model-check-extended: ## Run the routine suite and the larger explorations
 	@env -u MODEL_CHECK_ONLY $(MODEL_CHECK) check --suite $(MODEL_SUITE) --tier extended
+
+# The published Cyclopts examples declare `cyclopts>=4.3,<5`, while the dev
+# group resolves the newest compatible release. This runs the contract tests
+# against the declared floor so a lower bound the examples no longer support
+# fails here rather than in a consumer that pinned it. It is not in
+# `CI_GATES`: the workflow runs it as its own named step, so its log records
+# the installed version.
+CYCLOPTS_FLOOR ?= 4.3.0
+
+cyclopts-floor:
+	@uv run --group dev --with 'cyclopts==$(CYCLOPTS_FLOOR)' python -c \
+		"import cyclopts; print('cyclopts', cyclopts.__version__)"
+	@uv run --group dev --with 'cyclopts==$(CYCLOPTS_FLOOR)' \
+		python -m pytest tests/test_scripting_standards_cyclopts_examples.py -v
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

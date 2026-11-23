@@ -2143,12 +2143,11 @@ execution.
 `pyproject.toml`'s `dev` dependency group carries `cyclopts>=4.3,<5`, matching
 the reference script's PEP 723 metadata. This keeps the published Cyclopts
 examples executable against a release that supports the documented call-time
-`result_action` argument. Check the floor with
-
-```bash
-uv run --group dev --with 'cyclopts==4.3.0' \
-  python -m pytest tests/test_scripting_standards_cyclopts_examples.py
-```
+`result_action` argument. Check the floor with `make cyclopts-floor`, which
+runs the Cyclopts contract tests against `cyclopts==4.3.0` and prints the
+installed version; the CI workflow runs the same target as its own step, so the
+floor result is recorded with each candidate. Override the floor with
+`CYCLOPTS_FLOOR=<version>` when evaluating a different minimum.
 
 ## Tested-example contract
 
@@ -2257,9 +2256,11 @@ fences in `documentation-library/scripting-standards.md`. It builds on
 - `execute_example(identifier, ...)` — executes one marked Python fence in an
   isolated module namespace.
 
-The temporary file is named after the example identifier so tracebacks identify
-the fence, and the caller's `__file__`, `__name__` and extra globals are
-preserved. `tests/test_scripting_standards_examples.py` and
+`execute_example` names the temporary module after the example identifier, so a
+traceback points at that fence; `execute_source` defaults to `example.py` for
+callers that pass their own module, such as the `scripts.package` registration
+in the Cyclopts tests. The caller's `__file__`, `__name__` and extra globals
+are preserved in both cases. `tests/test_scripting_standards_examples.py` and
 `tests/test_scripting_standards_cyclopts_examples.py` use these helpers; the
 latter covers the Cyclopts JSON contract and the documented environment test.
 

@@ -71,3 +71,9 @@ jobs:
       # The same gate sequence as `make ci`, minus the Markdown gate above.
       - name: Run CI gate sequence
         run: make ci CI_SKIP_MARKDOWNLINT=1
+
+      # The scripting standards declare `cyclopts>=4.3,<5`; `make ci`
+      # exercises the resolved dev version. Run the declared floor separately
+      # so this job's log records the installed version and the floor result.
+      - name: Check the Cyclopts floor
+        run: make cyclopts-floor
