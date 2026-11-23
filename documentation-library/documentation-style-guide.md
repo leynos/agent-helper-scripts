@@ -379,8 +379,8 @@ Name RFC files using the pattern `rfcs/rfc-nnnn-title-slug.md`, relative to the
   numbers are reserved, drafted on another branch, or intentionally skipped.
   Exception: where two documents share a number, renumber the later one (by
   first appearance in history) to the next free number, record "Renumbered from
-  NNNN on <date> (duplicate number)" under its title, and update every inbound
-  link, including number-only references.
+  NNNN on YYYY-MM-DD (duplicate number)" under its title, and update every
+  inbound link, including number-only references.
 - Keep the slug stable once the RFC is published. If the title changes
   materially, rename the file, keep the number, and update every inbound link.
 
@@ -535,8 +535,9 @@ Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
 - Number ADRs sequentially in allocation order rather than by date, and do not
   renumber an ADR after publication. Exception: where two documents share a
   number, renumber the later one (by first appearance in history) to the next
-  free number, record "Renumbered from NNNN on <date> (duplicate number)" under
-  its title, and update every inbound link, including number-only references.
+  free number, record "Renumbered from NNNN on YYYY-MM-DD (duplicate number)"
+  under its title, and update every inbound link, including number-only
+  references.
 
 ### Required sections
 
