@@ -9,14 +9,11 @@ copied snippets.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
 import logging
 import os
 import sqlite3
 import sys
-import tempfile
-import types
 from pathlib import Path
 from textwrap import dedent, indent
 from typing import Any
@@ -27,16 +24,13 @@ from hypothesis import given, settings, strategies as st
 import pytest
 import yaml
 
-from tested_example_test_support import load_tested_examples
-
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTING_STANDARDS_PATH = (
-    REPOSITORY_ROOT / "documentation-library" / "scripting-standards.md"
+from scripting_standards_example_support import (
+    EXAMPLES,
+    SCRIPTING_STANDARDS_PATH,
+    example_source,
+    execute_example,
 )
-EXAMPLES = {
-    example.identifier: example
-    for example in load_tested_examples(SCRIPTING_STANDARDS_PATH)
-}
+
 PARAMETER_EXAMPLES = {
     "cyclopts-parameter-name",
     "cyclopts-parameter-config",
@@ -44,115 +38,6 @@ PARAMETER_EXAMPLES = {
 }
 CONCURRENT_SCENARIO_ENV = "SCRIPTING_STANDARDS_CONCURRENT_SCENARIO"
 CONCURRENT_STATE_ENV = "SCRIPTING_STANDARDS_CONCURRENT_STATE"
-DRY_RUN_SCRIPT_EXAMPLES = ("cyclopts-cli", "reference-script")
-
-
-def _example_source(identifier: str) -> str:
-    """Return the shipped source for one marked scripting-standard example."""
-    return EXAMPLES[identifier].body
-
-
-def _execute_source(
-    source: str,
-    *,
-    filename: Path,
-    namespace: dict[str, Any],
-    module_filename: str = "example.py",
-) -> None:
-    """Load extracted source as a file-backed module into ``namespace``.
-
-    The source is a fence from a repository-owned guide, read at test time,
-    not untrusted input. Writing it to a temporary module and loading that
-    module through ``importlib`` avoids direct ``exec`` while preserving the
-    caller's ``__file__``, ``__name__`` and other globals. ``module_filename``
-    names the temporary module so tracebacks retain the example identifier.
-    """
-    with tempfile.TemporaryDirectory() as directory:
-        module_path = Path(directory) / module_filename
-        module_path.write_text(source, encoding="utf-8")
-        spec = importlib.util.spec_from_file_location(
-            str(namespace.get("__name__", "tested_example")),
-            module_path,
-        )
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load example source from {filename}")
-        module = importlib.util.module_from_spec(spec)
-        module.__dict__.update(namespace)
-        spec.loader.exec_module(module)
-        namespace.update(module.__dict__)
-
-
-def _execute_example(
-    identifier: str,
-    *,
-    filename: Path | None = None,
-    extra_globals: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Execute one shipped Python example in an isolated module namespace."""
-    example = EXAMPLES[identifier]
-    assert example.language == "python", (
-        f"tested example {identifier!r} must be a Python fence"
-    )
-    example_filename = filename or SCRIPTING_STANDARDS_PATH
-    namespace: dict[str, Any] = {
-        "__file__": str(example_filename),
-        "__name__": "tested_scripting_standards_example",
-    }
-    if extra_globals is not None:
-        namespace.update(extra_globals)
-    _execute_source(
-        example.body,
-        filename=example_filename,
-        namespace=namespace,
-        module_filename=f"{identifier}.py",
-    )
-    return namespace
-
-
-def _clear_input_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove inherited ``INPUT_*`` variables so an example starts clean."""
-    for name in tuple(os.environ):
-        if name.startswith("INPUT_"):
-            monkeypatch.delenv(name, raising=False)
-
-
-def _install_scripts_package(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    source: str,
-) -> types.ModuleType:
-    """Register an extracted reference script as the ``scripts.package`` module."""
-    scripts_package = types.ModuleType("scripts")
-    scripts_package.__path__ = []
-    module = types.ModuleType("scripts.package")
-    module.__file__ = str(tmp_path / "scripts" / "package.py")
-    _execute_source(
-        source,
-        filename=tmp_path / "scripts" / "package.py",
-        namespace=module.__dict__,
-    )
-    monkeypatch.setitem(sys.modules, "scripts", scripts_package)
-    monkeypatch.setitem(sys.modules, "scripts.package", module)
-    return module
-
-
-class _VersionOverrideProxy:
-    """Forward monkeypatch calls while forcing ``INPUT_VERSION``."""
-
-    def __init__(self, monkeypatch: pytest.MonkeyPatch, version: str) -> None:
-        """Wrap ``monkeypatch`` and record the version to substitute."""
-        self._monkeypatch = monkeypatch
-        self._version = version
-
-    def setenv(self, name: str, value: str) -> None:
-        """Forward ``setenv``, substituting the forced version."""
-        if name == "INPUT_VERSION":
-            value = self._version
-        self._monkeypatch.setenv(name, value)
-
-    def __getattr__(self, name: str) -> Any:
-        """Forward any other attribute to the wrapped fixture."""
-        return getattr(self._monkeypatch, name)
 
 
 def _install_concurrent_command_stub(
@@ -322,7 +207,7 @@ def test_shared_catalogue_example_runs_a_registered_git_command(
     (package_path / "__init__.py").write_text("", encoding="utf-8")
     (utils_path / "__init__.py").write_text("", encoding="utf-8")
     (utils_path / "commands.py").write_text(
-        _example_source("catalogue-definition") + "\n",
+        example_source("catalogue-definition") + "\n",
         encoding="utf-8",
     )
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -331,7 +216,7 @@ def test_shared_catalogue_example_runs_a_registered_git_command(
     ).returns(stdout="a1b2c3\n")
     cmd_mox.replay()
 
-    namespace = _execute_example("catalogue-scoped-use")
+    namespace = execute_example("catalogue-scoped-use")
 
     cmd_mox.verify()
     assert namespace["last_commit"] == "a1b2c3", (
@@ -349,7 +234,7 @@ def test_capture_output_example_returns_the_successful_stdout(
     )
     cmd_mox.replay()
 
-    namespace = _execute_example("capture-output")
+    namespace = execute_example("capture-output")
 
     cmd_mox.verify()
     assert namespace["result"].ok, "the successful status command must be ok"
@@ -372,7 +257,7 @@ def test_capture_output_example_keeps_nonzero_results_explicit(
     cmd_mox.replay()
 
     with pytest.raises(SystemExit) as failure:
-        _execute_example("capture-output")
+        execute_example("capture-output")
 
     cmd_mox.verify()
     assert failure.value.code == 7, "the example must preserve the command exit code"
@@ -387,7 +272,7 @@ def test_capture_output_example_surfaces_a_missing_executable(
     monkeypatch.setenv("PATH", str(empty_path))
 
     with pytest.raises(FileNotFoundError, match="git"):
-        _execute_example("capture-output")
+        execute_example("capture-output")
 
 
 @pytest.mark.cmd_mox(auto_lifecycle=False)
@@ -406,7 +291,7 @@ def test_execution_context_example_runs_with_cwd_environment_and_stdin(
     git = cmd_mox.mock("git").times(2).runs(git_handler)
     cmd_mox.replay()
 
-    namespace = _execute_example(
+    namespace = execute_example(
         "execution-context-input",
         filename=tmp_path / "scripts" / "publish.py",
     )
@@ -450,7 +335,7 @@ def test_presence_flag_example_builds_the_expected_argv(cmd_mox: CmdMox) -> None
     ).returns()
     cmd_mox.replay()
 
-    namespace = _execute_example("presence-flags")
+    namespace = execute_example("presence-flags")
 
     cmd_mox.verify()
     assert namespace["command"].argv == (
@@ -471,7 +356,7 @@ def test_pipeline_example_checks_all_stages_and_returns_final_stdout(
     cmd_mox.mock("grep").with_args("fix").returns(stdout="a1b2c3 fix observer\n")
     cmd_mox.replay()
 
-    namespace = _execute_example("pipeline-results")
+    namespace = execute_example("pipeline-results")
 
     cmd_mox.verify()
     assert namespace["result"].ok, "both pipeline stages must succeed"
@@ -495,7 +380,7 @@ def test_concurrent_example_runs_bounded_commands_in_submission_order(
 
     cargo = cmd_mox.mock("cargo").times(2).runs(cargo_handler)
     cmd_mox.replay()
-    namespace = _execute_example("concurrent-commands")
+    namespace = execute_example("concurrent-commands")
 
     aggregate = asyncio.run(namespace["run_all"]())
 
@@ -528,7 +413,7 @@ def test_concurrent_example_generated_batches_keep_order_and_bounds(
             exit_codes=exit_codes,
             delays_ms=delays_ms,
         )
-        namespace = _execute_example("concurrent-commands")
+        namespace = execute_example("concurrent-commands")
         aggregate = _run_concurrent_example_batch(
             namespace,
             len(exit_codes),
@@ -580,7 +465,7 @@ def test_concurrent_example_fail_fast_maps_compacted_results_to_submissions(
             exit_codes=exit_codes,
             delays_ms=delays_ms,
         )
-        namespace = _execute_example("concurrent-commands")
+        namespace = execute_example("concurrent-commands")
         aggregate = _run_concurrent_example_batch(
             namespace,
             command_count,
@@ -616,7 +501,7 @@ def test_observer_example_filters_non_exit_events_and_logs_exit(
     cmd_mox.replay()
     caplog.set_level(logging.INFO)
 
-    _execute_example("observer-exit")
+    execute_example("observer-exit")
 
     cmd_mox.verify()
     records = [record for record in caplog.records if record.msg.startswith("Completed")]
@@ -631,7 +516,7 @@ def test_cmd_mox_happy_path_example_replays_and_verifies(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published cmd-mox happy-path test runs against the beta2 API."""
-    namespace = _execute_example("cmd-mox-tests")
+    namespace = execute_example("cmd-mox-tests")
 
     namespace["test_git_tag_happy_path"](cmd_mox, tmp_path)
 
@@ -641,7 +526,7 @@ def test_cmd_mox_failure_example_preserves_stderr_and_exit_code(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published failure test distinguishes nonzero results from exceptions."""
-    namespace = _execute_example("cmd-mox-tests")
+    namespace = execute_example("cmd-mox-tests")
 
     namespace["test_git_tag_failure_surface_error"](cmd_mox, tmp_path)
 
@@ -651,73 +536,6 @@ def test_cmd_mox_spy_example_records_passthrough_arguments(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published spy example records the real command's single argument."""
-    namespace = _execute_example("cmd-mox-spy")
+    namespace = execute_example("cmd-mox-spy")
 
     namespace["test_spy_and_record"](cmd_mox, tmp_path)
-
-
-@pytest.mark.parametrize("identifier", DRY_RUN_SCRIPT_EXAMPLES)
-@pytest.mark.parametrize("version", ("1.2.3", "9.9.9"))
-def test_reference_scripts_emit_json_with_the_reported_version(
-    identifier: str,
-    version: str,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Both reference scripts report the exact version they are given as JSON."""
-    _clear_input_environment(monkeypatch)
-    monkeypatch.setenv("INPUT_BIN_NAME", "demo")
-    monkeypatch.setenv("INPUT_VERSION", version)
-    outdir = tmp_path / "out"
-
-    namespace = _execute_example(
-        identifier,
-        filename=tmp_path / "scripts" / "package.py",
-    )
-    namespace["app"](
-        ["--dry-run", "--outdir", str(outdir)],
-        result_action="return_value",
-    )
-
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["version"] == version, (
-        "the script output must propagate the configured version exactly"
-    )
-    assert not outdir.exists(), "dry-run must not create the output directory"
-
-
-def test_published_environment_example_accepts_the_reported_version(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The shipped environment test passes for the documented happy path."""
-    _clear_input_environment(monkeypatch)
-    _install_scripts_package(
-        tmp_path,
-        monkeypatch,
-        _example_source("reference-script"),
-    )
-    namespace = _execute_example("pytest-environment")
-
-    namespace["test_reads_env_and_defaults"](monkeypatch, tmp_path, capsys)
-
-
-def test_published_environment_example_rejects_a_different_version(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The shipped environment test fails when the reported version differs."""
-    _clear_input_environment(monkeypatch)
-    _install_scripts_package(
-        tmp_path,
-        monkeypatch,
-        _example_source("reference-script"),
-    )
-    namespace = _execute_example("pytest-environment")
-    proxy = _VersionOverrideProxy(monkeypatch, "9.9.9")
-
-    with pytest.raises(AssertionError):
-        namespace["test_reads_env_and_defaults"](proxy, tmp_path, capsys)

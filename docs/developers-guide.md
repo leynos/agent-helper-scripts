@@ -2140,6 +2140,11 @@ Pin `cuprum==0.2.0b2` in the script's PEP 723 metadata or the project's
 dependencies. Do not use plumbum or direct `subprocess` calls for command
 execution.
 
+`pyproject.toml`'s `dev` dependency group carries `cyclopts>=4.3,<5`, matching
+the reference script's PEP 723 metadata. This keeps the published Cyclopts
+examples executable against a release that supports the documented call-time
+`result_action` argument.
+
 ## Tested-example contract
 
 The style guide's "Tested correctness" bullet, in
