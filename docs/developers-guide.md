@@ -2140,6 +2140,15 @@ Pin `cuprum==0.2.0b2` in the script's PEP 723 metadata or the project's
 dependencies. Do not use plumbum or direct `subprocess` calls for command
 execution.
 
+`pyproject.toml`'s `dev` dependency group carries `cyclopts>=4.3,<5`, matching
+the reference script's PEP 723 metadata. This keeps the published Cyclopts
+examples executable against a release that supports the documented call-time
+`result_action` argument. Check the floor with `make cyclopts-floor`, which
+runs the Cyclopts contract tests against `cyclopts==4.3.0` and prints the
+installed version; the CI workflow runs the same target as its own step, so the
+floor result is recorded with each candidate. Override the floor with
+`CYCLOPTS_FLOOR=<version>` when evaluating a different minimum.
+
 ## Tested-example contract
 
 The style guide's "Tested correctness" bullet, in
@@ -2232,6 +2241,28 @@ Edition 2024 requires Rust 1.85 or later, so the workflow installs stable Rust
 with that floor in mind. Execution or shape checks for the guide's other six
 Rust fences remain with issue #141. Run the focused check with
 `make test TEST_TARGETS=tests/test_rust_doctest_dry_guide_examples.py`.
+
+### Scripting standards example harness
+
+`tests/scripting_standards_example_support.py` executes the marked Python
+fences in `documentation-library/scripting-standards.md`. It builds on
+[the shared loader](../tests/tested_example_test_support.py) and exports:
+
+- `example_source(identifier)` — returns the shipped source for one marked
+  fence.
+- `execute_source(...)` — writes extracted source to a temporary module and
+  loads it through `importlib`, so examples run from a file-backed module
+  rather than a direct `exec`.
+- `execute_example(identifier, ...)` — executes one marked Python fence in an
+  isolated module namespace.
+
+`execute_example` names the temporary module after the example identifier, so a
+traceback points at that fence; `execute_source` defaults to `example.py` for
+callers that pass their own module, such as the `scripts.package` registration
+in the Cyclopts tests. The caller's `__file__`, `__name__` and extra globals
+are preserved in both cases. `tests/test_scripting_standards_examples.py` and
+`tests/test_scripting_standards_cyclopts_examples.py` use these helpers; the
+latter covers the Cyclopts JSON contract and the documented environment test.
 
 ### Rust API doc example contract
 

@@ -24,16 +24,13 @@ from hypothesis import given, settings, strategies as st
 import pytest
 import yaml
 
-from tested_example_test_support import load_tested_examples
-
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTING_STANDARDS_PATH = (
-    REPOSITORY_ROOT / "documentation-library" / "scripting-standards.md"
+from scripting_standards_example_support import (
+    EXAMPLES,
+    SCRIPTING_STANDARDS_PATH,
+    example_source,
+    execute_example,
 )
-EXAMPLES = {
-    example.identifier: example
-    for example in load_tested_examples(SCRIPTING_STANDARDS_PATH)
-}
+
 PARAMETER_EXAMPLES = {
     "cyclopts-parameter-name",
     "cyclopts-parameter-config",
@@ -41,33 +38,6 @@ PARAMETER_EXAMPLES = {
 }
 CONCURRENT_SCENARIO_ENV = "SCRIPTING_STANDARDS_CONCURRENT_SCENARIO"
 CONCURRENT_STATE_ENV = "SCRIPTING_STANDARDS_CONCURRENT_STATE"
-
-
-def _example_source(identifier: str) -> str:
-    """Return the shipped source for one marked scripting-standard example."""
-    return EXAMPLES[identifier].body
-
-
-def _execute_example(
-    identifier: str,
-    *,
-    filename: Path | None = None,
-    extra_globals: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Execute one shipped Python example in an isolated module namespace."""
-    example = EXAMPLES[identifier]
-    assert example.language == "python", (
-        f"tested example {identifier!r} must be a Python fence"
-    )
-    namespace: dict[str, Any] = {
-        "__file__": str(filename or SCRIPTING_STANDARDS_PATH),
-        "__name__": "tested_scripting_standards_example",
-    }
-    if extra_globals is not None:
-        namespace.update(extra_globals)
-    code = compile(example.body, f"{SCRIPTING_STANDARDS_PATH}:{identifier}", "exec")
-    exec(code, namespace)
-    return namespace
 
 
 def _install_concurrent_command_stub(
@@ -237,7 +207,7 @@ def test_shared_catalogue_example_runs_a_registered_git_command(
     (package_path / "__init__.py").write_text("", encoding="utf-8")
     (utils_path / "__init__.py").write_text("", encoding="utf-8")
     (utils_path / "commands.py").write_text(
-        _example_source("catalogue-definition") + "\n",
+        example_source("catalogue-definition") + "\n",
         encoding="utf-8",
     )
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -246,7 +216,7 @@ def test_shared_catalogue_example_runs_a_registered_git_command(
     ).returns(stdout="a1b2c3\n")
     cmd_mox.replay()
 
-    namespace = _execute_example("catalogue-scoped-use")
+    namespace = execute_example("catalogue-scoped-use")
 
     cmd_mox.verify()
     assert namespace["last_commit"] == "a1b2c3", (
@@ -264,7 +234,7 @@ def test_capture_output_example_returns_the_successful_stdout(
     )
     cmd_mox.replay()
 
-    namespace = _execute_example("capture-output")
+    namespace = execute_example("capture-output")
 
     cmd_mox.verify()
     assert namespace["result"].ok, "the successful status command must be ok"
@@ -287,7 +257,7 @@ def test_capture_output_example_keeps_nonzero_results_explicit(
     cmd_mox.replay()
 
     with pytest.raises(SystemExit) as failure:
-        _execute_example("capture-output")
+        execute_example("capture-output")
 
     cmd_mox.verify()
     assert failure.value.code == 7, "the example must preserve the command exit code"
@@ -302,7 +272,7 @@ def test_capture_output_example_surfaces_a_missing_executable(
     monkeypatch.setenv("PATH", str(empty_path))
 
     with pytest.raises(FileNotFoundError, match="git"):
-        _execute_example("capture-output")
+        execute_example("capture-output")
 
 
 @pytest.mark.cmd_mox(auto_lifecycle=False)
@@ -321,7 +291,7 @@ def test_execution_context_example_runs_with_cwd_environment_and_stdin(
     git = cmd_mox.mock("git").times(2).runs(git_handler)
     cmd_mox.replay()
 
-    namespace = _execute_example(
+    namespace = execute_example(
         "execution-context-input",
         filename=tmp_path / "scripts" / "publish.py",
     )
@@ -365,7 +335,7 @@ def test_presence_flag_example_builds_the_expected_argv(cmd_mox: CmdMox) -> None
     ).returns()
     cmd_mox.replay()
 
-    namespace = _execute_example("presence-flags")
+    namespace = execute_example("presence-flags")
 
     cmd_mox.verify()
     assert namespace["command"].argv == (
@@ -386,7 +356,7 @@ def test_pipeline_example_checks_all_stages_and_returns_final_stdout(
     cmd_mox.mock("grep").with_args("fix").returns(stdout="a1b2c3 fix observer\n")
     cmd_mox.replay()
 
-    namespace = _execute_example("pipeline-results")
+    namespace = execute_example("pipeline-results")
 
     cmd_mox.verify()
     assert namespace["result"].ok, "both pipeline stages must succeed"
@@ -410,7 +380,7 @@ def test_concurrent_example_runs_bounded_commands_in_submission_order(
 
     cargo = cmd_mox.mock("cargo").times(2).runs(cargo_handler)
     cmd_mox.replay()
-    namespace = _execute_example("concurrent-commands")
+    namespace = execute_example("concurrent-commands")
 
     aggregate = asyncio.run(namespace["run_all"]())
 
@@ -443,7 +413,7 @@ def test_concurrent_example_generated_batches_keep_order_and_bounds(
             exit_codes=exit_codes,
             delays_ms=delays_ms,
         )
-        namespace = _execute_example("concurrent-commands")
+        namespace = execute_example("concurrent-commands")
         aggregate = _run_concurrent_example_batch(
             namespace,
             len(exit_codes),
@@ -495,7 +465,7 @@ def test_concurrent_example_fail_fast_maps_compacted_results_to_submissions(
             exit_codes=exit_codes,
             delays_ms=delays_ms,
         )
-        namespace = _execute_example("concurrent-commands")
+        namespace = execute_example("concurrent-commands")
         aggregate = _run_concurrent_example_batch(
             namespace,
             command_count,
@@ -531,7 +501,7 @@ def test_observer_example_filters_non_exit_events_and_logs_exit(
     cmd_mox.replay()
     caplog.set_level(logging.INFO)
 
-    _execute_example("observer-exit")
+    execute_example("observer-exit")
 
     cmd_mox.verify()
     records = [record for record in caplog.records if record.msg.startswith("Completed")]
@@ -546,7 +516,7 @@ def test_cmd_mox_happy_path_example_replays_and_verifies(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published cmd-mox happy-path test runs against the beta2 API."""
-    namespace = _execute_example("cmd-mox-tests")
+    namespace = execute_example("cmd-mox-tests")
 
     namespace["test_git_tag_happy_path"](cmd_mox, tmp_path)
 
@@ -556,7 +526,7 @@ def test_cmd_mox_failure_example_preserves_stderr_and_exit_code(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published failure test distinguishes nonzero results from exceptions."""
-    namespace = _execute_example("cmd-mox-tests")
+    namespace = execute_example("cmd-mox-tests")
 
     namespace["test_git_tag_failure_surface_error"](cmd_mox, tmp_path)
 
@@ -566,6 +536,6 @@ def test_cmd_mox_spy_example_records_passthrough_arguments(
     cmd_mox: CmdMox, tmp_path: Path
 ) -> None:
     """The published spy example records the real command's single argument."""
-    namespace = _execute_example("cmd-mox-spy")
+    namespace = execute_example("cmd-mox-spy")
 
     namespace["test_spy_and_record"](cmd_mox, tmp_path)
