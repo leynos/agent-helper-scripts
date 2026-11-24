@@ -8,6 +8,7 @@ dev = [
   "cmd-mox",
   "cuprum==0.2.0b2",
   "cyclopts>=5.4.0,<6",
+  "femtologging",
   "hypothesis",
   "pytest",
   "pytest-bdd",
@@ -21,3 +22,6 @@ dev = [
 markers = [
   "slow: exercises an external tool or process boundary",
 ]
+
+[tool.uv.sources]
+femtologging = { git = "https://github.com/leynos/femtologging.git", rev = "c77e726e0053bcf6cbbe43334e05cd10704e1b9a" }

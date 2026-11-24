@@ -24,8 +24,23 @@ HOME_PHASE_HELPERS != awk '\
 ' bootstrap-common
 HOME_PHASE_SCRIPTS := rust-entrypoint-home $(HOME_PHASE_HELPERS)
 HOME_PHASE_BOUNDARY_PATTERN := ^[[:space:]]*(apt-get|apt-update-if-stale|sudo|install|realpath|ln)([[:space:]]|$$)|/etc/apt|/usr/bin/ld|update-ca-certificates|/var/lib/apt
+# The dev environment builds the pinned femtologging checkout, whose
+# `.cargo/config.toml` selects the mold linker on Linux. A host without mold
+# cannot link that build, and Cargo takes an assigned `RUSTFLAGS` instead of
+# that `rustflags` table, so an empty value keeps the platform linker. A
+# developer who exports `RUSTFLAGS`, or who installs mold, keeps their own
+# setting. The prefix covers the three variables that resolve the project
+# environment: pytest, skills-ref, and yamllint. Interrogate and the typos
+# builder run from `uv tool` environments and never build the dependency.
+# Both probes are overridable, so tests can pin the host shape without
+# manipulating PATH: `make UNAME_S=Darwin` or `make MOLD=`.
+UNAME_S ?= $(shell uname -s)
+MOLD ?= $(shell command -v mold)
+FEMTOLOGGING_LINK_ENV := $(if $(filter Linux,$(UNAME_S)),\
+	$(if $(RUSTFLAGS),,$(if $(MOLD),,RUSTFLAGS=)),)
+
 PYTHON_SCRIPTS := $(sort $(wildcard hooks/*.py scripts/*.py scripts/*/*.py tests/*.py))
-PYTEST := uv run --group dev python -m pytest
+PYTEST := $(FEMTOLOGGING_LINK_ENV) uv run --group dev python -m pytest
 # The spelling gate is the shared builder, pinned to a released tag. It owns the
 # Typos version, the phrase corrections, and the generated typos.toml, so this
 # repository carries no spelling helper of its own.
@@ -37,8 +52,8 @@ REPO_TESTS := $(sort $(wildcard tests/test_*.py))
 ENTRYPOINT_TESTS := $(filter tests/test_rust_entrypoints.py,$(REPO_TESTS))
 TEST_TARGETS := $(REPO_TESTS)
 SKILL_DIRS ?= $(sort $(dir $(wildcard skills/*/SKILL.md)))
-SKILLS_REF := uv run --group dev skills-ref
-YAMLLINT := uv run --group dev yamllint
+SKILLS_REF := $(FEMTOLOGGING_LINK_ENV) uv run --group dev skills-ref
+YAMLLINT := $(FEMTOLOGGING_LINK_ENV) uv run --group dev yamllint
 SKILL_YAMLLINT_CONFIG := {extends: default, rules: {line-length: disable}}
 # The Markdown gate calls the linter directly. The repository's own
 # `markdownlint` wrapper covers the case where nothing has installed
@@ -201,6 +216,14 @@ cyclopts-floor:
 		"import cyclopts; print('cyclopts', cyclopts.__version__)"
 	@uv run --group dev --with 'cyclopts==$(CYCLOPTS_FLOOR)' \
 		python -m pytest tests/test_scripting_standards_cyclopts_examples.py -v
+
+# The tests build the pinned femtologging checkout, whose `.cargo/config.toml`
+# selects the mold linker on Linux. A host without mold cannot link that build,
+# and Cargo takes an assigned `RUSTFLAGS` instead of that `rustflags` table, so
+# an empty value keeps the platform linker. A developer who exports `RUSTFLAGS`,
+# or who installs mold, keeps their own setting.
+FEMTOLOGGING_LINK_ENV := $(if $(filter Linux,$(shell uname -s)),\
+	$(if $(RUSTFLAGS),,$(if $(shell command -v mold),,RUSTFLAGS=)),)
 
 test:
 	@$(PYTEST) $(TEST_TARGETS) -v

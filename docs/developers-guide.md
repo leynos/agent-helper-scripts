@@ -2264,6 +2264,48 @@ are preserved in both cases. `tests/test_scripting_standards_examples.py` and
 `tests/test_scripting_standards_cyclopts_examples.py` use these helpers; the
 latter covers the Cyclopts JSON contract and the documented environment test.
 
+### Executing the Femtologging example
+
+The marker contract alone cannot tell a working example from one that calls an
+API the library does not offer. `tests/test_femtologging_documented_example.py`
+therefore loads the `femtologging-callback-enrichment-accepted` fence from the
+shipped guide, executes it exactly as published, and asserts that the
+configured callback filter stamps the delivered record with the documented
+fields. An edit that reverts the example to an unsupported call fails that test
+rather than reaching a reader.
+
+The example needs the real library, which is not published on PyPI, so
+`pyproject.toml` carries a dev dependency on `leynos/femtologging` at a pinned
+commit. `uv.lock` records the exact revision, and refreshing it is a deliberate
+change rather than an incidental one: the pin decides which builder API the
+guide is proved against, so moving it belongs in a reviewed commit of its own.
+To move it, edit `tool.uv.sources.femtologging.rev` to the target commit, run
+`uv lock --upgrade-package femtologging`, and then run
+`make test TEST_TARGETS=tests/test_femtologging_documented_example.py` so the
+guide is re-proved against the new builder API. Running the focused test through
+`make` keeps the linker fallback described below; a bare `uv run` would bypass
+it and could fail to build the new revision.
+
+The dependency build is native. On Linux, the femtologging checkout's
+`.cargo/config.toml` selects the mold linker, so a host without mold cannot
+link it. Cargo takes an assigned `RUSTFLAGS` instead of that `rustflags` table,
+so every Makefile command that resolves the dev environment — `test`,
+`test-entrypoints`, `skill-frontmatter-lint`, and `skill-manifest-validate` —
+carries an empty `RUSTFLAGS=` prefix when mold is absent, which keeps the
+platform linker. Interrogate and the typos builder run from isolated `uv tool`
+environments and never build the dependency. A developer who exports
+`RUSTFLAGS`, or who installs mold, keeps their own setting and gets the faster
+link. The GitHub workflow assigns the empty value for the same reason: its
+runner has no mold. An empty `RUSTFLAGS` is treated exactly like an unset one,
+so the workflow's value and a bare local run resolve to the same command.
+
+Both probes are overridable, which is how the fallback is tested without
+manipulating `PATH`: `UNAME_S ?= $(shell uname -s)` and
+`MOLD ?= $(shell command -v mold)` can be pinned per invocation, so
+`tests/test_makefile_checks.py` exercises the whole matrix — Linux with or
+without mold, a caller-assigned `RUSTFLAGS`, an empty one, and a non-Linux host
+— through `make --dry-run`.
+
 ### Rust API doc example contract
 
 The style guide's "API doc comments (Rust)" section ships an example that a

@@ -12,6 +12,7 @@ dev = [
     { name = "cmd-mox" },
     { name = "cuprum" },
     { name = "cyclopts" },
+    { name = "femtologging" },
     { name = "hypothesis" },
     { name = "pytest" },
     { name = "pytest-bdd" },
@@ -28,6 +29,7 @@ dev = [
     { name = "cmd-mox" },
     { name = "cuprum", specifier = "==0.2.0b2" },
     { name = "cyclopts", specifier = ">=5.4.0,<6" },
+    { name = "femtologging", git = "https://github.com/leynos/femtologging.git?rev=c77e726e0053bcf6cbbe43334e05cd10704e1b9a" },
     { name = "hypothesis" },
     { name = "pytest" },
     { name = "pytest-bdd" },
@@ -92,7 +94,7 @@ wheels = [
 
 [[package]]
 name = "cyclopts"
-version = "5.4.0"
+version = "5.5.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -100,9 +102,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/ea/b4237c7955b11d529ac29fa5b55ce744c6e09514753725337c270aa4ae43/cyclopts-5.4.0.tar.gz", hash = "sha256:a853c9394fde3e3ec0a1b50c7e20b64bb49dfd71baef5f24eceb7bb397171a41", size = 257584, upload-time = "2026-11-08T14:37:40.844Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/5d/cee0096dd8c5ad13ce516599c4823637d0107643666a03ddc43a9580391f/cyclopts-5.5.2.tar.gz", hash = "sha256:c0339b7ddd7b1c886f13bb8b68a6a65aa7144d3027f1d0e290be514b8fe1589b", size = 258336, upload-time = "2026-11-16T16:26:28.322Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/7b/0e423f10ac1d19c7405301874caf7c2b76a977dc9901dd8da70707b0187f/cyclopts-5.4.0-py3-none-any.whl", hash = "sha256:29a4639849e9161f64bce7904c787b85f6a8accfb08cd675ad70b7753af57e81", size = 300383, upload-time = "2026-11-08T14:37:39.152Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/b2/be66b75ce0a3ccc7aa3601c9e7f9cd0fbad4301183fc7105c6b9faebeaeb/cyclopts-5.5.2-py3-none-any.whl", hash = "sha256:4fbe863ebace1c65dafc6520c82217915b103d27fbd1d8fcd168f2abcca3a12a", size = 301206, upload-time = "2026-11-16T16:26:26.615Z" },
 ]
 
 [[package]]
@@ -113,6 +115,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", hash = "sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b", size = 22484, upload-time = "2026-04-14T04:09:18.638Z" },
 ]
+
+[[package]]
+name = "femtologging"
+version = "0.1.0"
+source = { git = "https://github.com/leynos/femtologging.git?rev=c77e726e0053bcf6cbbe43334e05cd10704e1b9a#c77e726e0053bcf6cbbe43334e05cd10704e1b9a" }
 
 [[package]]
 name = "gherkin-official"

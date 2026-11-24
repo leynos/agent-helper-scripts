@@ -2,20 +2,30 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_make(*args: str) -> subprocess.CompletedProcess[str]:
+def run_make(
+    *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run make from the repository root.
 
     Parameters
     ----------
     *args
         Make arguments to pass after the executable name.
+    env
+        Complete environment for the child. ``None`` inherits this process's
+        environment, which is what most callers want; a supplied mapping
+        replaces it, so a caller can control ``RUSTFLAGS`` and the link probes
+        exactly.
 
     Returns
     -------
@@ -29,6 +39,7 @@ def run_make(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603,S607 - controlled args, shell=False, repo-root make lookup.
         ["make", *args],
         cwd=REPO_ROOT,
+        env=env,
         text=True,
         capture_output=True,
         check=False,
@@ -95,4 +106,107 @@ def test_home_phase_boundary_rejects_forbidden_commands(tmp_path: Path) -> None:
     )
     assert f"{script.as_posix()}:4:" in result.stdout, (
         f"expected '{script.as_posix()}:4:' in stdout, got: {result.stdout}"
+    )
+
+
+def _dry_run_command(target: str, *, uname: str, mold: str, rustflags: str | None) -> str:
+    """Return the recipe make prints for ``target`` under a pinned host shape.
+
+    ``UNAME_S``, ``MOLD`` and ``RUSTFLAGS`` are the three inputs the fallback
+    reads, so a test can pin every branch without manipulating ``PATH`` or the
+    real toolchain.
+    """
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key != "RUSTFLAGS" and not key.startswith("MAKEFLAGS")
+    }
+    if rustflags is not None:
+        env["RUSTFLAGS"] = rustflags
+    result = run_make(
+        "--dry-run",
+        target,
+        f"UNAME_S={uname}",
+        f"MOLD={mold}",
+        env=env,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout.strip()
+
+
+def _recipe(output: str) -> str:
+    """Return make's dry-run recipe text, which may span several lines."""
+    assert output.strip(), "make printed no recipe"
+    return output
+
+
+#: The three commands that resolve the dev environment and can therefore
+#: build the pinned femtologging checkout. ``interrogate`` and the typos
+#: builder run from isolated ``uv tool`` environments and are deliberately
+#: absent.
+LINKER_COVERED_TARGETS = ("test", "skill-manifest-validate", "skill-frontmatter-lint")
+
+
+@pytest.mark.parametrize("target", LINKER_COVERED_TARGETS)
+def test_linker_fallback_prefixes_every_dev_environment_command(target: str) -> None:
+    """Linux without mold and without caller flags gets the empty prefix."""
+    command = _recipe(
+        _dry_run_command(target, uname="Linux", mold="", rustflags=None)
+    )
+
+    assert "RUSTFLAGS=" in command, (
+        f"{target} must carry the platform-linker fallback, got {command!r}"
+    )
+
+
+@pytest.mark.parametrize("target", LINKER_COVERED_TARGETS)
+def test_linker_fallback_preserves_a_caller_assigned_rustflags(target: str) -> None:
+    """A caller-assigned ``RUSTFLAGS`` is never displaced by the fallback."""
+    command = _recipe(
+        _dry_run_command(target, uname="Linux", mold="", rustflags="-Dwarnings")
+    )
+
+    assert "RUSTFLAGS=" not in command, (
+        f"{target} must not override a caller-assigned RUSTFLAGS, got {command!r}"
+    )
+
+
+@pytest.mark.parametrize("target", LINKER_COVERED_TARGETS)
+def test_linker_fallback_is_skipped_when_mold_is_installed(target: str) -> None:
+    """A host with mold keeps the femtologging build's faster link."""
+    command = _recipe(
+        _dry_run_command(
+            target, uname="Linux", mold="/usr/bin/mold", rustflags=None
+        )
+    )
+
+    assert "RUSTFLAGS=" not in command, (
+        f"{target} must keep mold when it is installed, got {command!r}"
+    )
+
+
+@pytest.mark.parametrize("target", LINKER_COVERED_TARGETS)
+def test_linker_fallback_is_linux_only(target: str) -> None:
+    """A non-Linux host links with its own platform toolchain."""
+    command = _recipe(
+        _dry_run_command(target, uname="Darwin", mold="", rustflags=None)
+    )
+
+    assert "RUSTFLAGS=" not in command, (
+        f"{target} must not carry a Linux-only fallback, got {command!r}"
+    )
+
+
+def test_an_empty_caller_rustflags_is_treated_as_unset() -> None:
+    """The CI step's ``RUSTFLAGS: ""`` yields the same command as an unset one."""
+    empty = _recipe(
+        _dry_run_command("test", uname="Linux", mold="", rustflags="")
+    )
+    unset = _recipe(
+        _dry_run_command("test", uname="Linux", mold="", rustflags=None)
+    )
+
+    assert empty == unset, (
+        "an empty RUSTFLAGS must not change the resolved command, "
+        f"got {empty!r} and {unset!r}"
     )
