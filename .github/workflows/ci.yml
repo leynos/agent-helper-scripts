@@ -28,7 +28,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
 
       # Two contracts execute a guide example with `cargo test --doc`:
       # `tests/test_documentation_style_guide_rust_doctest.py` and
