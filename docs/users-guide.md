@@ -992,6 +992,32 @@ stage can make it inaccurate, and a reading that would be negative is reported
 as zero. It omits tokens, account names, comment bodies, and raw GitHub error
 text.
 
+#### Posting from the command line
+
+[`bin/bot-comment.sh`](../bin/bot-comment.sh) is a command-line front end to
+the same helper, for operators and agents on the host that holds the token
+pool. It takes a mode, so one command covers each comment surface:
+
+```bash
+bin/bot-comment.sh pr    OWNER/REPO PR_NUMBER BODY_FILE
+bin/bot-comment.sh issue OWNER/REPO ISSUE_NUMBER BODY_FILE
+bin/bot-comment.sh reply OWNER/REPO PR_NUMBER ROOT_COMMENT_ID BODY_FILE
+```
+
+Before anything is posted, it applies the skill's CodeRabbit routing rules:
+
+- It refuses `@coderabbitai review` and `@coderabbitai full review`, which
+  belong to the managed queue.
+- It refuses a top-level PR comment that does not open with the
+  `@coderabbitai` mention followed by whitespace, because CodeRabbit ignores a
+  question that does not mention it. Set `BOT_COMMENT_NO_MENTION=1` for a PR
+  comment that is not addressed to CodeRabbit.
+
+Token selection, the identity checks, the diagnostics and the printed URL all
+come from the helper unchanged. The script finds the helper beside it in a
+checkout, then in the installed skill under `~/.claude/skills` or
+`~/.codex/skills`. Set `BOT_COMMENT_HELPER` to point it elsewhere.
+
 New and repeated formal CodeRabbit reviews go through the managed `comenq`
 queue only after verified readiness, including review rate-limit recovery. Do
 not request formal reviews through manual comments, review checkboxes, or the
